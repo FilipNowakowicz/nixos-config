@@ -5,14 +5,14 @@ variable "gcp_project" {
 
 variable "region" {
   type        = string
-  description = "GCP region (us-central1 is covered by free tier)"
-  default     = "us-central1"
+  description = "GCP region"
+  default     = "europe-west2"
 }
 
 variable "zone" {
   type        = string
   description = "GCP zone within the region"
-  default     = "us-central1-a"
+  default     = "europe-west2-a"
 }
 
 variable "machine_type" {
@@ -27,14 +27,22 @@ variable "disk_size_gb" {
   default     = 50
 }
 
-variable "image_path" {
+variable "bootstrap_image_project" {
   type        = string
-  description = "Local path to the NixOS GCE image (*.raw.tar.gz) produced by nix build"
+  description = "GCP project containing the stock bootstrap image family"
+  default     = "debian-cloud"
 }
 
-variable "image_version" {
+variable "bootstrap_image_family" {
   type        = string
-  description = "Version tag for the uploaded image — change this to force a new upload"
+  description = "GCP image family used for the temporary bootstrap VM"
+  default     = "debian-12"
+}
+
+variable "bootstrap_ssh_public_key" {
+  type        = string
+  sensitive   = true
+  description = "Public SSH key installed for temporary root bootstrap access"
 }
 
 variable "ssh_host_key_b64" {

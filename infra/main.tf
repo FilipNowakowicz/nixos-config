@@ -2,49 +2,6 @@ locals {
   name = "homeserver-gcp"
 }
 
-# ── Image storage ────────────────────────────────────────────────────────────
-
-resource "google_storage_bucket" "images" {
-  name                        = "${var.gcp_project}-${local.name}-images"
-  location                    = var.region
-  force_destroy               = true
-  uniform_bucket_level_access = true
-
-  lifecycle_rule {
-    condition { age = 60 }
-    action { type = "Delete" }
-  }
-}
-
-resource "google_storage_bucket_object" "nixos_image" {
-  name   = "${local.name}-${var.image_version}.raw.tar.gz"
-  bucket = google_storage_bucket.images.name
-  source = var.image_path
-}
-
-# ── Custom GCE image ─────────────────────────────────────────────────────────
-
-resource "google_compute_image" "nixos" {
-  name        = "${local.name}-${replace(var.image_version, ".", "-")}"
-  description = "NixOS ${local.name}"
-
-  raw_disk {
-    source = "https://storage.googleapis.com/${google_storage_bucket.images.name}/${google_storage_bucket_object.nixos_image.name}"
-  }
-
-  guest_os_features {
-    type = "VIRTIO_SCSI_MULTIQUEUE"
-  }
-
-  timeouts {
-    create = "15m"
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
 # ── Firewall ─────────────────────────────────────────────────────────────────
 
 resource "google_compute_firewall" "tailscale" {
@@ -58,7 +15,7 @@ resource "google_compute_firewall" "tailscale" {
   }
 
   target_tags   = [local.name]
-  source_ranges = ["0.0.0.0/0", "::/0"]
+  source_ranges = ["0.0.0.0/0"]
 }
 
 # ── VM instance ──────────────────────────────────────────────────────────────
@@ -71,7 +28,7 @@ resource "google_compute_instance" "homeserver_gcp" {
 
   boot_disk {
     initialize_params {
-      image = google_compute_image.nixos.self_link
+      image = "projects/${var.bootstrap_image_project}/global/images/family/${var.bootstrap_image_family}"
       size  = var.disk_size_gb
       type  = "pd-ssd"
     }
@@ -83,6 +40,10 @@ resource "google_compute_instance" "homeserver_gcp" {
   }
 
   metadata = {
+    # Temporary bootstrap access for nixos-anywhere. The startup script installs
+    # this key into a temporary sudo-capable bootstrap account.
+    bootstrap-ssh-public-key = var.bootstrap_ssh_public_key
+
     # Pre-baked SSH host key for sops bootstrap — consumed by the
     # injectGceSshHostKey activation script on first boot.
     # The key is only needed until Tailscale is up; remove it afterwards:
@@ -91,11 +52,33 @@ resource "google_compute_instance" "homeserver_gcp" {
 
     # Enable GCE serial console login for emergency recovery.
     serial-port-enable = "TRUE"
+
+    startup-script = <<-EOT
+      #!/bin/bash
+      set -euo pipefail
+
+      BOOTSTRAP_KEY="$(curl -fsS -H 'Metadata-Flavor: Google' \
+        http://metadata.google.internal/computeMetadata/v1/instance/attributes/bootstrap-ssh-public-key)"
+
+      if ! id -u bootstrap >/dev/null 2>&1; then
+        useradd --create-home --shell /bin/bash bootstrap
+      fi
+
+      install -d -m 700 -o bootstrap -g bootstrap /home/bootstrap/.ssh
+      printf '%s\n' "$BOOTSTRAP_KEY" > /home/bootstrap/.ssh/authorized_keys
+      chown bootstrap:bootstrap /home/bootstrap/.ssh/authorized_keys
+      chmod 600 /home/bootstrap/.ssh/authorized_keys
+
+      printf 'bootstrap ALL=(ALL) NOPASSWD:ALL\n' >/etc/sudoers.d/90-bootstrap
+      chmod 440 /etc/sudoers.d/90-bootstrap
+
+      systemctl reload ssh || systemctl reload sshd || true
+    EOT
   }
 
-  # Boot disk image is managed by image_version; don't let tofu replace the
-  # running VM on every image rebuild — config updates use deploy-rs instead.
   lifecycle {
-    ignore_changes = [boot_disk[0].initialize_params[0].image]
+    ignore_changes = [
+      metadata["ssh-host-key-b64"],
+    ]
   }
 }
