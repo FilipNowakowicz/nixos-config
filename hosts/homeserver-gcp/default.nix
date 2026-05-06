@@ -17,6 +17,8 @@
     ../../modules/nixos/profiles/user.nix
   ];
 
+  environment.systemPackages = [ pkgs.kitty ];
+
   system = {
     stateVersion = "24.11";
 
@@ -52,47 +54,17 @@
       setupSecrets.deps = lib.mkAfter [ "injectGceSshHostKey" ];
       setupSecretsForUsers.deps = lib.mkAfter [ "injectGceSshHostKey" ];
 
-      # Temporary bootstrap SSH for first-boot recovery. Remove after Tailscale works.
-      installBootstrapSsh = lib.stringAfter [ "users" ] ''
-        _tmppub=$(${pkgs.coreutils}/bin/mktemp -p /run)
-        _fetched=0
-        for _i in 1 2 3 4 5; do
-          if ${pkgs.curl}/bin/curl -sf --max-time 5 \
-            -H "Metadata-Flavor: Google" \
-            "http://metadata.google.internal/computeMetadata/v1/instance/attributes/bootstrap-ssh-public-key" \
-            > "$_tmppub" 2>/dev/null; then
-            _fetched=1
-            break
-          fi
-          sleep 2
-        done
-        if [ "$_fetched" = "1" ] && [ -s "$_tmppub" ]; then
-          install -d -m 700 -o bootstrap -g users /home/bootstrap/.ssh
-          install -m 600 -o bootstrap -g users "$_tmppub" /home/bootstrap/.ssh/authorized_keys
-        fi
-        rm -f "$_tmppub"
-      '';
     };
   };
 
   security.sudo.wheelNeedsPassword = lib.mkForce true;
-  security.sudo.extraRules = [
-    {
-      users = [ "bootstrap" ];
-      commands = [
-        {
-          command = "ALL";
-          options = [ "NOPASSWD" ];
-        }
-      ];
-    }
-  ];
 
   nix.settings.trusted-users = lib.mkForce [ "root" ];
 
   networking = {
     hostName = "homeserver-gcp";
     firewall = {
+      checkReversePath = "loose";
       allowedTCPPorts = [ 22 ];
       interfaces.tailscale0.allowedTCPPorts = [ 22 ];
     };
@@ -137,13 +109,6 @@
     user = {
       home = "/home/user";
       hashedPasswordFile = config.sops.secrets.user_password.path;
-    };
-
-    bootstrap = {
-      isNormalUser = true;
-      extraGroups = [ "wheel" ];
-      home = "/home/bootstrap";
-      createHome = true;
     };
   };
 

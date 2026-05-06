@@ -183,7 +183,7 @@ let
       system = "x86_64-linux";
       status = "inactive";
       homeManager.role = "server";
-      tailnetFQDN = "homeserver.filip-nowakowicz.ts.net";
+      tailnetFQDN = "homeserver.tail90fc7a.ts.net";
       tailscale = {
         tag = "server";
         acceptFrom.workstation = [
@@ -213,7 +213,7 @@ let
       system = "x86_64-linux";
       status = "inactive";
       homeManager.role = "server";
-      tailnetFQDN = "homeserver-gcp.filip-nowakowicz.ts.net";
+      tailnetFQDN = "homeserver-gcp.tail90fc7a.ts.net";
       tailscale = {
         tag = "server";
         acceptFrom.workstation = [
