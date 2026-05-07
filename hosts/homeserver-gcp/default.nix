@@ -3,8 +3,12 @@
   lib,
   pkgs,
   inputs,
+  hostMeta,
   ...
 }:
+let
+  inherit (hostMeta) tailnetFQDN;
+in
 {
   imports = [
     inputs.disko.nixosModules.disko
@@ -18,6 +22,39 @@
   ];
 
   environment.systemPackages = [ pkgs.kitty ];
+
+  systemd.services = {
+    tailscale-cert = {
+      description = "Fetch TLS certificate from Tailscale";
+      wantedBy = [ "multi-user.target" ];
+      after = [
+        "tailscaled.service"
+        "network-online.target"
+      ];
+      wants = [ "network-online.target" ];
+      script = ''
+        for attempt in {1..60}; do
+          ${pkgs.tailscale}/bin/tailscale status > /dev/null 2>&1 && break
+          [ $attempt -lt 60 ] && sleep 1
+        done
+        mkdir -p /var/lib/tailscale/certs
+        ${pkgs.tailscale}/bin/tailscale cert \
+          --cert-file /var/lib/tailscale/certs/homeserver-gcp.crt \
+          --key-file /var/lib/tailscale/certs/homeserver-gcp.key \
+          ${tailnetFQDN}
+      '';
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        TimeoutStartSec = 60;
+      };
+    };
+
+    nginx = {
+      after = [ "tailscale-cert.service" ];
+      requires = [ "tailscale-cert.service" ];
+    };
+  };
 
   system = {
     stateVersion = "24.11";
@@ -65,8 +102,10 @@
     hostName = "homeserver-gcp";
     firewall = {
       checkReversePath = "loose";
-      allowedTCPPorts = [ 22 ];
-      interfaces.tailscale0.allowedTCPPorts = [ 22 ];
+      interfaces.tailscale0.allowedTCPPorts = [
+        22
+        443
+      ];
     };
   };
 
@@ -82,7 +121,7 @@
   services = {
     openssh = {
       enable = true;
-      openFirewall = true;
+      openFirewall = false;
     };
 
     tailscale = {
@@ -95,6 +134,62 @@
       ForwardToConsole=yes
       MaxLevelConsole=info
     '';
+
+    hardened = {
+      tailscale-cert = {
+        extraConfig = {
+          ProtectHome = false;
+          ReadWritePaths = [ "/var/lib/tailscale" ];
+          RestrictAddressFamilies = [ "AF_UNIX" ];
+        };
+      };
+
+      nginx = {
+        extraConfig = {
+          CapabilityBoundingSet = "CAP_NET_BIND_SERVICE";
+          AmbientCapabilities = "CAP_NET_BIND_SERVICE";
+          ReadWritePaths = [
+            "/var/cache/nginx"
+            "/var/log/nginx"
+          ];
+        };
+      };
+
+      vaultwarden = {
+        extraConfig = {
+          CapabilityBoundingSet = "";
+          AmbientCapabilities = "";
+          ReadWritePaths = [ "/var/lib/vaultwarden" ];
+        };
+      };
+    };
+
+    vaultwarden = {
+      enable = true;
+      config = {
+        ROCKET_ADDRESS = "127.0.0.1";
+        ROCKET_PORT = 8222;
+        SIGNUPS_ALLOWED = false;
+        DOMAIN = "https://${tailnetFQDN}";
+      };
+    };
+
+    nginx = {
+      enable = true;
+      recommendedProxySettings = true;
+      recommendedTlsSettings = true;
+
+      virtualHosts.${tailnetFQDN} = {
+        forceSSL = true;
+        sslCertificate = "/var/lib/tailscale/certs/homeserver-gcp.crt";
+        sslCertificateKey = "/var/lib/tailscale/certs/homeserver-gcp.key";
+
+        locations."/" = {
+          proxyPass = "http://127.0.0.1:8222";
+          proxyWebsockets = true;
+        };
+      };
+    };
   };
 
   sops = {

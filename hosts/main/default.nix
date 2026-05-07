@@ -9,6 +9,61 @@ let
   # Keep the homeserver microVM host integration out of the normal workstation
   # closure. Flip this to true when actively using the local microVM.
   enableHomeserverMicrovm = false;
+  tailscaleBypassRules = pkgs.writeShellScript "tailscale-bypass-rules" ''
+    set -eu
+
+    ip_bin=${pkgs.iproute2}/bin/ip
+    awk_bin=${pkgs.gawk}/bin/awk
+    sleep_bin=${pkgs.coreutils}/bin/sleep
+
+    tailscale_table=""
+    for _attempt in 1 2 3 4 5; do
+      tailscale_table=$(
+        {
+          "$ip_bin" rule show
+          "$ip_bin" -6 rule show
+          "$ip_bin" -o route show table all
+          "$ip_bin" -o -6 route show table all
+        } | "$awk_bin" '
+          $0 ~ /^52[0-9][0-9]: from all lookup [0-9]+$/ { print $NF; exit }
+          $1 ~ /^100\./ && $0 ~ /dev tailscale0/ && $0 ~ / table [0-9]+/ {
+            for (i = 1; i <= NF; i++) if ($i == "table" && $(i + 1) ~ /^[0-9]+$/) { print $(i + 1); exit }
+          }
+          $1 ~ /^fd7a:115c:a1e0::/ && $0 ~ /dev tailscale0/ && $0 ~ / table [0-9]+/ {
+            for (i = 1; i <= NF; i++) if ($i == "table" && $(i + 1) ~ /^[0-9]+$/) { print $(i + 1); exit }
+          }
+        '
+      )
+
+      if [ -n "$tailscale_table" ]; then
+        break
+      fi
+
+      "$sleep_bin" 1
+    done
+
+    if [ -z "''${tailscale_table:-}" ]; then
+      echo "tailscale-bypass-routing: could not discover tailscale routing table" >&2
+      exit 0
+    fi
+
+    # Mullvad installs broad policy routing rules that can capture tailnet
+    # traffic on this workstation. Reassert destination-specific rules with a
+    # higher priority than Mullvad's catch-all policy rule so 100.x/ts.net
+    # traffic always uses Tailscale's table.
+    while "$ip_bin" rule del pref 120 to 100.64.0.0/10 2>/dev/null; do :; done
+    while "$ip_bin" rule del pref 117 to 100.64.0.0/10 2>/dev/null; do :; done
+    while "$ip_bin" rule del pref 114 to 100.64.0.0/10 2>/dev/null; do :; done
+    "$ip_bin" rule add pref 114 to 100.64.0.0/10 lookup "$tailscale_table"
+
+    while "$ip_bin" -6 rule del pref 120 to fd7a:115c:a1e0::/48 2>/dev/null; do :; done
+    while "$ip_bin" -6 rule del pref 117 to fd7a:115c:a1e0::/48 2>/dev/null; do :; done
+    while "$ip_bin" -6 rule del pref 114 to fd7a:115c:a1e0::/48 2>/dev/null; do :; done
+    "$ip_bin" -6 rule add pref 114 to fd7a:115c:a1e0::/48 lookup "$tailscale_table"
+
+    "$ip_bin" route flush cache 2>/dev/null || true
+    "$ip_bin" -6 route flush cache 2>/dev/null || true
+  '';
 in
 {
   imports = [
@@ -189,6 +244,8 @@ in
     restic.backups.local = {
       paths = [
         "/home/user/.ssh"
+        "/home/user/.gnupg"
+        "/home/user/nix"
         "/home/user/.mozilla/firefox"
         "/home/user/.config/spotify"
         "/home/user/.config/discord"
@@ -304,6 +361,58 @@ in
   systemd.services = {
     "systemd-networkd-wait-online".enable = lib.mkForce false;
     "NetworkManager-wait-online".enable = lib.mkForce false;
+
+    tailscale-bypass-routing = {
+      description = "Keep tailnet traffic off the Mullvad tunnel";
+      after = [
+        "tailscaled.service"
+        "mullvad-daemon.service"
+      ];
+      wants = [
+        "tailscaled.service"
+        "mullvad-daemon.service"
+      ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = tailscaleBypassRules;
+      };
+    };
+
+    tailscaled.postStart = lib.mkAfter "${tailscaleBypassRules}";
+    mullvad-daemon.postStart = lib.mkAfter "${tailscaleBypassRules}";
+
+    # Mullvad's lockdown mode installs an nftables killswitch (policy drop +
+    # `reject with tcp reset` on every output chain) that kills tailscale0
+    # traffic the same way it kills clearnet traffic — every TCP connection
+    # to a 100.64/10 peer gets an immediate RST.
+    #
+    # The bypass routing script above only fixes *routing*, not filtering, so
+    # it cannot rescue Tailscale on its own. Disable lockdown so that when
+    # Mullvad is disconnected (the default state) no killswitch firewall is
+    # active and Tailscale can use the normal NixOS firewall.
+    #
+    # Trade-off: while Mullvad is *actively connected* its in-tunnel firewall
+    # still blocks tailscale0. Use one VPN at a time — `mullvad disconnect`
+    # before relying on the tailnet.
+    mullvad-tailscale-coexist = {
+      description = "Disable Mullvad lockdown so Tailscale can coexist";
+      after = [ "mullvad-daemon.service" ];
+      bindsTo = [ "mullvad-daemon.service" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        for _ in $(${pkgs.coreutils}/bin/seq 1 30); do
+          ${pkgs.mullvad-vpn}/bin/mullvad status >/dev/null 2>&1 && break
+          ${pkgs.coreutils}/bin/sleep 1
+        done
+        ${pkgs.mullvad-vpn}/bin/mullvad lockdown-mode set off
+        ${pkgs.mullvad-vpn}/bin/mullvad auto-connect set off
+      '';
+    };
   };
 
   # ── USB Device Control ─────────────────────────────────────────────────────
