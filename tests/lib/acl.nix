@@ -15,9 +15,9 @@ let
       tailscale.tag = "workstation";
       backup.class = "standard";
     };
-    homeserver = {
+    homeserver-gcp = {
       role = "homeserver";
-      tailnetFQDN = "homeserver.example.ts.net";
+      tailnetFQDN = "homeserver-gcp.example.ts.net";
       tailscale = {
         tag = "server";
         acceptFrom.workstation = [
@@ -28,8 +28,8 @@ let
       };
       backup.class = "critical";
     };
-    homeserver-vm = {
-      role = "homeserver-vm";
+    internal-vm = {
+      role = "internal-vm";
       ip = "10.0.100.2";
       # no tailscale — must be ignored by generator
     };
@@ -133,7 +133,7 @@ let
     };
 
     testNonTailscaleHostExcludedFromTagOwners = {
-      expr = result.tagOwners ? "tag:homeserver-vm";
+      expr = result.tagOwners ? "tag:internal-vm";
       expected = false;
     };
   };

@@ -7,24 +7,20 @@ changes.
 ## Secrets
 
 Secrets are managed by `sops-nix` with age recipients configured in `.sops.yaml`.
-Some recipient groups belong to inactive targets; keep them current enough for
-evaluation and future reactivation, but do not treat them as live service access.
 
 Current recipient groups:
 
-| Group                | Purpose                                                                               |
-| :------------------- | :------------------------------------------------------------------------------------ |
-| `&user`              | Personal operator key; can decrypt all repo secrets.                                  |
-| `&vm_host`           | QEMU `vm` SSH-host-derived age identity.                                              |
-| `&homeserver_vm_age` | Dedicated age recipient for `homeserver-vm`; private key is stored in `main` secrets. |
-| `&main_host`         | `main` SSH-host-derived age identity.                                                 |
-| `&homeserver_host`   | Pre-generated homeserver SSH-host-derived age identity.                               |
+| Group                  | Purpose                                              |
+| :--------------------- | :--------------------------------------------------- |
+| `&user`                | Personal operator key; can decrypt all repo secrets. |
+| `&vm_host`             | QEMU `vm` SSH-host-derived age identity.             |
+| `&main_host`           | `main` SSH-host-derived age identity.                |
+| `&homeserver_gcp_host` | `homeserver-gcp` SSH-host-derived age identity.      |
 
 Host behavior:
 
-- `main`, `vm`, and `homeserver` use SSH-host-derived age identities through `sops.age.sshKeyPaths`.
-- `homeserver-vm` disables SSH-host-derived sops identities and reads a dedicated age key from `/run/age-keys/homeserver-vm.txt`.
-- `homeserver` bootstrap decrypts the checked-in host key material with `&user` on the operator machine, injects it during reinstall, and then relies on `&homeserver_host` from first boot onward.
+- `main`, `vm`, and `homeserver-gcp` use SSH-host-derived age identities through `sops.age.sshKeyPaths`.
+- `homeserver-gcp` uses a pre-baked encrypted SSH host key committed to the repo; `sops-nix` derives `&homeserver_gcp_host` from `/etc/ssh/ssh_host_ed25519_key` on first boot.
 - `boot.initrd.secrets` must point only at sops-managed `/run/secrets/*` paths; this is enforced by an invariant check.
 - Intentional plaintext exceptions must be narrow entries in `.plaintext-secrets-allowlist`.
 
@@ -41,17 +37,9 @@ For SSH-host-derived identities:
 4. Run `sops updatekeys <secret-file>` for every affected secret file.
 5. Deploy only after the target can access the new private key at boot.
 
-For `homeserver-vm`, rotate the dedicated age key, store the private key in
-`hosts/main/secrets/secrets.yaml`, update `&homeserver_vm_age`, and re-encrypt
-`hosts/homeserver-vm/secrets/secrets.yaml`.
-
-For `homeserver`, no temporary bootstrap recipient is needed. The operator
-already decrypts `hosts/homeserver/secrets/ssh_host_ed25519_key{,.pub}.enc`
-with `&user` during `reinstall-homeserver`, injects that SSH host key onto the
-target, and `sops-nix` derives `&homeserver_host` from `/etc/ssh/ssh_host_ed25519_key`
-on first boot. Rotate that host identity by regenerating the encrypted key pair,
-updating `&homeserver_host`, and re-encrypting every file under
-`hosts/homeserver/secrets/` in the same change.
+For `homeserver-gcp`, rotate the dedicated age key by regenerating the encrypted
+key pair, updating `&homeserver_gcp_host` in `.sops.yaml`, and re-encrypting
+every file under `hosts/homeserver-gcp/secrets/` in the same change.
 
 ## Initrd SSH Recovery
 
@@ -80,33 +68,14 @@ ssh -i /path/to/id_ed25519_recovery -p 2222 root@<host-ip>
 
 Then enter the LUKS passphrase when prompted.
 
-## Homeserver Persist Encryption
-
-Inactive target: `homeserver` encrypts `/persist` with LUKS under the mapper
-name `crypt-persist` when explicitly provisioned.
-
-Constraints:
-
-- The encryption boundary is `/persist` only. `/` stays ephemeral and reproducible from the flake.
-- This host does not yet have TPM2 auto-unlock or initrd SSH recovery configured.
-- Cold boots therefore require local console access to enter the `crypt-persist` passphrase before stage 2.
-- Tailscale, SSH, and the persisted services remain unavailable until `/persist` is unlocked.
-
-Migration posture:
-
-- Fresh installs use the encrypted layout directly.
-- Existing plaintext `/persist` systems should migrate by external backup, reinstall, and restore.
-- The current local Restic repository also lives on `/persist`, so it must be copied off-host before using reinstall as the migration path.
-
 ## Network Exposure
 
 Tailscale is the primary remote-access layer.
 
-- Inactive `homeserver` keeps SSH enabled for deploy and break-glass access, but only on `tailscale0`, when deployed.
-- Inactive `homeserver` exposes SSH and HTTPS only on `tailscale0`; it does not globally open TCP `22` or `443`.
-- Inactive `homeserver` exposes HTTPS on the tailnet FQDN from `lib/hosts.nix` when deployed.
-- Inactive `homeserver` obtains TLS material through `tailscale-cert.service`; do not enable ACME for that virtual host.
-- Observability ingest paths are protected with basic auth sourced from sops when the stack is activated.
+- `homeserver-gcp` exposes SSH and HTTPS only on `tailscale0`; it does not globally open TCP `22` or `443`.
+- `homeserver-gcp` obtains TLS material through `tailscale-cert.service`; ACME is not used.
+- `homeserver-gcp` exposes HTTPS on the tailnet FQDN from `lib/hosts.nix`.
+- Observability ingest paths (`/obs/loki/`, `/obs/mimir/`, `/obs/otlp/`) are protected with basic auth sourced from sops.
 - `main` enables SSH but does not open the normal firewall path for general LAN access.
 
 Tailscale ACL output is generated by `lib/acl.nix`. Workstation-to-server
@@ -131,7 +100,7 @@ Validation coverage includes:
 
 - invariant checks for high-level host expectations;
 - `profile-hardening` NixOS test for sandbox behavior;
-- service-specific smoke tests for homeserver paths.
+- service-specific smoke tests for GCP homeserver paths.
 
 ## Backups
 

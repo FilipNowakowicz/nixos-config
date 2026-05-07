@@ -8,18 +8,18 @@ The repository separates hardware, host identity, system profiles, and user conf
 ## Overview
 
 - **Reproducible & Declarative**: NixOS defines the entire system state, services, and hardware. Home Manager manages the user environment and dotfiles.
-- **Multi-Host Ready**: Built from reusable profiles for a primary workstation (`main`), inactive homeserver targets, a QEMU test VM, and Home Manager profiles. The host registry defines the target architecture (`system`) per host; the current fleet is `x86_64-linux`.
+- **Multi-Host Ready**: Built from reusable profiles for a primary workstation (`main`), a GCP homeserver (`homeserver-gcp`), a QEMU test VM, and Home Manager profiles. The host registry defines the target architecture (`system`) per host; the current fleet is `x86_64-linux`.
 - **Secrets Management**: Handled by [sops-nix](https://github.com/Mic92/sops-nix) with age encryption, with secrets decrypted at boot by the host itself.
-- **Impermanent Root**: VM-style targets and the inactive `homeserver` use an ephemeral root filesystem created with [impermanence](https://github.com/nix-community/impermanence). System state is reset on boot, with persistent data explicitly stored on a `/persist` volume; the inactive real `homeserver` design places that volume inside LUKS.
-- **Declarative Disks**: Disk layouts for real hosts and the QEMU test VM are managed declaratively with [disko](https://github.com/nix-community/disko). The inactive `homeserver-vm` microvm uses a `microvm.nix` volume for `/persist`.
+- **Impermanent Root**: The QEMU test VM uses an ephemeral root filesystem created with [impermanence](https://github.com/nix-community/impermanence). System state is reset on boot, with persistent data explicitly stored on a `/persist` volume.
+- **Declarative Disks**: Disk layouts for real hosts and the QEMU test VM are managed declaratively with [disko](https://github.com/nix-community/disko).
 - **Runtime Theming**: A runtime-swappable color system allows changing themes without a full NixOS rebuild.
 
 ---
 
 ## Documentation Map
 
-- [Architecture](docs/architecture.md) - layer boundaries, global imports, host registry rules, and the microvm split.
-- [Operations](docs/operations.md) - deployment, VM workflows, homeserver bootstrap, validation, and formatting commands.
+- [Architecture](docs/architecture.md) - layer boundaries, global imports, and host registry rules.
+- [Operations](docs/operations.md) - deployment, VM workflows, validation, and formatting commands.
 - [Security Model](docs/security.md) - sops recipients, initrd SSH, Tailscale exposure, USBGuard, hardening, and backups.
 - [Neovim](docs/neovim.md) - current editor setup and links to the longer module design.
 - [Backlog](docs/backlog.md) and [Goals](docs/goals.md) - deferred and active work.
@@ -35,15 +35,14 @@ Supported contracts:
 - Flake evaluation, formatting, lightweight checks, library tests, invariants, and CI planner tests should work from a clean clone.
 - `x86_64-linux` is the only supported system today.
 - `main` is the active workstation target and is hardware-bound to the owner's machine.
-- `homeserver` and `homeserver-vm` are inactive runtime targets. They intentionally still evaluate and build in validation so server drift is caught before reactivation.
-- `vm` is legacy-supported QEMU tooling for hardware-style testing, not the primary homeserver path.
+- `homeserver-gcp` is the active GCP homeserver target.
+- `vm` is legacy-supported QEMU tooling for hardware-style testing.
 - Secrets are managed with sops-nix. Encrypted files are committed; private keys and live service credentials are not.
 - Destructive install/reinstall commands are operator-only and must not be run without reviewing target disks.
 
 Unsupported or best-effort:
 
 - Reusing the host configs on arbitrary hardware without editing host registry, disk layouts, secrets, and hardware configs.
-- Deploying inactive hosts without the required age keys, Tailscale state, hardware, and operator review.
 - Treating legacy QEMU VM tooling as the primary homeserver path.
 
 ## What Works Without Secrets Or Hardware
@@ -67,13 +66,12 @@ Requires extra local capability:
 - NixOS smoke/profile tests require KVM.
 - QEMU VM runtime requires KVM and VM secret bootstrap.
 - `main` switch requires the owner's workstation hardware and secrets.
-- `homeserver` deploy/reinstall is inactive and requires reviewed target hardware, sops access, and destructive disk approval.
-- `homeserver-vm` runtime is inactive and requires enabling the microvm integration in `main`.
+- `homeserver-gcp` deploy requires GCP credentials, Tailscale auth key, and sops access.
 - R2 binary cache publishing requires CI secrets.
 
 ## Destructive Operations
 
-Disk provisioning and reinstall workflows are destructive. Review the target device before running `disko`, `nixos-anywhere`, or `nix run '.#reinstall-homeserver'`. Current real-host disk layouts assume owner-specific devices such as `/dev/nvme0n1` for `main` and `/dev/sda` for `homeserver`.
+Disk provisioning and reinstall workflows are destructive. Review the target device before running `disko` or `nixos-anywhere`. The `main` disk layout assumes `/dev/nvme0n1`.
 
 ---
 
@@ -137,14 +135,10 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 │   │   ├── default.nix
 │   │   ├── disko.nix
 │   │   └── hardware-configuration.nix
-│   ├── homeserver/                    # Inactive headless server target
-│   │   ├── default.nix
-│   │   ├── disko.nix
-│   │   └── hardware-configuration.nix
-│   ├── vm/                            # Dev/test VM (desktop + home-manager)
+│   ├── homeserver-gcp/                # GCP homeserver (Vaultwarden, LGTM, Syncthing, Nginx)
 │   │   ├── default.nix
 │   │   └── secrets/
-│   ├── homeserver-vm/                 # Inactive microvm homeserver target
+│   ├── vm/                            # Dev/test VM (desktop + home-manager)
 │   │   ├── default.nix
 │   │   └── secrets/
 │   └── installer/                     # Minimal NixOS ISO for fresh installs
@@ -156,11 +150,10 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 │   ├── check-doc-links.sh             # Markdown link checker used by CI
 │   ├── doctor.sh                      # Clean-clone validation bundle
 │   ├── vm.sh                          # Legacy-supported QEMU VM management for hardware-style testing
-│   └── reinstall-homeserver.sh        # Real homeserver reinstall
+│   └── deploy-gcp.sh                  # GCP homeserver deploy wrapper
 ├── modules/
 │   └── nixos/
 │       ├── hardware/                  # Hardware-specific modules (NVIDIA PRIME)
-│       ├── microvms/                  # microvm.nix VM definitions (homeserver-vm)
 │       ├── profiles/
 │       │   ├── base.nix               # Base system settings (Nix, locale)
 │       │   ├── desktop.nix            # Desktop environment (Hyprland, PipeWire)
@@ -169,7 +162,6 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 │       │   ├── observability-client.nix
 │       │   ├── backup.nix
 │       │   ├── machine-common.nix
-│       │   ├── microvm-guest.nix
 │       │   ├── sops-base.nix
 │       │   ├── user.nix               # User account and home-manager base
 │       │   └── vm.nix                 # Shared VM module (hardware, disko, impermanence)
@@ -201,15 +193,6 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 ---
 
 ## VM Management
-
-### homeserver-vm (Inactive)
-
-The `homeserver-vm` configuration is retained as an inactive microvm target. It is not enabled in the normal `main` workstation closure. If reactivated, it runs on `main` via `microvm.nix`, uses `cloud-hypervisor`, shares the host's Nix store via `virtiofs`, and receives secrets through a `virtiofs` share.
-
-- **Status**: inactive; `hosts/main/default.nix` currently keeps the microvm host integration disabled.
-- **Reactivation**: enable the microvm import in `main`, then rebuild `main`.
-- **Control after reactivation**: `sudo systemctl [start|stop|status] microvm@homeserver-vm.service`
-- **Logs after reactivation**: `sudo journalctl -u microvm@homeserver-vm.service -f`
 
 ### QEMU Development VM (Legacy-Supported)
 
@@ -247,25 +230,21 @@ Host lifecycle status for NixOS host configurations is owned by
 `lib/hosts.nix`; this table documents that registry. `installer` is a utility
 ISO outside the host registry.
 
-| Host            | Status           | Description                                                                        |
-| --------------- | ---------------- | ---------------------------------------------------------------------------------- |
-| `main`          | Active           | Primary workstation, running a full desktop environment with NVIDIA PRIME support. |
-| `homeserver`    | Inactive         | Buildable headless server config; real deployment is not an active workflow.       |
-| `vm`            | Legacy Supported | QEMU/KVM dev/test VM with desktop profile. Port 2222.                              |
-| `homeserver-vm` | Inactive         | Buildable `microvm.nix` guest; host-side integration is disabled on `main`.        |
-| `installer`     | Utility          | Minimal ISO configuration used to bootstrap new installations.                     |
+| Host             | Status           | Description                                                                        |
+| ---------------- | ---------------- | ---------------------------------------------------------------------------------- |
+| `main`           | Active           | Primary workstation, running a full desktop environment with NVIDIA PRIME support. |
+| `homeserver-gcp` | Active           | GCP homeserver running Vaultwarden, Syncthing, LGTM, Nginx, and Tailscale.         |
+| `vm`             | Legacy Supported | QEMU/KVM dev/test VM with desktop profile. Port 2222.                              |
+| `installer`      | Utility          | Minimal ISO configuration used to bootstrap new installations.                     |
 
 ### Deployment
 
-| Host            | Command                                  | Notes                                                            |
-| --------------- | ---------------------------------------- | ---------------------------------------------------------------- |
-| `main`          | `nh os switch --hostname main .`         | Active workstation rebuild.                                      |
-| `homeserver`    | `deploy '.#homeserver'`                  | Inactive; use only after explicit hardware bootstrap.            |
-| `vm`            | `deploy '.#vm'`                          | Legacy-supported QEMU path, after `nix run '.#vm' -- create vm`. |
-| `homeserver-vm` | `nh os switch --hostname main .`         | Inactive; only works after enabling the microvm import on main.  |
-| `user@wsl`      | `home-manager switch --flake .#user@wsl` | Portable Home Manager for WSL.                                   |
-
-**Cold Installs**: Use `nix run '.#reinstall-homeserver' -- <target-ip>` (which wraps `nixos-anywhere`) only for the initial installation on real hardware. Once bootstrapped, transition to the `deploy-rs` workflow for all configuration updates.
+| Host             | Command                                  | Notes                                                            |
+| ---------------- | ---------------------------------------- | ---------------------------------------------------------------- |
+| `main`           | `nh os switch --hostname main .`         | Active workstation rebuild.                                      |
+| `homeserver-gcp` | `deploy '.#homeserver-gcp'`              | GCP homeserver; see `scripts/deploy-gcp.sh`.                     |
+| `vm`             | `deploy '.#vm'`                          | Legacy-supported QEMU path, after `nix run '.#vm' -- create vm`. |
+| `user@wsl`       | `home-manager switch --flake .#user@wsl` | Portable Home Manager for WSL.                                   |
 
 ---
 
@@ -294,22 +273,21 @@ A `theme-switch` script is available in the shell to list and apply themes. It u
 
 ---
 
-## Services (Inactive Homeserver Target)
+## Services (homeserver-gcp)
 
-The inactive `homeserver` target is configured to run the following services when explicitly provisioned. These endpoints should not be treated as live unless the host has been bootstrapped and deployed.
-
-| Service         | Purpose                                            | Access                                     |
-| --------------- | -------------------------------------------------- | ------------------------------------------ |
-| **Tailscale**   | Zero-config VPN for secure remote access.          | Connect from any Tailscale client.         |
-| **Nginx**       | Reverse proxy with automatic Tailscale TLS certs.  | `https://homeserver.<tailnet-name>.ts.net` |
-| **Vaultwarden** | Self-hosted Bitwarden-compatible password manager. | `https://homeserver...` (via Nginx)        |
-| **Syncthing**   | Continuous, peer-to-peer file synchronization.     | `http://localhost:8384` (via SSH tunnel)   |
+| Service         | Purpose                                            | Access                                          |
+| --------------- | -------------------------------------------------- | ----------------------------------------------- |
+| **Tailscale**   | Zero-config VPN for secure remote access.          | Connect from any Tailscale client.              |
+| **Nginx**       | Reverse proxy with automatic Tailscale TLS certs.  | `https://homeserver-gcp.<tailnet-name>.ts.net`  |
+| **Vaultwarden** | Self-hosted Bitwarden-compatible password manager. | `https://homeserver-gcp...` (via Nginx)         |
+| **Syncthing**   | Continuous, peer-to-peer file synchronization.     | `http://localhost:8384` (via SSH tunnel)        |
+| **Restic/B2**   | Off-site backups to Backblaze B2.                  | Automated via systemd timers; see `backup.nix`. |
 
 ---
 
-## Observability (Inactive Homeserver Rollout)
+## Observability
 
-`homeserver` and `homeserver-vm` include full LGTM stack configuration, but both targets are currently inactive. The observability stack is buildable and tested as configuration, not operated as an active production service.
+`homeserver-gcp` runs the full LGTM stack. The observability stack is active and operated.
 
 ### Infrastructure Dashboards
 
@@ -320,7 +298,7 @@ The stack includes pre-configured dashboards for fleet overview and deep-dives i
 
 ### LGTM Stack Components
 
-| Component                   | Purpose                          | Homeserver local endpoint            |
+| Component                   | Purpose                          | Local endpoint                       |
 | --------------------------- | -------------------------------- | ------------------------------------ |
 | **Grafana**                 | Dashboards and datasource UI     | `http://127.0.0.1:3000`              |
 | **Loki**                    | Log storage and querying         | `http://127.0.0.1:3100`              |
@@ -330,13 +308,13 @@ The stack includes pre-configured dashboards for fleet overview and deep-dives i
 | **Grafana Alloy**           | Journald log shipping to Loki    | local systemd service                |
 | **OpenTelemetry Collector** | Trace pipeline to Tempo          | receivers on `127.0.0.1:14317/14318` |
 
-When the real `homeserver` is explicitly activated, authenticated ingest routes on `https://homeserver.<tailnet-name>.ts.net` are:
+Authenticated ingest routes on `https://homeserver-gcp.<tailnet-name>.ts.net`:
 
 - `/obs/loki/` → Loki push API
 - `/obs/mimir/` → Mimir remote_write API
 - `/obs/otlp/` → OpenTelemetry Collector HTTP ingest
 
-Implementation is shared via `modules/nixos/profiles/observability/`, configured as a full stack on inactive `homeserver` targets, and available as telemetry sources through `modules/nixos/profiles/observability-client.nix`.
+Implementation is in `modules/nixos/profiles/observability/`, with client-side telemetry shipping via `modules/nixos/profiles/observability-client.nix`.
 
 Grafana admin credentials and ingest credentials are managed with `sops` secrets; keep a mirrored copy in Vaultwarden for operator recovery.
 
@@ -349,12 +327,12 @@ Secrets are managed with [sops-nix](https://github.com/Mic92/sops-nix) and [age]
 ### How it works
 
 - `.sops.yaml` defines rules for which age public keys can decrypt which secret files.
-- Keys are grouped by name (e.g., `&user`, `&vm_host`, `&homeserver_vm_age`, `&main_host`, `&homeserver_host`).
+- Keys are grouped by name (e.g., `&user`, `&vm_host`, `&main_host`, `&homeserver_gcp_host`).
 - Host keys are derived from their respective SSH host public keys using `ssh-to-age`.
 - This allows a host to decrypt its own secrets automatically during activation. The host's SSH key is persisted via `impermanence` to ensure the age key remains stable across reboots.
 - The user's personal age key (`user`) can decrypt all secrets.
 - The QEMU `vm` has encrypted SSH host keys in `hosts/vm/secrets/`, injected during `create`/`reinstall` so sops works from first boot.
-- `homeserver-vm` uses a dedicated age key whose private half is stored in `hosts/main/secrets/secrets.yaml`; `main` decrypts it and exposes it to the guest through a `virtiofs` share at `/run/age-keys/`.
+- `homeserver-gcp` uses a pre-baked encrypted SSH host key committed in `hosts/homeserver-gcp/secrets/`; deployed once during initial GCE image bootstrap.
 
 ### Setup
 
@@ -367,21 +345,21 @@ Secrets are managed with [sops-nix](https://github.com/Mic92/sops-nix) and [age]
    Add the public key to `.sops.yaml` under the `&user` anchor.
 
 2. **Add a host's age key** before granting it secret access:
-   For SSH-host-derived identities, get the host's SSH public key, convert it to an age key, and add it to `.sops.yaml`. The real `homeserver` uses a pre-generated encrypted SSH host key so this can be done before first boot.
+   For SSH-host-derived identities, get the host's SSH public key, convert it to an age key, and add it to `.sops.yaml`.
 
    ```bash
    # On the target host, or from a pre-generated host public key
    cat /etc/ssh/ssh_host_ed25519_key.pub | ssh-to-age
 
    # On your dev machine, add the resulting age key to .sops.yaml
-   # under a new anchor (e.g., &homeserver_host) and update the
+   # under a new anchor (e.g., &homeserver_gcp_host) and update the
    # creation_rules to give it access to its secrets file.
    ```
 
 3. **Edit secrets:**
    ```bash
    # Edits a file, decrypting it temporarily
-   sops hosts/homeserver/secrets/secrets.yaml
+   sops hosts/homeserver-gcp/secrets/secrets.yaml
    ```
 
 **Host Key Rotation**: Rotating a host's SSH key or changing its identity requires a corresponding update to `.sops.yaml` (new age key) followed by `sops updatekeys <path/to/secrets.yaml>` to re-encrypt the file for the new key. Failing to do this before deployment will result in a boot-time decryption failure.
@@ -392,15 +370,15 @@ Secrets are managed with [sops-nix](https://github.com/Mic92/sops-nix) and [age]
 
 The flake provides several `devShells` and `apps` for development and maintenance.
 
-| Type       | Name                   | Purpose                                                                                 |
-| ---------- | ---------------------- | --------------------------------------------------------------------------------------- |
-| `devShell` | `default`              | Main dev shell with `deploy-rs`, `nixos-anywhere`, `sops`, `qemu`, `OVMF`, `nixd`, etc. |
-| `devShell` | `security`             | Includes common security tools: `nmap`, `gobuster`, `sqlmap`, `hydra`, `john`, etc.     |
-| `app`      | `doctor`               | Clean-clone checks: `nix run '.#doctor'` or `bash scripts/doctor.sh`                    |
-| `app`      | `vm`                   | Legacy-supported QEMU VM management: `nix run '.#vm' -- <action> <name>`                |
-| `app`      | `reinstall-homeserver` | Inactive/destructive real-hardware bootstrap wrapper around `nixos-anywhere`.           |
-| `package`  | `installer-iso`        | Minimal NixOS ISO: `nix build '.#installer-iso'`                                        |
-| `template` | `python`               | Python dev shell with `uv`, `ruff`, `basedpyright`: `nix flake init -t ~/nix#python`    |
+| Type       | Name            | Purpose                                                                                 |
+| ---------- | --------------- | --------------------------------------------------------------------------------------- |
+| `devShell` | `default`       | Main dev shell with `deploy-rs`, `nixos-anywhere`, `sops`, `qemu`, `OVMF`, `nixd`, etc. |
+| `devShell` | `security`      | Includes common security tools: `nmap`, `gobuster`, `sqlmap`, `hydra`, `john`, etc.     |
+| `app`      | `doctor`        | Clean-clone checks: `nix run '.#doctor'` or `bash scripts/doctor.sh`                    |
+| `app`      | `vm`            | Legacy-supported QEMU VM management: `nix run '.#vm' -- <action> <name>`                |
+| `app`      | `deploy-gcp`    | GCP homeserver deploy wrapper: `bash scripts/deploy-gcp.sh`                             |
+| `package`  | `installer-iso` | Minimal NixOS ISO: `nix build '.#installer-iso'`                                        |
+| `template` | `python`        | Python dev shell with `uv`, `ruff`, `basedpyright`: `nix flake init -t ~/nix#python`    |
 
 ---
 
@@ -503,7 +481,7 @@ The repository uses GitHub Actions (`.github/workflows/nix.yml` and `flake-updat
 | **Linting**          | Runs `statix` (Nix), `deadnix` (dead code), `treefmt` (formatting), `shellcheck` (shell scripts), and Markdown link checks.                   |
 | **Package Builds**   | Builds repo-native package outputs used in CI, currently `nix build '.#packages.x86_64-linux.inventory'`.                                     |
 | **Host Builds**      | Matrix-builds each host closure via `bash scripts/validate.sh host <name>`.                                                                   |
-| **Smoke Tests**      | Runs `bash scripts/validate.sh smoke-vm` and `smoke-homeserver` in full NixOS environments when relevant paths change.                        |
+| **Smoke Tests**      | Runs `bash scripts/validate.sh smoke-vm` and `smoke-homeserver-gcp` in full NixOS environments when relevant paths change.                    |
 | **Profile Tests**    | Matrix-builds each profile test via `bash scripts/validate.sh profile-test <name>`.                                                           |
 | **Closure Diff**     | Automatically computes and comments the `nvd` diff of package closures on PRs.                                                                |
 | **Merge Gate**       | Consolidates all required checks into a single status; required for branch protection and automated flake updates.                            |
@@ -515,8 +493,8 @@ The repository uses GitHub Actions (`.github/workflows/nix.yml` and `flake-updat
 
 Examples:
 
-- Desktop Home Manager changes build `main-ci` and `vm-ci`, but skip homeserver closures.
-- Server Home Manager changes build `homeserver` and `homeserver-vm`, but skip desktop closures.
+- Desktop Home Manager changes build `main-ci` and `vm-ci`, but skip GCP homeserver closures.
+- Server Home Manager changes build `homeserver-gcp`, but skip desktop closures.
 - VM host changes run the `vm` closure and desktop VM smoke test.
 - `flake.lock` and shared library changes run every host closure, smoke test, profile test, and closure diff.
 - Docs-only changes run lint and Markdown link checks, then skip eval/build-heavy jobs.

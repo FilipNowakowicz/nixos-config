@@ -48,7 +48,7 @@ Files that have **unconditional side-effects** (e.g., adding packages to `enviro
 
 A host's Nix store closure should only contain what is explicitly requested.
 
-- **Headless Safety:** Headless hosts (like `homeserver`) must never inherit GUI libraries or X11/Wayland dependencies.
+- **Headless Safety:** Headless hosts (like `homeserver-gcp`) must never inherit GUI libraries or X11/Wayland dependencies.
 - **Verification:** Use `nix build '.#checks.x86_64-linux.invariants-<host>'` to verify that unauthorized profiles haven't leaked into a host.
 
 ### Rule 3: Single Source of Truth (Registry)
@@ -101,22 +101,3 @@ Hand-maintained `hardware-configuration.nix` files must carry a short header
 with their regeneration policy and a `Last reviewed: YYYY-MM-DD` note so it is
 obvious when a checked-in hardware snapshot should be regenerated or manually
 revalidated.
-
----
-
-## 5. Microvm Boundary
-
-`homeserver-vm` is a first-class `nixosConfigurations` entry, but it is
-currently inactive. Its runtime lifecycle is owned by `main` only when the
-microvm host import is explicitly enabled there.
-
-| Side       | Files                                                                         | Responsibility                                                                                     |
-| :--------- | :---------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
-| Host side  | `hosts/main/default.nix`, `modules/nixos/microvms/homeserver-vm.nix`          | Declares the microvm service, bridge/NAT networking, and age-key virtiofs source.                  |
-| Guest side | `hosts/homeserver-vm/default.nix`, `modules/nixos/profiles/microvm-guest.nix` | Defines the guest OS, tmpfs root, `/persist` volume, static guest IP, services, and sops key path. |
-
-Rules:
-
-- Do not add `deploy` metadata, `sshPort`, or `diskSize` to `homeserver-vm` in `lib/hosts.nix`; those fields are for QEMU VMs managed by `scripts/vm.sh`.
-- Reactivating `homeserver-vm` means enabling the microvm host import in `main`, rebuilding `main` with `nh os switch --hostname main .`, then controlling `microvm@homeserver-vm.service`.
-- Guest secrets are encrypted to `&homeserver_vm_age`; the private age key is stored in `hosts/main/secrets/secrets.yaml` and shared to the guest at runtime.

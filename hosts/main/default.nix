@@ -172,12 +172,6 @@ in
     };
   };
 
-  # ── Profiles ────────────────────────────────────────────────────────────────
-  # profiles.observability-client = {
-  #   enable = true;
-  #   remoteEndpoint.host = hostRegistry.homeserver.tailnetFQDN;
-  # };
-
   # ── Services ────────────────────────────────────────────────────────────────
   services = {
     resolved = {

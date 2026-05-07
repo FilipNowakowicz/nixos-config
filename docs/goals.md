@@ -30,23 +30,12 @@ Turn `main` into a more intentional workstation layer. Tackled incrementally —
 - [ ] **Screenshot workflow** — `satty` for annotation after `grim` capture; `tesseract` OCR pipeline outputting to clipboard.
 - [ ] **Keybinding cheat sheet** — auto-generated popup from `hyprland.conf` binds, shown via `Super+?`.
 
-### Homeserver
+### Homeserver (GCP)
 
-The homeserver modules are already hardware-agnostic. Two paths forward — GCP unblocks the deferred pile without waiting on physical hardware.
+`homeserver-gcp` is the active homeserver running on GCP (GCE). Vaultwarden, Syncthing, LGTM stack, Nginx, Tailscale, and Backblaze B2 backups are all live.
 
-### Path A — GCP (cloud homeserver, unblocks deferred items)
-
-- [ ] **GCP homeserver** (medium–substantial) — build a GCE image from the existing homeserver config (`nixos-generators -f gce`), push to GCS, boot via Terraform/OpenTofu. Join tailnet as a subnet router. Unlocks everything below.
-
-### Path B — Real hardware (blocked)
-
-- [ ] **Homeserver on real hardware** — generate hardware config, provision Tailscale auth key, add host age key to `.sops.yaml`, deploy, create first Vaultwarden account. Full checklist in `hosts/homeserver/CLAUDE.md`.
-
-### Deferred (either path unlocks these)
-
-- [ ] **Automated deploy pipeline** — add a self-hosted GitHub Actions runner as a NixOS service on the homeserver (always-on, has KVM). Extend smoke test to probe live endpoints (Grafana login, ingest auth). Add automated deploy job that deploys homeserver then main in order after smoke test passes. CI already builds the relevant closures and publishes them to the signed R2 binary cache. Secrets rotation (ingest credentials, Grafana admin password) becomes a cheap add-on once deploy is automated — Tailscale auth key stays manual.
-- [ ] **Off-site backup (B2)** — replace local-only restic repository on homeserver with Backblaze B2. Add sops secret for B2 credentials (`B2_ACCOUNT_ID` + `B2_ACCOUNT_KEY`), update repository URL. Local backup on `main` can follow the same pattern later.
-- [ ] **Local DNS & ad-blocking** — deploy AdGuard Home on the homeserver (or GCE VM), integrated with Tailscale MagicDNS for network-wide privacy.
+- [ ] **Automated deploy pipeline** — add a self-hosted GitHub Actions runner as a NixOS service on the homeserver (always-on, has KVM). Extend smoke test to probe live endpoints (Grafana login, ingest auth). Add automated deploy job that deploys homeserver-gcp then main in order after smoke test passes. CI already builds the relevant closures and publishes them to the signed R2 binary cache. Secrets rotation (ingest credentials, Grafana admin password) becomes a cheap add-on once deploy is automated — Tailscale auth key stays manual.
+- [ ] **Local DNS & ad-blocking** — deploy AdGuard Home on the GCE VM, integrated with Tailscale MagicDNS for network-wide privacy.
 - [ ] **LGTM tuning** — expand dashboards and alerts, tune retention/cardinality for long-running operation. Add alerting rules for disk usage >80%, service restarts, and backup failures.
 - [ ] **Host introspection → LGTM** (medium) — auditd + osquery or lynis timer → logs to Loki → dashboards. Pairs with the existing observability stack; proves the LGTM investment for something beyond infra metrics.
 - [ ] **Service composition DSL** (medium–substantial) — a module like `services.app.<name> = { package, port, backup, observe, harden }` that auto-wires sandboxing, systemd hardening, log shipping, and restic targets. Eliminates the "add a service → remember to also wire 5 cross-cutting things" tax.

@@ -28,7 +28,7 @@ let
 
   baseConfig = {
     nix.settings.trusted-users = [ "root" ];
-    networking.hostName = "homeserver";
+    networking.hostName = "homeserver-gcp";
     networking.firewall = {
       allowedTCPPorts = [ ];
       interfaces.tailscale0.allowedTCPPorts = [
@@ -51,7 +51,7 @@ let
     ip = "10.0.100.2";
   };
 
-  assertions = invariants.mkRegistryAssertions "homeserver" hostMeta;
+  assertions = invariants.mkRegistryAssertions "homeserver-gcp" hostMeta;
 
   runAssertion =
     name: cfg:

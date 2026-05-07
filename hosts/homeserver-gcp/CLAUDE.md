@@ -1,29 +1,30 @@
 # homeserver-gcp Host
 
-GCP-hosted headless server. Same services as `homeserver` (Vaultwarden, LGTM stack,
-Tailscale, Nginx) but without LUKS, impermanence, or Syncthing.
+GCP-hosted headless server. Runs Vaultwarden, LGTM stack, Syncthing, Tailscale, and Nginx.
+No LUKS or impermanence (GCP handles at-rest encryption; state persists on the GCE disk).
 
-Status: **inactive** — image not yet uploaded to GCS / VM not yet provisioned.
+Status: **active** — deployed on GCP, accessible via Tailscale.
 
 ## Services
 
 - **Vaultwarden** — `127.0.0.1:8222`, proxied via Nginx over HTTPS
+- **Syncthing** — peer-to-peer file sync
 - **LGTM stack** — Grafana, Loki, Mimir, Tempo (full observability)
 - **Nginx** — reverse proxy, TLS via Tailscale cert
 - **SSH** — firewall exposure limited to `tailscale0`
 - **Tailscale** — auth key from sops secret `tailscale_auth_key`
+- **Restic/B2** — off-site backups to Backblaze B2
 
 ## Architecture
 
 - **No LUKS** — GCP provides at-rest disk encryption automatically
 - **No impermanence** — service state persists at `/var/lib/...` on the stateful GCE disk
-- **No Syncthing** — not useful for a cloud VM
 - **GRUB bootloader** — via `virtualisation/google-compute-image.nix`
 - **50 GB boot disk** — configured in `hardware-configuration.nix`
 
 ## Sops Bootstrap
 
-Pre-baked host SSH key is committed encrypted to the repo (same pattern as `homeserver`).
+Pre-baked host SSH key is committed encrypted to the repo.
 
 - Private key: `hosts/homeserver-gcp/secrets/ssh_host_ed25519_key.enc`
 - Public key: `hosts/homeserver-gcp/secrets/ssh_host_ed25519_key.pub.enc`
@@ -43,7 +44,7 @@ is provisioned via `scripts/deploy-gcp.sh` (nixos-anywhere) and updated via
 
 ## First Deploy Checklist
 
-Status: inactive. Steps in order when provisioning:
+Steps in order when reprovisioning from scratch:
 
 1. **Fill in real secrets** — `sops hosts/homeserver-gcp/secrets/secrets.yaml`, set:
    - `tailscale_auth_key` — Tailscale admin → Settings → Keys → reusable + ephemeral
@@ -88,6 +89,5 @@ deploy '.#homeserver-gcp'
   to recover.
 - **TLS cert is not ACME** — `tailscale-cert.service` fetches it; nginx depends on that service.
 - **Access is tailnet-only** — `tailscale0` is the only interface that permits inbound SSH/HTTPS.
-- **Disk is stateful** — unlike `homeserver`, there is no impermanence. Data survives reboots naturally.
-- **Backup is local-only** — restic repository is at `/var/backup/restic-repo` on the boot disk.
-  Migrate to B2 or GCS before relying on this for disaster recovery.
+- **Disk is stateful** — no impermanence. Data survives reboots naturally.
+- **Off-site backup via B2** — restic backs up to Backblaze B2; see `modules/nixos/profiles/backup.nix`.
