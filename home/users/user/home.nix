@@ -8,6 +8,13 @@
 let
   nixRepo = "${config.home.homeDirectory}/nix";
   privateUserJs = ../../files/firefox/private-user.js;
+  langgraphPython = pkgs.python3.withPackages (
+    ps: with ps; [
+      langchain
+      langgraph
+      langgraph-cli
+    ]
+  );
 
   launcher =
     let
@@ -217,7 +224,7 @@ in
       [
         # Workstation-only packages; keep shared base lean for servers and CI.
         nodejs
-        python3
+        langgraphPython
         clang-tools
         gnumake
         gcc
