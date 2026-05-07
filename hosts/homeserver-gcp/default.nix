@@ -134,12 +134,6 @@ in
     ];
   };
 
-  services.grafana.settings.server = {
-    domain = lib.mkForce tailnetFQDN;
-    root_url = "https://%(domain)s/grafana/";
-    serve_from_sub_path = true;
-  };
-
   profiles.observability = {
     enable = true;
     grafana = {
@@ -159,6 +153,32 @@ in
   };
 
   services = {
+    grafana.settings.server = {
+      domain = lib.mkForce tailnetFQDN;
+      root_url = "https://%(domain)s/grafana/";
+      serve_from_sub_path = true;
+    };
+
+    restic.backups.b2 = {
+      paths = [
+        "/var/lib/vaultwarden"
+        "/var/lib/grafana"
+      ];
+      initialize = true;
+      repository = "b2:filipnowakowicz-gcp:";
+      passwordFile = config.sops.secrets.restic_password.path;
+      environmentFile = config.sops.secrets.b2_credentials.path;
+      pruneOpts = [
+        "--keep-daily 7"
+        "--keep-weekly 4"
+        "--keep-monthly 6"
+      ];
+      timerConfig = {
+        OnCalendar = "03:00";
+        RandomizedDelaySec = "1h";
+      };
+    };
+
     openssh = {
       enable = true;
       openFirewall = false;
@@ -273,6 +293,8 @@ in
         owner = config.services.nginx.user;
         inherit (config.services.nginx) group;
       };
+      restic_password = { };
+      b2_credentials = { };
     };
   };
 
