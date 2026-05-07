@@ -62,6 +62,11 @@ in
       after = [ "tailscale-cert.service" ];
       requires = [ "tailscale-cert.service" ];
     };
+
+    prometheus-node-exporter = {
+      wants = [ "prometheus-node-exporter.socket" ];
+      after = [ "prometheus-node-exporter.socket" ];
+    };
   };
 
   system = {
@@ -127,6 +132,30 @@ in
       "console=ttyS0,115200n8"
       "systemd.journald.forward_to_console=1"
     ];
+  };
+
+  services.grafana.settings.server = {
+    domain = lib.mkForce tailnetFQDN;
+    root_url = "https://%(domain)s/grafana/";
+    serve_from_sub_path = true;
+  };
+
+  profiles.observability = {
+    enable = true;
+    grafana = {
+      enable = true;
+      adminPasswordFile = config.sops.secrets.grafana_admin_password.path;
+      secretKeyFile = config.sops.secrets.grafana_secret_key.path;
+    };
+    loki.enable = true;
+    tempo.enable = true;
+    mimir.enable = true;
+    collectors = {
+      metrics.enable = true;
+      logs.enable = true;
+      traces.enable = true;
+    };
+    dashboards.fleet.enable = true;
   };
 
   services = {
@@ -199,9 +228,31 @@ in
         sslCertificate = "/var/lib/nginx/certs/homeserver-gcp.crt";
         sslCertificateKey = "/var/lib/nginx/certs/homeserver-gcp.key";
 
-        locations."/" = {
-          proxyPass = "http://127.0.0.1:8222";
-          proxyWebsockets = true;
+        locations = {
+          "/" = {
+            proxyPass = "http://127.0.0.1:8222";
+            proxyWebsockets = true;
+          };
+
+          "/grafana/" = {
+            proxyPass = "http://127.0.0.1:3000";
+            proxyWebsockets = true;
+          };
+
+          "/obs/loki/" = {
+            proxyPass = "http://127.0.0.1:3100/";
+            basicAuthFile = config.sops.secrets.observability_ingest_htpasswd.path;
+          };
+
+          "/obs/mimir/" = {
+            proxyPass = "http://127.0.0.1:9009/";
+            basicAuthFile = config.sops.secrets.observability_ingest_htpasswd.path;
+          };
+
+          "/obs/otlp/" = {
+            proxyPass = "http://127.0.0.1:14318/";
+            basicAuthFile = config.sops.secrets.observability_ingest_htpasswd.path;
+          };
         };
       };
     };
@@ -212,6 +263,16 @@ in
     secrets = {
       user_password.neededForUsers = true;
       tailscale_auth_key = { };
+      grafana_admin_password = {
+        owner = "grafana";
+      };
+      grafana_secret_key = {
+        owner = "grafana";
+      };
+      observability_ingest_htpasswd = {
+        owner = config.services.nginx.user;
+        inherit (config.services.nginx) group;
+      };
     };
   };
 
