@@ -42,6 +42,10 @@ in
           --cert-file /var/lib/tailscale/certs/homeserver-gcp.crt \
           --key-file /var/lib/tailscale/certs/homeserver-gcp.key \
           ${tailnetFQDN}
+        # /var/lib/tailscale is root:root 700; copy certs to a path nginx can read
+        mkdir -p /var/lib/nginx/certs
+        install -m 644 /var/lib/tailscale/certs/homeserver-gcp.crt /var/lib/nginx/certs/homeserver-gcp.crt
+        install -m 640 -g nginx /var/lib/tailscale/certs/homeserver-gcp.key /var/lib/nginx/certs/homeserver-gcp.key
       '';
       serviceConfig = {
         Type = "oneshot";
@@ -142,7 +146,10 @@ in
       tailscale-cert = {
         extraConfig = {
           ProtectHome = false;
-          ReadWritePaths = [ "/var/lib/tailscale" ];
+          ReadWritePaths = [
+            "/var/lib/tailscale"
+            "/var/lib/nginx/certs"
+          ];
           RestrictAddressFamilies = [ "AF_UNIX" ];
         };
       };
@@ -154,6 +161,7 @@ in
           ReadWritePaths = [
             "/var/cache/nginx"
             "/var/log/nginx"
+            "/var/lib/nginx/certs"
           ];
         };
       };
@@ -184,8 +192,8 @@ in
 
       virtualHosts.${tailnetFQDN} = {
         forceSSL = true;
-        sslCertificate = "/var/lib/tailscale/certs/homeserver-gcp.crt";
-        sslCertificateKey = "/var/lib/tailscale/certs/homeserver-gcp.key";
+        sslCertificate = "/var/lib/nginx/certs/homeserver-gcp.crt";
+        sslCertificateKey = "/var/lib/nginx/certs/homeserver-gcp.key";
 
         locations."/" = {
           proxyPass = "http://127.0.0.1:8222";
