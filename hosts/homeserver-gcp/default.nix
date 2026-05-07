@@ -94,8 +94,6 @@ in
     };
   };
 
-  security.sudo.wheelNeedsPassword = lib.mkForce true;
-
   nix.settings.trusted-users = lib.mkForce [
     "root"
     "user"
