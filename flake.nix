@@ -544,6 +544,9 @@
         vm-smoke = import ./tests/nixos/vm-smoke.nix {
           inherit nixpkgs system inputs;
         };
+        homeserver-gcp-smoke = import ./tests/nixos/homeserver-gcp-smoke.nix {
+          inherit nixpkgs system inputs;
+        };
         profile-security = import ./tests/nixos/profile-security.nix {
           inherit nixpkgs system;
         };
@@ -763,14 +766,22 @@
         homeConfigurations = {
           user = home-manager.lib.homeManagerConfiguration {
             inherit pkgs;
-            extraSpecialArgs = { inherit inputs; };
+            extraSpecialArgs = {
+              inherit inputs;
+              skipHeavyPackages = false;
+              enableSpotify = true;
+            };
             modules = [
               ./home/users/user/home.nix
             ];
           };
           "user@wsl" = home-manager.lib.homeManagerConfiguration {
             inherit pkgs;
-            extraSpecialArgs = { inherit inputs; };
+            extraSpecialArgs = {
+              inherit inputs;
+              skipHeavyPackages = false;
+              enableSpotify = true;
+            };
             modules = [
               ./home/users/user/wsl.nix
             ];

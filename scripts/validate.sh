@@ -39,6 +39,8 @@ Commands:
   profile-test <name>
                      Build one profile test: profile-security, profile-observability, profile-hardening
   smoke-vm           Build the desktop VM smoke test
+  smoke-homeserver-gcp
+                     Build the homeserver-gcp endpoint smoke test
   profile-tests      Build all profile NixOS tests
   heavy              Build all smoke and profile tests
   cve-reports        Build and print the CVE report outputs
@@ -139,6 +141,10 @@ smoke-vm)
   build_attrs ".#legacyPackages.${system}.ciTests.vm-smoke"
   ;;
 
+smoke-homeserver-gcp)
+  build_attrs ".#legacyPackages.${system}.ciTests.homeserver-gcp-smoke"
+  ;;
+
 profile-test)
   build_profile_test "${target:?Usage: $0 profile-test <name>}"
   ;;
@@ -153,6 +159,7 @@ profile-tests)
 heavy)
   build_attrs \
     ".#legacyPackages.${system}.ciTests.vm-smoke" \
+    ".#legacyPackages.${system}.ciTests.homeserver-gcp-smoke" \
     ".#legacyPackages.${system}.ciTests.profile-security" \
     ".#legacyPackages.${system}.ciTests.profile-observability" \
     ".#legacyPackages.${system}.ciTests.profile-hardening"

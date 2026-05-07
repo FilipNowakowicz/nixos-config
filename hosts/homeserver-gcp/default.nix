@@ -8,12 +8,15 @@
 }:
 let
   inherit (hostMeta) tailnetFQDN;
+  dash = import ../../lib/dashboards.nix;
+  textfileDir = "/var/lib/node-exporter-textfiles";
 in
 {
   imports = [
     inputs.disko.nixosModules.disko
     ./hardware-configuration.nix
     ./disko.nix
+    ./nginx.nix
     ../../modules/nixos/profiles/base.nix
     ../../modules/nixos/profiles/machine-common.nix
     ../../modules/nixos/profiles/security.nix
@@ -22,11 +25,43 @@ in
   ];
 
   systemd = {
-    tmpfiles.rules = [
-      "d /var/lib/nginx/certs 0750 root nginx -"
-    ];
-
     services = {
+      restic-backups-b2 = {
+        serviceConfig.ExecStartPost = pkgs.writeShellScript "restic-backup-metrics" ''
+          tmp=${textfileDir}/restic_backup.prom.tmp
+          {
+            echo "# HELP restic_last_backup_timestamp_seconds Unix timestamp of last successful restic backup"
+            echo "# TYPE restic_last_backup_timestamp_seconds gauge"
+            echo "restic_last_backup_timestamp_seconds $(date +%s)"
+          } > "$tmp"
+          mv "$tmp" ${textfileDir}/restic_backup.prom
+        '';
+      };
+
+      restic-check-b2 = {
+        description = "Restic B2 repository integrity check";
+        after = [ "network-online.target" ];
+        wants = [ "network-online.target" ];
+        environment = {
+          RESTIC_REPOSITORY = "b2:filipnowakowicz-gcp:";
+          RESTIC_PASSWORD_FILE = config.sops.secrets.restic_password.path;
+        };
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = "${pkgs.restic}/bin/restic check --read-data-subset=1G";
+          ExecStartPost = pkgs.writeShellScript "restic-check-metrics" ''
+            tmp=${textfileDir}/restic_check.prom.tmp
+            {
+              echo "# HELP restic_last_check_timestamp_seconds Unix timestamp of last successful restic integrity check"
+              echo "# TYPE restic_last_check_timestamp_seconds gauge"
+              echo "restic_last_check_timestamp_seconds $(date +%s)"
+            } > "$tmp"
+            mv "$tmp" ${textfileDir}/restic_check.prom
+          '';
+          EnvironmentFile = config.sops.secrets.b2_credentials.path;
+        };
+      };
+
       tailscale-cert = {
         description = "Fetch TLS certificate from Tailscale";
         wantedBy = [ "multi-user.target" ];
@@ -62,6 +97,15 @@ in
       nginx = {
         after = [ "tailscale-cert.service" ];
         requires = [ "tailscale-cert.service" ];
+      };
+    };
+
+    timers.restic-check-b2 = {
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "weekly";
+        Persistent = true;
+        RandomizedDelaySec = "2h";
       };
     };
 
@@ -158,6 +202,49 @@ in
       traces.enable = true;
     };
     dashboards.fleet.enable = true;
+    dashboards.backup = {
+      enable = true;
+      definition = dash.mkDashboard {
+        uid = "homeserver-backup-health";
+        title = "Backup Health";
+        panels = [
+          (dash.timeseriesPanel {
+            id = 1;
+            title = "Backup Age (hours)";
+            ds = dash.mimirDS;
+            gridPos = dash.gridPos {
+              x = 0;
+              y = 0;
+              w = 12;
+              h = 8;
+            };
+            targets = [
+              (dash.target {
+                expr = "(time() - restic_last_backup_timestamp_seconds) / 3600";
+                legendFormat = "hours since last backup";
+              })
+            ];
+          })
+          (dash.timeseriesPanel {
+            id = 2;
+            title = "Check Age (hours)";
+            ds = dash.mimirDS;
+            gridPos = dash.gridPos {
+              x = 12;
+              y = 0;
+              w = 12;
+              h = 8;
+            };
+            targets = [
+              (dash.target {
+                expr = "(time() - restic_last_check_timestamp_seconds) / 3600";
+                legendFormat = "hours since last check";
+              })
+            ];
+          })
+        ];
+      };
+    };
   };
 
   services = {
@@ -236,44 +323,12 @@ in
       };
     };
 
-    nginx = {
-      enable = true;
-      recommendedProxySettings = true;
-      recommendedTlsSettings = true;
+  };
 
-      virtualHosts.${tailnetFQDN} = {
-        forceSSL = true;
-        sslCertificate = "/var/lib/nginx/certs/homeserver-gcp.crt";
-        sslCertificateKey = "/var/lib/nginx/certs/homeserver-gcp.key";
-
-        locations = {
-          "/" = {
-            proxyPass = "http://127.0.0.1:8222";
-            proxyWebsockets = true;
-          };
-
-          "/grafana/" = {
-            proxyPass = "http://127.0.0.1:3000";
-            proxyWebsockets = true;
-          };
-
-          "/obs/loki/" = {
-            proxyPass = "http://127.0.0.1:3100/";
-            basicAuthFile = config.sops.secrets.observability_ingest_htpasswd.path;
-          };
-
-          "/obs/mimir/" = {
-            proxyPass = "http://127.0.0.1:9009/";
-            basicAuthFile = config.sops.secrets.observability_ingest_htpasswd.path;
-          };
-
-          "/obs/otlp/" = {
-            proxyPass = "http://127.0.0.1:14318/";
-            basicAuthFile = config.sops.secrets.observability_ingest_htpasswd.path;
-          };
-        };
-      };
-    };
+  profiles.homeserverGcpNginx = {
+    enable = true;
+    fqdn = tailnetFQDN;
+    ingestHtpasswdFile = config.sops.secrets.observability_ingest_htpasswd.path;
   };
 
   sops = {

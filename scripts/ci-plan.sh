@@ -17,6 +17,7 @@ docs_change='^(README\.md|docs/|.*\.md$|.*/CLAUDE\.md$|AGENTS\.md$)'
 package_change='^packages/'
 main_change='^hosts/main/'
 vm_change='^hosts/vm/'
+homeserver_change='^hosts/homeserver-gcp/'
 module_all_hosts='^modules/nixos/(default\.nix|services/|profiles/(base|backup|security|sops-base|user)\.nix)'
 module_desktop_hosts='^modules/nixos/(profiles/(desktop|observability-client)\.nix|hardware/nvidia-prime\.nix)'
 module_server_hosts='^modules/nixos/profiles/observability/'
@@ -37,6 +38,7 @@ main_ci=false
 vm=false
 profile_tests=false
 vm_smoke=false
+homeserver_gcp_smoke=false
 closure_main=false
 
 select_all_hosts() {
@@ -48,6 +50,7 @@ select_all_hosts() {
 select_all_tests() {
   profile_tests=true
   vm_smoke=true
+  homeserver_gcp_smoke=true
 }
 
 select_desktop_hosts() {
@@ -132,6 +135,10 @@ if [[ -n $changed_files ]]; then
     vm_smoke=true
   fi
 
+  if grep -qE "${homeserver_change}" <<<"$changed_files"; then
+    homeserver_gcp_smoke=true
+  fi
+
   if grep -qE "${module_all_hosts}" <<<"$changed_files"; then
     select_all_hosts
     select_all_tests
@@ -145,6 +152,7 @@ if [[ -n $changed_files ]]; then
 
   if grep -qE "${module_server_hosts}" <<<"$changed_files"; then
     profile_tests=true
+    homeserver_gcp_smoke=true
   fi
 
   if grep -qE "${module_machine_hosts}" <<<"$changed_files"; then
@@ -207,6 +215,10 @@ if [[ $vm_smoke == "true" ]]; then
   tests_matrix+='{"name":"vm-smoke","command":"smoke-vm","target":""}'
   sep=","
 fi
+if [[ $homeserver_gcp_smoke == "true" ]]; then
+  tests_matrix+="${sep}"'{"name":"homeserver-gcp-smoke","command":"smoke-homeserver-gcp","target":""}'
+  sep=","
+fi
 if [[ $profile_tests == "true" ]]; then
   for profile in profile-security profile-observability profile-hardening; do
     tests_matrix+="${sep}"'{"name":"'"$profile"'","command":"profile-test","target":"'"$profile"'"}'
@@ -221,7 +233,7 @@ else
   emit_bool hosts false
 fi
 
-if [[ $vm_smoke == "true" || $profile_tests == "true" ]]; then
+if [[ $vm_smoke == "true" || $homeserver_gcp_smoke == "true" || $profile_tests == "true" ]]; then
   emit_bool tests true
 else
   emit_bool tests false

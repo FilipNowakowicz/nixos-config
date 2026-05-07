@@ -67,6 +67,12 @@ assert_not_contains "$main_output" '{"name":"vm-ci"}'
 server_output="$(run_plan $'modules/nixos/profiles/observability/backends.nix')"
 assert_contains "$server_output" "tests=true"
 assert_contains "$server_output" '{"name":"profile-security","command":"profile-test","target":"profile-security"}'
+assert_contains "$server_output" '{"name":"homeserver-gcp-smoke","command":"smoke-homeserver-gcp","target":""}'
+
+homeserver_output="$(run_plan $'hosts/homeserver-gcp/default.nix')"
+assert_contains "$homeserver_output" "tests=true"
+assert_contains "$homeserver_output" '{"name":"homeserver-gcp-smoke","command":"smoke-homeserver-gcp","target":""}'
+assert_not_contains "$homeserver_output" '{"name":"vm-smoke"'
 
 package_output="$(run_plan $'packages/inventory.nix')"
 assert_contains "$package_output" "run_packages=true"

@@ -120,8 +120,10 @@ in
             "meminfo"
             "netdev"
             "systemd"
+            "textfile"
             "thermal_zone"
           ];
+          extraFlags = [ "--collector.textfile.directory=/var/lib/node-exporter-textfiles" ];
         };
 
         scrapeConfigs = [
@@ -210,6 +212,7 @@ in
     systemd = {
       tmpfiles.rules = lib.mkIf cfg.collectors.metrics.enable [
         "d /var/lib/prometheus2 0750 prometheus prometheus -"
+        "d /var/lib/node-exporter-textfiles 0755 root root -"
       ];
 
       services = {
