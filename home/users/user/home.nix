@@ -232,6 +232,7 @@ in
         claude-code
         codex
         gemini-cli
+        grok-cli
         opencode
         opencode-claude-auth
         gh

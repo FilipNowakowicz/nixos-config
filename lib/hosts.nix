@@ -209,6 +209,8 @@ let
         acceptFrom.workstation = [
           22
           443
+          53 # AdGuard DNS
+          3001 # AdGuard web UI
         ];
       };
       deploy.sshUser = "user";

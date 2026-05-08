@@ -17,6 +17,7 @@ in
     ./hardware-configuration.nix
     ./disko.nix
     ./nginx.nix
+    ./adguard.nix
     ../../modules/nixos/profiles/base.nix
     ../../modules/nixos/profiles/machine-common.nix
     ../../modules/nixos/profiles/security.nix
@@ -266,6 +267,7 @@ in
       paths = [
         "/var/lib/vaultwarden"
         "/var/lib/grafana"
+        "/var/lib/AdGuardHome"
       ];
       repository = "b2:filipnowakowicz-gcp:";
       passwordFile = config.sops.secrets.restic_password.path;

@@ -12,7 +12,8 @@ Status: **active** — deployed on GCP, accessible via Tailscale.
 - **Nginx** — reverse proxy, TLS via Tailscale cert
 - **SSH** — firewall exposure limited to `tailscale0`
 - **Tailscale** — auth key from sops secret `tailscale_auth_key`
-- **Restic/B2** — off-site backups to Backblaze B2 (`/var/lib/vaultwarden`, `/var/lib/grafana`)
+- **AdGuard Home** — DNS (TCP/UDP 53) + web UI (HTTP port 3001), tailscale0 only; state at `/var/lib/AdGuardHome`
+- **Restic/B2** — off-site backups to Backblaze B2 (`/var/lib/vaultwarden`, `/var/lib/grafana`, `/var/lib/AdGuardHome`)
 - **GCE snapshots** — daily 7-day boot disk snapshots for fast provider-local rollback
 
 ## Architecture
@@ -92,6 +93,8 @@ When provisioning from scratch:
 
 6. **Create Vaultwarden account** — temporarily set `SIGNUPS_ALLOWED = true`, deploy, sign up, set back to `false`, redeploy.
 
+7. **Set up AdGuard Home** — open `http://<tailscale-ip>:3001` in a browser and complete the setup wizard (create admin user, confirm DNS on port 53). Then in Tailscale admin → DNS → Nameservers, add the homeserver-gcp Tailscale IP as a global nameserver.
+
 ## Ongoing Updates
 
 ```bash
@@ -112,3 +115,5 @@ deploy '.#homeserver-gcp'
   for independent off-site application recovery.
 - **Off-site backup via B2** — `services.restic.backups.b2` uses the shared
   `backup.class = "critical"` policy from `modules/nixos/profiles/backup.nix`.
+- **AdGuard DNS failure** — if `adguardhome.service` crashes, tailnet clients using it as DNS lose resolution. Recovery: in Tailscale admin → DNS, temporarily remove the nameserver override to fall back to default resolver. The existing systemd failed-unit alert fires within 2 minutes.
+- **AdGuard web UI** — HTTP only (port 3001 on tailscale0). No TLS needed; WireGuard encrypts tailnet traffic.

@@ -25,8 +25,8 @@ through `scripts/deploy-gcp.sh`.
 | 4     | Vaultwarden websocket notifications   | Easy       | Done     | Small user-facing improvement with limited blast radius.                                            |
 | 5     | Disk layout decision                  | Medium     | Done     | Root-only layout is intentional; split storage only when a concrete retention or quota need exists. |
 | 6     | GCE disk snapshots                    | Medium     | Done     | Daily 7-day provider-local boot disk snapshots are attached for fast rollback alongside restic.     |
-| 7     | Local DNS and ad-blocking             | Medium     | Next     | First new service; depends on backup, smoke, alert, and disk posture being clear.                   |
-| 8     | Secret rotation ritual                | Medium     | Next     | Valuable once deploy/smoke paths can prove rotation did not break the server.                       |
+| 7     | Local DNS and ad-blocking             | Medium     | Done     | First new service; depends on backup, smoke, alert, and disk posture being clear.                   |
+| 8     | Secret rotation ritual                | Medium     | Deferred | Valuable once deploy/smoke paths can prove rotation did not break the server.                       |
 | 9     | ACL drift detection                   | Medium     | Later    | The ACL package exists; live API comparison is useful but not a blocker for new services.           |
 | 10    | Vulnix/CVE dashboard                  | Medium     | Later    | Security visibility is useful after alerting conventions are settled.                               |
 | 11    | Automated deploy pipeline             | Hard       | Later    | High leverage, but design depends on runner placement, KVM needs, and smoke-test coverage.          |
