@@ -2,6 +2,7 @@
 let
   cfg = config.profiles.homeserverGcpNginx;
   certDir = "/var/lib/nginx/certs";
+  homepageDir = "/var/lib/homepage/public";
 in
 {
   options.profiles.homeserverGcpNginx = {
@@ -21,6 +22,7 @@ in
   config = lib.mkIf cfg.enable {
     systemd.tmpfiles.rules = [
       "d ${certDir} 0750 root nginx -"
+      "d ${homepageDir} 0755 root nginx -"
     ];
 
     services.nginx = {
@@ -47,6 +49,21 @@ in
           "/grafana/" = {
             proxyPass = "http://127.0.0.1:3000";
             proxyWebsockets = true;
+          };
+
+          "/home/" = {
+            alias = "${homepageDir}/";
+            extraConfig = ''
+              try_files $uri $uri/ /home/index.html;
+            '';
+          };
+
+          "= /home/status.json" = {
+            alias = "${homepageDir}/status.json";
+            extraConfig = ''
+              default_type application/json;
+              add_header Cache-Control "no-store";
+            '';
           };
 
           "/obs/loki/" = {

@@ -10,6 +10,29 @@ let
   inherit (hostMeta) tailnetFQDN;
   dash = import ../../lib/dashboards.nix;
   textfileDir = "/var/lib/node-exporter-textfiles";
+  homepageDir = "/var/lib/homepage/public";
+  homepagePlaceholder = pkgs.writeText "homepage-placeholder.html" ''
+    <!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Homepage not deployed</title>
+        <style>
+          body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #10120f; color: #f3efe3; font-family: sans-serif; }
+          main { max-width: 42rem; padding: 2rem; }
+          code { color: #e0b15b; }
+        </style>
+      </head>
+      <body>
+        <main>
+          <h1>Homepage assets not deployed yet</h1>
+          <p>Build the dashboard with <code>nix build '.#packages.x86_64-linux.inventory'</code>, then copy the result contents into <code>/var/lib/homepage/public</code>.</p>
+          <p>The live status endpoint is still available at <code>/home/status.json</code>.</p>
+        </main>
+      </body>
+    </html>
+  '';
 in
 {
   imports = [
@@ -60,6 +83,144 @@ in
             mv "$tmp" ${textfileDir}/restic_check.prom
           '';
           EnvironmentFile = config.sops.secrets.b2_credentials.path;
+        };
+      };
+
+      homepage-status = {
+        description = "Generate read-only homepage status JSON";
+        path = [
+          pkgs.coreutils
+          pkgs.gawk
+          pkgs.gnugrep
+          pkgs.jq
+          pkgs.systemd
+        ];
+        script = ''
+          set -eu
+
+          mkdir -p ${homepageDir}
+          now="$(date +%s)"
+
+          metric() {
+            local file="$1"
+            local name="$2"
+            awk -v metric="$name" '$1 == metric { print $2; found = 1 } END { exit found ? 0 : 1 }' "$file" 2>/dev/null || true
+          }
+
+          age_json() {
+            local timestamp="$1"
+            if [ -n "$timestamp" ] && [ "$timestamp" -eq "$timestamp" ] 2>/dev/null; then
+              printf '%s' "$((now - timestamp))"
+            else
+              printf 'null'
+            fi
+          }
+
+          number_json() {
+            local value="$1"
+            if [ -n "$value" ] && printf '%s' "$value" | grep -Eq '^[0-9]+([.][0-9]+)?$'; then
+              printf '%s' "$value"
+            else
+              printf 'null'
+            fi
+          }
+
+          service_state() {
+            local unit="$1"
+            if systemctl is-active --quiet "$unit"; then
+              printf active
+            elif systemctl is-enabled --quiet "$unit" 2>/dev/null; then
+              printf inactive
+            else
+              printf unavailable
+            fi
+          }
+
+          timer_state() {
+            local unit="$1"
+            if systemctl is-active --quiet "$unit"; then
+              printf active
+            elif systemctl list-timers --all --no-legend "$unit" 2>/dev/null | grep -q .; then
+              printf inactive
+            else
+              printf unavailable
+            fi
+          }
+
+          restic_backup_ts="$(metric ${textfileDir}/restic_backup.prom restic_last_backup_timestamp_seconds)"
+          restic_check_ts="$(metric ${textfileDir}/restic_check.prom restic_last_check_timestamp_seconds)"
+          lynis_ts="$(metric ${textfileDir}/lynis.prom lynis_scan_timestamp_seconds)"
+          lynis_index="$(metric ${textfileDir}/lynis.prom lynis_hardening_index)"
+          lynis_warnings="$(metric ${textfileDir}/lynis.prom lynis_warnings_total)"
+          vulnix_ts="$(metric ${textfileDir}/vulnix.prom vulnix_scan_timestamp_seconds)"
+          vulnix_cves="$(metric ${textfileDir}/vulnix.prom vulnix_cve_total)"
+          vulnix_packages="$(metric ${textfileDir}/vulnix.prom vulnix_affected_packages_total)"
+          failed_units_json="$(systemctl --failed --plain --no-legend --no-pager | awk '{ print $1 }' | jq -R . | jq -s -c .)"
+
+          tmp="${homepageDir}/status.json.tmp"
+          jq -n \
+            --arg host "homeserver-gcp" \
+            --arg fqdn "${tailnetFQDN}" \
+            --argjson generatedAt "$now" \
+            --arg nginx "$(service_state nginx.service)" \
+            --arg vaultwarden "$(service_state vaultwarden.service)" \
+            --arg grafana "$(service_state grafana.service)" \
+            --arg adguard "$(service_state adguardhome.service)" \
+            --arg tailscale "$(service_state tailscaled.service)" \
+            --arg resticBackup "$(service_state restic-backups-b2.service)" \
+            --arg loki "$(service_state loki.service)" \
+            --arg mimir "$(service_state mimir.service)" \
+            --arg tempo "$(service_state tempo.service)" \
+            --arg resticCheckTimer "$(timer_state restic-check-b2.timer)" \
+            --arg lynisTimer "$(timer_state lynis-audit.timer)" \
+            --arg vulnixTimer "$(timer_state vulnix-scan.timer)" \
+            --argjson backupAge "$(age_json "$restic_backup_ts")" \
+            --argjson checkAge "$(age_json "$restic_check_ts")" \
+            --argjson lynisAge "$(age_json "$lynis_ts")" \
+            --argjson lynisIndex "$(number_json "$lynis_index")" \
+            --argjson lynisWarnings "$(number_json "$lynis_warnings")" \
+            --argjson vulnixAge "$(age_json "$vulnix_ts")" \
+            --argjson vulnixCves "$(number_json "$vulnix_cves")" \
+            --argjson vulnixPackages "$(number_json "$vulnix_packages")" \
+            --argjson failedUnits "$failed_units_json" \
+            '{
+              generatedAt: $generatedAt,
+              host: $host,
+              fqdn: $fqdn,
+              services: {
+                nginx: $nginx,
+                vaultwarden: $vaultwarden,
+                grafana: $grafana,
+                adguard: $adguard,
+                tailscale: $tailscale,
+                resticBackup: $resticBackup,
+                loki: $loki,
+                mimir: $mimir,
+                tempo: $tempo
+              },
+              timers: {
+                resticCheck: $resticCheckTimer,
+                lynis: $lynisTimer,
+                vulnix: $vulnixTimer
+              },
+              metrics: {
+                resticBackupAgeSeconds: $backupAge,
+                resticCheckAgeSeconds: $checkAge,
+                lynisAgeSeconds: $lynisAge,
+                lynisHardeningIndex: $lynisIndex,
+                lynisWarningsTotal: $lynisWarnings,
+                vulnixAgeSeconds: $vulnixAge,
+                vulnixCveTotal: $vulnixCves,
+                vulnixAffectedPackagesTotal: $vulnixPackages
+              },
+              failedUnits: $failedUnits
+            }' > "$tmp"
+          mv "$tmp" ${homepageDir}/status.json
+          chmod 0644 ${homepageDir}/status.json
+        '';
+        serviceConfig = {
+          Type = "oneshot";
+          RuntimeDirectory = "homepage-status";
         };
       };
 
@@ -211,6 +372,15 @@ in
         };
       };
 
+      homepage-status = {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnBootSec = "2m";
+          OnUnitActiveSec = "1m";
+          Persistent = true;
+        };
+      };
+
       tailscale-cert = {
         wantedBy = [ "timers.target" ];
         timerConfig = {
@@ -280,6 +450,8 @@ in
   environment.enableAllTerminfo = true;
 
   systemd.tmpfiles.rules = [
+    "d ${homepageDir} 0755 root nginx -"
+    "C ${homepageDir}/index.html 0644 root nginx - ${homepagePlaceholder}"
     "d /var/cache/vulnix 0750 root root -"
   ];
 
