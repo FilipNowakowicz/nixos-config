@@ -6,3 +6,848 @@
 #   [CVE-YYYY-NNNNN]
 #   comment = "Reason — link to upstream issue or explain why it's acceptable"
 #   affected-pkgs = ["optional-package-scope"]  # omit to suppress across all packages
+#
+# ─────────────────────────────────────────────────────────────
+# SECTION 1: Haskell package name collisions
+#
+# NVD matches by package name. Many Haskell libraries share a name with
+# unrelated software that has real CVEs. These entries scope suppression to
+# the Haskell pname so vulnix ignores them.
+# ─────────────────────────────────────────────────────────────
+
+# Haskell `vault` (https://hackage.haskell.org/package/vault) — a data structure
+# for storing typed values. NVD matches CVEs for HashiCorp Vault (a secrets manager).
+[CVE-2021-27400]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2021-3024]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2021-38554]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2021-41802]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2022-41316]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2023-0620]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2023-0665]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2023-2121]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2023-24999]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2023-25000]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2023-6337]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2024-2048]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2024-8365]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2025-4166]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2025-6011]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2025-6014]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2025-6037]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+[CVE-2026-5807]
+comment = "HashiCorp Vault CVE; pname 'vault' matches Haskell vault data-structure library"
+affected-pkgs = ["vault"]
+
+# Haskell `network` (https://hackage.haskell.org/package/network) — low-level
+# BSD socket bindings. NVD matches CVEs for unrelated "Network" products.
+[CVE-2021-35047]
+comment = "NVD CVE for unrelated 'Network' product; Haskell network is BSD socket bindings"
+affected-pkgs = ["network"]
+
+[CVE-2021-35048]
+comment = "NVD CVE for unrelated 'Network' product; Haskell network is BSD socket bindings"
+affected-pkgs = ["network"]
+
+[CVE-2021-35049]
+comment = "NVD CVE for unrelated 'Network' product; Haskell network is BSD socket bindings"
+affected-pkgs = ["network"]
+
+[CVE-2021-35050]
+comment = "NVD CVE for unrelated 'Network' product; Haskell network is BSD socket bindings"
+affected-pkgs = ["network"]
+
+[CVE-2022-0486]
+comment = "NVD CVE for unrelated 'Network' product; Haskell network is BSD socket bindings"
+affected-pkgs = ["network"]
+
+[CVE-2022-0997]
+comment = "NVD CVE for unrelated 'Network' product; Haskell network is BSD socket bindings"
+affected-pkgs = ["network"]
+
+[CVE-2022-24388]
+comment = "NVD CVE for unrelated 'Network' product; Haskell network is BSD socket bindings"
+affected-pkgs = ["network"]
+
+[CVE-2022-24389]
+comment = "NVD CVE for unrelated 'Network' product; Haskell network is BSD socket bindings"
+affected-pkgs = ["network"]
+
+[CVE-2022-24390]
+comment = "NVD CVE for unrelated 'Network' product; Haskell network is BSD socket bindings"
+affected-pkgs = ["network"]
+
+[CVE-2022-24391]
+comment = "NVD CVE for unrelated 'Network' product; Haskell network is BSD socket bindings"
+affected-pkgs = ["network"]
+
+[CVE-2022-24392]
+comment = "NVD CVE for unrelated 'Network' product; Haskell network is BSD socket bindings"
+affected-pkgs = ["network"]
+
+[CVE-2022-24393]
+comment = "NVD CVE for unrelated 'Network' product; Haskell network is BSD socket bindings"
+affected-pkgs = ["network"]
+
+[CVE-2022-24394]
+comment = "NVD CVE for unrelated 'Network' product; Haskell network is BSD socket bindings"
+affected-pkgs = ["network"]
+
+# Haskell `warp` (https://hackage.haskell.org/package/warp) — a Haskell HTTP server.
+# NVD matches CVEs for Warp terminal / Warp cloud data platform.
+[CVE-2022-2145]
+comment = "Warp terminal/cloud CVE; pname 'warp' matches Haskell warp HTTP server"
+affected-pkgs = ["warp"]
+
+[CVE-2022-2225]
+comment = "Warp terminal/cloud CVE; pname 'warp' matches Haskell warp HTTP server"
+affected-pkgs = ["warp"]
+
+[CVE-2022-3320]
+comment = "Warp terminal/cloud CVE; pname 'warp' matches Haskell warp HTTP server"
+affected-pkgs = ["warp"]
+
+[CVE-2022-3512]
+comment = "Warp terminal/cloud CVE; pname 'warp' matches Haskell warp HTTP server"
+affected-pkgs = ["warp"]
+
+[CVE-2022-4428]
+comment = "Warp terminal/cloud CVE; pname 'warp' matches Haskell warp HTTP server"
+affected-pkgs = ["warp"]
+
+[CVE-2022-4457]
+comment = "Warp terminal/cloud CVE; pname 'warp' matches Haskell warp HTTP server"
+affected-pkgs = ["warp"]
+
+[CVE-2023-0238]
+comment = "Warp terminal/cloud CVE; pname 'warp' matches Haskell warp HTTP server"
+affected-pkgs = ["warp"]
+
+[CVE-2023-0652]
+comment = "Warp terminal/cloud CVE; pname 'warp' matches Haskell warp HTTP server"
+affected-pkgs = ["warp"]
+
+[CVE-2023-0654]
+comment = "Warp terminal/cloud CVE; pname 'warp' matches Haskell warp HTTP server"
+affected-pkgs = ["warp"]
+
+[CVE-2023-1412]
+comment = "Warp terminal/cloud CVE; pname 'warp' matches Haskell warp HTTP server"
+affected-pkgs = ["warp"]
+
+[CVE-2023-1862]
+comment = "Warp terminal/cloud CVE; pname 'warp' matches Haskell warp HTTP server"
+affected-pkgs = ["warp"]
+
+[CVE-2023-2754]
+comment = "Warp terminal/cloud CVE; pname 'warp' matches Haskell warp HTTP server"
+affected-pkgs = ["warp"]
+
+[CVE-2025-0651]
+comment = "Warp terminal/cloud CVE; pname 'warp' matches Haskell warp HTTP server"
+affected-pkgs = ["warp"]
+
+# Haskell `safe` (https://hackage.haskell.org/package/safe) — safe variants of
+# partial Prelude functions. NVD matches CVEs for a product called "Safe".
+[CVE-2021-33594]
+comment = "NVD CVE for unrelated 'Safe' product; Haskell safe is a Prelude safety library"
+affected-pkgs = ["safe"]
+
+[CVE-2021-33595]
+comment = "NVD CVE for unrelated 'Safe' product; Haskell safe is a Prelude safety library"
+affected-pkgs = ["safe"]
+
+[CVE-2021-33596]
+comment = "NVD CVE for unrelated 'Safe' product; Haskell safe is a Prelude safety library"
+affected-pkgs = ["safe"]
+
+[CVE-2021-40834]
+comment = "NVD CVE for unrelated 'Safe' product; Haskell safe is a Prelude safety library"
+affected-pkgs = ["safe"]
+
+[CVE-2021-40835]
+comment = "NVD CVE for unrelated 'Safe' product; Haskell safe is a Prelude safety library"
+affected-pkgs = ["safe"]
+
+[CVE-2021-44751]
+comment = "NVD CVE for unrelated 'Safe' product; Haskell safe is a Prelude safety library"
+affected-pkgs = ["safe"]
+
+[CVE-2022-28868]
+comment = "NVD CVE for unrelated 'Safe' product; Haskell safe is a Prelude safety library"
+affected-pkgs = ["safe"]
+
+[CVE-2022-28869]
+comment = "NVD CVE for unrelated 'Safe' product; Haskell safe is a Prelude safety library"
+affected-pkgs = ["safe"]
+
+[CVE-2022-28870]
+comment = "NVD CVE for unrelated 'Safe' product; Haskell safe is a Prelude safety library"
+affected-pkgs = ["safe"]
+
+[CVE-2022-28872]
+comment = "NVD CVE for unrelated 'Safe' product; Haskell safe is a Prelude safety library"
+affected-pkgs = ["safe"]
+
+[CVE-2022-28873]
+comment = "NVD CVE for unrelated 'Safe' product; Haskell safe is a Prelude safety library"
+affected-pkgs = ["safe"]
+
+[CVE-2022-38163]
+comment = "NVD CVE for unrelated 'Safe' product; Haskell safe is a Prelude safety library"
+affected-pkgs = ["safe"]
+
+[CVE-2022-38164]
+comment = "NVD CVE for unrelated 'Safe' product; Haskell safe is a Prelude safety library"
+affected-pkgs = ["safe"]
+
+[CVE-2022-47524]
+comment = "NVD CVE for unrelated 'Safe' product; Haskell safe is a Prelude safety library"
+affected-pkgs = ["safe"]
+
+# Haskell `curl` (https://hackage.haskell.org/package/curl) — Haskell bindings to
+# libcurl. pname is 'curl' but NVD matches CVEs for the curl/libcurl C library.
+# The C libcurl package (pname: curl, version: 8.x) is tracked separately.
+[CVE-2022-27776]
+comment = "libcurl CVE; pname 'curl' also matches Haskell curl bindings (version 0.4.x)"
+affected-pkgs = ["curl"]
+
+[CVE-2022-27781]
+comment = "libcurl CVE; pname 'curl' also matches Haskell curl bindings (version 0.4.x)"
+affected-pkgs = ["curl"]
+
+[CVE-2022-27782]
+comment = "libcurl CVE; pname 'curl' also matches Haskell curl bindings (version 0.4.x)"
+affected-pkgs = ["curl"]
+
+[CVE-2022-32206]
+comment = "libcurl CVE; pname 'curl' also matches Haskell curl bindings (version 0.4.x)"
+affected-pkgs = ["curl"]
+
+[CVE-2022-32221]
+comment = "libcurl CVE; pname 'curl' also matches Haskell curl bindings (version 0.4.x)"
+affected-pkgs = ["curl"]
+
+[CVE-2022-35252]
+comment = "libcurl CVE; pname 'curl' also matches Haskell curl bindings (version 0.4.x)"
+affected-pkgs = ["curl"]
+
+[CVE-2022-43552]
+comment = "libcurl CVE; pname 'curl' also matches Haskell curl bindings (version 0.4.x)"
+affected-pkgs = ["curl"]
+
+[CVE-2023-28319]
+comment = "libcurl CVE; pname 'curl' also matches Haskell curl bindings (version 0.4.x)"
+affected-pkgs = ["curl"]
+
+[CVE-2023-28320]
+comment = "libcurl CVE; pname 'curl' also matches Haskell curl bindings (version 0.4.x)"
+affected-pkgs = ["curl"]
+
+[CVE-2023-28321]
+comment = "libcurl CVE; pname 'curl' also matches Haskell curl bindings (version 0.4.x)"
+affected-pkgs = ["curl"]
+
+[CVE-2023-28322]
+comment = "libcurl CVE; pname 'curl' also matches Haskell curl bindings (version 0.4.x)"
+affected-pkgs = ["curl"]
+
+# Google `wire` DI tool (https://github.com/google/wire) — compile-time dependency
+# injection for Go. NVD matches CVEs for Wire (a messaging application).
+[CVE-2021-21301]
+comment = "Wire messenger CVE; pname 'wire' matches Google wire DI tool for Go"
+affected-pkgs = ["wire"]
+
+[CVE-2021-32665]
+comment = "Wire messenger CVE; pname 'wire' matches Google wire DI tool for Go"
+affected-pkgs = ["wire"]
+
+[CVE-2021-32666]
+comment = "Wire messenger CVE; pname 'wire' matches Google wire DI tool for Go"
+affected-pkgs = ["wire"]
+
+[CVE-2021-32755]
+comment = "Wire messenger CVE; pname 'wire' matches Google wire DI tool for Go"
+affected-pkgs = ["wire"]
+
+[CVE-2021-41093]
+comment = "Wire messenger CVE; pname 'wire' matches Google wire DI tool for Go"
+affected-pkgs = ["wire"]
+
+[CVE-2022-23625]
+comment = "Wire messenger CVE; pname 'wire' matches Google wire DI tool for Go"
+affected-pkgs = ["wire"]
+
+[CVE-2022-31009]
+comment = "Wire messenger CVE; pname 'wire' matches Google wire DI tool for Go"
+affected-pkgs = ["wire"]
+
+[CVE-2022-43673]
+comment = "Wire messenger CVE; pname 'wire' matches Google wire DI tool for Go"
+affected-pkgs = ["wire"]
+
+[CVE-2023-22737]
+comment = "Wire messenger CVE; pname 'wire' matches Google wire DI tool for Go"
+affected-pkgs = ["wire"]
+
+# Haskell `zlib` (https://hackage.haskell.org/package/zlib) — Haskell bindings to
+# the zlib C library. pname is 'zlib' at version 0.7.x; NVD matches CVEs for the
+# C zlib library itself (1.x versions). The C zlib (pname: zlib, version: 1.3.x)
+# is tracked separately.
+[CVE-2022-37434]
+comment = "C zlib CVE; pname 'zlib' also matches Haskell zlib bindings (version 0.7.x)"
+affected-pkgs = ["zlib"]
+
+[CVE-2023-45853]
+comment = "C zlib CVE; pname 'zlib' also matches Haskell zlib bindings (version 0.7.x)"
+affected-pkgs = ["zlib"]
+
+[CVE-2023-6992]
+comment = "C zlib CVE; pname 'zlib' also matches Haskell zlib bindings (version 0.7.x)"
+affected-pkgs = ["zlib"]
+
+[CVE-2026-22184]
+comment = "C zlib CVE; pname 'zlib' also matches Haskell zlib bindings (version 0.7.x)"
+affected-pkgs = ["zlib"]
+
+# Haskell `dbus` (https://hackage.haskell.org/package/dbus) — pure Haskell D-Bus
+# client library. NVD matches CVEs for the D-Bus daemon / reference implementation.
+[CVE-2022-42010]
+comment = "D-Bus daemon CVE; pname 'dbus' also matches Haskell dbus client library (0.9.x)"
+affected-pkgs = ["dbus"]
+
+[CVE-2022-42011]
+comment = "D-Bus daemon CVE; pname 'dbus' also matches Haskell dbus client library (0.9.x)"
+affected-pkgs = ["dbus"]
+
+[CVE-2022-42012]
+comment = "D-Bus daemon CVE; pname 'dbus' also matches Haskell dbus client library (0.9.x)"
+affected-pkgs = ["dbus"]
+
+# Haskell `yaml` (https://hackage.haskell.org/package/yaml) — YAML serialization.
+# NVD matches CVEs for the Go yaml library (gopkg.in/yaml.v2).
+[CVE-2021-4235]
+comment = "Go yaml CVE; pname 'yaml' matches Haskell yaml library (0.11.x)"
+affected-pkgs = ["yaml"]
+
+[CVE-2022-3064]
+comment = "Go yaml CVE; pname 'yaml' matches Haskell yaml library (0.11.x)"
+affected-pkgs = ["yaml"]
+
+# Haskell `filelock` (https://hackage.haskell.org/package/filelock) — advisory
+# file locking. CVEs are for an unrelated 'filelock' product.
+[CVE-2025-68146]
+comment = "CVE for unrelated filelock product; Haskell filelock is an advisory locking library"
+affected-pkgs = ["filelock"]
+
+[CVE-2026-22701]
+comment = "CVE for unrelated filelock product; Haskell filelock is an advisory locking library"
+affected-pkgs = ["filelock"]
+
+# Haskell `stringbuilder` (https://hackage.haskell.org/package/stringbuilder).
+[CVE-2024-21524]
+comment = "CVE for unrelated stringbuilder product; Haskell stringbuilder is a string construction utility"
+affected-pkgs = ["stringbuilder"]
+
+# Haskell `hedgehog` (https://hackage.haskell.org/package/hedgehog) — property-
+# based testing library. CVE is for an unrelated product.
+[CVE-2021-4276]
+comment = "CVE for unrelated product; Haskell hedgehog is a property-based testing library"
+affected-pkgs = ["hedgehog"]
+
+# Haskell `commonmark` (https://hackage.haskell.org/package/commonmark) — CommonMark
+# Markdown parser. CVE is for an unrelated product.
+[CVE-2026-30838]
+comment = "CVE for unrelated product; Haskell commonmark is a Markdown parser library"
+affected-pkgs = ["commonmark"]
+
+# Haskell `bytes` (https://hackage.haskell.org/package/bytes) — serialization utils.
+[CVE-2026-25541]
+comment = "CVE for unrelated product; Haskell bytes is a serialization utility library"
+affected-pkgs = ["bytes"]
+
+# Haskell `async` (https://hackage.haskell.org/package/async) — asynchronous
+# exception handling. CVE-2021-43138 is for the npm 'async' package, not Haskell.
+[CVE-2021-43138]
+comment = "npm async CVE; pname 'async' matches Haskell async library (unrelated)"
+affected-pkgs = ["async"]
+
+# Haskell `Diff` (https://hackage.haskell.org/package/Diff) — diff algorithms.
+[CVE-2024-13278]
+comment = "CVE for unrelated product; Haskell Diff is a diff algorithm library"
+affected-pkgs = ["Diff"]
+
+# Haskell `contour` (https://hackage.haskell.org/package/contour) — contour plots.
+# NVD matches CVEs for Contour (Kubernetes ingress proxy) and others.
+[CVE-2021-32783]
+comment = "Contour Kubernetes ingress CVE; Haskell contour is a scientific plotting library"
+affected-pkgs = ["contour"]
+
+[CVE-2023-22834]
+comment = "Cloudera CVE; pname 'contour' matches Haskell contour scientific plotting library"
+affected-pkgs = ["contour"]
+
+[CVE-2023-44487]
+comment = "HTTP/2 Rapid Reset CVE matched to Haskell contour; Haskell contour is a plotting library"
+affected-pkgs = ["contour"]
+
+# Haskell `nix` (https://hackage.haskell.org/package/nix) — Haskell types for the
+# Nix expression language. NVD matches CVE-2024-27297 which is for the Nix package
+# manager (nixos/nix), not this library.
+[CVE-2024-27297]
+comment = "Nix package manager CVE; pname 'nix' also matches Haskell nix library (0.x versions)"
+affected-pkgs = ["nix"]
+
+# `yoke` — CVEs are for the Helm-compatible deployment tool 'yoke', not the Go
+# module that appears as a build dependency here.
+[CVE-2026-26055]
+comment = "Yoke Helm tool CVE; this pname 'yoke' is a build-time Go module, not the yoke CLI"
+affected-pkgs = ["yoke"]
+
+[CVE-2026-26056]
+comment = "Yoke Helm tool CVE; this pname 'yoke' is a build-time Go module, not the yoke CLI"
+affected-pkgs = ["yoke"]
+
+# `ninja` — CVE-2021-4336 is for a product called "Ninja" (fan controller), not
+# the Ninja build system.
+[CVE-2021-4336]
+comment = "CVE for unrelated 'Ninja' fan controller product; this is the Ninja build system"
+affected-pkgs = ["ninja"]
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 2: Build-time-only packages
+#
+# These packages exist in the closure as build inputs (compilers, assemblers,
+# bootstrap interpreters) but are never executed at runtime on this host.
+# CVEs for them do not represent exploitable risk on the running system.
+# ─────────────────────────────────────────────────────────────
+
+# Go bootstrap compilers — used only during the Nix build of Go packages.
+[CVE-2023-49292]
+comment = "Go CVE; affects go-1.22/1.24/1.25 bootstrap compilers present as build inputs only"
+affected-pkgs = ["go"]
+
+[CVE-2025-0913]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-22873]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-4674]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-47906]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-47907]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-47912]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-58185]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-58187]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-58188]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-58189]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-61723]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-61724]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-61726]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-61727]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-61728]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-61729]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-61730]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-61731]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-61732]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-68119]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2025-68121]
+comment = "Go CVE; go-1.22-bootstrap is a build-time compiler, not a runtime binary"
+affected-pkgs = ["go"]
+
+[CVE-2026-25679]
+comment = "Go CVE; go bootstrap compilers are build-time only"
+affected-pkgs = ["go"]
+
+[CVE-2026-27139]
+comment = "Go CVE; go bootstrap compilers are build-time only"
+affected-pkgs = ["go"]
+
+[CVE-2026-27140]
+comment = "Go CVE; go bootstrap compilers are build-time only"
+affected-pkgs = ["go"]
+
+[CVE-2026-27142]
+comment = "Go CVE; go bootstrap compilers are build-time only"
+affected-pkgs = ["go"]
+
+[CVE-2026-27143]
+comment = "Go CVE; go bootstrap compilers are build-time only"
+affected-pkgs = ["go"]
+
+[CVE-2026-27144]
+comment = "Go CVE; go bootstrap compilers are build-time only"
+affected-pkgs = ["go"]
+
+[CVE-2026-32280]
+comment = "Go CVE; go bootstrap compilers are build-time only"
+affected-pkgs = ["go"]
+
+[CVE-2026-32281]
+comment = "Go CVE; go bootstrap compilers are build-time only"
+affected-pkgs = ["go"]
+
+[CVE-2026-32282]
+comment = "Go CVE; go bootstrap compilers are build-time only"
+affected-pkgs = ["go"]
+
+[CVE-2026-32283]
+comment = "Go CVE; go bootstrap compilers are build-time only"
+affected-pkgs = ["go"]
+
+[CVE-2026-32288]
+comment = "Go CVE; go bootstrap compilers are build-time only"
+affected-pkgs = ["go"]
+
+[CVE-2026-32289]
+comment = "Go CVE; go bootstrap compilers are build-time only"
+affected-pkgs = ["go"]
+
+[CVE-2026-33810]
+comment = "Go CVE; go bootstrap compilers are build-time only"
+affected-pkgs = ["go"]
+
+# Python 2.7 bootstrap — used as a build tool for some packages, never run at runtime.
+[CVE-2021-23336]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2021-3733]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2022-0391]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2022-26488]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2022-45061]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2022-48560]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2022-48564]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2022-48565]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2022-48566]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2023-24329]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2023-36632]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2023-40217]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2024-49050]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2024-6232]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2024-7592]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2024-9287]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2025-12084]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2025-12781]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2025-13836]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2025-13837]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2025-49714]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2025-6075]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+[CVE-2026-4519]
+comment = "Python 2.7 bootstrap is a build-time dependency only, not runtime"
+affected-pkgs = ["python"]
+
+# yasm — x86 assembler used during build of codecs (libvpx etc.), not a runtime binary.
+[CVE-2021-33454]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2021-33455]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2021-33456]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2021-33457]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2021-33458]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2021-33459]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2021-33460]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2021-33461]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2021-33462]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2021-33463]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2021-33464]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2021-33465]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2021-33466]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2021-33467]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2021-33468]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2023-30402]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2023-31972]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2023-31973]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2023-31974]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2023-31975]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+[CVE-2023-51258]
+comment = "yasm is a build-time assembler, not a runtime binary on this host"
+affected-pkgs = ["yasm"]
+
+# gcc — present as bootstrap compiler inputs; not run at runtime on this host.
+[CVE-2021-37322]
+comment = "gcc is a build-time compiler (bootstrap), not a runtime binary on this host"
+affected-pkgs = ["gcc"]
+
+[CVE-2023-4039]
+comment = "gcc is a build-time compiler (bootstrap), not a runtime binary on this host"
+affected-pkgs = ["gcc"]
+
+# Python pip/setuptools/wheel — bootstrap packaging tools used during build only.
+[CVE-2021-3572]
+comment = "pip is a build-time bootstrap tool only"
+affected-pkgs = ["pip"]
+
+[CVE-2023-5752]
+comment = "pip is a build-time bootstrap tool only"
+affected-pkgs = ["pip"]
+
+[CVE-2022-40897]
+comment = "setuptools is a build-time bootstrap tool only"
+affected-pkgs = ["setuptools"]
+
+[CVE-2025-47273]
+comment = "setuptools is a build-time bootstrap tool only"
+affected-pkgs = ["setuptools"]
+
+[CVE-2022-40898]
+comment = "wheel is a build-time bootstrap tool only"
+affected-pkgs = ["wheel"]
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 3: Jenkins Git Plugin CVEs matched to git
+#
+# Several CVEs attributed to pname 'git' are actually for the Jenkins
+# Git Client Plugin, which has a completely different codebase.
+# ─────────────────────────────────────────────────────────────
+
+[CVE-2021-21684]
+comment = "Jenkins Git Plugin CVE, not git SCM; NVD CPE match on 'git' is incorrect"
+affected-pkgs = ["git"]
+
+[CVE-2022-30947]
+comment = "Jenkins Git Plugin CVE, not git SCM; NVD CPE match on 'git' is incorrect"
+affected-pkgs = ["git"]
+
+[CVE-2022-36882]
+comment = "Jenkins Git Client Plugin CVE, not git SCM"
+affected-pkgs = ["git"]
+
+[CVE-2022-36883]
+comment = "Jenkins Git Client Plugin CVE, not git SCM"
+affected-pkgs = ["git"]
+
+[CVE-2022-36884]
+comment = "Jenkins Git Client Plugin CVE, not git SCM"
+affected-pkgs = ["git"]
+
+[CVE-2022-38663]
+comment = "Jenkins Git Plugin CVE, not git SCM"
+affected-pkgs = ["git"]
