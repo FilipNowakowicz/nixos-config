@@ -10,6 +10,8 @@
 #   ResticCheckStale  — integrity check older than 8 d (weekly + 1 d buffer)
 #   VulnixCveFound    — any CVE finding after whitelist (add known-acceptable CVEs to vulnix-whitelist.toml)
 #   VulnixScanStale   — no successful scan in 26 h (daily + 2 h buffer)
+#   LynisScoreLow     — hardening index < 60 for 0 m
+#   LynisScanStale    — no successful audit in 26 h (daily + 2 h buffer)
 {
   config,
   lib,
@@ -64,6 +66,26 @@ let
             annotations = {
               summary = "Restic integrity check stale on {{ $labels.instance }}";
               description = "Last check {{ $value | printf \"%.1f\" }}d ago (threshold: 8d).";
+            };
+          }
+          {
+            alert = "LynisScoreLow";
+            expr = "lynis_hardening_index < 60";
+            for = "0m";
+            labels.severity = "warning";
+            annotations = {
+              summary = "Lynis hardening score low on {{ $labels.instance }}";
+              description = "Hardening index is {{ $value }} (threshold: 60). Review lynis warnings and suggestions.";
+            };
+          }
+          {
+            alert = "LynisScanStale";
+            expr = "(time() - lynis_scan_timestamp_seconds) / 3600 > 26";
+            for = "0m";
+            labels.severity = "warning";
+            annotations = {
+              summary = "Lynis audit stale on {{ $labels.instance }}";
+              description = "Last audit {{ $value | printf \"%.1f\" }}h ago (threshold: 26h). Check lynis-audit.service logs.";
             };
           }
           {

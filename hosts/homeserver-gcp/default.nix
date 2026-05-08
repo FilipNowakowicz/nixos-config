@@ -63,6 +63,49 @@ in
         };
       };
 
+      lynis-audit = {
+        description = "Lynis security audit";
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = pkgs.writeShellScript "lynis-audit" ''
+            report=/tmp/lynis-report.dat
+            tmp=${textfileDir}/lynis.prom.tmp
+
+            ${pkgs.lynis}/bin/lynis audit system \
+              --quiet --no-colors --report-file "$report" 2>/dev/null
+            rc=$?
+            # lynis exits 0 (clean) or non-zero on warnings — treat all as success
+            # if the report file wasn't written, the scan itself failed
+            if [ ! -f "$report" ]; then
+              echo "lynis did not produce a report" >&2
+              exit 1
+            fi
+
+            hardening_index=$(grep "^hardening_index=" "$report" | cut -d= -f2)
+            warning_count=$(grep -c "^warning\[\]=" "$report" || true)
+            suggestion_count=$(grep -c "^suggestion\[\]=" "$report" || true)
+            : "''${hardening_index:=0}"
+
+            {
+              echo "# HELP lynis_hardening_index Security hardening index (0-100)"
+              echo "# TYPE lynis_hardening_index gauge"
+              echo "lynis_hardening_index $hardening_index"
+              echo "# HELP lynis_warnings_total Number of lynis warnings"
+              echo "# TYPE lynis_warnings_total gauge"
+              echo "lynis_warnings_total $warning_count"
+              echo "# HELP lynis_suggestions_total Number of lynis suggestions"
+              echo "# TYPE lynis_suggestions_total gauge"
+              echo "lynis_suggestions_total $suggestion_count"
+              echo "# HELP lynis_scan_timestamp_seconds Unix timestamp of last successful audit"
+              echo "# TYPE lynis_scan_timestamp_seconds gauge"
+              echo "lynis_scan_timestamp_seconds $(date +%s)"
+            } > "$tmp"
+            mv "$tmp" ${textfileDir}/lynis.prom
+            rm -f "$report"
+          '';
+        };
+      };
+
       vulnix-scan = {
         description = "Vulnix CVE scan of current system closure";
         serviceConfig = {
@@ -138,6 +181,15 @@ in
     };
 
     timers = {
+      lynis-audit = {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = "daily";
+          Persistent = true;
+          RandomizedDelaySec = "1h";
+        };
+      };
+
       vulnix-scan = {
         wantedBy = [ "timers.target" ];
         timerConfig = {
@@ -259,6 +311,67 @@ in
     };
     dashboards = {
       fleet.enable = true;
+
+      lynis = {
+        enable = true;
+        definition = dash.mkDashboard {
+          uid = "homeserver-lynis";
+          title = "Security Audit";
+          panels = [
+            (dash.timeseriesPanel {
+              id = 1;
+              title = "Hardening Index (0-100)";
+              ds = dash.mimirDS;
+              gridPos = dash.gridPos {
+                x = 0;
+                y = 0;
+                w = 12;
+                h = 8;
+              };
+              targets = [
+                (dash.target {
+                  expr = "lynis_hardening_index";
+                  legendFormat = "hardening index";
+                })
+              ];
+            })
+            (dash.timeseriesPanel {
+              id = 2;
+              title = "Warnings";
+              ds = dash.mimirDS;
+              gridPos = dash.gridPos {
+                x = 12;
+                y = 0;
+                w = 12;
+                h = 8;
+              };
+              targets = [
+                (dash.target {
+                  expr = "lynis_warnings_total";
+                  legendFormat = "warnings";
+                })
+              ];
+            })
+            (dash.timeseriesPanel {
+              id = 3;
+              title = "Audit Age (hours)";
+              ds = dash.mimirDS;
+              gridPos = dash.gridPos {
+                x = 0;
+                y = 8;
+                w = 12;
+                h = 8;
+              };
+              targets = [
+                (dash.target {
+                  expr = "(time() - lynis_scan_timestamp_seconds) / 3600";
+                  legendFormat = "hours since last audit";
+                })
+              ];
+            })
+          ];
+        };
+      };
 
       cve = {
         enable = true;
