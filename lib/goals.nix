@@ -1,11 +1,11 @@
 [
   {
     id = "config-dashboard-wave-1";
-    title = "Config dashboard wave 1";
-    status = "now";
+    title = "Homepage dashboard first pass";
+    status = "done";
     priority = "p1";
     area = "platform";
-    summary = "Turn the generated inventory into an operator dashboard with a structured goals board and a computed attention panel.";
+    summary = "Replace the raw generated inventory with a single homeserver homepage: strong summary, first-class services, simpler machines, focused goals, and computed attention.";
     hosts = [
       "main"
       "vm"
@@ -50,7 +50,7 @@
   {
     id = "homeserver-smoke-tests";
     title = "Homeserver live smoke tests";
-    status = "next";
+    status = "done";
     priority = "p2";
     area = "homeserver";
     summary = "Probe Vaultwarden, Grafana, and observability ingest paths so deployments catch broken routing, TLS, and auth wiring.";
@@ -97,7 +97,7 @@
   {
     id = "b2-backups";
     title = "Backup verification and restore drill";
-    status = "next";
+    status = "done";
     priority = "p2";
     area = "backup";
     summary = "Verify homeserver-gcp B2 backups with periodic checks and restore drills.";
@@ -118,7 +118,7 @@
   {
     id = "vaultwarden-websocket";
     title = "Vaultwarden websocket notifications";
-    status = "next";
+    status = "done";
     priority = "p2";
     area = "homeserver";
     summary = "Enable the Vaultwarden websocket notification path through Nginx so clients receive instant sync updates.";
@@ -134,7 +134,7 @@
   {
     id = "adguard";
     title = "Local DNS and ad-blocking";
-    status = "next";
+    status = "done";
     priority = "p2";
     area = "homeserver";
     summary = "Deploy AdGuard Home behind the homeserver and connect it to Tailscale MagicDNS for network-wide filtering.";
@@ -154,7 +154,7 @@
   {
     id = "lgtm-tuning";
     title = "LGTM tuning";
-    status = "next";
+    status = "done";
     priority = "p2";
     area = "observability";
     summary = "Expand dashboards and alerts, then tune retention and cardinality for longer-running operation.";
@@ -184,7 +184,7 @@
   {
     id = "gce-disk-snapshots";
     title = "GCE disk snapshots";
-    status = "next";
+    status = "done";
     priority = "p2";
     area = "backup";
     summary = "Add short-retention managed snapshots for fast homeserver rollback alongside restic application backups.";
@@ -245,7 +245,7 @@
   {
     id = "host-introspection";
     title = "Host introspection to LGTM";
-    status = "later";
+    status = "done";
     priority = "p3";
     area = "observability";
     summary = "Feed auditd, osquery, or lynis output into Loki so the observability stack proves its value beyond infra metrics.";
@@ -284,7 +284,7 @@
   {
     id = "vulnix-dashboard";
     title = "Vulnix CVE dashboard";
-    status = "later";
+    status = "done";
     priority = "p3";
     area = "security";
     summary = "Schedule vulnix against the live closure, export results, and alert on new critical vulnerabilities.";

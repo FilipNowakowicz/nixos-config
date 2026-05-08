@@ -157,6 +157,8 @@ let
       meta = hostRegistry.${name};
       c = cfg.config;
       health = hostHealth name cfg;
+      resticBackups = c.services.restic.backups or { };
+      tailscaleFirewall = (c.networking.firewall.interfaces or { }).tailscale0 or { };
     in
     {
       inherit name;
@@ -174,6 +176,15 @@ let
       impermanence = (c.environment.persistence or { }) != { };
       openTCPPorts = c.networking.firewall.allowedTCPPorts or [ ];
       openUDPPorts = c.networking.firewall.allowedUDPPorts or [ ];
+      tailscaleTCPPorts = tailscaleFirewall.allowedTCPPorts or [ ];
+      tailscaleUDPPorts = tailscaleFirewall.allowedUDPPorts or [ ];
+      resticBackups = lib.mapAttrsToList (backupName: backup: {
+        name = backupName;
+        repository = backup.repository or null;
+        paths = backup.paths or [ ];
+        timer = backup.timerConfig.OnCalendar or null;
+        initialize = backup.initialize or false;
+      }) resticBackups;
       profiles = {
         desktop = c.programs.hyprland.enable or false;
         security = c.services.fail2ban.enable or false;
@@ -187,6 +198,13 @@ let
         fail2ban = c.services.fail2ban.enable;
         vaultwarden = c.services.vaultwarden.enable or false;
         syncthing = c.services.syncthing.enable or false;
+        nginx = c.services.nginx.enable or false;
+        adguard = c.services.adguardhome.enable or false;
+        grafana = c.services.grafana.enable or false;
+        loki = c.services.loki.enable or false;
+        mimir = c.services.mimir.enable or false;
+        tempo = c.services.tempo.enable or false;
+        restic = resticBackups != { };
         hyprland = c.programs.hyprland.enable or false;
         observabilityStack = c.profiles.observability.enable or false;
         observabilityClient = c.profiles.observability-client.enable or false;
@@ -225,554 +243,574 @@ let
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>NixOS Fleet Inventory</title>
+      <title>Homeserver Dashboard</title>
       <style>
         :root {
-          --bg: #0d1117;
-          --surface: #161b22;
-          --surface-2: #11161d;
-          --border: #30363d;
-          --text: #e6edf3;
-          --muted: #7d8590;
-          --green: #3fb950;
-          --red: #f85149;
-          --blue: #58a6ff;
-          --yellow: #d29922;
-          --purple: #bc8cff;
-          --orange: #f0883e;
+          --bg: #10120f;
+          --ink: #f3efe3;
+          --muted: #a9a08c;
+          --faint: #746d60;
+          --panel: rgba(31, 34, 28, 0.78);
+          --panel-strong: rgba(42, 45, 37, 0.92);
+          --line: rgba(217, 197, 150, 0.18);
+          --line-strong: rgba(217, 197, 150, 0.34);
+          --green: #9bcf77;
+          --gold: #e0b15b;
+          --orange: #d77f4f;
+          --red: #dd6a5f;
+          --cyan: #74b7b0;
+          --blue: #8fb3d9;
+          --shadow: 0 24px 70px rgba(0, 0, 0, 0.36);
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        * { box-sizing: border-box; }
+
         body {
+          margin: 0;
+          min-height: 100vh;
+          color: var(--ink);
           background:
-            radial-gradient(circle at top left, rgba(88, 166, 255, 0.12), transparent 28%),
-            radial-gradient(circle at top right, rgba(188, 140, 255, 0.10), transparent 24%),
-            var(--bg);
-          color: var(--text);
-          font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
-          font-size: 13px;
-          padding: 2rem;
+            radial-gradient(circle at 18% 0%, rgba(224, 177, 91, 0.18), transparent 31rem),
+            radial-gradient(circle at 88% 8%, rgba(116, 183, 176, 0.14), transparent 28rem),
+            linear-gradient(135deg, #161811 0%, #10120f 45%, #1c1813 100%);
+          font-family: "Aptos", "Segoe UI", sans-serif;
           line-height: 1.5;
         }
-        h1 { font-size: 1.4rem; color: var(--blue); margin-bottom: 0.25rem; }
-        .subtitle { color: var(--muted); font-size: 0.85rem; margin-bottom: 1.25rem; }
 
-        /* Summary strip */
-        .summary {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 1.5rem;
-          background: linear-gradient(180deg, rgba(22, 27, 34, 0.92), rgba(17, 22, 29, 0.96));
-          border: 1px solid var(--border);
-          border-radius: 10px;
-          padding: 0.75rem 1.25rem;
-          margin-bottom: 1.25rem;
-          font-size: 0.8rem;
-          box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+        body::before {
+          content: "";
+          position: fixed;
+          inset: 0;
+          pointer-events: none;
+          opacity: 0.22;
+          background-image:
+            linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+          background-size: 52px 52px;
+          mask-image: linear-gradient(to bottom, black, transparent 78%);
         }
-        .stat { display: flex; flex-direction: column; }
-        .stat-value { font-size: 1.3rem; font-weight: 600; color: var(--text); line-height: 1.2; }
-        .stat-label { color: var(--muted); font-size: 0.72rem; }
-        .stat-warn .stat-value { color: var(--yellow); }
 
-        /* Panels */
-        .operator-row {
+        a { color: inherit; }
+
+        .shell {
+          width: min(1420px, calc(100vw - 40px));
+          margin: 0 auto;
+          padding: 32px 0 44px;
+          position: relative;
+        }
+
+        .hero {
           display: grid;
-          grid-template-columns: minmax(0, 1.8fr) minmax(320px, 0.95fr);
-          gap: 1rem;
-          margin-bottom: 1.25rem;
-          align-items: start;
-        }
-        .panel {
-          background: linear-gradient(180deg, rgba(22, 27, 34, 0.95), rgba(17, 22, 29, 0.98));
-          border: 1px solid var(--border);
-          border-radius: 10px;
-          padding: 1rem 1.1rem 1.1rem;
-          box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
-        }
-        .panel-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-end;
-          gap: 0.75rem;
-          margin-bottom: 0.9rem;
-          padding-bottom: 0.7rem;
-          border-bottom: 1px solid rgba(125, 133, 144, 0.2);
-        }
-        .panel-title { font-size: 0.95rem; color: var(--text); font-weight: 700; }
-        .panel-subtitle { color: var(--muted); font-size: 0.74rem; max-width: 50ch; }
-        .panel-actions {
-          display: flex;
-          gap: 0.4rem;
-          align-items: center;
-          flex-wrap: wrap;
-        }
-        .panel-action {
-          font-family: inherit;
-          font-size: 0.72rem;
-          padding: 3px 10px;
-          border-radius: 10px;
-          border: 1px solid var(--border);
-          background: var(--surface);
-          color: var(--muted);
-          cursor: pointer;
-        }
-        .panel-action:hover { color: var(--text); border-color: var(--muted); }
-        .panel-action.active { color: var(--blue); border-color: var(--blue); background: #1c2d4a; }
-
-        /* Filter bar */
-        .filters {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.4rem;
-          margin-bottom: 1rem;
-          align-items: center;
-          min-width: 0;
-        }
-        .filter-label { color: var(--muted); font-size: 0.75rem; margin-right: 0.25rem; }
-        .filter-btn {
-          font-family: inherit;
-          font-size: 0.72rem;
-          padding: 3px 10px;
-          border-radius: 10px;
-          border: 1px solid var(--border);
-          background: var(--surface);
-          color: var(--muted);
-          cursor: pointer;
-          transition: border-color 0.15s, color 0.15s;
-        }
-        .filter-btn:hover { color: var(--text); border-color: var(--muted); }
-        .filter-btn.active { color: var(--blue); border-color: var(--blue); background: #1c2d4a; }
-        .filter-group-label {
-          color: var(--muted);
-          font-size: 0.68rem;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          margin-left: 0.5rem;
-        }
-        .filter-details {
-          width: 100%;
-          border: 1px solid rgba(125, 133, 144, 0.18);
-          border-radius: 8px;
-          background: rgba(12, 17, 23, 0.3);
-          padding: 0.35rem 0.55rem;
-        }
-        .filter-summary {
-          cursor: pointer;
-          color: var(--muted);
-          font-size: 0.72rem;
-          list-style: none;
-        }
-        .filter-summary::-webkit-details-marker { display: none; }
-        .filter-details-body {
-          padding-top: 0.55rem;
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
+          grid-template-columns: minmax(0, 1.25fr) minmax(330px, 0.75fr);
+          gap: 18px;
+          align-items: stretch;
+          margin-bottom: 18px;
         }
 
-        /* Goals board */
-        .goal-board {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 0.8rem;
+        .hero-main,
+        .panel,
+        .service-card,
+        .machine-card,
+        .goal-card,
+        .health-card {
+          border: 1px solid var(--line);
+          background: linear-gradient(180deg, var(--panel-strong), var(--panel));
+          box-shadow: var(--shadow);
+          backdrop-filter: blur(14px);
         }
-        .goal-column {
-          background: rgba(12, 17, 23, 0.46);
-          border: 1px solid rgba(125, 133, 144, 0.18);
-          border-radius: 8px;
-          padding: 0.8rem;
-          min-height: 280px;
-          min-width: 0;
+
+        .hero-main {
+          min-height: 320px;
+          border-radius: 30px;
+          padding: 32px;
+          position: relative;
+          overflow: hidden;
         }
-        .goal-column-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 0.5rem;
-          margin-bottom: 0.75rem;
-        }
-        .goal-column-title {
-          font-size: 0.78rem;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          color: var(--muted);
-        }
-        .goal-column-count {
-          color: var(--blue);
-          font-size: 0.75rem;
-        }
-        .goal-list {
-          display: flex;
-          flex-direction: column;
-          gap: 0.65rem;
-        }
-        .goal-empty {
-          color: var(--muted);
-          font-size: 0.78rem;
-          border: 1px dashed rgba(125, 133, 144, 0.3);
-          border-radius: 8px;
-          padding: 0.75rem;
-        }
-        .goal-card {
-          background: linear-gradient(180deg, rgba(28, 33, 40, 0.92), rgba(17, 22, 29, 0.96));
-          border: 1px solid rgba(125, 133, 144, 0.2);
-          border-left: 3px solid var(--muted);
-          border-radius: 8px;
-          padding: 0.8rem;
-          min-width: 0;
-        }
-        .goal-card.priority-p1 { border-left-color: var(--yellow); }
-        .goal-card.priority-p2 { border-left-color: var(--blue); }
-        .goal-card.priority-p3 { border-left-color: var(--purple); }
-        .goal-card.goal-done {
-          border-left-color: var(--green);
-          opacity: 0.86;
-        }
-        .goal-meta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.35rem;
-          margin-bottom: 0.45rem;
-        }
-        .goal-title {
-          font-size: 0.82rem;
-          color: var(--text);
-          font-weight: 700;
-          margin-bottom: 0.35rem;
-        }
-        .goal-summary {
-          color: var(--text);
-          opacity: 0.9;
-          font-size: 0.75rem;
-          margin-bottom: 0.55rem;
-        }
-        .goal-section {
-          margin-top: 0.55rem;
-        }
-        .goal-section-label {
-          color: var(--muted);
-          font-size: 0.67rem;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          margin-bottom: 0.25rem;
-        }
-        .chips {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.3rem;
-        }
-        .chip {
-          font-size: 0.7rem;
-          padding: 2px 7px;
+
+        .hero-main::after {
+          content: "";
+          position: absolute;
+          width: 280px;
+          height: 280px;
+          right: -80px;
+          top: -100px;
           border-radius: 999px;
-          border: 1px solid var(--border);
-          background: rgba(13, 17, 23, 0.62);
-          max-width: 100%;
-          white-space: normal;
-          overflow-wrap: anywhere;
+          border: 1px solid rgba(224, 177, 91, 0.32);
+          background: radial-gradient(circle, rgba(224, 177, 91, 0.16), transparent 62%);
         }
-        .chip-area { color: var(--blue); border-color: rgba(88, 166, 255, 0.45); }
-        .chip-priority { color: var(--yellow); border-color: rgba(210, 153, 34, 0.5); }
-        .chip-host { color: var(--purple); border-color: rgba(188, 140, 255, 0.35); }
-        .chip-service { color: var(--blue); border-color: rgba(88, 166, 255, 0.35); }
-        .chip-block { color: var(--orange); border-color: rgba(240, 136, 62, 0.45); }
-        .chip-unlock { color: var(--green); border-color: rgba(63, 185, 80, 0.45); }
-        .chip-clickable {
-          cursor: pointer;
-          font: inherit;
-          appearance: none;
+
+        .eyebrow {
+          color: var(--gold);
+          font-family: "IBM Plex Mono", "Cascadia Code", monospace;
+          font-size: 0.74rem;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          margin-bottom: 16px;
         }
-        .chip-clickable:hover {
-          border-color: var(--blue);
-          color: var(--blue);
+
+        h1 {
+          margin: 0;
+          max-width: 820px;
+          font-size: clamp(2.7rem, 7vw, 6.3rem);
+          line-height: 0.86;
+          letter-spacing: -0.08em;
         }
-        .goal-context {
-          display: grid;
-          gap: 0.5rem;
+
+        .lede {
+          max-width: 760px;
+          margin: 22px 0 0;
+          color: var(--muted);
+          font-size: 1.02rem;
         }
-        .goal-docs {
+
+        .hero-actions {
           display: flex;
           flex-wrap: wrap;
-          gap: 0.45rem;
-          margin-top: 0.25rem;
-          min-width: 0;
+          gap: 10px;
+          margin-top: 26px;
         }
-        .goal-doc-link {
-          color: var(--blue);
+
+        .action {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          min-height: 38px;
+          padding: 8px 13px;
+          border-radius: 999px;
+          border: 1px solid var(--line-strong);
+          background: rgba(16, 18, 15, 0.42);
+          color: var(--ink);
           text-decoration: none;
-          font-size: 0.72rem;
-        }
-        .goal-doc-link:hover { text-decoration: underline; }
-
-        /* Attention */
-        .attention-list {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
-        .attention-item {
-          background: rgba(12, 17, 23, 0.5);
-          border: 1px solid rgba(125, 133, 144, 0.18);
-          border-radius: 8px;
-          padding: 0.8rem;
-          min-width: 0;
-        }
-        .attention-item.severity-warn { border-left: 3px solid var(--yellow); }
-        .attention-item.severity-note { border-left: 3px solid var(--blue); }
-        .attention-head {
-          display: flex;
-          justify-content: space-between;
-          gap: 0.5rem;
-          margin-bottom: 0.35rem;
-        }
-        .attention-title { font-weight: 700; font-size: 0.8rem; }
-        .attention-host { color: var(--muted); font-size: 0.72rem; }
-        .attention-detail { color: var(--text); font-size: 0.74rem; opacity: 0.92; }
-        .attention-empty {
-          color: var(--muted);
-          font-size: 0.8rem;
-          padding: 0.6rem 0;
+          font-size: 0.86rem;
         }
 
-        /* Health */
-        .health-panel {
-          margin-bottom: 1.25rem;
-        }
-        .health-summary {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.45rem;
-          margin-bottom: 0.75rem;
-        }
-        .health-chip {
-          font-size: 0.72rem;
-          padding: 2px 8px;
-          border-radius: 999px;
-          border: 1px solid var(--border);
-          background: rgba(13, 17, 23, 0.62);
-          color: var(--muted);
-        }
-        .health-chip strong { color: var(--text); }
-        .health-chip.good { color: var(--green); border-color: rgba(63, 185, 80, 0.45); }
-        .health-chip.warn { color: var(--yellow); border-color: rgba(210, 153, 34, 0.45); }
-        .health-chip.bad { color: var(--red); border-color: rgba(248, 81, 73, 0.45); }
-        .health-list {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-          gap: 0.75rem;
-        }
-        .health-row {
-          background: rgba(12, 17, 23, 0.5);
-          border: 1px solid rgba(125, 133, 144, 0.18);
-          border-radius: 8px;
-          padding: 0.8rem;
-          min-width: 0;
-        }
-        .health-row-top {
-          display: flex;
-          justify-content: space-between;
-          gap: 0.5rem;
-          align-items: baseline;
-          margin-bottom: 0.4rem;
-        }
-        .health-host {
-          font-size: 0.82rem;
+        .action.primary {
+          background: var(--gold);
+          border-color: rgba(224, 177, 91, 0.8);
+          color: #21180d;
           font-weight: 700;
-          color: var(--blue);
         }
-        .health-status {
-          font-size: 0.68rem;
-          padding: 1px 7px;
+
+        .hero-side {
+          display: grid;
+          gap: 12px;
+        }
+
+        .status-tile {
+          border-radius: 24px;
+          padding: 18px;
+          border: 1px solid var(--line);
+          background: rgba(16, 18, 15, 0.58);
+        }
+
+        .tile-label {
+          color: var(--muted);
+          font-size: 0.74rem;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        .tile-value {
+          display: block;
+          margin-top: 7px;
+          font-size: 2rem;
+          font-weight: 800;
+          letter-spacing: -0.05em;
+        }
+
+        .tile-note {
+          color: var(--muted);
+          font-size: 0.84rem;
+          margin-top: 4px;
+        }
+
+        .grid-2 {
+          display: grid;
+          grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+          gap: 18px;
+          margin-bottom: 18px;
+        }
+
+        .section {
+          margin-top: 18px;
+        }
+
+        .section-header {
+          display: flex;
+          align-items: end;
+          justify-content: space-between;
+          gap: 16px;
+          margin: 0 2px 12px;
+        }
+
+        .section-title {
+          margin: 0;
+          font-size: 1rem;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+        }
+
+        .section-copy {
+          margin: 3px 0 0;
+          color: var(--muted);
+          font-size: 0.88rem;
+        }
+
+        .panel {
+          border-radius: 24px;
+          padding: 20px;
+        }
+
+        .signal-list {
+          display: grid;
+          gap: 10px;
+        }
+
+        .signal {
+          border: 1px solid rgba(217, 197, 150, 0.15);
+          background: rgba(16, 18, 15, 0.45);
+          border-radius: 18px;
+          padding: 13px;
+        }
+
+        .signal.warn { border-left: 4px solid var(--gold); }
+        .signal.bad { border-left: 4px solid var(--red); }
+        .signal.good { border-left: 4px solid var(--green); }
+
+        .signal-title {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          font-weight: 750;
+        }
+
+        .signal-detail {
+          margin-top: 5px;
+          color: var(--muted);
+          font-size: 0.86rem;
+        }
+
+        .services-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        .service-card {
+          min-height: 210px;
+          border-radius: 24px;
+          padding: 20px;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .service-card::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(135deg, var(--accent), transparent 38%);
+          opacity: 0.13;
+          pointer-events: none;
+        }
+
+        .service-top {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          align-items: flex-start;
+          position: relative;
+        }
+
+        .service-name {
+          font-size: 1.18rem;
+          font-weight: 850;
+          letter-spacing: -0.03em;
+        }
+
+        .pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          width: fit-content;
+          padding: 3px 9px;
           border-radius: 999px;
-          border: 1px solid;
+          border: 1px solid currentColor;
+          font-family: "IBM Plex Mono", "Cascadia Code", monospace;
+          font-size: 0.7rem;
+          line-height: 1.3;
           text-transform: uppercase;
           letter-spacing: 0.06em;
         }
-        .health-status.pass {
-          color: var(--green);
-          border-color: rgba(63, 185, 80, 0.45);
-        }
-        .health-status.warn {
-          color: var(--yellow);
-          border-color: rgba(210, 153, 34, 0.45);
-        }
-        .health-row-meta {
+
+        .pill.good { color: var(--green); }
+        .pill.warn { color: var(--gold); }
+        .pill.off { color: var(--faint); }
+        .pill.info { color: var(--cyan); }
+        .pill.bad { color: var(--red); }
+
+        .service-desc {
           color: var(--muted);
-          font-size: 0.74rem;
-          margin-bottom: 0.55rem;
+          margin: 14px 0 0;
+          font-size: 0.9rem;
+          position: relative;
         }
-        .health-failures {
+
+        .meta-line {
           display: flex;
           flex-wrap: wrap;
-          gap: 0.3rem;
+          gap: 7px;
+          margin-top: 14px;
+          position: relative;
         }
-        .health-failure {
-          color: var(--orange);
-          border-color: rgba(240, 136, 62, 0.45);
-          background: rgba(13, 17, 23, 0.6);
-          font-size: 0.68rem;
-          padding: 2px 7px;
+
+        .chip {
+          display: inline-flex;
           border-radius: 999px;
-        }
-
-        .command-list {
-          display: flex;
-          flex-direction: column;
-          gap: 0.35rem;
-          min-width: 0;
-        }
-        .command-chip {
-          display: block;
-          font-family: inherit;
-          font-size: 0.7rem;
-          color: var(--text);
-          background: rgba(13, 17, 23, 0.76);
-          border: 1px solid rgba(125, 133, 144, 0.2);
-          border-radius: 6px;
-          padding: 0.35rem 0.45rem;
-          white-space: normal;
-          overflow-wrap: anywhere;
-          line-height: 1.35;
-        }
-        .command-chip code {
-          font-family: inherit;
-        }
-
-        /* Host inventory */
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 1rem; }
-        .card {
-          background: linear-gradient(180deg, rgba(22, 27, 34, 0.95), rgba(17, 22, 29, 0.98));
-          border: 1px solid var(--border);
-          border-radius: 10px;
-          padding: 1rem 1.25rem;
-          min-width: 0;
-        }
-        .card.hidden { display: none; }
-        .card.has-gaps { border-color: #6e3a1e; }
-        .card-header {
-          display: flex;
-          align-items: baseline;
-          gap: 0.5rem;
-          margin-bottom: 0.75rem;
-          border-bottom: 1px solid var(--border);
-          padding-bottom: 0.5rem;
-          flex-wrap: wrap;
-        }
-        .hostname { font-size: 1rem; font-weight: 600; color: var(--blue); }
-        .badge {
-          font-size: 0.7rem;
-          padding: 1px 6px;
-          border-radius: 10px;
-          border: 1px solid;
-        }
-        .badge-deploy { color: var(--green); border-color: var(--green); }
-        .badge-status-active { color: var(--green); border-color: rgba(63, 185, 80, 0.55); }
-        .badge-status-inactive { color: var(--muted); border-color: rgba(125, 133, 144, 0.55); }
-        .badge-status-legacy-supported { color: var(--orange); border-color: rgba(240, 136, 62, 0.55); }
-        .badge-backup-critical { color: var(--yellow); border-color: var(--yellow); }
-        .badge-backup-standard { color: var(--muted); border-color: var(--muted); }
-        .badge-gap { color: var(--orange); border-color: var(--orange); }
-        .badge-imperf { color: var(--purple); border-color: #7a5af855; }
-        .meta-row { display: flex; justify-content: space-between; margin-bottom: 0.4rem; }
-        .meta-label { color: var(--muted); }
-        .meta-value { color: var(--text); }
-        .section-title {
-          font-size: 0.7rem;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
+          border: 1px solid rgba(217, 197, 150, 0.18);
+          background: rgba(16, 18, 15, 0.42);
           color: var(--muted);
-          margin: 0.75rem 0 0.4rem;
-        }
-        .tags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-        .tag {
-          font-size: 0.72rem;
-          padding: 2px 7px;
-          border-radius: 4px;
-          background: #1c2128;
-          border: 1px solid var(--border);
-        }
-        .tag-on { color: var(--green); border-color: #238636; }
-        .tag-off { color: var(--muted); opacity: 0.5; }
-        .tag-profile { color: var(--purple); border-color: #7a5af855; }
-        .tag-port { color: var(--orange); border-color: #6e3a1e; }
-        .tag-gap { color: var(--orange); border-color: #6e3a1e; }
-        .tag-command {
-          color: var(--blue);
-          border-color: rgba(88, 166, 255, 0.4);
-          background: rgba(13, 17, 23, 0.76);
+          padding: 3px 8px;
+          font-size: 0.76rem;
         }
 
-        footer { margin-top: 2rem; color: var(--muted); font-size: 0.8rem; }
+        .card-links {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 9px;
+          margin-top: 17px;
+          position: relative;
+        }
 
-        @media (max-width: 1180px) {
-          .operator-row {
+        .card-link {
+          color: var(--ink);
+          text-decoration: none;
+          font-size: 0.84rem;
+          border-bottom: 1px solid rgba(243, 239, 227, 0.35);
+        }
+
+        .machines-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        .machine-card,
+        .goal-card,
+        .health-card {
+          border-radius: 22px;
+          padding: 18px;
+        }
+
+        .machine-head,
+        .goal-head,
+        .health-head {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          align-items: flex-start;
+          margin-bottom: 12px;
+        }
+
+        .machine-name,
+        .goal-title,
+        .health-name {
+          font-weight: 850;
+          letter-spacing: -0.02em;
+        }
+
+        .rows {
+          display: grid;
+          gap: 8px;
+        }
+
+        .row {
+          display: flex;
+          justify-content: space-between;
+          gap: 14px;
+          border-top: 1px solid rgba(217, 197, 150, 0.12);
+          padding-top: 8px;
+          color: var(--muted);
+          font-size: 0.84rem;
+        }
+
+        .row strong {
+          color: var(--ink);
+          font-weight: 650;
+          text-align: right;
+          overflow-wrap: anywhere;
+        }
+
+        .goals-layout {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(280px, 0.35fr);
+          gap: 14px;
+        }
+
+        .goal-list {
+          display: grid;
+          gap: 10px;
+        }
+
+        .goal-card {
+          box-shadow: none;
+          background: rgba(16, 18, 15, 0.42);
+        }
+
+        .goal-summary {
+          color: var(--muted);
+          font-size: 0.9rem;
+        }
+
+        .health-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        .command {
+          display: block;
+          margin-top: 10px;
+          padding: 8px 10px;
+          border-radius: 12px;
+          border: 1px solid rgba(217, 197, 150, 0.15);
+          background: rgba(0, 0, 0, 0.22);
+          color: var(--muted);
+          font-family: "IBM Plex Mono", "Cascadia Code", monospace;
+          font-size: 0.74rem;
+          overflow-wrap: anywhere;
+        }
+
+        footer {
+          margin: 28px 2px 0;
+          color: var(--faint);
+          font-size: 0.82rem;
+        }
+
+        @media (max-width: 1080px) {
+          .hero,
+          .grid-2,
+          .goals-layout {
             grid-template-columns: 1fr;
           }
-        }
 
-        @media (max-width: 980px) {
-          .goal-board {
+          .services-grid,
+          .machines-grid,
+          .health-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
         }
 
         @media (max-width: 720px) {
-          body { padding: 1rem; }
-          .goal-board {
+          .shell {
+            width: min(100vw - 24px, 1420px);
+            padding-top: 12px;
+          }
+
+          .hero-main,
+          .panel,
+          .service-card,
+          .machine-card,
+          .goal-card,
+          .health-card {
+            border-radius: 18px;
+          }
+
+          .hero-main {
+            padding: 22px;
+            min-height: auto;
+          }
+
+          .services-grid,
+          .machines-grid,
+          .health-grid {
             grid-template-columns: 1fr;
           }
-          .summary,
-          .panel,
-          .card {
-            border-radius: 8px;
+
+          .section-header {
+            align-items: flex-start;
+            flex-direction: column;
           }
         }
       </style>
     </head>
     <body>
-      <h1>NixOS Fleet Inventory</h1>
-      <p class="subtitle">Generated from flake evaluation &bull; nix build '.#inventory'</p>
+      <main class="shell">
+        <section class="hero">
+          <div class="hero-main">
+            <div class="eyebrow">Generated from flake evaluation</div>
+            <h1>Home infra, one screen.</h1>
+            <p class="lede" id="heroCopy"></p>
+            <div class="hero-actions" id="heroActions"></div>
+          </div>
+          <div class="hero-side" id="summaryTiles"></div>
+        </section>
 
-      <div class="summary" id="summary"></div>
-      <div class="operator-row">
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <div class="panel-title">Goals Board</div>
-              <div class="panel-subtitle">Manual roadmap items, grouped by status and filtered by area.</div>
+        <section class="grid-2">
+          <div class="panel">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">Attention</h2>
+                <p class="section-copy">Computed from evaluated host config. No live mutations, no secret telemetry.</p>
+              </div>
             </div>
-            <div class="panel-actions">
-              <button class="panel-action" id="toggleGoalsBtn" type="button">Collapse goals</button>
-            </div>
+            <div class="signal-list" id="attentionList"></div>
           </div>
-          <div id="goalSectionBody">
-            <div class="filters" id="goalFilters"></div>
-            <div class="goal-board" id="goalBoard"></div>
+          <div class="panel">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">Quick Actions</h2>
+                <p class="section-copy">Safe links and local validation commands. Grafana remains the deep-dive tool.</p>
+              </div>
+            </div>
+            <div id="quickActions"></div>
           </div>
         </section>
-        <section class="panel">
-          <div class="panel-header">
+
+        <section class="section">
+          <div class="section-header">
             <div>
-              <div class="panel-title">Attention Needed</div>
-              <div class="panel-subtitle">Computed findings from live host configuration. This is separate from the roadmap.</div>
+              <h2 class="section-title">Services</h2>
+              <p class="section-copy">The homepage layer: what exists, where it lives, and how exposed it is.</p>
             </div>
           </div>
-          <div class="attention-list" id="attentionList"></div>
+          <div class="services-grid" id="servicesGrid"></div>
         </section>
-      </div>
-      <section class="panel health-panel">
-        <div class="panel-header">
-          <div>
-            <div class="panel-title">Health Signals</div>
-            <div class="panel-subtitle">Closure cost and invariant status derived from the current flake evaluation.</div>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Machines</h2>
+              <p class="section-copy">Small-fleet view. No filter wall; legacy/lab hosts are visible but de-emphasized.</p>
+            </div>
           </div>
-        </div>
-        <div class="health-summary" id="healthSummary"></div>
-        <div class="health-list" id="healthList"></div>
-      </section>
-      <div class="filters" id="filters"></div>
-      <div class="grid" id="grid"></div>
-      <footer id="footer"></footer>
+          <div class="machines-grid" id="machinesGrid"></div>
+        </section>
+
+        <section class="section goals-layout">
+          <div class="panel">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">Roadmap</h2>
+                <p class="section-copy">Focused goals only. Completed work is summarized, not turned into a kanban archive.</p>
+              </div>
+            </div>
+            <div class="goal-list" id="goalList"></div>
+          </div>
+          <aside class="panel" id="goalSummary"></aside>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Build & Invariants</h2>
+              <p class="section-copy">Static evaluation signals. Use Grafana for runtime graphs and alert history.</p>
+            </div>
+          </div>
+          <div class="health-grid" id="healthGrid"></div>
+        </section>
+
+        <footer id="footer"></footer>
+      </main>
 
       <script src="wave3-data.js"></script>
       <script>
@@ -781,754 +819,485 @@ let
         const goals = data.goals;
         const wave3Data = window.__WAVE3_DATA__ || { hosts: { } };
         const hostByName = Object.fromEntries(hosts.map(host => [host.name, host]));
-        const goalById = Object.fromEntries(goals.map(goal => [goal.id, goal]));
-        const goalStatusOrder = ['now', 'blocked', 'next', 'later', 'done'];
-        const goalStatusLabels = {
-          now: 'Now',
-          blocked: 'Blocked',
-          next: 'Next',
-          later: 'Later',
-          done: 'Done',
-        };
-        const goalAreaLabels = {
-          platform: 'Platform',
-          homeserver: 'Homeserver',
-          deploy: 'Deploy',
-          backup: 'Backup',
-          observability: 'Observability',
-          security: 'Security',
-        };
-        const goalPriorityLabels = {
-          p1: 'P1',
-          p2: 'P2',
-          p3: 'P3',
-        };
-        const goalPriorityOrder = {
-          p1: 0,
-          p2: 1,
-          p3: 2,
-        };
-        const goalHostOrder = ['main', 'homeserver-gcp', 'vm'];
-        const goalHostLabels = {
-          main: 'main',
-          'homeserver-gcp': 'homeserver-gcp',
-          vm: 'vm',
-        };
-        const goalServiceLabels = {
-          inventory: 'Inventory',
-          'deploy-rs': 'deploy-rs',
-          'github-actions': 'GitHub Actions',
-          'smoke-tests': 'Smoke tests',
-          restic: 'restic',
-          b2: 'Backblaze B2',
-          adguard: 'AdGuard Home',
-          tailscale: 'Tailscale',
-          lgtm: 'LGTM',
-          grafana: 'Grafana',
-          loki: 'Loki',
-          prometheus: 'Prometheus',
-          vaultwarden: 'Vaultwarden',
-          syncthing: 'Syncthing',
-          sops: 'SOPS',
-          age: 'age',
-          auditd: 'auditd',
-          osquery: 'osquery',
-          alloy: 'Alloy',
-          nginx: 'Nginx',
-          sandboxing: 'Sandboxing',
-          checks: 'Checks',
-        };
-        const goalServiceOrder = Object.keys(goalServiceLabels);
+        const homeserver = hostByName["homeserver-gcp"];
+        const mainHost = hostByName["main"];
+        const repoUrl = data.repository;
 
-        const svcLabels = {
-          openssh: 'SSH', tailscale: 'Tailscale', firewall: 'Firewall',
-          fail2ban: 'fail2ban', vaultwarden: 'Vaultwarden', syncthing: 'Syncthing',
-          hyprland: 'Hyprland', observabilityStack: 'LGTM', observabilityClient: 'OTel',
-          usbguard: 'USBGuard', lanzaboote: 'Lanzaboote',
+        const labels = {
+          openssh: "SSH",
+          tailscale: "Tailscale",
+          firewall: "Firewall",
+          fail2ban: "fail2ban",
+          vaultwarden: "Vaultwarden",
+          syncthing: "Syncthing",
+          nginx: "Nginx",
+          adguard: "AdGuard Home",
+          grafana: "Grafana",
+          loki: "Loki",
+          mimir: "Mimir",
+          tempo: "Tempo",
+          restic: "Restic",
+          hyprland: "Hyprland",
+          observabilityStack: "LGTM",
+          observabilityClient: "Telemetry client",
+          usbguard: "USBGuard",
+          lanzaboote: "Secure Boot",
         };
 
-        const profileLabels = {
-          desktop: 'Desktop', security: 'Security',
-          observability: 'LGTM stack', observabilityClient: 'OTel client',
+        const statusTone = {
+          active: "good",
+          "legacy-supported": "warn",
+          inactive: "off",
         };
+
+        function el(tag, cls, text) {
+          const node = document.createElement(tag);
+          if (cls) node.className = cls;
+          if (text !== undefined) node.textContent = text;
+          return node;
+        }
+
+        function link(label, href, cls) {
+          const a = el("a", cls || "card-link", label);
+          a.href = href;
+          a.target = "_blank";
+          a.rel = "noreferrer";
+          return a;
+        }
 
         function humanBytes(bytes) {
-          if (bytes == null) return 'unknown';
-          if (bytes < 1024) return String(bytes) + ' B';
-          const units = ['KiB', 'MiB', 'GiB', 'TiB'];
+          if (bytes == null) return "unknown";
+          if (bytes < 1024) return String(bytes) + " B";
+          const units = ["KiB", "MiB", "GiB", "TiB"];
           let value = bytes / 1024;
-          let unit = 'KiB';
+          let unit = "KiB";
           for (const next of units.slice(1)) {
             if (value < 1024) break;
-            value /= 1024;
+            value = value / 1024;
             unit = next;
           }
-          return value.toFixed(value >= 10 ? 0 : 1) + ' ' + unit;
+          return value.toFixed(value >= 10 ? 0 : 1) + " " + unit;
         }
 
         function wave3For(hostName) {
           return wave3Data.hosts?.[hostName] ?? null;
         }
 
-        function healthResults(host) {
-          return host.health?.invariantResults ?? [];
-        }
-
         function healthCounts(host) {
-          const results = healthResults(host);
-          const failed = results.filter(result => !result.passed);
+          const results = host.health?.invariantResults ?? [];
+          const failedResults = results.filter(result => !result.passed);
           return {
             total: results.length,
-            passed: results.length - failed.length,
-            failed: failed.length,
-            failedResults: failed,
-            status: failed.length === 0 ? 'pass' : 'warn',
+            passed: results.length - failedResults.length,
+            failed: failedResults.length,
+            failedResults,
+            status: failedResults.length === 0 ? "pass" : "warn",
           };
         }
 
-        function securityGaps(h) {
+        function securityGaps(host) {
           const gaps = [];
-          if (h.services.openssh && !h.services.fail2ban) gaps.push('SSH w/o fail2ban');
-          if (h.services.openssh && !h.services.firewall) gaps.push('SSH w/o firewall');
-          if (h.services.tailscale && !h.services.firewall) gaps.push('Tailscale w/o firewall');
-          if (h.name !== 'vm' && h.profiles.desktop && !h.services.usbguard) gaps.push('Desktop w/o USBGuard');
+          if (host.services.openssh && !host.services.fail2ban) gaps.push("SSH without fail2ban");
+          if (host.services.openssh && !host.services.firewall) gaps.push("SSH without firewall");
+          if (host.services.tailscale && !host.services.firewall) gaps.push("Tailscale without firewall");
+          if (host.name !== "vm" && host.profiles.desktop && !host.services.usbguard) gaps.push("Desktop without USBGuard");
           return gaps;
         }
 
-        function computeAttentionItems() {
-          const items = [];
+        function hostCommand(host) {
+          return "nix build '.#nixosConfigurations." + host.name + ".config.system.build.toplevel'";
+        }
 
-          for (const h of hosts) {
-            for (const gap of securityGaps(h)) {
+        function deployCommand(host) {
+          if (host.name === "main") return "nh os switch --hostname main .";
+          if (host.deployable) return "deploy '.#" + host.name + "'";
+          return null;
+        }
+
+        function buildSummaryTiles() {
+          const activeHosts = hosts.filter(host => host.status === "active").length;
+          const criticalBackups = hosts.filter(host => host.backupClass === "critical").length;
+          const exposedPublicPorts = hosts.reduce((sum, host) => sum + host.openTCPPorts.length + host.openUDPPorts.length, 0);
+          const failingHosts = hosts.filter(host => healthCounts(host).failed > 0).length;
+          const enabledServices = new Set();
+          for (const host of hosts) {
+            for (const [name, enabled] of Object.entries(host.services)) {
+              if (enabled) enabledServices.add(name);
+            }
+          }
+
+          const tiles = [
+            [activeHosts + "/" + hosts.length, "active machines", homeserver?.tailnetFQDN || "tailnet-only homeserver"],
+            [enabledServices.size, "service types", "Vaultwarden, LGTM, DNS, backups, Tailscale"],
+            [criticalBackups, "critical backup host", "Restic/B2 plus provider snapshots"],
+            [failingHosts, "hosts with failed invariants", exposedPublicPorts === 0 ? "public firewall stays closed" : exposedPublicPorts + " public port entries"],
+          ];
+
+          const container = document.getElementById("summaryTiles");
+          container.innerHTML = "";
+          for (const [value, label, note] of tiles) {
+            const tile = el("article", "status-tile");
+            tile.appendChild(el("div", "tile-label", label));
+            tile.appendChild(el("strong", "tile-value", String(value)));
+            tile.appendChild(el("div", "tile-note", note));
+            container.appendChild(tile);
+          }
+        }
+
+        function buildHero() {
+          const hostNames = hosts.map(host => host.name).join(", ");
+          document.getElementById("heroCopy").textContent =
+            "A generated homepage for " + hostNames + ". It keeps the operational overview here and leaves runtime graphs, alerts, and historical debugging to Grafana.";
+
+          const actions = document.getElementById("heroActions");
+          actions.innerHTML = "";
+          if (homeserver?.tailnetFQDN && homeserver.services.grafana) {
+            actions.appendChild(link("Open Grafana", "https://" + homeserver.tailnetFQDN + "/grafana/", "action primary"));
+          }
+          if (homeserver?.tailnetFQDN && homeserver.services.vaultwarden) {
+            actions.appendChild(link("Vaultwarden", "https://" + homeserver.tailnetFQDN + "/", "action"));
+          }
+          actions.appendChild(link("Repo", repoUrl, "action"));
+          actions.appendChild(link("Homeserver docs", repoUrl + "/blob/main/docs/homeserver-goals.md", "action"));
+        }
+
+        function attentionItems() {
+          const items = [];
+          for (const host of hosts) {
+            const health = healthCounts(host);
+            for (const result of health.failedResults) {
               items.push({
-                host: h.name,
-                severity: 'warn',
-                title: 'Security gap',
+                tone: "bad",
+                host: host.name,
+                title: "Invariant failed",
+                detail: result.name,
+              });
+            }
+            for (const gap of securityGaps(host)) {
+              items.push({
+                tone: "warn",
+                host: host.name,
+                title: "Security gap",
                 detail: gap,
               });
             }
-
-            if (h.backupClass === 'critical' && !h.services.observabilityStack && !h.services.observabilityClient) {
+            if (host.backupClass === "critical" && host.resticBackups.length === 0) {
               items.push({
-                host: h.name,
-                severity: 'note',
-                title: 'Backup-critical without observability signal',
-                detail: 'This host is marked backup-critical but has no LGTM stack or OTel client enabled.',
+                tone: "bad",
+                host: host.name,
+                title: "Critical backup metadata without restic job",
+                detail: "Registry marks this host critical, but no restic backup is evaluated.",
               });
             }
           }
 
+          if (items.length === 0) {
+            items.push({
+              tone: "good",
+              host: "fleet",
+              title: "No generated attention items",
+              detail: "Static invariants and obvious security checks pass in this evaluation.",
+            });
+          }
           return items;
         }
 
-        const attentionItems = computeAttentionItems();
-
-        function el(tag, cls, text) {
-          const e = document.createElement(tag);
-          if (cls) e.className = cls;
-          if (text !== undefined) e.textContent = text;
-          return e;
-        }
-
-        function compareGoals(a, b) {
-          const priority = (goalPriorityOrder[a.priority] ?? 99) - (goalPriorityOrder[b.priority] ?? 99);
-          if (priority !== 0) return priority;
-          return a.title.localeCompare(b.title);
-        }
-
-        function goalHosts(goal) {
-          return goal.hosts ?? [];
-        }
-
-        function goalServices(goal) {
-          return goal.services ?? [];
-        }
-
-        function goalCommands(goal) {
-          const commands = [];
-          const seen = new Set();
-          const add = command => {
-            if (!seen.has(command)) {
-              seen.add(command);
-              commands.push(command);
-            }
-          };
-
-          for (const command of (goal.validate ?? [])) add(command);
-
-          for (const hostName of goalHosts(goal)) {
-            const host = hostByName[hostName];
-            if (!host) continue;
-
-            add(`nix build '.#nixosConfigurations.''${hostName}.config.system.build.toplevel'`);
-            if (hostName === 'main') {
-              add(`nh os switch --hostname main .`);
-            } else if (host.deployable) {
-              add(`deploy '.#''${hostName}'`);
-            }
-          }
-
-          return commands;
-        }
-
-        function hostCommands(host) {
-          const commands = [`nix build '.#nixosConfigurations.''${host.name}.config.system.build.toplevel'`];
-          if (host.name === 'main') {
-            commands.push(`nh os switch --hostname main .`);
-          } else if (host.deployable) {
-            commands.push(`deploy '.#''${host.name}'`);
-          }
-          return commands;
-        }
-
-        function goalRefTitle(goalId) {
-          return goalById[goalId]?.title ?? goalId;
-        }
-
-        function buildGoalCard(goal) {
-          const card = el('article', 'goal-card priority-' + goal.priority + (goal.status === 'done' ? ' goal-done' : ""));
-          const blockedBy = goal.blockedBy ?? [];
-          const unlocks = goal.unlocks ?? [];
-          const docs = goal.docs ?? [];
-
-          const meta = el('div', 'goal-meta');
-          meta.appendChild(el('span', 'chip chip-area', goalAreaLabels[goal.area] ?? goal.area));
-          meta.appendChild(el('span', 'chip chip-priority', goalPriorityLabels[goal.priority] ?? goal.priority));
-          card.appendChild(meta);
-
-          card.appendChild(el('div', 'goal-title', goal.title));
-          card.appendChild(el('div', 'goal-summary', goal.summary));
-
-          const context = el('div', 'goal-context');
-
-          const hosts = goalHosts(goal);
-          if (hosts.length) {
-            const section = el('div', 'goal-section');
-            section.appendChild(el('div', 'goal-section-label', 'Related Hosts'));
-            const chips = el('div', 'chips');
-            for (const host of hosts) {
-              const btn = el('button', 'chip chip-host chip-clickable', goalHostLabels[host] ?? host);
-              btn.addEventListener('click', () => {
-                activeGoalHost = activeGoalHost === host ? null : host;
-                buildGoalFilters();
-                buildGoalBoard();
-              });
-              chips.appendChild(btn);
-            }
-            section.appendChild(chips);
-            context.appendChild(section);
-          }
-
-          const services = goalServices(goal);
-          if (services.length) {
-            const section = el('div', 'goal-section');
-            section.appendChild(el('div', 'goal-section-label', 'Related Services'));
-            const chips = el('div', 'chips');
-            for (const service of services) {
-              const btn = el('button', 'chip chip-service chip-clickable', goalServiceLabels[service] ?? service);
-              btn.addEventListener('click', () => {
-                activeGoalService = activeGoalService === service ? null : service;
-                buildGoalFilters();
-                buildGoalBoard();
-              });
-              chips.appendChild(btn);
-            }
-            section.appendChild(chips);
-            context.appendChild(section);
-          }
-
-          if (blockedBy.length) {
-            const section = el('div', 'goal-section');
-            section.appendChild(el('div', 'goal-section-label', 'Depends On'));
-            const chips = el('div', 'chips');
-            for (const blocker of blockedBy) chips.appendChild(el('span', 'chip chip-block', goalRefTitle(blocker)));
-            section.appendChild(chips);
-            context.appendChild(section);
-          }
-
-          if (unlocks.length) {
-            const section = el('div', 'goal-section');
-            section.appendChild(el('div', 'goal-section-label', 'Unlocks'));
-            const chips = el('div', 'chips');
-            for (const unlock of unlocks) chips.appendChild(el('span', 'chip chip-unlock', goalRefTitle(unlock)));
-            section.appendChild(chips);
-            context.appendChild(section);
-          }
-
-          const commands = goalCommands(goal);
-          if (commands.length) {
-            const section = el('div', 'goal-section');
-            section.appendChild(el('div', 'goal-section-label', 'Validate'));
-            const list = el('div', 'command-list');
-            for (const command of commands) {
-              const cmd = el('div', 'command-chip', command);
-              list.appendChild(cmd);
-            }
-            section.appendChild(list);
-            context.appendChild(section);
-          }
-
-          if (docs.length) {
-            const section = el('div', 'goal-section');
-            section.appendChild(el('div', 'goal-section-label', 'Docs'));
-            const links = el('div', 'goal-docs');
-            for (const doc of docs) {
-              const link = el('a', 'goal-doc-link', doc.path);
-              link.href = doc.url;
-              link.target = '_blank';
-              link.rel = 'noreferrer';
-              links.appendChild(link);
-            }
-            section.appendChild(links);
-            context.appendChild(section);
-          }
-
-          card.appendChild(context);
-
-          return card;
-        }
-
-        let activeGoalStatus = null;
-        let activeGoalArea = null;
-        let activeGoalHost = null;
-        let activeGoalService = null;
-        let goalsCollapsed = false;
-
-        function filteredGoals() {
-          return goals.filter(goal => {
-            const statusMatch = !activeGoalStatus || goal.status === activeGoalStatus;
-            const areaMatch = !activeGoalArea || goal.area === activeGoalArea;
-            const hostMatch = !activeGoalHost || goalHosts(goal).includes(activeGoalHost);
-            const serviceMatch = !activeGoalService || goalServices(goal).includes(activeGoalService);
-            return statusMatch && areaMatch && hostMatch && serviceMatch;
-          });
-        }
-
-        function buildGoalBoard() {
-          const filtered = filteredGoals();
-          const board = document.getElementById('goalBoard');
-          board.innerHTML = "";
-
-          for (const status of goalStatusOrder) {
-            const columnGoals = filtered
-              .filter(goal => goal.status === status)
-              .sort(compareGoals);
-
-            const column = el('section', 'goal-column');
-            const header = el('div', 'goal-column-header');
-            header.appendChild(el('div', 'goal-column-title', goalStatusLabels[status]));
-            header.appendChild(el('div', 'goal-column-count', String(columnGoals.length)));
-            column.appendChild(header);
-
-            if (!columnGoals.length) {
-              column.appendChild(el('div', 'goal-empty', 'No matching goals.'));
-            } else {
-              const list = el('div', 'goal-list');
-              for (const goal of columnGoals) list.appendChild(buildGoalCard(goal));
-              column.appendChild(list);
-            }
-
-            board.appendChild(column);
-          }
-        }
-
-        function buildGoalFilters() {
-          const bar = document.getElementById('goalFilters');
-          bar.innerHTML = "";
-          bar.appendChild(el('span', 'filter-label', 'Filter goals:'));
-
-          const mkButton = (label, kind, value, isActive, onClick) => {
-            const btn = el('button', 'filter-btn' + (isActive ? ' active' : ""), label);
-            btn.dataset.kind = kind;
-            btn.dataset.value = value ?? "";
-            btn.addEventListener('click', onClick);
-            return btn;
-          };
-
-          bar.appendChild(mkButton('All', 'status', "", activeGoalStatus === null, () => {
-            activeGoalStatus = null;
-            buildGoalFilters();
-            buildGoalBoard();
-          }));
-
-          for (const status of goalStatusOrder) {
-            bar.appendChild(mkButton(goalStatusLabels[status], 'status', status, activeGoalStatus === status, () => {
-              activeGoalStatus = activeGoalStatus === status ? null : status;
-              buildGoalFilters();
-              buildGoalBoard();
-            }));
-          }
-
-          bar.appendChild(el('span', 'filter-group-label', 'Area'));
-          bar.appendChild(mkButton('All areas', 'area', "", activeGoalArea === null, () => {
-            activeGoalArea = null;
-            buildGoalFilters();
-            buildGoalBoard();
-          }));
-
-          for (const area of Object.keys(goalAreaLabels)) {
-            bar.appendChild(mkButton(goalAreaLabels[area], 'area', area, activeGoalArea === area, () => {
-              activeGoalArea = activeGoalArea === area ? null : area;
-              buildGoalFilters();
-              buildGoalBoard();
-            }));
-          }
-
-          const moreFilters = el('details', 'filter-details');
-          moreFilters.open = activeGoalHost !== null || activeGoalService !== null;
-          const summary = el('summary', 'filter-summary', 'More filters');
-          moreFilters.appendChild(summary);
-          const body = el('div', 'filter-details-body');
-
-          body.appendChild(el('span', 'filter-group-label', 'Hosts'));
-          body.appendChild(mkButton('All hosts', 'host', "", activeGoalHost === null, () => {
-            activeGoalHost = null;
-            buildGoalFilters();
-            buildGoalBoard();
-          }));
-
-          for (const host of goalHostOrder) {
-            if (!goals.some(goal => goalHosts(goal).includes(host))) continue;
-            body.appendChild(mkButton(goalHostLabels[host] ?? host, 'host', host, activeGoalHost === host, () => {
-              activeGoalHost = activeGoalHost === host ? null : host;
-              buildGoalFilters();
-              buildGoalBoard();
-            }));
-          }
-
-          body.appendChild(el('span', 'filter-group-label', 'Services'));
-          body.appendChild(mkButton('All services', 'service', "", activeGoalService === null, () => {
-            activeGoalService = null;
-            buildGoalFilters();
-            buildGoalBoard();
-          }));
-
-          for (const service of goalServiceOrder) {
-            if (!goals.some(goal => goalServices(goal).includes(service))) continue;
-            body.appendChild(mkButton(goalServiceLabels[service] ?? service, 'service', service, activeGoalService === service, () => {
-              activeGoalService = activeGoalService === service ? null : service;
-              buildGoalFilters();
-              buildGoalBoard();
-            }));
-          }
-
-          moreFilters.appendChild(body);
-          bar.appendChild(moreFilters);
-        }
-
-        function buildAttentionPanel() {
-          const container = document.getElementById('attentionList');
+        function buildAttention() {
+          const container = document.getElementById("attentionList");
           container.innerHTML = "";
-
-          if (!attentionItems.length) {
-            container.appendChild(el('div', 'attention-empty', 'No computed attention items.'));
-            return;
+          for (const item of attentionItems().slice(0, 6)) {
+            const node = el("article", "signal " + item.tone);
+            const head = el("div", "signal-title");
+            head.appendChild(el("span", null, item.title));
+            head.appendChild(el("span", "pill " + (item.tone === "bad" ? "bad" : item.tone), item.host));
+            node.appendChild(head);
+            node.appendChild(el("div", "signal-detail", item.detail));
+            container.appendChild(node);
           }
+        }
 
-          for (const item of attentionItems) {
-            const card = el('article', 'attention-item severity-' + item.severity);
-            const head = el('div', 'attention-head');
-            head.appendChild(el('div', 'attention-title', item.title));
-            head.appendChild(el('div', 'attention-host', item.host));
+        function buildQuickActions() {
+          const container = document.getElementById("quickActions");
+          container.innerHTML = "";
+          const list = el("div", "signal-list");
+          const packageBuild = el("article", "signal good");
+          packageBuild.appendChild(el("div", "signal-title", "Build homepage"));
+          packageBuild.appendChild(el("code", "command", "nix build '.#packages.x86_64-linux.inventory'"));
+          list.appendChild(packageBuild);
+
+          for (const host of hosts.filter(host => host.status === "active")) {
+            const card = el("article", "signal");
+            const head = el("div", "signal-title");
+            head.appendChild(el("span", null, "Validate " + host.name));
+            head.appendChild(el("span", "pill info", host.system));
             card.appendChild(head);
-            card.appendChild(el('div', 'attention-detail', item.detail));
-            container.appendChild(card);
+            card.appendChild(el("code", "command", hostCommand(host)));
+            const deploy = deployCommand(host);
+            if (deploy) card.appendChild(el("code", "command", deploy));
+            list.appendChild(card);
           }
+          container.appendChild(list);
         }
 
-        function setGoalsCollapsed(collapsed) {
-          goalsCollapsed = collapsed;
-          const body = document.getElementById('goalSectionBody');
-          const button = document.getElementById('toggleGoalsBtn');
-          body.hidden = goalsCollapsed;
-          button.textContent = goalsCollapsed ? 'Expand goals' : 'Collapse goals';
-          button.classList.toggle('active', goalsCollapsed);
-        }
+        function serviceCatalog() {
+          const fqdn = homeserver?.tailnetFQDN;
+          const grafanaUrl = fqdn ? "https://" + fqdn + "/grafana/" : null;
+          const vaultwardenUrl = fqdn ? "https://" + fqdn + "/" : null;
+          const adguardUrl = fqdn ? "http://" + fqdn + ":3001/" : null;
+          const b2 = homeserver?.resticBackups.find(backup => backup.name === "b2");
 
-        function buildCard(h) {
-          const gaps = securityGaps(h);
-          const card = el('div', 'card' + (gaps.length ? ' has-gaps' : ""));
-          card._host = h;
-
-          // Header
-          const header = el('div', 'card-header');
-          header.appendChild(el('span', 'hostname', h.name));
-          header.appendChild(el('span', 'badge badge-status-' + h.status, h.status));
-          if (h.deployable) header.appendChild(el('span', 'badge badge-deploy', 'deploy-rs'));
-          if (h.backupClass === 'critical') header.appendChild(el('span', 'badge badge-backup-critical', 'backup:critical'));
-          if (h.backupClass === 'standard') header.appendChild(el('span', 'badge badge-backup-standard', 'backup:standard'));
-          if (h.impermanence) header.appendChild(el('span', 'badge badge-imperf', 'impermanence'));
-          if (gaps.length) header.appendChild(el('span', 'badge badge-gap', gaps.length + ' gap' + (gaps.length > 1 ? 's' : "")));
-          card.appendChild(header);
-
-          // Meta rows
-          const metaRows = [
-            ['system', h.system],
-            ['status', h.status],
-            ['stateVersion', h.stateVersion],
-            h.tailscaleTag ? ['tailscale tag', h.tailscaleTag] : null,
-            h.tailnetFQDN  ? ['tailnet FQDN', h.tailnetFQDN] : null,
-            h.ip           ? ['ip', h.ip] : null,
-            h.homeManagerRole ? ['home-manager', h.homeManagerRole + (h.homeManagerProfiles.length ? ' + ' + h.homeManagerProfiles.join(', ') : "")] : null,
-          ].filter(Boolean);
-
-          for (const [label, value] of metaRows) {
-            const row = el('div', 'meta-row');
-            row.appendChild(el('span', 'meta-label', label));
-            row.appendChild(el('span', 'meta-value', value));
-            card.appendChild(row);
-          }
-
-          const wave3 = wave3For(h.name);
-          if (wave3?.closureSizeBytes != null) {
-            const row = el('div', 'meta-row');
-            row.appendChild(el('span', 'meta-label', 'closure'));
-            row.appendChild(el('span', 'meta-value', humanBytes(wave3.closureSizeBytes)));
-            card.appendChild(row);
-          }
-
-          const health = healthCounts(h);
-          if (health.total > 0) {
-            const row = el('div', 'meta-row');
-            row.appendChild(el('span', 'meta-label', 'invariants'));
-            const value = el('span', 'meta-value');
-            const badge = el('span', 'health-status ' + health.status, health.passed + '/' + health.total + ' pass');
-            value.appendChild(badge);
-            row.appendChild(value);
-            card.appendChild(row);
-          }
-
-          const commands = hostCommands(h);
-          if (commands.length) {
-            card.appendChild(el('div', 'section-title', 'Validate'));
-            const validateList = el('div', 'command-list');
-            for (const command of commands) validateList.appendChild(el('div', 'command-chip', command));
-            card.appendChild(validateList);
-          }
-
-          // Profiles
-          const activeProfiles = Object.entries(h.profiles).filter(([, v]) => v).map(([k]) => profileLabels[k] ?? k);
-          if (activeProfiles.length) {
-            card.appendChild(el('div', 'section-title', 'Profiles'));
-            const ptags = el('div', 'tags');
-            for (const p of activeProfiles) ptags.appendChild(el('span', 'tag tag-profile', p));
-            card.appendChild(ptags);
-          }
-
-          // Services
-          card.appendChild(el('div', 'section-title', 'Services'));
-          const svcs = el('div', 'tags');
-          for (const [key, enabled] of Object.entries(h.services)) {
-            svcs.appendChild(el('span', 'tag ' + (enabled ? 'tag-on' : 'tag-off'), svcLabels[key] ?? key));
-          }
-          card.appendChild(svcs);
-
-          // Open ports
-          const allPorts = [
-            ...h.openTCPPorts.map(p => 'TCP/' + p),
-            ...h.openUDPPorts.map(p => 'UDP/' + p),
+          return [
+            {
+              name: "Vaultwarden",
+              host: homeserver,
+              enabled: homeserver?.services.vaultwarden,
+              tone: "good",
+              accent: "#e0b15b",
+              summary: "Password vault behind the homeserver reverse proxy. The homepage only links to it; no vault telemetry is surfaced here.",
+              chips: ["Tailscale HTTPS", "Nginx", "no signups"],
+              links: vaultwardenUrl ? [["Open vault", vaultwardenUrl]] : [],
+            },
+            {
+              name: "Grafana / LGTM",
+              host: homeserver,
+              enabled: homeserver?.services.observabilityStack,
+              tone: "good",
+              accent: "#74b7b0",
+              summary: "Runtime deep-dive for metrics, logs, traces, backup health, CVEs, and security audit signals.",
+              chips: ["Grafana", "Loki", "Mimir", "Tempo"],
+              links: grafanaUrl ? [["Open Grafana", grafanaUrl]] : [],
+            },
+            {
+              name: "AdGuard Home",
+              host: homeserver,
+              enabled: homeserver?.services.adguard,
+              tone: "good",
+              accent: "#9bcf77",
+              summary: "Tailnet DNS and filtering. DNS/UI ports are exposed on tailscale0, not the public firewall.",
+              chips: ["TCP/UDP 53", "UI 3001", "MagicDNS target"],
+              links: adguardUrl ? [["Open UI", adguardUrl]] : [],
+            },
+            {
+              name: "Backups",
+              host: homeserver,
+              enabled: !!b2,
+              tone: "good",
+              accent: "#8fb3d9",
+              summary: "Restic backs up Vaultwarden, Grafana, and AdGuard state to Backblaze B2 with critical retention policy.",
+              chips: b2 ? ["job " + b2.name, (b2.paths.length || 0) + " paths", b2.timer || "timer"] : ["not configured"],
+              links: grafanaUrl ? [["Backup health", grafanaUrl]] : [],
+            },
+            {
+              name: "GCE Snapshots",
+              host: homeserver,
+              enabled: !!homeserver,
+              tone: "info",
+              accent: "#d77f4f",
+              summary: "Provider-local daily boot disk rollback points configured in OpenTofu. They complement restic; they are not the backup source of truth.",
+              chips: ["infra/main.tf", "daily", "7 day default"],
+              links: [[ "Operations notes", repoUrl + "/blob/main/docs/operations.md" ]],
+            },
+            {
+              name: "Tailnet Edge",
+              host: homeserver,
+              enabled: homeserver?.services.tailscale && homeserver?.services.nginx,
+              tone: "good",
+              accent: "#b793d1",
+              summary: "Tailscale certs, nginx routing, SSH, HTTPS, DNS, and AdGuard UI stay scoped to tailnet access.",
+              chips: [
+                "tag " + (homeserver?.tailscaleTag || "server"),
+                "TCP " + (homeserver?.tailscaleTCPPorts || []).join(","),
+                "UDP " + (homeserver?.tailscaleUDPPorts || []).join(","),
+              ],
+              links: [[ "Host docs", repoUrl + "/blob/main/hosts/homeserver-gcp/CLAUDE.md" ]],
+            },
           ];
-          if (allPorts.length) {
-            card.appendChild(el('div', 'section-title', 'Open Ports'));
-            const portTags = el('div', 'tags');
-            for (const p of allPorts) portTags.appendChild(el('span', 'tag tag-port', p));
-            card.appendChild(portTags);
-          }
-
-          // Security gaps
-          if (gaps.length) {
-            card.appendChild(el('div', 'section-title', 'Security Gaps'));
-            const gapTags = el('div', 'tags');
-            for (const g of gaps) gapTags.appendChild(el('span', 'tag tag-gap', g));
-            card.appendChild(gapTags);
-          }
-
-          return card;
         }
 
-        function buildHealthPanel() {
-          const baseline = wave3For('main')?.closureSizeBytes ?? null;
-          const rows = hosts
-            .map(host => ({
-              host,
-              wave3: wave3For(host.name),
-              health: healthCounts(host),
-            }))
-            .sort((a, b) => (b.wave3?.closureSizeBytes ?? 0) - (a.wave3?.closureSizeBytes ?? 0));
+        function buildServices() {
+          const grid = document.getElementById("servicesGrid");
+          grid.innerHTML = "";
+          for (const service of serviceCatalog()) {
+            const card = el("article", "service-card");
+            card.style.setProperty("--accent", service.accent);
+            const top = el("div", "service-top");
+            top.appendChild(el("div", "service-name", service.name));
+            top.appendChild(el("span", "pill " + (service.enabled ? service.tone : "off"), service.enabled ? "configured" : "off"));
+            card.appendChild(top);
+            card.appendChild(el("p", "service-desc", service.summary));
 
-          const list = document.getElementById('healthList');
+            const chips = el("div", "meta-line");
+            for (const chip of service.chips.filter(Boolean)) chips.appendChild(el("span", "chip", chip));
+            card.appendChild(chips);
+
+            if (service.links.length) {
+              const links = el("div", "card-links");
+              for (const [label, href] of service.links) links.appendChild(link(label, href));
+              card.appendChild(links);
+            }
+
+            grid.appendChild(card);
+          }
+        }
+
+        function buildMachines() {
+          const grid = document.getElementById("machinesGrid");
+          grid.innerHTML = "";
+          const ordered = [...hosts].sort((a, b) => {
+            const statusRank = status => status === "active" ? 0 : status === "legacy-supported" ? 1 : 2;
+            return statusRank(a.status) - statusRank(b.status) || a.name.localeCompare(b.name);
+          });
+
+          for (const host of ordered) {
+            const health = healthCounts(host);
+            const card = el("article", "machine-card");
+            const head = el("div", "machine-head");
+            head.appendChild(el("div", "machine-name", host.name));
+            head.appendChild(el("span", "pill " + (statusTone[host.status] || "off"), host.status));
+            card.appendChild(head);
+
+            const rows = el("div", "rows");
+            const activeServices = Object.entries(host.services)
+              .filter(([, enabled]) => enabled)
+              .map(([name]) => labels[name] || name);
+            const backup = host.resticBackups.length ? host.resticBackups.map(item => item.name).join(", ") : "none";
+            const closure = humanBytes(wave3For(host.name)?.closureSizeBytes ?? null);
+            const ports = host.openTCPPorts.length || host.openUDPPorts.length
+              ? "public " + host.openTCPPorts.concat(host.openUDPPorts).join(",")
+              : "public closed";
+            const tailnet = host.tailscaleTCPPorts.length || host.tailscaleUDPPorts.length
+              ? "tailnet " + host.tailscaleTCPPorts.concat(host.tailscaleUDPPorts).join(",")
+              : host.services.tailscale ? "tailnet client" : "off";
+            const rowData = [
+              ["Role", host.homeManagerRole || (host.profiles.desktop ? "desktop" : "server")],
+              ["Services", activeServices.slice(0, 5).join(", ") || "none"],
+              ["Network", ports + "; " + tailnet],
+              ["Backups", host.backupClass ? host.backupClass + " / " + backup : backup],
+              ["Build", closure + "; " + health.passed + "/" + health.total + " checks"],
+            ];
+            for (const [key, value] of rowData) {
+              const row = el("div", "row");
+              row.appendChild(el("span", null, key));
+              row.appendChild(el("strong", null, value));
+              rows.appendChild(row);
+            }
+            card.appendChild(rows);
+            grid.appendChild(card);
+          }
+        }
+
+        function buildGoals() {
+          const active = goals
+            .filter(goal => goal.status !== "done")
+            .sort((a, b) => {
+              const rank = { now: 0, next: 1, blocked: 2, later: 3 };
+              return (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || a.title.localeCompare(b.title);
+            });
+          const visible = active.slice(0, 6);
+          const list = document.getElementById("goalList");
           list.innerHTML = "";
 
-          for (const rowData of rows) {
-            const { host, wave3, health } = rowData;
-            const row = el('article', 'health-row');
-            const top = el('div', 'health-row-top');
-            top.appendChild(el('span', 'health-host', host.name));
-            top.appendChild(
-              el(
-                'span',
-                'health-status ' + health.status,
-                health.failed ? health.failed + ' fail' : health.passed + '/' + health.total + ' pass'
-              )
-            );
-            row.appendChild(top);
+          if (!visible.length) {
+            const card = el("article", "goal-card");
+            card.appendChild(el("div", "goal-title", "No active roadmap items"));
+            card.appendChild(el("div", "goal-summary", "All tracked goals are marked done in lib/goals.nix."));
+            list.appendChild(card);
+          }
 
-            const metrics = [];
-            if (wave3?.closureSizeBytes != null) {
-              metrics.push('closure ' + humanBytes(wave3.closureSizeBytes));
-              if (baseline != null && host.name !== 'main') {
-                const delta = wave3.closureSizeBytes - baseline;
-                const sign = delta >= 0 ? '+' : '-';
-                metrics.push(sign + humanBytes(Math.abs(delta)) + ' vs main');
-              }
-            }
-            if (health.total > 0) {
-              metrics.push(health.passed + '/' + health.total + ' invariants pass');
-            }
+          for (const goal of visible) {
+            const card = el("article", "goal-card");
+            const head = el("div", "goal-head");
+            head.appendChild(el("div", "goal-title", goal.title));
+            head.appendChild(el("span", "pill " + (goal.status === "now" ? "good" : goal.status === "blocked" ? "bad" : "info"), goal.status));
+            card.appendChild(head);
+            card.appendChild(el("div", "goal-summary", goal.summary));
 
-            row.appendChild(el('div', 'health-row-meta', metrics.join(' • ')));
+            const chips = el("div", "meta-line");
+            chips.appendChild(el("span", "chip", goal.area));
+            chips.appendChild(el("span", "chip", goal.priority));
+            for (const host of (goal.hosts || []).slice(0, 3)) chips.appendChild(el("span", "chip", host));
+            card.appendChild(chips);
+
+            if ((goal.docs || []).length) {
+              const links = el("div", "card-links");
+              for (const doc of goal.docs.slice(0, 2)) links.appendChild(link(doc.path, doc.url));
+              card.appendChild(links);
+            }
+            list.appendChild(card);
+          }
+
+          const done = goals.filter(goal => goal.status === "done").length;
+          const now = goals.filter(goal => goal.status === "now").length;
+          const next = goals.filter(goal => goal.status === "next").length;
+          const later = goals.filter(goal => goal.status === "later").length;
+          const panel = document.getElementById("goalSummary");
+          panel.innerHTML = "";
+          panel.appendChild(el("h2", "section-title", "Goal Shape"));
+          panel.appendChild(el("p", "section-copy", "The homepage shows active direction only; dependency graphs and long-form sequencing stay in docs."));
+          const rows = el("div", "rows");
+          for (const [key, value] of [["Now", now], ["Next", next], ["Later", later], ["Done", done]]) {
+            const row = el("div", "row");
+            row.appendChild(el("span", null, key));
+            row.appendChild(el("strong", null, String(value)));
+            rows.appendChild(row);
+          }
+          panel.appendChild(rows);
+          const links = el("div", "card-links");
+          links.appendChild(link("Project goals", repoUrl + "/blob/main/docs/goals.md"));
+          links.appendChild(link("Homeserver goals", repoUrl + "/blob/main/docs/homeserver-goals.md"));
+          panel.appendChild(links);
+        }
+
+        function buildHealth() {
+          const grid = document.getElementById("healthGrid");
+          grid.innerHTML = "";
+          for (const host of hosts) {
+            const health = healthCounts(host);
+            const card = el("article", "health-card");
+            const head = el("div", "health-head");
+            head.appendChild(el("div", "health-name", host.name));
+            head.appendChild(el("span", "pill " + (health.failed ? "bad" : "good"), health.failed ? health.failed + " fail" : "pass"));
+            card.appendChild(head);
+
+            const rows = el("div", "rows");
+            const dataRows = [
+              ["Closure", humanBytes(wave3For(host.name)?.closureSizeBytes ?? null)],
+              ["State version", host.stateVersion],
+              ["Invariants", health.passed + "/" + health.total],
+              ["System", host.system],
+            ];
+            for (const [key, value] of dataRows) {
+              const row = el("div", "row");
+              row.appendChild(el("span", null, key));
+              row.appendChild(el("strong", null, value));
+              rows.appendChild(row);
+            }
+            card.appendChild(rows);
 
             if (health.failedResults.length) {
-              const failures = el('div', 'health-failures');
-              for (const result of health.failedResults) {
-                failures.appendChild(el('span', 'health-failure', result.name));
-              }
-              row.appendChild(failures);
+              const chips = el("div", "meta-line");
+              for (const result of health.failedResults.slice(0, 4)) chips.appendChild(el("span", "chip", result.name));
+              card.appendChild(chips);
             }
-
-            list.appendChild(row);
-          }
-
-          const summary = document.getElementById('healthSummary');
-          const totalClosure = rows.reduce((sum, row) => sum + (row.wave3?.closureSizeBytes ?? 0), 0);
-          const largest = rows[0] || null;
-          const failingHosts = rows.filter(row => row.health.failed > 0);
-          const failingChecks = rows.reduce((sum, row) => sum + row.health.failed, 0);
-          const chips = [
-            ['closure total', humanBytes(totalClosure), 'good'],
-            [
-              'largest host',
-              largest ? largest.host.name + ' (' + humanBytes(largest.wave3?.closureSizeBytes ?? 0) + ')' : 'n/a',
-              'good',
-            ],
-            ['failing hosts', String(failingHosts.length), failingHosts.length > 0 ? 'warn' : 'good'],
-            ['failing checks', String(failingChecks), failingChecks > 0 ? 'bad' : 'good'],
-          ];
-
-          summary.innerHTML = "";
-          for (const [label, value, tone] of chips) {
-            const chip = el('span', 'health-chip ' + tone);
-            chip.appendChild(el('strong', null, label + ': '));
-            chip.appendChild(document.createTextNode(value));
-            summary.appendChild(chip);
+            grid.appendChild(card);
           }
         }
 
-        function buildSummary() {
-          const deployCount = hosts.filter(h => h.deployable).length;
-          const activeCount = hosts.filter(h => h.status === 'active').length;
-          const inactiveCount = hosts.filter(h => h.status === 'inactive').length;
-          const critBackup  = hosts.filter(h => h.backupClass === 'critical').length;
-          const tsCount     = hosts.filter(h => h.services.tailscale).length;
-          const gapCount    = hosts.filter(h => securityGaps(h).length > 0).length;
-          const imperfCount = hosts.filter(h => h.impermanence).length;
-          const nowGoals    = goals.filter(g => g.status === 'now').length;
-          const blockedGoals = goals.filter(g => g.status === 'blocked').length;
-          const wave3Rows = hosts.map(h => wave3For(h.name)).filter(Boolean);
-          const totalClosure = wave3Rows.reduce((sum, entry) => sum + (entry.closureSizeBytes ?? 0), 0);
-          const largest = hosts
-            .map(h => ({ host: h, wave3: wave3For(h.name) }))
-            .sort((a, b) => (b.wave3?.closureSizeBytes ?? 0) - (a.wave3?.closureSizeBytes ?? 0))[0];
-          const failingHosts = hosts.filter(h => healthCounts(h).failed > 0).length;
-
-          const stats = [
-            { value: hosts.length,  label: 'hosts' },
-            { value: activeCount,   label: 'active hosts' },
-            { value: inactiveCount, label: 'inactive hosts', warn: inactiveCount > 0 },
-            { value: deployCount,   label: 'deploy-rs' },
-            { value: tsCount,       label: 'on Tailscale' },
-            { value: critBackup,    label: 'backup:critical' },
-            { value: imperfCount,   label: 'impermanence' },
-            { value: gapCount,      label: 'security gaps', warn: gapCount > 0 },
-            { value: goals.length,  label: 'tracked goals' },
-            { value: nowGoals,      label: 'goals:now' },
-            { value: blockedGoals,  label: 'goals:blocked', warn: blockedGoals > 0 },
-            { value: attentionItems.length, label: 'attention items', warn: attentionItems.length > 0 },
-            { value: humanBytes(totalClosure), label: 'closure total' },
-            { value: largest ? humanBytes(largest.wave3?.closureSizeBytes ?? 0) : 'n/a', label: 'largest closure' },
-            { value: failingHosts, label: 'hosts w/ failed invariants', warn: failingHosts > 0 },
-          ];
-
-          const summary = document.getElementById('summary');
-          summary.innerHTML = "";
-          for (const s of stats) {
-            const stat = el('div', 'stat' + (s.warn ? ' stat-warn' : ""));
-            stat.appendChild(el('span', 'stat-value', String(s.value)));
-            stat.appendChild(el('span', 'stat-label', s.label));
-            summary.appendChild(stat);
-          }
+        function buildFooter() {
+          const totalClosure = hosts.reduce((sum, host) => sum + (wave3For(host.name)?.closureSizeBytes ?? 0), 0);
+          document.getElementById("footer").textContent =
+            "Generated by packages/inventory.nix • " + hosts.length + " hosts • " + goals.length + " goals • total closure " + humanBytes(totalClosure) + " • " + repoUrl;
         }
 
-        let activeFilter = null;
-
-        function applyFilter() {
-          document.querySelectorAll('.card').forEach(card => {
-            const show = !activeFilter || activeFilter(card._host);
-            card.classList.toggle('hidden', !show);
-          });
-          document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.classList.toggle('active', btn._filter === activeFilter);
-          });
-        }
-
-        function buildFilters() {
-          const bar = document.getElementById('filters');
-          bar.innerHTML = "";
-          bar.appendChild(el('span', 'filter-label', 'Filter hosts:'));
-
-          const filters = [
-            { label: 'All',             fn: null },
-            { label: 'Active',          fn: h => h.status === 'active' },
-            { label: 'Inactive',        fn: h => h.status === 'inactive' },
-            { label: 'Legacy',          fn: h => h.status === 'legacy-supported' },
-            { label: 'deploy-rs',       fn: h => h.deployable },
-            { label: 'Tailscale',       fn: h => h.services.tailscale },
-            { label: 'backup:critical', fn: h => h.backupClass === 'critical' },
-            { label: 'Impermanence',    fn: h => h.impermanence },
-            { label: 'Has gaps',        fn: h => securityGaps(h).length > 0 },
-            { label: 'Desktop',         fn: h => h.profiles.desktop },
-            { label: 'LGTM',            fn: h => h.services.observabilityStack },
-          ];
-
-          for (const f of filters) {
-            const btn = el('button', 'filter-btn' + (f.fn === null ? ' active' : ""), f.label);
-            btn._filter = f.fn;
-            btn.addEventListener('click', () => {
-              activeFilter = (activeFilter === f.fn && f.fn !== null) ? null : f.fn;
-              if (f.fn === null) activeFilter = null;
-              applyFilter();
-            });
-            bar.appendChild(btn);
-          }
-        }
-
-        buildSummary();
-        buildHealthPanel();
-        buildGoalFilters();
-        buildGoalBoard();
-        buildAttentionPanel();
-        buildFilters();
-        setGoalsCollapsed(false);
-
-        document.getElementById('toggleGoalsBtn').addEventListener('click', () => {
-          setGoalsCollapsed(!goalsCollapsed);
-        });
-
-        const grid = document.getElementById('grid');
-        for (const h of hosts) grid.appendChild(buildCard(h));
-
-        document.getElementById('footer').textContent =
-          'Hosts: ' + hosts.length + ' \u2022 Goals: ' + goals.length + ' \u2022 Built from flake.nix \u2022 ' + hosts.map(h => h.name).join(', ') + ' \u2022 ' + data.repository;
+        buildHero();
+        buildSummaryTiles();
+        buildAttention();
+        buildQuickActions();
+        buildServices();
+        buildMachines();
+        buildGoals();
+        buildHealth();
+        buildFooter();
       </script>
     </body>
     </html>
