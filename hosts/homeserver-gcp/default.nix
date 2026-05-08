@@ -118,17 +118,15 @@ in
 
             # --system scans /run/current-system; -j = JSON output
             # NVD data is downloaded and cached in /var/cache/vulnix
+            # vulnix exit codes: 0 = clean, 2 = CVEs found, other = error
             json=$(${pkgs.vulnix}/bin/vulnix -S -j \
               --whitelist "$whitelist" \
-              --cache-dir /var/cache/vulnix 2>/dev/null)
-            rc=$?
-            # exit 0 = clean, exit 1 = CVEs found — both are successful scans
-            if [ "$rc" -gt 1 ]; then
-              echo "vulnix scan failed (exit $rc)" >&2
-              exit 1
-            fi
+              --cache-dir /var/cache/vulnix 2>/dev/null) || true
 
-            pkg_count=$(printf '%s' "$json" | ${pkgs.jq}/bin/jq 'length // 0')
+            # validate JSON — if vulnix errored, output won't parse and we abort
+            pkg_count=$(printf '%s' "$json" | ${pkgs.jq}/bin/jq 'length // 0') || {
+              echo "vulnix produced invalid output" >&2; exit 1;
+            }
             cve_count=$(printf '%s' "$json" | ${pkgs.jq}/bin/jq '[.[].affected_by | length] | add // 0')
 
             {
