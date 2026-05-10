@@ -218,7 +218,6 @@ in
       })
 
       hypridle
-      (import ../../../packages/blackboard-sync.nix { inherit pkgs; })
     ])
     ++ lib.optionals (!skipHeavyPackages) (
       with pkgs;
