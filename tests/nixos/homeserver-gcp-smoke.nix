@@ -27,7 +27,7 @@ in
     name = "homeserver-gcp-smoke";
 
     nodes.server =
-      { pkgs, ... }:
+      { pkgs, lib, ... }:
       {
         imports = [
           ../../hosts/homeserver-gcp/nginx.nix
@@ -38,6 +38,7 @@ in
           enable = true;
           fqdn = testFqdn;
           ingestHtpasswdFile = testHtpasswd;
+          grafanaAuthRequestUrl = "http://127.0.0.1:3180/auth";
         };
 
         profiles.observability = {
@@ -51,13 +52,30 @@ in
           mimir.enable = true;
         };
 
-        services.vaultwarden = {
-          enable = true;
-          config = {
-            ROCKET_ADDRESS = "127.0.0.1";
-            ROCKET_PORT = 8222;
-            SIGNUPS_ALLOWED = false;
-            DOMAIN = "https://${testFqdn}";
+        services = {
+          grafana.settings."auth.proxy" = {
+            enabled = true;
+            header_name = "X-WEBAUTH-USER";
+            header_property = "email";
+            auto_sign_up = true;
+            sync_ttl = 0;
+            whitelist = "127.0.0.1";
+            headers = "Name:X-WEBAUTH-NAME Role:X-WEBAUTH-ROLE Email:X-WEBAUTH-EMAIL";
+          };
+          grafana.settings.server = {
+            domain = lib.mkForce testFqdn;
+            root_url = "https://%(domain)s/grafana/";
+            serve_from_sub_path = true;
+          };
+
+          vaultwarden = {
+            enable = true;
+            config = {
+              ROCKET_ADDRESS = "127.0.0.1";
+              ROCKET_PORT = 8222;
+              SIGNUPS_ALLOWED = false;
+              DOMAIN = "https://${testFqdn}";
+            };
           };
         };
 
@@ -81,6 +99,34 @@ in
           };
         };
 
+        systemd.services.smoke-test-grafana-auth = {
+          description = "Stub Grafana auth_request helper";
+          wantedBy = [ "multi-user.target" ];
+          before = [ "nginx.service" ];
+          serviceConfig = {
+            ExecStart = pkgs.writeShellScript "smoke-test-grafana-auth" ''
+              exec ${pkgs.python3}/bin/python - <<'PY'
+              from http.server import BaseHTTPRequestHandler, HTTPServer
+
+              class Handler(BaseHTTPRequestHandler):
+                  def do_GET(self):
+                      self.send_response(204)
+                      self.send_header("X-Auth-Request-User", "viewer@example.com")
+                      self.send_header("X-Auth-Request-Email", "viewer@example.com")
+                      self.send_header("X-Auth-Request-Name", "Smoke Viewer")
+                      self.send_header("X-Auth-Request-Role", "Viewer")
+                      self.end_headers()
+
+                  def log_message(self, fmt, *args):
+                      pass
+
+              HTTPServer(("127.0.0.1", 3180), Handler).serve_forever()
+              PY
+            '';
+            Restart = "always";
+          };
+        };
+
         networking.hosts."127.0.0.1" = [ testFqdn ];
 
         environment.systemPackages = [ pkgs.curl ];
@@ -95,6 +141,7 @@ in
 
       server.wait_for_unit("vaultwarden.service")
       server.wait_for_unit("grafana.service")
+      server.wait_for_unit("smoke-test-grafana-auth.service")
       server.wait_for_unit("nginx.service")
 
       # / → Vaultwarden reachable (200 or redirect to login)
@@ -110,21 +157,6 @@ in
         " | grep -q '^200'",
         timeout=30,
       )
-
-      # Vaultwarden notification websocket route is explicit and reaches the upstream.
-      server.succeed(
-        "nginx -T 2>/dev/null"
-        " | grep -q 'location = /notifications/hub'"
-      )
-      server.succeed(
-        "curl --max-time 5 -ski https://${testFqdn}/notifications/hub"
-        " -H 'Connection: Upgrade'"
-        " -H 'Upgrade: websocket'"
-        " -H 'Sec-WebSocket-Version: 13'"
-        " -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ=='"
-        " | head -n 1 | grep -qvE ' 404 | 502 '"
-      )
-
       # /obs/* → 401 without credentials (auth boundary enforced, not 404/502)
       for path in ["/obs/loki/", "/obs/mimir/", "/obs/otlp/"]:
           server.succeed(

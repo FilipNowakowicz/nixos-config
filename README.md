@@ -323,7 +323,11 @@ Authenticated ingest routes on `https://homeserver-gcp.<tailnet-name>.ts.net`:
 
 Implementation is in `modules/nixos/profiles/observability/`, with client-side telemetry shipping via `modules/nixos/profiles/observability-client.nix`.
 
-Grafana admin credentials and ingest credentials are managed with `sops` secrets; keep a mirrored copy in Vaultwarden for operator recovery.
+Grafana is exposed to tailnet users through nginx auth proxy on `/grafana/`, with
+the caller resolved through `tailscale whois` and defaulted to a Grafana `Viewer`
+role unless the host-local `grafanaTailscaleRoleMap` promotes a specific login.
+The local Grafana admin account remains a break-glass path over SSH port-forwarding
+to `127.0.0.1:3000`; ingest credentials are still managed with `sops` secrets.
 
 ---
 

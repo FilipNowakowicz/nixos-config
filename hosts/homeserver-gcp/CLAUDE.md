@@ -8,7 +8,7 @@ Status: **active** — deployed on GCP, accessible via Tailscale.
 ## Services
 
 - **Vaultwarden** — `127.0.0.1:8222`, proxied via Nginx over HTTPS
-- **LGTM stack** — Grafana (sub-path `/grafana/`), Loki, Mimir, Tempo (full observability)
+- **LGTM stack** — Grafana (sub-path `/grafana/`, Tailscale identity via nginx auth proxy), Loki, Mimir, Tempo (full observability)
 - **Nginx** — reverse proxy, TLS via Tailscale cert
 - **SSH** — firewall exposure limited to `tailscale0`
 - **Tailscale** — auth key from sops secret `tailscale_auth_key`
@@ -110,6 +110,14 @@ deploy '.#homeserver-gcp'
   depends on that service via `requires=` so it doesn't start without a cert. A daily
   `tailscale-cert.timer` renews the material and reloads nginx if it is already running.
 - **Access is tailnet-only** — `tailscale0` is the only interface that permits inbound SSH/HTTPS.
+- **Grafana SSO is Tailscale-aware at nginx** — `/grafana/` now runs through a localhost
+  auth helper that resolves the caller with `tailscale whois` and injects Grafana
+  auth-proxy headers. Human users land in Grafana as `Viewer` by default unless
+  `grafanaTailscaleRoleMap` in `default.nix` promotes specific logins.
+- **Grafana break-glass remains local-only** — if the auth helper or role mapping locks
+  you out, forward localhost over SSH and use the local Grafana admin account:
+  `ssh -L 3000:127.0.0.1:3000 user@homeserver-gcp.tail90fc7a.ts.net`, then open
+  `http://127.0.0.1:3000/`.
 - **Disk is stateful** — no impermanence or `/persist`. Data survives reboots naturally on root.
 - **GCE snapshots are not backups** — use them for fast rollback inside GCP; use restic/B2
   for independent off-site application recovery.
