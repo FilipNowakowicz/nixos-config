@@ -18,7 +18,6 @@ Turn `main` into a more intentional workstation layer. Tackled incrementally —
 
 #### Needs design discussion
 
-- [ ] **App launcher** — existing launchers (wofi, rofi, fuzzel) all available; design direction TBD.
 - [ ] **Spotify/MPRIS controls in Waybar** — show current track, pause/skip via `playerctl`. Must filter to music players only (exclude browsers, video). Design and allowlist TBD.
 - [ ] **Clipboard history GUI** — `cliphist` + `fzf` already works; upgrade to a `fuzzel`-based picker for consistency with other menus.
 
