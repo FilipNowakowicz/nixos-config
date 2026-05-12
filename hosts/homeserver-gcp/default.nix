@@ -8,40 +8,6 @@
 }:
 let
   inherit (hostMeta) tailnetFQDN;
-  dash = import ../../lib/dashboards.nix;
-  gen = import ../../lib/generators.nix { inherit lib; };
-  inherit (gen.systemd) timer;
-  textfileDir = "/var/lib/node-exporter-textfiles";
-  homepageDir = "/var/lib/homepage/public";
-  grafanaTailscaleRoleMap = { };
-  grafanaTailscaleAuth = pkgs.buildGoModule {
-    pname = "grafana-tailscale-auth";
-    version = "0.1.0";
-    src = ./grafana-tailscale-auth;
-    vendorHash = null;
-  };
-  homepagePlaceholder = pkgs.writeText "homepage-placeholder.html" ''
-    <!doctype html>
-    <html lang="en">
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Homepage not deployed</title>
-        <style>
-          body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #10120f; color: #f3efe3; font-family: sans-serif; }
-          main { max-width: 42rem; padding: 2rem; }
-          code { color: #e0b15b; }
-        </style>
-      </head>
-      <body>
-        <main>
-          <h1>Homepage assets not deployed yet</h1>
-          <p>Deploy the homepage site into <code>/var/lib/homepage/public</code>.</p>
-          <p>The live status endpoint is still available at <code>/home/status.json</code>.</p>
-        </main>
-      </body>
-    </html>
-  '';
 in
 {
   imports = [
@@ -50,439 +16,18 @@ in
     ./disko.nix
     ./nginx.nix
     ./adguard.nix
+    ./backups.nix
+    ./status-page.nix
+    ./audits.nix
+    ./tailscale-cert.nix
+    ./grafana.nix
+    ./dashboards.nix
     ../../modules/nixos/profiles/base.nix
     ../../modules/nixos/profiles/machine-common.nix
     ../../modules/nixos/profiles/security.nix
     ../../modules/nixos/profiles/sops-base.nix
     ../../modules/nixos/profiles/user.nix
   ];
-
-  systemd = {
-    services = {
-      restic-backups-b2 = {
-        serviceConfig.ExecStartPost = pkgs.writeShellScript "restic-backup-metrics" ''
-          tmp=${textfileDir}/restic_backup.prom.tmp
-          {
-            echo "# HELP restic_last_backup_timestamp_seconds Unix timestamp of last successful restic backup"
-            echo "# TYPE restic_last_backup_timestamp_seconds gauge"
-            echo "restic_last_backup_timestamp_seconds $(date +%s)"
-          } > "$tmp"
-          mv "$tmp" ${textfileDir}/restic_backup.prom
-        '';
-      };
-
-      restic-check-b2 = {
-        description = "Restic B2 repository integrity check";
-        after = [ "network-online.target" ];
-        wants = [ "network-online.target" ];
-        environment = {
-          RESTIC_REPOSITORY = "b2:filipnowakowicz-gcp:";
-          RESTIC_PASSWORD_FILE = config.sops.secrets.restic_password.path;
-        };
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = "${pkgs.restic}/bin/restic check --read-data-subset=1G";
-          ExecStartPost = pkgs.writeShellScript "restic-check-metrics" ''
-            tmp=${textfileDir}/restic_check.prom.tmp
-            {
-              echo "# HELP restic_last_check_timestamp_seconds Unix timestamp of last successful restic integrity check"
-              echo "# TYPE restic_last_check_timestamp_seconds gauge"
-              echo "restic_last_check_timestamp_seconds $(date +%s)"
-            } > "$tmp"
-            mv "$tmp" ${textfileDir}/restic_check.prom
-          '';
-          EnvironmentFile = config.sops.secrets.b2_credentials.path;
-        };
-      };
-
-      homepage-status = {
-        description = "Generate read-only homepage status JSON";
-        path = [
-          pkgs.coreutils
-          pkgs.gawk
-          pkgs.gnugrep
-          pkgs.jq
-          pkgs.systemd
-        ];
-        script = ''
-          set -eu
-
-          mkdir -p ${homepageDir}
-          now="$(date +%s)"
-
-          metric() {
-            local file="$1"
-            local name="$2"
-            awk -v metric="$name" '$1 == metric { print $2; found = 1 } END { exit found ? 0 : 1 }' "$file" 2>/dev/null || true
-          }
-
-          age_json() {
-            local timestamp="$1"
-            if [ -n "$timestamp" ] && [ "$timestamp" -eq "$timestamp" ] 2>/dev/null; then
-              printf '%s' "$((now - timestamp))"
-            else
-              printf 'null'
-            fi
-          }
-
-          number_json() {
-            local value="$1"
-            if [ -n "$value" ] && printf '%s' "$value" | grep -Eq '^[0-9]+([.][0-9]+)?$'; then
-              printf '%s' "$value"
-            else
-              printf 'null'
-            fi
-          }
-
-          bool_json() {
-            local value="$1"
-            if [ "$value" = "true" ] || [ "$value" = "false" ]; then
-              printf '%s' "$value"
-            else
-              printf 'null'
-            fi
-          }
-
-          service_state() {
-            local unit="$1"
-            if systemctl is-active --quiet "$unit"; then
-              printf active
-            elif systemctl is-enabled --quiet "$unit" 2>/dev/null; then
-              printf inactive
-            else
-              printf unavailable
-            fi
-          }
-
-          timer_state() {
-            local unit="$1"
-            if systemctl is-active --quiet "$unit"; then
-              printf active
-            elif systemctl list-timers --all --no-legend "$unit" 2>/dev/null | grep -q .; then
-              printf inactive
-            else
-              printf unavailable
-            fi
-          }
-
-          service_active_json() {
-            local unit="$1"
-            if systemctl is-active --quiet "$unit"; then
-              printf true
-            elif systemctl is-enabled --quiet "$unit" 2>/dev/null; then
-              printf false
-            else
-              printf null
-            fi
-          }
-
-          tailscale_online_json() {
-            local host="$1"
-            printf '%s' "$tailscale_status_json" | ${pkgs.jq}/bin/jq -c --arg host "$host" '
-              if (.Self.HostName // "") == $host then
-                (.Self.Online // false)
-              else
-                (
-                  (.Peer // {})
-                  | to_entries
-                  | map(.value)
-                  | map(select(
-                      (.HostName // "") == $host
-                      or ((.DNSName // "") | startswith($host + "."))
-                    ))
-                  | if length > 0 then (.[0].Online // false) else false end
-                )
-              end
-            '
-          }
-
-          restic_backup_ts="$(metric ${textfileDir}/restic_backup.prom restic_last_backup_timestamp_seconds)"
-          restic_check_ts="$(metric ${textfileDir}/restic_check.prom restic_last_check_timestamp_seconds)"
-          lynis_ts="$(metric ${textfileDir}/lynis.prom lynis_scan_timestamp_seconds)"
-          lynis_index="$(metric ${textfileDir}/lynis.prom lynis_hardening_index)"
-          lynis_warnings="$(metric ${textfileDir}/lynis.prom lynis_warnings_total)"
-          vulnix_ts="$(metric ${textfileDir}/vulnix.prom vulnix_scan_timestamp_seconds)"
-          vulnix_cves="$(metric ${textfileDir}/vulnix.prom vulnix_cve_total)"
-          vulnix_packages="$(metric ${textfileDir}/vulnix.prom vulnix_affected_packages_total)"
-          failed_units_json="$(systemctl --failed --plain --no-legend --no-pager | awk '{ print $1 }' | ${pkgs.jq}/bin/jq -R . | ${pkgs.jq}/bin/jq -s -c .)"
-          tailscale_status_json="$(${pkgs.tailscale}/bin/tailscale status --json 2>/dev/null || printf '{}')"
-          homeserver_online="$(tailscale_online_json homeserver-gcp)"
-          main_online="$(tailscale_online_json main)"
-
-          tmp="${homepageDir}/status.json.tmp"
-          ${pkgs.jq}/bin/jq -n \
-            --argjson generatedAt "$now" \
-            --arg fqdn "${tailnetFQDN}" \
-            --argjson homeserverOnline "$(bool_json "$homeserver_online")" \
-            --argjson mainOnline "$(bool_json "$main_online")" \
-            --arg tailscaleState "$(service_state tailscaled.service)" \
-            --arg resticBackupState "$(service_state restic-backups-b2.service)" \
-            --arg resticBackupTimer "$(timer_state restic-backups-b2.timer)" \
-            --arg resticCheckTimer "$(timer_state restic-check-b2.timer)" \
-            --arg lynisTimer "$(timer_state lynis-audit.timer)" \
-            --arg vulnixTimer "$(timer_state vulnix-scan.timer)" \
-            --argjson adguardActive "$(service_active_json adguardhome.service)" \
-            --argjson nginxActive "$(service_active_json nginx.service)" \
-            --argjson vaultwardenActive "$(service_active_json vaultwarden.service)" \
-            --argjson grafanaActive "$(service_active_json grafana.service)" \
-            --argjson lokiActive "$(service_active_json loki.service)" \
-            --argjson mimirActive "$(service_active_json mimir.service)" \
-            --argjson tempoActive "$(service_active_json tempo.service)" \
-            --argjson backupAge "$(age_json "$restic_backup_ts")" \
-            --argjson checkAge "$(age_json "$restic_check_ts")" \
-            --argjson lynisAge "$(age_json "$lynis_ts")" \
-            --argjson lynisIndex "$(number_json "$lynis_index")" \
-            --argjson lynisWarnings "$(number_json "$lynis_warnings")" \
-            --argjson vulnixAge "$(age_json "$vulnix_ts")" \
-            --argjson vulnixCves "$(number_json "$vulnix_cves")" \
-            --argjson vulnixPackages "$(number_json "$vulnix_packages")" \
-            --argjson failedUnits "$failed_units_json" \
-            '{
-              generatedAt: $generatedAt,
-              failedUnits: $failedUnits,
-              hosts: {
-                "homeserver-gcp": {
-                  fqdn: $fqdn,
-                  tailscale: {
-                    online: $homeserverOnline,
-                    state: $tailscaleState
-                  },
-                  services: {
-                    adguard: { active: $adguardActive, unit: "adguardhome.service" },
-                    nginx: { active: $nginxActive, unit: "nginx.service" },
-                    vaultwarden: { active: $vaultwardenActive, unit: "vaultwarden.service" },
-                    grafana: { active: $grafanaActive, unit: "grafana.service" },
-                    loki: { active: $lokiActive, unit: "loki.service" },
-                    mimir: { active: $mimirActive, unit: "mimir.service" },
-                    tempo: { active: $tempoActive, unit: "tempo.service" }
-                  },
-                  backups: [
-                    {
-                      name: "b2",
-                      active: ($resticBackupState == "active"),
-                      timerState: $resticBackupTimer,
-                      lastSuccessAgeSeconds: $backupAge,
-                      lastCheckAgeSeconds: $checkAge
-                    }
-                  ],
-                  audits: {
-                    lynis: {
-                      timerState: $lynisTimer,
-                      ageSeconds: $lynisAge,
-                      hardeningIndex: $lynisIndex,
-                      warningsTotal: $lynisWarnings
-                    },
-                    vulnix: {
-                      timerState: $vulnixTimer,
-                      ageSeconds: $vulnixAge,
-                      cveTotal: $vulnixCves,
-                      affectedPackagesTotal: $vulnixPackages
-                    }
-                  }
-                },
-                main: {
-                  tailscale: {
-                    online: $mainOnline
-                  }
-                }
-              }
-            }' > "$tmp"
-          mv "$tmp" ${homepageDir}/status.json
-          chmod 0644 ${homepageDir}/status.json
-        '';
-        serviceConfig = {
-          Type = "oneshot";
-          RuntimeDirectory = "homepage-status";
-        };
-      };
-
-      lynis-audit = {
-        description = "Lynis security audit";
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = pkgs.writeShellScript "lynis-audit" ''
-            report=/tmp/lynis-report.dat
-            tmp=${textfileDir}/lynis.prom.tmp
-
-            ${pkgs.lynis}/bin/lynis audit system \
-              --quiet --no-colors --report-file "$report" 2>/dev/null
-            rc=$?
-            # lynis exits 0 (clean) or non-zero on warnings — treat all as success
-            # if the report file wasn't written, the scan itself failed
-            if [ ! -f "$report" ]; then
-              echo "lynis did not produce a report" >&2
-              exit 1
-            fi
-
-            hardening_index=$(grep "^hardening_index=" "$report" | cut -d= -f2)
-            warning_count=$(grep -c "^warning\[\]=" "$report" || true)
-            suggestion_count=$(grep -c "^suggestion\[\]=" "$report" || true)
-            : "''${hardening_index:=0}"
-
-            {
-              echo "# HELP lynis_hardening_index Security hardening index (0-100)"
-              echo "# TYPE lynis_hardening_index gauge"
-              echo "lynis_hardening_index $hardening_index"
-              echo "# HELP lynis_warnings_total Number of lynis warnings"
-              echo "# TYPE lynis_warnings_total gauge"
-              echo "lynis_warnings_total $warning_count"
-              echo "# HELP lynis_suggestions_total Number of lynis suggestions"
-              echo "# TYPE lynis_suggestions_total gauge"
-              echo "lynis_suggestions_total $suggestion_count"
-              echo "# HELP lynis_scan_timestamp_seconds Unix timestamp of last successful audit"
-              echo "# TYPE lynis_scan_timestamp_seconds gauge"
-              echo "lynis_scan_timestamp_seconds $(date +%s)"
-            } > "$tmp"
-            mv "$tmp" ${textfileDir}/lynis.prom
-            rm -f "$report"
-          '';
-        };
-      };
-
-      vulnix-scan = {
-        description = "Vulnix CVE scan of current system closure";
-        after = [ "network-online.target" ];
-        wants = [ "network-online.target" ];
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = pkgs.writeShellScript "vulnix-scan" ''
-            whitelist=${./vulnix-whitelist.toml}
-            tmp=${textfileDir}/vulnix.prom.tmp
-
-            # --system scans /run/current-system; -j = JSON output
-            # NVD data is downloaded and cached in /var/cache/vulnix
-            # vulnix exit codes: 0 = clean, 2 = CVEs found, other = error
-            json=$(${pkgs.vulnix}/bin/vulnix -S -j \
-              --whitelist "$whitelist" \
-              --cache-dir /var/cache/vulnix 2>/dev/null) || true
-
-            # validate JSON — if vulnix errored, output won't parse and we abort
-            pkg_count=$(printf '%s' "$json" | ${pkgs.jq}/bin/jq 'length // 0') || {
-              echo "vulnix produced invalid output" >&2; exit 1;
-            }
-            cve_count=$(printf '%s' "$json" | ${pkgs.jq}/bin/jq '[.[].affected_by | length] | add // 0')
-
-            {
-              echo "# HELP vulnix_affected_packages_total Packages with known CVEs after whitelist"
-              echo "# TYPE vulnix_affected_packages_total gauge"
-              echo "vulnix_affected_packages_total $pkg_count"
-              echo "# HELP vulnix_cve_total CVE findings after whitelist"
-              echo "# TYPE vulnix_cve_total gauge"
-              echo "vulnix_cve_total $cve_count"
-              echo "# HELP vulnix_scan_timestamp_seconds Unix timestamp of last successful scan"
-              echo "# TYPE vulnix_scan_timestamp_seconds gauge"
-              echo "vulnix_scan_timestamp_seconds $(date +%s)"
-            } > "$tmp"
-            mv "$tmp" ${textfileDir}/vulnix.prom
-          '';
-        };
-      };
-
-      tailscale-cert = {
-        description = "Fetch TLS certificate from Tailscale";
-        wantedBy = [ "multi-user.target" ];
-        after = [
-          "tailscaled.service"
-          "network-online.target"
-        ];
-        wants = [ "network-online.target" ];
-        script = ''
-          for attempt in {1..60}; do
-            ${pkgs.tailscale}/bin/tailscale status > /dev/null 2>&1 && break
-            [ $attempt -lt 60 ] && sleep 1
-          done
-          mkdir -p /var/lib/tailscale/certs
-          ${pkgs.tailscale}/bin/tailscale cert \
-            --cert-file /var/lib/tailscale/certs/homeserver-gcp.crt \
-            --key-file /var/lib/tailscale/certs/homeserver-gcp.key \
-            ${tailnetFQDN}
-          # /var/lib/tailscale is root:root 700; copy certs to a path nginx can read
-          mkdir -p /var/lib/nginx/certs
-          install -m 644 /var/lib/tailscale/certs/homeserver-gcp.crt /var/lib/nginx/certs/homeserver-gcp.crt
-          install -m 640 -g nginx /var/lib/tailscale/certs/homeserver-gcp.key /var/lib/nginx/certs/homeserver-gcp.key
-          if ${pkgs.systemd}/bin/systemctl is-active --quiet nginx.service; then
-            ${pkgs.systemd}/bin/systemctl reload nginx.service
-          fi
-        '';
-        serviceConfig = {
-          Type = "oneshot";
-          TimeoutStartSec = 120;
-        };
-      };
-
-      grafana-tailscale-auth = {
-        description = "Resolve Tailscale identities for Grafana auth proxy";
-        after = [ "tailscaled.service" ];
-        wants = [ "tailscaled.service" ];
-        wantedBy = [ "multi-user.target" ];
-        environment = {
-          LISTEN_ADDR = "127.0.0.1:3180";
-          TAILSCALE_BIN = "${pkgs.tailscale}/bin/tailscale";
-          DEFAULT_ROLE = "Viewer";
-          ROLE_MAP_JSON = builtins.toJSON grafanaTailscaleRoleMap;
-        };
-        serviceConfig = {
-          ExecStart = "${grafanaTailscaleAuth}/bin/grafana-tailscale-auth";
-          Restart = "on-failure";
-          RestartSec = 2;
-          DynamicUser = true;
-          ReadWritePaths = [ "/var/run/tailscale" ];
-          BindPaths = [ "/var/run/tailscale:/var/run/tailscale" ];
-          NoNewPrivileges = true;
-          PrivateTmp = true;
-          ProtectSystem = "strict";
-          ProtectHome = true;
-          RestrictAddressFamilies = [
-            "AF_INET"
-            "AF_INET6"
-            "AF_UNIX"
-          ];
-        };
-      };
-
-      nginx = {
-        after = [
-          "tailscale-cert.service"
-          "grafana-tailscale-auth.service"
-        ];
-        requires = [
-          "tailscale-cert.service"
-          "grafana-tailscale-auth.service"
-        ];
-      };
-    };
-
-    timers = {
-      lynis-audit = timer {
-        schedule = "daily";
-        jitter = "1h";
-      };
-
-      vulnix-scan = timer {
-        schedule = "daily";
-        jitter = "1h";
-      };
-
-      restic-check-b2 = timer {
-        schedule = "weekly";
-        jitter = "2h";
-      };
-
-      homepage-status = {
-        wantedBy = [ "timers.target" ];
-        timerConfig = {
-          OnBootSec = "2m";
-          OnUnitActiveSec = "1m";
-          Persistent = true;
-        };
-      };
-
-      tailscale-cert = timer {
-        schedule = "daily";
-        jitter = "1h";
-      };
-    };
-  };
 
   system = {
     stateVersion = "24.11";
@@ -518,7 +63,6 @@ in
 
       setupSecrets.deps = lib.mkAfter [ "injectGceSshHostKey" ];
       setupSecretsForUsers.deps = lib.mkAfter [ "injectGceSshHostKey" ];
-
     };
   };
 
@@ -540,12 +84,6 @@ in
   };
 
   environment.enableAllTerminfo = true;
-
-  systemd.tmpfiles.rules = [
-    "d ${homepageDir} 0755 root nginx -"
-    "C ${homepageDir}/index.html 0644 root nginx - ${homepagePlaceholder}"
-    "d /var/cache/vulnix 0750 root root -"
-  ];
 
   networking = {
     hostName = "homeserver-gcp";
@@ -582,211 +120,9 @@ in
       logs.enable = true;
       traces.enable = true;
     };
-    dashboards = {
-      fleet.enable = true;
-
-      lynis = {
-        enable = true;
-        definition = dash.mkDashboard {
-          uid = "homeserver-lynis";
-          title = "Security Audit";
-          panels = [
-            (dash.timeseriesPanel {
-              id = 1;
-              title = "Hardening Index (0-100)";
-              ds = dash.mimirDS;
-              gridPos = dash.gridPos {
-                x = 0;
-                y = 0;
-                w = 12;
-                h = 8;
-              };
-              targets = [
-                (dash.target {
-                  expr = "lynis_hardening_index";
-                  legendFormat = "hardening index";
-                })
-              ];
-            })
-            (dash.timeseriesPanel {
-              id = 2;
-              title = "Warnings";
-              ds = dash.mimirDS;
-              gridPos = dash.gridPos {
-                x = 12;
-                y = 0;
-                w = 12;
-                h = 8;
-              };
-              targets = [
-                (dash.target {
-                  expr = "lynis_warnings_total";
-                  legendFormat = "warnings";
-                })
-              ];
-            })
-            (dash.timeseriesPanel {
-              id = 3;
-              title = "Audit Age (hours)";
-              ds = dash.mimirDS;
-              gridPos = dash.gridPos {
-                x = 0;
-                y = 8;
-                w = 12;
-                h = 8;
-              };
-              targets = [
-                (dash.target {
-                  expr = "(time() - lynis_scan_timestamp_seconds) / 3600";
-                  legendFormat = "hours since last audit";
-                })
-              ];
-            })
-          ];
-        };
-      };
-
-      cve = {
-        enable = true;
-        definition = dash.mkDashboard {
-          uid = "homeserver-cve";
-          title = "CVE Scan";
-          panels = [
-            (dash.timeseriesPanel {
-              id = 1;
-              title = "CVE Findings (after whitelist)";
-              ds = dash.mimirDS;
-              gridPos = dash.gridPos {
-                x = 0;
-                y = 0;
-                w = 12;
-                h = 8;
-              };
-              targets = [
-                (dash.target {
-                  expr = "vulnix_cve_total";
-                  legendFormat = "CVEs";
-                })
-              ];
-            })
-            (dash.timeseriesPanel {
-              id = 2;
-              title = "Affected Packages (after whitelist)";
-              ds = dash.mimirDS;
-              gridPos = dash.gridPos {
-                x = 12;
-                y = 0;
-                w = 12;
-                h = 8;
-              };
-              targets = [
-                (dash.target {
-                  expr = "vulnix_affected_packages_total";
-                  legendFormat = "packages";
-                })
-              ];
-            })
-            (dash.timeseriesPanel {
-              id = 3;
-              title = "Scan Age (hours)";
-              ds = dash.mimirDS;
-              gridPos = dash.gridPos {
-                x = 0;
-                y = 8;
-                w = 12;
-                h = 8;
-              };
-              targets = [
-                (dash.target {
-                  expr = "(time() - vulnix_scan_timestamp_seconds) / 3600";
-                  legendFormat = "hours since last scan";
-                })
-              ];
-            })
-          ];
-        };
-      };
-
-      backup = {
-        enable = true;
-        definition = dash.mkDashboard {
-          uid = "homeserver-backup-health";
-          title = "Backup Health";
-          panels = [
-            (dash.timeseriesPanel {
-              id = 1;
-              title = "Backup Age (hours)";
-              ds = dash.mimirDS;
-              gridPos = dash.gridPos {
-                x = 0;
-                y = 0;
-                w = 12;
-                h = 8;
-              };
-              targets = [
-                (dash.target {
-                  expr = "(time() - restic_last_backup_timestamp_seconds) / 3600";
-                  legendFormat = "hours since last backup";
-                })
-              ];
-            })
-            (dash.timeseriesPanel {
-              id = 2;
-              title = "Check Age (hours)";
-              ds = dash.mimirDS;
-              gridPos = dash.gridPos {
-                x = 12;
-                y = 0;
-                w = 12;
-                h = 8;
-              };
-              targets = [
-                (dash.target {
-                  expr = "(time() - restic_last_check_timestamp_seconds) / 3600";
-                  legendFormat = "hours since last check";
-                })
-              ];
-            })
-          ];
-        };
-      };
-    };
   };
 
   services = {
-    grafana.settings = {
-      analytics = {
-        reporting_enabled = false;
-        check_for_updates = false;
-        check_for_plugin_updates = false;
-      };
-      server = {
-        domain = lib.mkForce tailnetFQDN;
-        root_url = "https://%(domain)s/grafana/";
-        serve_from_sub_path = true;
-      };
-      "auth.proxy" = {
-        enabled = true;
-        header_name = "X-WEBAUTH-USER";
-        header_property = "email";
-        auto_sign_up = true;
-        sync_ttl = 0;
-        whitelist = "127.0.0.1";
-        headers = "Name:X-WEBAUTH-NAME Role:X-WEBAUTH-ROLE Email:X-WEBAUTH-EMAIL";
-      };
-    };
-
-    restic.backups.b2 = {
-      paths = [
-        "/var/lib/vaultwarden"
-        "/var/lib/grafana"
-        "/var/lib/AdGuardHome"
-      ];
-      repository = "b2:filipnowakowicz-gcp:";
-      passwordFile = config.sops.secrets.restic_password.path;
-      environmentFile = config.sops.secrets.b2_credentials.path;
-    };
-
     openssh = {
       enable = true;
       openFirewall = false;
@@ -804,17 +140,6 @@ in
     '';
 
     hardened = {
-      tailscale-cert = {
-        extraConfig = {
-          ProtectHome = false;
-          ReadWritePaths = [
-            "/var/lib/tailscale"
-            "/var/lib/nginx/certs"
-          ];
-          RestrictAddressFamilies = [ "AF_UNIX" ];
-        };
-      };
-
       nginx = {
         extraConfig = {
           CapabilityBoundingSet = "CAP_NET_BIND_SERVICE";
@@ -845,7 +170,6 @@ in
         DOMAIN = "https://${tailnetFQDN}";
       };
     };
-
   };
 
   profiles.homeserverGcpNginx = {
@@ -860,12 +184,8 @@ in
     secrets = {
       user_password.neededForUsers = true;
       tailscale_auth_key = { };
-      grafana_admin_password = {
-        owner = "grafana";
-      };
-      grafana_secret_key = {
-        owner = "grafana";
-      };
+      grafana_admin_password.owner = "grafana";
+      grafana_secret_key.owner = "grafana";
       observability_ingest_htpasswd = {
         owner = config.services.nginx.user;
         inherit (config.services.nginx) group;
@@ -875,11 +195,8 @@ in
     };
   };
 
-  users.users = {
-    user = {
-      home = "/home/user";
-      hashedPasswordFile = config.sops.secrets.user_password.path;
-    };
+  users.users.user = {
+    home = "/home/user";
+    hashedPasswordFile = config.sops.secrets.user_password.path;
   };
-
 }
