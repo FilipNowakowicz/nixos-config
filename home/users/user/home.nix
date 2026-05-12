@@ -63,9 +63,10 @@ let
     runtimeInputs = with pkgs; [
       libnotify
       coreutils
+      findutils
     ];
     text = ''
-      STATE_FILE="/tmp/battery-notify-level"
+      STATE_FILE="''${XDG_RUNTIME_DIR:-/tmp}/battery-notify-level"
 
       bat_dir=$(find /sys/class/power_supply -maxdepth 1 -name 'BAT*' 2>/dev/null | head -1)
       [[ -z "$bat_dir" ]] && exit 0
@@ -173,7 +174,11 @@ in
 
       (writeShellApplication {
         name = "battery-status";
-        runtimeInputs = with pkgs; [ power-profiles-daemon ];
+        runtimeInputs = with pkgs; [
+          power-profiles-daemon
+          coreutils
+          findutils
+        ];
         text = ''
           get_bat_icon() {
             local pct=$1
@@ -403,11 +408,17 @@ in
   # ~/.config/hypr/hyprland.conf (nixos-fake-graphical-session.target).
   systemd.user.services = {
     battery-notify = {
-      Unit.Description = "Battery low notification check";
+      Unit = {
+        Description = "Battery low notification check";
+        After = [ "nixos-fake-graphical-session.target" ];
+        PartOf = [ "nixos-fake-graphical-session.target" ];
+      };
       Service = {
         Type = "oneshot";
         ExecStart = "${batteryNotify}/bin/battery-notify";
-        Environment = "DISPLAY=:0";
+      };
+      Install = {
+        WantedBy = [ "nixos-fake-graphical-session.target" ];
       };
     };
 
