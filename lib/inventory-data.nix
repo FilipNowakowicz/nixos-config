@@ -168,6 +168,7 @@ let
       inherit (c.system) stateVersion;
       tailscaleTag = meta.tailscale.tag or null;
       tailnetFQDN = meta.tailnetFQDN or null;
+      tailscaleTracked = (meta ? tailscale) || (meta ? tailnetFQDN);
       ip = meta.ip or null;
       deployable = meta ? deploy;
       backupClass = meta.backup.class or null;
@@ -211,6 +212,19 @@ let
         usbguard = c.services.usbguard.enable or false;
         lanzaboote = c.boot.lanzaboote.enable or false;
       };
+      trackedServices =
+        if name == "homeserver-gcp" then
+          [
+            "adguard"
+            "nginx"
+            "vaultwarden"
+            "grafana"
+            "loki"
+            "mimir"
+            "tempo"
+          ]
+        else
+          [ ];
       inherit health;
     };
 
