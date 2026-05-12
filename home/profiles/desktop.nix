@@ -33,7 +33,7 @@
       discord
       keepassxc
       mpv
-      wasistlos
+      blanket
     ]
     ++ (if skipHeavyPackages || !enableSpotify then [ ] else [ spotify ])
     ++ [
