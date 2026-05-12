@@ -692,6 +692,11 @@ in
 
   services = {
     grafana.settings = {
+      analytics = {
+        reporting_enabled = false;
+        check_for_updates = false;
+        check_for_plugin_updates = false;
+      };
       server = {
         domain = lib.mkForce tailnetFQDN;
         root_url = "https://%(domain)s/grafana/";
