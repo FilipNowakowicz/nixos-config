@@ -101,6 +101,9 @@ in
   time.timeZone = "Europe/London";
 
   nix.settings = {
+    # deploy-rs passes store settings for remote builds; trust the local admin
+    # user so the daemon accepts those restricted options without warning.
+    trusted-users = [ "user" ];
     extra-substituters = [ "https://pub-706604c9179043ac98604d6de4c65c2c.r2.dev" ];
     extra-trusted-public-keys = [
       # Keep this in sync with the CI signing key used for the R2 binary cache.

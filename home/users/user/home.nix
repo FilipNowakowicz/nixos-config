@@ -64,6 +64,17 @@ let
       src = pkgs.writeText "waybar_widget_preview.py" (
         builtins.readFile ../../files/scripts/waybar_widget_preview.py
       );
+      runtimePath = lib.makeBinPath (
+        with pkgs;
+        [
+          bluez
+          blueman
+          networkmanager
+          networkmanagerapplet
+          pavucontrol
+          wireplumber
+        ]
+      );
     in
     pkgs.stdenv.mkDerivation {
       name = "waybar-widget-preview";
@@ -98,6 +109,7 @@ let
         gappsWrapperArgs+=(
           --set GDK_BACKEND wayland
           --set GTK4_LAYER_SHELL_LIB "${pkgs.gtk4-layer-shell}/lib/libgtk4-layer-shell.so.0"
+          --prefix PATH : "${runtimePath}"
         )
       '';
     };
@@ -278,7 +290,6 @@ in
 
       batteryNotify
       launcher
-      waybarWidgetPreview
 
       (writeShellApplication {
         name = "firefox-private";

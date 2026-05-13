@@ -65,7 +65,7 @@
         "format-icons": {
             "default": ["󰕿", "󰖀", "󰕾"]
         },
-        "on-click":    "pavucontrol",
+        "on-click":    "waybar-widget-preview audio",
         "scroll-step": 5
     },
 
@@ -75,7 +75,8 @@
         "format-disconnected": "󰤭",
         "format-icons":       ["󰤯", "󰤟", "󰤢", "󰤥", "󰤨"],
         "tooltip-format":             "{essid} {signalStrength}%",
-        "tooltip-format-disconnected": "Disconnected"
+        "tooltip-format-disconnected": "Disconnected",
+        "on-click": "waybar-widget-preview wifi"
     },
 
     "bluetooth": {
@@ -83,6 +84,6 @@
         "format-connected": "󰂱  {device_alias}",
         "format-off":       "󰂲",
         "tooltip-format":   "{controller_alias}\t{controller_address}",
-        "on-click":         "blueman-manager"
+        "on-click":         "waybar-widget-preview bluetooth"
     }
 }

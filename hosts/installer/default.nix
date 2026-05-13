@@ -4,6 +4,8 @@
 
   system.stateVersion = "24.11";
 
+  boot.zfs.forceImportRoot = false;
+
   networking.firewall.allowedTCPPorts = [ 22 ];
 
   services.openssh = {

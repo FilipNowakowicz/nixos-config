@@ -80,7 +80,7 @@ window#waybar {
 #bluetooth,
 #pulseaudio,
 #custom-battery-status {
-  min-height: 100%;
+  min-height: 36px;
   padding: 0 11px;
   color: alpha(@text, 0.76);
   font-size: 13px;
