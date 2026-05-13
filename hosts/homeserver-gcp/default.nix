@@ -71,7 +71,12 @@ in
   security.sudo.wheelNeedsPassword = false;
 
   nix = {
-    settings.trusted-users = lib.mkForce [ "root" ];
+    # deploy-rs remoteBuild connects as `user`; trust it so remote builds do not
+    # trip restricted-setting warnings from the daemon.
+    settings.trusted-users = lib.mkForce [
+      "root"
+      "user"
+    ];
     settings.trusted-public-keys = [
       "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
       "main.local:fSo1pk+WU1RU7vpv+GTbzldKn4MMtBS46vQasXJ2oeQ="
@@ -97,6 +102,9 @@ in
   };
 
   boot = {
+    # This host does not use ZFS. Set the new 26.11 default explicitly to avoid
+    # the evaluation warning and make the intent stable across upgrades.
+    zfs.forceImportRoot = false;
     loader.timeout = 1;
     kernelParams = [
       "console=tty1"
