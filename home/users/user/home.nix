@@ -58,6 +58,50 @@ let
       '';
     };
 
+  waybarWidgetPreview =
+    let
+      python = pkgs.python3.withPackages (ps: [ ps.pygobject3 ]);
+      src = pkgs.writeText "waybar_widget_preview.py" (
+        builtins.readFile ../../files/scripts/waybar_widget_preview.py
+      );
+    in
+    pkgs.stdenv.mkDerivation {
+      name = "waybar-widget-preview";
+      dontUnpack = true;
+
+      nativeBuildInputs = with pkgs; [
+        gobject-introspection
+        wrapGAppsHook4
+      ];
+
+      buildInputs = with pkgs; [
+        glib
+        pango
+        gdk-pixbuf
+        graphene
+        harfbuzz
+        gtk4
+        gtk4-layer-shell
+      ];
+
+      installPhase = ''
+        mkdir -p $out/bin $out/libexec
+        cp ${src} $out/libexec/waybar_widget_preview.py
+        cat > $out/bin/waybar-widget-preview <<EOF
+        #!${pkgs.bash}/bin/sh
+        exec ${python}/bin/python3 $out/libexec/waybar_widget_preview.py "\$@"
+        EOF
+        chmod +x $out/bin/waybar-widget-preview
+      '';
+
+      preFixup = ''
+        gappsWrapperArgs+=(
+          --set GDK_BACKEND wayland
+          --set GTK4_LAYER_SHELL_LIB "${pkgs.gtk4-layer-shell}/lib/libgtk4-layer-shell.so.0"
+        )
+      '';
+    };
+
   batteryNotify = pkgs.writeShellApplication {
     name = "battery-notify";
     runtimeInputs = with pkgs; [
@@ -222,6 +266,7 @@ in
 
       batteryNotify
       launcher
+      waybarWidgetPreview
 
       (writeShellApplication {
         name = "firefox-private";

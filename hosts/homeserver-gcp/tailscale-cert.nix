@@ -33,7 +33,7 @@ in
       install -m 644 /var/lib/tailscale/certs/homeserver-gcp.crt /var/lib/nginx/certs/homeserver-gcp.crt
       install -m 640 -g nginx /var/lib/tailscale/certs/homeserver-gcp.key /var/lib/nginx/certs/homeserver-gcp.key
       if ${pkgs.systemd}/bin/systemctl is-active --quiet nginx.service; then
-        ${pkgs.systemd}/bin/systemctl reload nginx.service
+        ${pkgs.systemd}/bin/systemctl --no-block reload nginx.service
       fi
     '';
     serviceConfig = {

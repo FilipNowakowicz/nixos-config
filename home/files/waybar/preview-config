@@ -1,12 +1,12 @@
 {
     "layer": "top",
-    "position": "bottom",
-    "height": 52,
-    "margin-top": 12,
+    "position": "top",
+    "height": 48,
+    "margin-top": 6,
     "margin-bottom": 12,
     "margin-left": 12,
     "margin-right": 12,
-    "spacing": 6,
+    "spacing": 4,
 
     "modules-left":   ["hyprland/workspaces"],
     "modules-center": ["custom/preview-mode", "clock"],
@@ -66,12 +66,12 @@
     },
 
     "pulseaudio": {
-        "format":       "{icon}",
+        "format":       "󰕾",
         "format-muted": "󰝟",
         "format-icons": {
             "default": ["󰕿", "󰖀", "󰕾"]
         },
-        "on-click":    "pavucontrol",
+        "on-click":    "nix run path:/home/user/nix#waybar-widget-preview -- audio",
         "scroll-step": 5
     },
 
@@ -81,7 +81,8 @@
         "format-disconnected": "󰤭",
         "format-icons":        ["󰤯", "󰤟", "󰤢", "󰤥", "󰤨"],
         "tooltip-format": "{essid} {signalStrength}%",
-        "tooltip-format-disconnected": "Disconnected"
+        "tooltip-format-disconnected": "Disconnected",
+        "on-click": "nix run path:/home/user/nix#waybar-widget-preview -- wifi"
     },
 
     "bluetooth": {
@@ -89,6 +90,6 @@
         "format-connected": "󰂱  {device_alias}",
         "format-off":       "󰂲",
         "tooltip-format":   "{controller_alias}\t{controller_address}",
-        "on-click":         "blueman-manager"
+        "on-click":         "nix run path:/home/user/nix#waybar-widget-preview -- bluetooth"
     }
 }
