@@ -43,6 +43,13 @@ in
             }
           ];
           storage_config.filesystem.directory = "/var/lib/loki/chunks";
+          # 30-day retention to keep the local disk bounded on small VMs.
+          limits_config.retention_period = "720h";
+          compactor = {
+            working_directory = "/var/lib/loki/compactor";
+            retention_enabled = true;
+            delete_request_store = "filesystem";
+          };
         };
       };
 
@@ -66,6 +73,8 @@ in
               wal.path = "/var/lib/tempo/wal";
             };
           };
+          # 7-day trace retention — traces are short-lived diagnostic data.
+          compactor.compaction.block_retention = "168h";
         };
       };
 
@@ -82,7 +91,17 @@ in
             backend = "filesystem";
             filesystem.dir = "/var/lib/mimir/blocks";
           };
-          compactor.data_dir = "/var/lib/mimir/compactor";
+          # Every ring must declare instance_addr explicitly — Mimir's default
+          # interface_names list is [eth0, en0], which doesn't exist on GCE
+          # (ens4), so ring lifecyclers fail to start without this. Loopback is
+          # correct for our single-instance setup with inmemory kvstores.
+          compactor = {
+            data_dir = "/var/lib/mimir/compactor";
+            sharding_ring = {
+              instance_addr = "127.0.0.1";
+              kvstore.store = "inmemory";
+            };
+          };
           distributor.ring = {
             instance_addr = "127.0.0.1";
             kvstore.store = "inmemory";
@@ -92,11 +111,23 @@ in
             kvstore.store = "inmemory";
             replication_factor = 1;
           };
+          ruler.ring = {
+            instance_addr = "127.0.0.1";
+            kvstore.store = "inmemory";
+          };
           ruler_storage = {
             backend = "filesystem";
             filesystem.dir = "/var/lib/mimir/rules";
           };
-          store_gateway.sharding_ring.replication_factor = 1;
+          store_gateway.sharding_ring = {
+            instance_addr = "127.0.0.1";
+            kvstore.store = "inmemory";
+            replication_factor = 1;
+          };
+          alertmanager.sharding_ring = {
+            instance_addr = "127.0.0.1";
+            kvstore.store = "inmemory";
+          };
           alertmanager_storage = {
             backend = "filesystem";
             filesystem.dir = "/var/lib/mimir/alertmanager";
