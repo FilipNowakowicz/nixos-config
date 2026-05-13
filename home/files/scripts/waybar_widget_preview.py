@@ -67,13 +67,12 @@ PANELS = {
             ("󰕾", 72),
             ("󰍬", 38),
         ],
-        "section": "Outputs",
+        "section": "Output Devices",
         "items": [
-            ("󰓃", "Speakers", "Built-in output", "Default", "selected"),
-            ("󰋋", "WH-1000XM5", "Bluetooth audio", "Available", ""),
-            ("󰖁", "HDMI Monitor", "Desk display", "Idle", ""),
+            ("󰓃", "Built-in Speakers", "Analog Stereo", "Active", "selected"),
+            ("󰋋", "WH-1000XM5", "Bluetooth audio", "Switch", ""),
         ],
-        "buttons": ("Sound Settings", "Mixer"),
+        "buttons": ("Mute", "Sound Settings"),
     },
 }
 
@@ -82,6 +81,14 @@ def acquire_lock():
     global _lock_fd
     _lock_fd = open(LOCK_PATH, "w")
     fcntl.flock(_lock_fd, fcntl.LOCK_EX)
+
+
+def release_lock():
+    global _lock_fd
+    if _lock_fd is not None:
+        fcntl.flock(_lock_fd, fcntl.LOCK_UN)
+        _lock_fd.close()
+        _lock_fd = None
 
 
 def load_colors():
@@ -170,6 +177,7 @@ class WidgetPreview(Gtk.Application):
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         root.set_name("panel")
         root.set_spacing(10)
+        root.set_size_request(336, -1)
         root.append(self._header())
         root.append(self._hero())
 
@@ -230,15 +238,23 @@ class WidgetPreview(Gtk.Application):
         copy.append(title)
         copy.append(subtitle)
 
-        toggle = Gtk.Box()
-        toggle.add_css_class("toggle")
-        toggle.add_css_class("on")
+        toggle = self._toggle()
 
         surface.append(icon_box)
         copy.set_hexpand(True)
         surface.append(copy)
         surface.append(toggle)
         return surface
+
+    def _toggle(self):
+        toggle = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        toggle.add_css_class("toggle")
+        toggle.add_css_class("on")
+
+        knob = Gtk.Box()
+        knob.add_css_class("toggle-knob")
+        toggle.append(knob)
+        return toggle
 
     def _sliders(self):
         surface = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -367,6 +383,10 @@ class WidgetPreview(Gtk.Application):
                 inset 0 1px 0 rgba(255, 255, 255, 0.03);
         }}
 
+        .panel-header {{
+            margin-bottom: 2px;
+        }}
+
         .panel-title {{
             color: rgba({text[0]}, {text[1]}, {text[2]}, 1.0);
             font-size: 13px;
@@ -382,11 +402,14 @@ class WidgetPreview(Gtk.Application):
         }}
 
         .surface {{
-            margin-bottom: 10px;
             padding: 10px;
             border-radius: 14px;
             border: 1px solid rgba({orange[0]}, {orange[1]}, {orange[2]}, 0.18);
             background: rgba(255, 255, 255, 0.03);
+        }}
+
+        .hero {{
+            margin: 0;
         }}
 
         .hero-icon {{
@@ -412,6 +435,7 @@ class WidgetPreview(Gtk.Application):
         .toggle {{
             min-width: 42px;
             min-height: 24px;
+            padding: 2px;
             border-radius: 999px;
             border: 1px solid rgba({orange[0]}, {orange[1]}, {orange[2]}, 0.28);
             background: rgba(255, 255, 255, 0.06);
@@ -420,6 +444,14 @@ class WidgetPreview(Gtk.Application):
         .toggle.on {{
             background: rgba({amber[0]}, {amber[1]}, {amber[2]}, 0.24);
             border-color: rgba({amber[0]}, {amber[1]}, {amber[2]}, 0.4);
+        }}
+
+        .toggle-knob {{
+            min-width: 18px;
+            min-height: 18px;
+            margin-left: 18px;
+            border-radius: 999px;
+            background: rgba({amber[0]}, {amber[1]}, {amber[2]}, 1.0);
         }}
 
         .slider-icon,
@@ -536,6 +568,7 @@ def main():
         os.kill(pid, signal.SIGTERM)
         if current_panel == panel:
             clear_state(pid)
+            release_lock()
             return 0
         for _ in range(20):
             if not process_alive(pid):
@@ -543,6 +576,7 @@ def main():
             GLib.usleep(25_000)
 
     write_state(os.getpid(), panel)
+    release_lock()
     app = WidgetPreview(panel, load_colors())
     return app.run(None)
 

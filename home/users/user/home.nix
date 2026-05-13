@@ -181,15 +181,27 @@ in
 
       (writeShellApplication {
         name = "waybar-preview";
-        runtimeInputs = with pkgs; [ waybar ];
+        runtimeInputs = [
+          pkgs.procps
+          pkgs.waybar
+          waybarWidgetPreview
+        ];
         text = ''
           config_dir="''${XDG_CONFIG_HOME:-$HOME/.config}/waybar"
+
+          # The preview occupies the same layer/position as the real bar. If the
+          # real Waybar stays alive, it can receive clicks and launch real apps.
+          pkill -x waybar 2>/dev/null || true
+          rm -f /tmp/waybar-widget-preview.json
+
           exec waybar \
             -c "$config_dir/preview-config" \
             -s "$config_dir/preview-style.css" \
             "$@"
         '';
       })
+
+      waybarWidgetPreview
 
       (writeShellApplication {
         name = "clipboard-pick";

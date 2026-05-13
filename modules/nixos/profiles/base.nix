@@ -2,6 +2,10 @@
 {
   zramSwap.enable = true;
 
+  # None of the current hosts use ZFS for root import. Set the upcoming 26.11
+  # default explicitly across the fleet to avoid evaluation-time warnings.
+  boot.zfs.forceImportRoot = lib.mkDefault false;
+
   # ── Nix ────────────────────────────────────────────────────────────────────
   nixpkgs.config.allowUnfree = true;
   nix = {

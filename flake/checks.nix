@@ -240,8 +240,13 @@ in
           check = cfg: require cfg.networking.firewall.enable "networking.firewall.enable must be true";
         }
         {
-          name = "nix trusted-users stay root-only";
-          check = cfg: invariants.checkExpectedTrustedUsers [ "root" ] cfg;
+          name = "nix trusted-users stay minimal";
+          check =
+            cfg:
+            invariants.checkExpectedTrustedUsers (
+              [ "root" ]
+              ++ lib.optional (hostRegistry.homeserver-gcp ? deploy) hostRegistry.homeserver-gcp.deploy.sshUser
+            ) cfg;
         }
         {
           name = "SSH and HTTPS are not globally open";
