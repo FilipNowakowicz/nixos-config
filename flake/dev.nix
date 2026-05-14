@@ -92,6 +92,64 @@ let
       '';
     };
 
+  controlCenterPackage =
+    let
+      python = pkgs.python3.withPackages (ps: [ ps.pygobject3 ]);
+      src = pkgs.writeText "control_center.py" (
+        builtins.readFile ../home/files/scripts/control_center.py
+      );
+      runtimePath = lib.makeBinPath (
+        with pkgs;
+        [
+          bluez
+          brightnessctl
+          mako
+          networkmanager
+          mullvad-vpn
+          power-profiles-daemon
+          tailscale
+          wireplumber
+        ]
+      );
+    in
+    pkgs.stdenv.mkDerivation {
+      name = "control-center";
+      dontUnpack = true;
+
+      nativeBuildInputs = with pkgs; [
+        gobject-introspection
+        wrapGAppsHook4
+      ];
+
+      buildInputs = with pkgs; [
+        glib
+        pango
+        gdk-pixbuf
+        graphene
+        harfbuzz
+        gtk4
+        gtk4-layer-shell
+      ];
+
+      installPhase = ''
+        mkdir -p $out/bin $out/libexec
+        cp ${src} $out/libexec/control_center.py
+        cat > $out/bin/control-center <<EOF
+        #!${pkgs.bash}/bin/sh
+        exec ${python}/bin/python3 $out/libexec/control_center.py "\$@"
+        EOF
+        chmod +x $out/bin/control-center
+      '';
+
+      preFixup = ''
+        gappsWrapperArgs+=(
+          --set GDK_BACKEND wayland
+          --set GTK4_LAYER_SHELL_LIB "${pkgs.gtk4-layer-shell}/lib/libgtk4-layer-shell.so.0"
+          --prefix PATH : "${runtimePath}"
+        )
+      '';
+    };
+
   treefmtEval = treefmt-nix.lib.evalModule pkgs ../treefmt.nix;
 
   preCommitCheck = import ../pre-commit-hooks.nix {
@@ -128,10 +186,16 @@ in
       program = "${waybarWidgetPreviewPackage}/bin/waybar-widget-preview";
       meta.description = "Open the static Waybar widget preview popup";
     };
+    control-center = {
+      type = "app";
+      program = "${controlCenterPackage}/bin/control-center";
+      meta.description = "Open the unified Control Center widget";
+    };
   };
 
   packages = {
     waybar-widget-preview = waybarWidgetPreviewPackage;
+    control-center = controlCenterPackage;
 
     inventory-data = import ../packages/inventory-data.nix {
       inherit

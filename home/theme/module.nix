@@ -164,6 +164,9 @@ let
       width=300
       default-timeout=5000
       max-visible=5
+
+      [mode=do-not-disturb]
+      invisible=1
     '';
 
     # Wallpaper symlink

@@ -92,7 +92,10 @@ in
   };
 
   hardware = {
-    bluetooth.enable = true;
+    bluetooth = {
+      enable = true;
+      powerOnBoot = true;
+    };
     acpilight.enable = true;
   };
 
@@ -356,7 +359,47 @@ in
 
   # NetworkManager manages networking; avoid boot blocking on online targets.
   systemd = {
+    # NixOS's services.blueman defines systemd.user.services.blueman-applet
+    # *and* `systemd.packages = [pkgs.blueman]` installs the package's own
+    # blueman-applet.service. The two ExecStart= lines collide (Type=dbus
+    # refuses multiple ExecStarts), the unit becomes invalid, and D-Bus
+    # activation of org.blueman.Applet fails — which breaks blueman-manager's
+    # device list (it calls Applet.QueryPlugins() at startup).
+    # Reset ExecStart to clear the upstream entry before re-adding ours.
+    user.services.blueman-applet.serviceConfig.ExecStart = lib.mkForce [
+      ""
+      "${pkgs.blueman}/bin/blueman-applet"
+    ];
+
     services = {
+      # Policy.AutoEnable races the Intel CNVi adapter's MGMT init on this
+      # machine (bluetoothd logs "Failed to set default system config for hci0"
+      # at boot and leaves hci0 powered off). Force it on via D-Bus once the
+      # /org/bluez/hci0 object is exposed. bluetoothctl is unusable here: in
+      # non-interactive mode it silently no-ops and exits 0 regardless of state.
+      bluetooth-power-on = {
+        description = "Power on Bluetooth controller after bluez is ready";
+        wantedBy = [ "bluetooth.target" ];
+        after = [ "bluetooth.service" ];
+        bindsTo = [ "bluetooth.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
+        script = ''
+          for _ in $(seq 1 30); do
+            if ${pkgs.systemd}/bin/busctl set-property \
+                 org.bluez /org/bluez/hci0 \
+                 org.bluez.Adapter1 Powered b true 2>/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Timed out waiting for /org/bluez/hci0" >&2
+          exit 1
+        '';
+      };
+
       "systemd-networkd-wait-online".enable = lib.mkForce false;
       "NetworkManager-wait-online".enable = lib.mkForce false;
 

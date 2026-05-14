@@ -9,7 +9,7 @@
 
     "modules-left":   ["hyprland/workspaces"],
     "modules-center": ["clock"],
-    "modules-right":  ["group/tray-group", "bluetooth", "network", "pulseaudio", "custom/battery-status"],
+    "modules-right":  ["group/tray-group", "custom/anchor"],
 
     "hyprland/workspaces": {
         "format": "{icon}",
@@ -51,39 +51,11 @@
         "spacing":   6
     },
 
-    "custom/battery-status": {
-        "exec":        "battery-status",
+    "custom/anchor": {
+        "exec":        "waybar-anchor",
         "return-type": "json",
-        "interval":    5,
-        "on-click":    "power-profile",
+        "interval":    3,
+        "on-click":    "control-center",
         "tooltip":     true
-    },
-
-    "pulseaudio": {
-        "format":       "{icon}",
-        "format-muted": "󰝟",
-        "format-icons": {
-            "default": ["󰕿", "󰖀", "󰕾"]
-        },
-        "on-click":    "waybar-widget-preview audio",
-        "scroll-step": 5
-    },
-
-    "network": {
-        "format-wifi":        "{icon}",
-        "format-ethernet":    "󰈀",
-        "format-disconnected": "󰤭",
-        "format-icons":       ["󰤯", "󰤟", "󰤢", "󰤥", "󰤨"],
-        "tooltip-format":             "{essid} {signalStrength}%",
-        "tooltip-format-disconnected": "Disconnected",
-        "on-click": "waybar-widget-preview wifi"
-    },
-
-    "bluetooth": {
-        "format":           "󰂯",
-        "format-connected": "󰂱  {device_alias}",
-        "format-off":       "󰂲",
-        "tooltip-format":   "{controller_alias}\t{controller_address}",
-        "on-click":         "waybar-widget-preview bluetooth"
     }
 }

@@ -58,26 +58,29 @@ let
       '';
     };
 
-  waybarWidgetPreview =
+  controlCenter =
     let
       python = pkgs.python3.withPackages (ps: [ ps.pygobject3 ]);
-      src = pkgs.writeText "waybar_widget_preview.py" (
-        builtins.readFile ../../files/scripts/waybar_widget_preview.py
-      );
+      src = pkgs.writeText "control_center.py" (builtins.readFile ../../files/scripts/control_center.py);
       runtimePath = lib.makeBinPath (
         with pkgs;
         [
           bluez
-          blueman
+          brightnessctl
+          curl
+          mako
           networkmanager
-          networkmanagerapplet
-          pavucontrol
+          mullvad-vpn
+          power-profiles-daemon
+          systemd
+          tailscale
           wireplumber
+          wlsunset
         ]
       );
     in
     pkgs.stdenv.mkDerivation {
-      name = "waybar-widget-preview";
+      name = "control-center";
       dontUnpack = true;
 
       nativeBuildInputs = with pkgs; [
@@ -97,12 +100,12 @@ let
 
       installPhase = ''
         mkdir -p $out/bin $out/libexec
-        cp ${src} $out/libexec/waybar_widget_preview.py
-        cat > $out/bin/waybar-widget-preview <<EOF
+        cp ${src} $out/libexec/control_center.py
+        cat > $out/bin/control-center <<EOF
         #!${pkgs.bash}/bin/sh
-        exec ${python}/bin/python3 $out/libexec/waybar_widget_preview.py "\$@"
+        exec ${python}/bin/python3 $out/libexec/control_center.py "\$@"
         EOF
-        chmod +x $out/bin/waybar-widget-preview
+        chmod +x $out/bin/control-center
       '';
 
       preFixup = ''
@@ -162,6 +165,24 @@ let
       echo "$level" > "$STATE_FILE"
     '';
   };
+
+  waybarAnchor =
+    let
+      python = pkgs.python3;
+      src = pkgs.writeText "waybar-anchor.py" (builtins.readFile ../../files/scripts/waybar-anchor.py);
+      runtimePath = lib.makeBinPath (
+        with pkgs;
+        [
+          mako
+          tailscale
+          wireplumber
+        ]
+      );
+    in
+    pkgs.writeShellScriptBin "waybar-anchor" ''
+      export PATH="${runtimePath}:$PATH"
+      exec ${python}/bin/python3 ${src} "$@"
+    '';
 in
 {
   home.packages =
@@ -191,29 +212,9 @@ in
         text = builtins.readFile ../../files/scripts/waybar-weather.sh;
       })
 
-      (writeShellApplication {
-        name = "waybar-preview";
-        runtimeInputs = [
-          pkgs.procps
-          pkgs.waybar
-          waybarWidgetPreview
-        ];
-        text = ''
-          config_dir="''${XDG_CONFIG_HOME:-$HOME/.config}/waybar"
+      waybarAnchor
 
-          # The preview occupies the same layer/position as the real bar. If the
-          # real Waybar stays alive, it can receive clicks and launch real apps.
-          pkill -x waybar 2>/dev/null || true
-          rm -f /tmp/waybar-widget-preview.json
-
-          exec waybar \
-            -c "$config_dir/preview-config" \
-            -s "$config_dir/preview-style.css" \
-            "$@"
-        '';
-      })
-
-      waybarWidgetPreview
+      controlCenter
 
       (writeShellApplication {
         name = "clipboard-pick";
@@ -414,9 +415,6 @@ in
       # Waybar
       "waybar/config".source = ../../files/waybar/config;
       "waybar/style.css".source = ../../files/waybar/style.css;
-      "waybar/preview-config".source = ../../files/waybar/preview-config;
-      "waybar/preview-style.css".source = ../../files/waybar/preview-style.css;
-
       "hypr/hypridle.conf" = {
         force = true;
         text = ''

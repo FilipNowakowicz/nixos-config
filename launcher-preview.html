@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Desktop UI Preview</title>
+    <title>Control Center Preview</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <style>
@@ -72,6 +72,40 @@
         z-index: 1;
       }
 
+      /* Inline SVG icons share a stroke style; size set per-context. */
+      svg.icon {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.75;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex: 0 0 auto;
+        display: inline-block;
+        vertical-align: middle;
+      }
+      svg.icon.fill {
+        fill: currentColor;
+        stroke: none;
+      }
+      svg.icon.sm {
+        width: 13px;
+        height: 13px;
+      }
+      svg.icon.lg {
+        width: 20px;
+        height: 20px;
+      }
+      svg.icon.xl {
+        width: 24px;
+        height: 24px;
+      }
+
+      /* ─────────────────────────────────────────────────────────
+         WAYBAR
+         ───────────────────────────────────────────────────────── */
+
       #waybar {
         position: fixed;
         top: 6px;
@@ -90,17 +124,14 @@
         align-items: center;
         pointer-events: all;
       }
-
       .bar-left {
         flex: 0 0 auto;
       }
-
       .bar-center {
         flex: 1;
         justify-content: center;
         gap: 4px;
       }
-
       .bar-right {
         flex: 0 0 auto;
         margin-left: auto;
@@ -125,19 +156,15 @@
         gap: 2px;
         padding: 0 10px;
       }
-
       .ws-dot {
         padding: 0 4px;
         color: rgba(var(--text-rgb), 0.23);
         font-size: 9px;
         line-height: 1;
-        transition: color 150ms ease;
       }
-
       .ws-dot.used {
         color: rgba(var(--text-rgb), 0.82);
       }
-
       .ws-dot.active {
         color: var(--amber);
       }
@@ -149,14 +176,289 @@
         letter-spacing: 0.01em;
         white-space: nowrap;
       }
-
       #clock .dim {
         opacity: 0.48;
       }
 
+      /* Connected right cluster — single elongated pill housing
+         every status indicator. Variety comes from mixing icon-only
+         toggles with icon+value readouts and tiny status accessories
+         (signal bars, battery fill) so the strip doesn't read as
+         seven identical glyphs in a row. */
+      /* ── Tiny Anchor bar ─────────────────────────────────
+         A single always-present dot at the leftmost slot acts as
+         the discoverable trigger for the Control Center. Status
+         icons appear to its right only when their state is non-
+         default. Battery is hidden when on AC at 100%. */
+      .anchor-bar {
+        gap: 0;
+        padding: 0 4px;
+        background: linear-gradient(
+          180deg,
+          rgba(var(--bg-rgb), 0.86) 0%,
+          rgba(var(--bg-rgb), 0.78) 100%
+        );
+        display: flex;
+      }
+      .anchor-bar.open-state {
+        border-color: rgba(var(--amber-rgb), 0.4);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.03),
+          0 0 0 1px rgba(var(--amber-rgb), 0.12),
+          0 12px 36px rgba(0, 0, 0, 0.28);
+      }
+
+      .anchor-btn {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 100%;
+        padding: 0 8px;
+        color: rgba(var(--text-rgb), 0.74);
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        transition:
+          color 140ms ease,
+          background 140ms ease;
+      }
+      .anchor-btn:hover {
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 8px;
+      }
+      .anchor-btn.amber {
+        color: var(--amber);
+      }
+      .anchor-btn.warn {
+        color: rgb(232, 137, 32);
+      }
+      .anchor-btn .cluster-text {
+        font-size: 11px;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* Conditional visibility driven by data-state on the bar. */
+      .anchor-item {
+        display: none;
+      }
+      .anchor-bar[data-state~="vpn"] .anchor-vpn,
+      .anchor-bar[data-state~="dnd"] .anchor-dnd,
+      .anchor-bar[data-state~="mic"] .anchor-mic,
+      .anchor-bar[data-state~="bat"] .anchor-bat {
+        display: inline-flex;
+      }
+
+      /* The anchor dot itself — always present, recolors with
+         state severity so it acts as a tiny status indicator. */
+      .anchor-dot {
+        width: 22px;
+        height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        margin: 0 2px;
+      }
+      .anchor-dot::after {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: rgba(var(--text-rgb), 0.28);
+        transition:
+          background 240ms ease,
+          box-shadow 240ms ease,
+          transform 240ms ease;
+      }
+      .anchor-dot:hover::after {
+        background: rgba(var(--text-rgb), 0.6);
+        transform: scale(1.15);
+      }
+      .anchor-bar.glow .anchor-dot::after {
+        background: var(--amber);
+        box-shadow: 0 0 6px rgba(var(--amber-rgb), 0.65);
+      }
+      .anchor-bar.warn-glow .anchor-dot::after {
+        background: rgb(232, 137, 32);
+        box-shadow: 0 0 8px rgba(232, 137, 32, 0.75);
+      }
+
+      .cluster-group {
+        display: inline-flex;
+        align-items: stretch;
+      }
+      .cluster-divider {
+        width: 1px;
+        align-self: center;
+        height: 18px;
+        margin: 0 4px;
+        background: linear-gradient(
+          180deg,
+          transparent,
+          rgba(var(--orange-rgb), 0.32) 35%,
+          rgba(var(--orange-rgb), 0.32) 65%,
+          transparent
+        );
+      }
+
+      .cluster-btn {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 100%;
+        padding: 0 9px;
+        color: rgba(var(--text-rgb), 0.72);
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        transition:
+          color 140ms ease,
+          background 140ms ease,
+          opacity 140ms ease;
+      }
+      .cluster-btn:hover {
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 8px;
+      }
+      .cluster-btn.dim {
+        opacity: 0.42;
+      }
+      .cluster-btn.active {
+        color: var(--amber);
+      }
+      .cluster-btn.danger {
+        color: rgb(232, 137, 32);
+      }
+      .cluster-btn .cluster-text {
+        font-size: 11px;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.01em;
+      }
+      .cluster-btn.brand .cluster-text {
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      /* Status dot under toggleable icons. Hidden on items that
+         already carry value text — those don't need a redundant
+         indicator. */
+      .cluster-btn .dot {
+        position: absolute;
+        bottom: 4px;
+        left: 50%;
+        width: 3px;
+        height: 3px;
+        margin-left: -1.5px;
+        border-radius: 50%;
+        background: rgba(var(--text-rgb), 0.16);
+        transition:
+          background 140ms ease,
+          box-shadow 140ms ease;
+      }
+      .cluster-btn.active .dot {
+        background: var(--amber);
+        box-shadow: 0 0 6px rgba(var(--amber-rgb), 0.7);
+      }
+
+      /* Signal-strength bars rendered next to Wi-Fi icon. */
+      .signal-bars {
+        display: inline-flex;
+        align-items: flex-end;
+        gap: 1.5px;
+        margin-left: 1px;
+        height: 12px;
+      }
+      .signal-bars i {
+        display: block;
+        width: 2px;
+        background: currentColor;
+        border-radius: 1px;
+        opacity: 0.35;
+      }
+      .signal-bars i:nth-child(1) {
+        height: 3px;
+      }
+      .signal-bars i:nth-child(2) {
+        height: 6px;
+      }
+      .signal-bars i:nth-child(3) {
+        height: 9px;
+      }
+      .signal-bars i:nth-child(4) {
+        height: 12px;
+      }
+      .signal-bars.s-4 i {
+        opacity: 1;
+      }
+      .signal-bars.s-3 i:nth-child(-n + 3) {
+        opacity: 1;
+      }
+      .signal-bars.s-2 i:nth-child(-n + 2) {
+        opacity: 1;
+      }
+      .signal-bars.s-1 i:nth-child(-n + 1) {
+        opacity: 1;
+      }
+
+      /* Battery shell + fill — drawn rather than a glyph so the
+         level reads at a glance. */
+      .battery {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        width: 22px;
+        height: 11px;
+        border: 1.25px solid currentColor;
+        border-radius: 3px;
+        padding: 1px;
+        margin-right: 4px;
+      }
+      .battery::after {
+        content: "";
+        position: absolute;
+        right: -3.5px;
+        top: 3px;
+        width: 2px;
+        height: 5px;
+        background: currentColor;
+        border-radius: 0 1px 1px 0;
+      }
+      .battery .bfill {
+        height: 100%;
+        background: currentColor;
+        border-radius: 1px;
+      }
+      .battery.charging::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        margin: auto;
+        width: 8px;
+        height: 8px;
+        background: var(--bg);
+        clip-path: polygon(
+          45% 0,
+          0 60%,
+          38% 60%,
+          25% 100%,
+          100% 35%,
+          55% 35%,
+          70% 0
+        );
+      }
+
       #launcher-pill {
         position: relative;
-        min-width: 0;
         width: 154px;
         max-width: 220px;
         justify-content: center;
@@ -164,353 +466,15 @@
         border-style: dashed;
         cursor: default;
       }
-
       #launcher-pill .launcher-label {
         font-size: 11px;
         letter-spacing: 0.08em;
         text-transform: uppercase;
       }
 
-      #right-pill {
-        gap: 0;
-        padding: 0 4px 0 8px;
-      }
-
-      .bar-module {
-        position: relative;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        min-height: 100%;
-        padding: 0 11px;
-        color: rgba(var(--text-rgb), 0.76);
-        font-size: 13px;
-        transition:
-          color 140ms ease,
-          background 140ms ease,
-          opacity 140ms ease;
-        cursor: pointer;
-      }
-
-      button {
-        appearance: none;
-        -webkit-appearance: none;
-        border: none;
-        outline: none;
-      }
-
-      .bar-module:hover {
-        color: var(--text);
-        background: rgba(255, 255, 255, 0.035);
-      }
-
-      .bar-module.open {
-        color: var(--amber);
-        background: rgba(var(--amber-rgb), 0.08);
-      }
-
-      .bar-module.dim {
-        opacity: 0.55;
-      }
-
-      .bar-module.strong {
-        opacity: 1;
-      }
-
-      .bar-module .module-text {
-        font-size: 12px;
-        white-space: nowrap;
-      }
-
-      .chevron {
-        padding-right: 8px;
-        color: rgba(var(--text-rgb), 0.34);
-      }
-
-      .panel-area {
-        position: fixed;
-        top: 60px;
-        right: 15px;
-        z-index: 120;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        pointer-events: none;
-      }
-
-      .panel {
-        width: 336px;
-        padding: 14px;
-        border-radius: 18px;
-        border: 1px solid rgba(var(--orange-rgb), 0.28);
-        background: linear-gradient(
-          180deg,
-          rgba(var(--bg-rgb), 0.94) 0%,
-          rgba(var(--brown-rgb), 0.88) 100%
-        );
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        box-shadow:
-          0 20px 50px rgba(0, 0, 0, 0.3),
-          inset 0 1px 0 rgba(255, 255, 255, 0.03);
-        pointer-events: all;
-        display: none;
-        animation: panel-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
-      }
-
-      .panel.visible {
-        display: block;
-      }
-
-      .panel-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 12px;
-      }
-
-      .panel-title {
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: 0.03em;
-      }
-
-      .panel-meta {
-        font-size: 10px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: rgba(var(--text-rgb), 0.42);
-      }
-
-      .panel-stack {
-        display: grid;
-        gap: 10px;
-      }
-
-      .surface {
-        border-radius: 14px;
-        border: 1px solid rgba(var(--orange-rgb), 0.18);
-        background: rgba(255, 255, 255, 0.03);
-        padding: 10px;
-      }
-
-      .hero {
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        align-items: center;
-        gap: 12px;
-      }
-
-      .hero-icon {
-        width: 34px;
-        height: 34px;
-        display: grid;
-        place-items: center;
-        border-radius: 11px;
-        background: rgba(var(--amber-rgb), 0.08);
-        color: var(--amber);
-        font-size: 16px;
-      }
-
-      .hero-copy {
-        display: grid;
-        gap: 3px;
-      }
-
-      .hero-title {
-        font-size: 12px;
-        font-weight: 600;
-      }
-
-      .hero-subtitle {
-        font-size: 11px;
-        color: rgba(var(--text-rgb), 0.55);
-      }
-
-      .toggle {
-        position: relative;
-        width: 42px;
-        height: 24px;
-        border-radius: 999px;
-        border: 1px solid rgba(var(--orange-rgb), 0.28);
-        background: rgba(255, 255, 255, 0.06);
-        flex: 0 0 auto;
-      }
-
-      .toggle::after {
-        content: "";
-        position: absolute;
-        top: 2px;
-        left: 2px;
-        width: 18px;
-        height: 18px;
-        border-radius: 50%;
-        background: rgba(var(--text-rgb), 0.92);
-      }
-
-      .toggle.on {
-        background: rgba(var(--amber-rgb), 0.24);
-        border-color: rgba(var(--amber-rgb), 0.4);
-      }
-
-      .toggle.on::after {
-        left: 20px;
-        background: var(--amber);
-      }
-
-      .slider-block {
-        display: grid;
-        gap: 8px;
-      }
-
-      .slider-row {
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        align-items: center;
-        gap: 10px;
-      }
-
-      .slider-track {
-        position: relative;
-        height: 6px;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.08);
-        overflow: hidden;
-      }
-
-      .slider-fill {
-        position: absolute;
-        inset: 0 auto 0 0;
-        border-radius: inherit;
-        background: linear-gradient(
-          90deg,
-          rgba(var(--amber-rgb), 0.72),
-          rgba(var(--text-rgb), 0.92)
-        );
-      }
-
-      .slider-knob {
-        position: absolute;
-        top: 50%;
-        right: -6px;
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        background: var(--text);
-        transform: translateY(-50%);
-        box-shadow: 0 0 0 4px rgba(var(--text-rgb), 0.08);
-      }
-
-      .section-label {
-        font-size: 10px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: rgba(var(--text-rgb), 0.42);
-        margin-bottom: 8px;
-      }
-
-      .list {
-        display: grid;
-        gap: 6px;
-      }
-
-      .item {
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 11px;
-        border-radius: 12px;
-        color: rgba(var(--text-rgb), 0.86);
-        background: rgba(255, 255, 255, 0.02);
-        transition: background 120ms ease;
-      }
-
-      .item.selected {
-        background: rgba(var(--amber-rgb), 0.09);
-      }
-
-      .item.subtle {
-        color: rgba(var(--text-rgb), 0.56);
-      }
-
-      .item-left {
-        width: 24px;
-        text-align: center;
-        color: rgba(var(--text-rgb), 0.78);
-      }
-
-      .item-copy {
-        display: grid;
-        gap: 2px;
-      }
-
-      .item-title {
-        font-size: 12px;
-      }
-
-      .item-subtitle {
-        font-size: 10px;
-        color: rgba(var(--text-rgb), 0.46);
-      }
-
-      .item-right {
-        font-size: 10px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: rgba(var(--text-rgb), 0.4);
-      }
-
-      .button-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-      }
-
-      .ghost-btn,
-      .solid-btn,
-      .theme-btn,
-      .panel-btn {
-        border: 1px solid rgba(var(--orange-rgb), 0.2);
-        border-radius: 11px;
-        font-family: "Inter", sans-serif;
-        cursor: pointer;
-        transition:
-          border-color 120ms ease,
-          background 120ms ease,
-          color 120ms ease;
-      }
-
-      .ghost-btn,
-      .solid-btn,
-      .panel-btn {
-        padding: 9px 12px;
-        font-size: 11px;
-      }
-
-      .ghost-btn {
-        color: rgba(var(--text-rgb), 0.74);
-        background: rgba(255, 255, 255, 0.02);
-      }
-
-      .solid-btn {
-        color: var(--bg);
-        background: var(--amber);
-        border-color: rgba(var(--amber-rgb), 0.55);
-      }
-
-      .panel-btn {
-        min-width: 104px;
-        color: rgba(var(--text-rgb), 0.68);
-        background: rgba(255, 255, 255, 0.04);
-      }
-
-      .panel-btn.active {
-        color: var(--amber);
-        border-color: rgba(var(--amber-rgb), 0.5);
-        background: rgba(var(--amber-rgb), 0.08);
-      }
-
+      /* ─────────────────────────────────────────────────────────
+         Controls dock
+         ───────────────────────────────────────────────────────── */
       #controls {
         position: fixed;
         left: 24px;
@@ -519,7 +483,6 @@
         gap: 14px;
         z-index: 220;
       }
-
       .control-card {
         width: 360px;
         padding: 14px;
@@ -529,7 +492,6 @@
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
       }
-
       .control-title {
         margin-bottom: 10px;
         font-size: 10px;
@@ -537,31 +499,41 @@
         text-transform: uppercase;
         color: rgba(var(--text-rgb), 0.42);
       }
-
-      .theme-row,
-      .panel-row {
+      .theme-row {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
       }
-
       .theme-btn {
         padding: 8px 11px;
         color: rgba(var(--text-rgb), 0.6);
         background: rgba(255, 255, 255, 0.035);
         font-size: 11px;
+        border: 1px solid rgba(var(--orange-rgb), 0.2);
+        border-radius: 11px;
+        cursor: pointer;
+        transition:
+          color 120ms ease,
+          background 120ms ease,
+          border-color 120ms ease;
       }
-
       .theme-btn.active-theme {
         color: var(--amber);
         border-color: rgba(var(--amber-rgb), 0.5);
         background: rgba(var(--amber-rgb), 0.08);
       }
-
       .control-note {
         margin-top: 10px;
-        line-height: 1.45;
+        line-height: 1.5;
         color: rgba(var(--text-rgb), 0.5);
+        font-size: 11px;
+      }
+      button {
+        appearance: none;
+        -webkit-appearance: none;
+        border: none;
+        outline: none;
+        font-family: inherit;
       }
 
       @keyframes fade-down {
@@ -574,7 +546,6 @@
           transform: translateY(0);
         }
       }
-
       @keyframes panel-in {
         from {
           opacity: 0;
@@ -588,7 +559,245 @@
     </style>
   </head>
   <body>
+    <!-- ─────────── SVG ICON LIBRARY (Lucide-style) ─────────── -->
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      style="display: none"
+      aria-hidden="true"
+    >
+      <defs>
+        <symbol id="i-wifi" viewBox="0 0 24 24">
+          <path d="M12 20h.01" />
+          <path d="M2 8.82a15 15 0 0 1 20 0" />
+          <path d="M5 12.86a10 10 0 0 1 14 0" />
+          <path d="M8.5 16.43a5 5 0 0 1 7 0" />
+        </symbol>
+        <symbol id="i-bluetooth" viewBox="0 0 24 24">
+          <path d="m7 7 10 10-5 5V2l5 5L7 17" />
+        </symbol>
+        <symbol id="i-shield" viewBox="0 0 24 24">
+          <path
+            d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+          />
+          <path d="m9 12 2 2 4-4" />
+        </symbol>
+        <symbol id="i-bell-off" viewBox="0 0 24 24">
+          <path d="M10.27 21a2 2 0 0 0 3.46 0" />
+          <path
+            d="M17 17H4a1 1 0 0 1-.74-1.67C4.59 13.96 6 12.5 6 8a6 6 0 0 1 .26-1.74"
+          />
+          <path d="m2 2 20 20" />
+          <path d="M8.67 3.01A6 6 0 0 1 18 8c0 2.69.77 4.65 1.71 6.05" />
+        </symbol>
+        <symbol id="i-coffee" viewBox="0 0 24 24">
+          <path d="M10 2v2" />
+          <path d="M14 2v2" />
+          <path
+            d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"
+          />
+          <path d="M6 2v2" />
+        </symbol>
+        <symbol id="i-volume" viewBox="0 0 24 24">
+          <path d="M11 5 6 9H2v6h4l5 4z" />
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+        </symbol>
+        <symbol id="i-volume-mute" viewBox="0 0 24 24">
+          <path d="M11 5 6 9H2v6h4l5 4z" />
+          <path d="M22 9l-6 6" />
+          <path d="m16 9 6 6" />
+        </symbol>
+        <symbol id="i-mic" viewBox="0 0 24 24">
+          <rect x="9" y="2" width="6" height="11" rx="3" />
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+          <line x1="12" x2="12" y1="19" y2="22" />
+        </symbol>
+        <symbol id="i-mic-off" viewBox="0 0 24 24">
+          <line x1="2" x2="22" y1="2" y2="22" />
+          <path d="M18.89 13.23A7 7 0 0 0 19 12v-2" />
+          <path d="M5 10v2a7 7 0 0 0 12 5" />
+          <path d="M15 9.34V5a3 3 0 0 0-5.68-1.33" />
+          <path d="M9 9v3a3 3 0 0 0 5.12 2.12" />
+          <line x1="12" x2="12" y1="19" y2="22" />
+        </symbol>
+        <symbol id="i-sun" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2" />
+          <path d="M12 20v2" />
+          <path d="m4.93 4.93 1.41 1.41" />
+          <path d="m17.66 17.66 1.41 1.41" />
+          <path d="M2 12h2" />
+          <path d="M20 12h2" />
+          <path d="m6.34 17.66-1.41 1.41" />
+          <path d="m19.07 4.93-1.41 1.41" />
+        </symbol>
+        <symbol id="i-moon" viewBox="0 0 24 24">
+          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+        </symbol>
+        <symbol id="i-plane" viewBox="0 0 24 24">
+          <path
+            d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"
+          />
+        </symbol>
+        <symbol id="i-gauge" viewBox="0 0 24 24">
+          <path d="m12 14 4-4" />
+          <path d="M3.34 19a10 10 0 1 1 17.32 0" />
+        </symbol>
+        <symbol id="i-zap" viewBox="0 0 24 24">
+          <path
+            d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"
+          />
+        </symbol>
+        <symbol id="i-monitor" viewBox="0 0 24 24">
+          <rect width="20" height="14" x="2" y="3" rx="2" />
+          <line x1="8" x2="16" y1="21" y2="21" />
+          <line x1="12" x2="12" y1="17" y2="21" />
+        </symbol>
+        <symbol id="i-cast" viewBox="0 0 24 24">
+          <path d="M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6" />
+          <path d="M2 12a9 9 0 0 1 8 8" />
+          <path d="M2 16a5 5 0 0 1 4 4" />
+          <line x1="2" x2="2.01" y1="20" y2="20" />
+        </symbol>
+        <symbol id="i-palette" viewBox="0 0 24 24">
+          <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
+          <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+          <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
+          <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+          <path
+            d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.27-.38-.62-.38-1A1.5 1.5 0 0 1 14.23 17H16a6 6 0 0 0 6-6c0-4.97-4.5-9-10-9z"
+          />
+        </symbol>
+        <symbol id="i-settings" viewBox="0 0 24 24">
+          <path
+            d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+          />
+          <circle cx="12" cy="12" r="3" />
+        </symbol>
+        <symbol id="i-lock" viewBox="0 0 24 24">
+          <rect width="18" height="11" x="3" y="11" rx="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </symbol>
+        <symbol id="i-power" viewBox="0 0 24 24">
+          <path d="M12 2v10" />
+          <path d="M18.4 6.6a9 9 0 1 1-12.77.04" />
+        </symbol>
+        <symbol id="i-sleep" viewBox="0 0 24 24">
+          <path d="M14 4h6l-6 8h6" />
+          <path d="M4 10h4l-4 6h4" />
+        </symbol>
+        <symbol id="i-chevron-right" viewBox="0 0 24 24">
+          <path d="m9 18 6-6-6-6" />
+        </symbol>
+        <symbol id="i-chevron-left" viewBox="0 0 24 24">
+          <path d="m15 18-6-6 6-6" />
+        </symbol>
+        <symbol id="i-key" viewBox="0 0 24 24">
+          <path d="m21 2-9.6 9.6" />
+          <circle cx="7.5" cy="15.5" r="5.5" />
+          <path d="m21 2-3 3" />
+          <path d="m18 5 3 3" />
+          <path d="m15 8 3 3" />
+        </symbol>
+        <symbol id="i-headphones" viewBox="0 0 24 24">
+          <path
+            d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H4a1 1 0 0 1-1-1zm18 0h-3a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h2a1 1 0 0 0 1-1z"
+          />
+          <path d="M3 14a9 9 0 0 1 18 0" />
+        </symbol>
+        <symbol id="i-play" viewBox="0 0 24 24">
+          <polygon
+            points="6 3 20 12 6 21 6 3"
+            fill="currentColor"
+            stroke="none"
+          />
+        </symbol>
+        <symbol id="i-pause" viewBox="0 0 24 24">
+          <rect
+            x="6"
+            y="4"
+            width="4"
+            height="16"
+            fill="currentColor"
+            stroke="none"
+          />
+          <rect
+            x="14"
+            y="4"
+            width="4"
+            height="16"
+            fill="currentColor"
+            stroke="none"
+          />
+        </symbol>
+        <symbol id="i-skip-back" viewBox="0 0 24 24">
+          <polygon
+            points="19 20 9 12 19 4 19 20"
+            fill="currentColor"
+            stroke="none"
+          />
+          <line x1="5" x2="5" y1="19" y2="5" />
+        </symbol>
+        <symbol id="i-skip-forward" viewBox="0 0 24 24">
+          <polygon
+            points="5 4 15 12 5 20 5 4"
+            fill="currentColor"
+            stroke="none"
+          />
+          <line x1="19" x2="19" y1="5" y2="19" />
+        </symbol>
+        <symbol id="i-leaf" viewBox="0 0 24 24">
+          <path
+            d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"
+          />
+          <path d="M2 21c0-3 1.85-5.36 5.08-6" />
+        </symbol>
+        <symbol id="i-mouse" viewBox="0 0 24 24">
+          <rect x="5" y="2" width="14" height="20" rx="7" />
+          <path d="M12 6v4" />
+        </symbol>
+        <symbol id="i-keyboard" viewBox="0 0 24 24">
+          <rect width="20" height="14" x="2" y="6" rx="2" />
+          <path d="M6 10h.01" />
+          <path d="M10 10h.01" />
+          <path d="M14 10h.01" />
+          <path d="M18 10h.01" />
+          <path d="M6 14h.01" />
+          <path d="M18 14h.01" />
+          <path d="M8 18h8" />
+        </symbol>
+        <symbol id="i-server" viewBox="0 0 24 24">
+          <rect width="20" height="8" x="2" y="2" rx="2" />
+          <rect width="20" height="8" x="2" y="14" rx="2" />
+          <line x1="6" x2="6.01" y1="6" y2="6" />
+          <line x1="6" x2="6.01" y1="18" y2="18" />
+        </symbol>
+        <symbol id="i-laptop" viewBox="0 0 24 24">
+          <rect width="18" height="12" x="3" y="4" rx="2" />
+          <line x1="2" x2="22" y1="20" y2="20" />
+        </symbol>
+        <symbol id="i-smartphone" viewBox="0 0 24 24">
+          <rect width="14" height="20" x="5" y="2" rx="2" />
+          <path d="M12 18h.01" />
+        </symbol>
+        <symbol id="i-globe" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 2a14.5 14.5 0 0 0 0 20a14.5 14.5 0 0 0 0-20" />
+          <path d="M2 12h20" />
+        </symbol>
+        <symbol id="i-plus" viewBox="0 0 24 24">
+          <path d="M5 12h14" />
+          <path d="M12 5v14" />
+        </symbol>
+        <symbol id="i-clock" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </symbol>
+      </defs>
+    </svg>
+
     <div class="shell">
+      <!-- ───────────────── WAYBAR ───────────────── -->
       <div id="waybar">
         <div class="bar-section bar-left">
           <div class="pill" id="workspaces">
@@ -609,7 +818,6 @@
           <div class="pill" id="launcher-pill">
             <span class="launcher-label">Launcher Surface</span>
           </div>
-
           <div class="pill" id="clock">
             <span id="clock-time">14:32</span>&nbsp;<span class="dim"
               >· <span id="clock-date">Wed 06</span></span
@@ -618,196 +826,58 @@
         </div>
 
         <div class="bar-section bar-right">
-          <div class="pill" id="right-pill">
-            <span class="bar-module chevron">‹</span>
-            <button class="bar-module strong" data-panel="bluetooth-panel">
-              <span>󰂱</span>
-              <span class="module-text">headphones</span>
+          <!-- Tiny Anchor: a single always-present dot is the
+               discoverable Control-Center trigger. Status items
+               (VPN / DND / mic-muted / battery) appear to its right
+               only when their condition is non-default. The dot
+               itself recolors with severity. -->
+          <div
+            class="pill anchor-bar open-state"
+            id="anchor-bar"
+            data-state="quiet"
+          >
+            <button
+              class="anchor-dot"
+              data-open-panel
+              title="Open Control Center"
+            ></button>
+
+            <button
+              class="anchor-btn anchor-item anchor-vpn amber"
+              data-open-panel
+              title="VPN active"
+            >
+              <svg class="icon"><use href="#i-shield" /></svg>
             </button>
-            <button class="bar-module strong" data-panel="wifi-panel">
-              <span>󰤨</span>
+            <button
+              class="anchor-btn anchor-item anchor-dnd amber"
+              data-open-panel
+              title="Do Not Disturb"
+            >
+              <svg class="icon"><use href="#i-bell-off" /></svg>
             </button>
-            <button class="bar-module open" data-panel="audio-panel">
-              <span>󰕾</span>
+            <button
+              class="anchor-btn anchor-item anchor-mic warn"
+              data-open-panel
+              title="Mic muted"
+            >
+              <svg class="icon"><use href="#i-mic-off" /></svg>
             </button>
-            <span class="bar-module strong">
-              <span>󰂂</span>
-              <span class="module-text">85%</span>
-            </span>
+            <button
+              class="anchor-btn anchor-item anchor-bat"
+              data-open-panel
+              title="Battery"
+            >
+              <span class="battery"
+                ><span class="bfill" style="width: 60%"></span
+              ></span>
+              <span class="cluster-text">60%</span>
+            </button>
           </div>
         </div>
       </div>
 
-      <div class="panel-area">
-        <section class="panel" id="wifi-panel">
-          <div class="panel-header">
-            <div class="panel-title">Wi-Fi</div>
-            <div class="panel-meta">Click Widget</div>
-          </div>
-          <div class="panel-stack">
-            <div class="surface hero">
-              <div class="hero-icon">󰤨</div>
-              <div class="hero-copy">
-                <div class="hero-title">Home Fiber 5G</div>
-                <div class="hero-subtitle">
-                  Connected · Strong signal · Secure
-                </div>
-              </div>
-              <div class="toggle on"></div>
-            </div>
-
-            <div class="surface">
-              <div class="section-label">Available Networks</div>
-              <div class="list">
-                <div class="item selected">
-                  <div class="item-left">󰤨</div>
-                  <div class="item-copy">
-                    <div class="item-title">Home Fiber 5G</div>
-                    <div class="item-subtitle">Connected automatically</div>
-                  </div>
-                  <div class="item-right">Active</div>
-                </div>
-                <div class="item">
-                  <div class="item-left">󰤥</div>
-                  <div class="item-copy">
-                    <div class="item-title">Studio Backup</div>
-                    <div class="item-subtitle">Saved network</div>
-                  </div>
-                  <div class="item-right">Connect</div>
-                </div>
-                <div class="item">
-                  <div class="item-left">󰤯</div>
-                  <div class="item-copy">
-                    <div class="item-title">Guest</div>
-                    <div class="item-subtitle">Open network</div>
-                  </div>
-                  <div class="item-right">Join</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="button-row">
-              <button class="ghost-btn">Rescan</button>
-              <button class="solid-btn">Network Settings</button>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel" id="bluetooth-panel">
-          <div class="panel-header">
-            <div class="panel-title">Bluetooth</div>
-            <div class="panel-meta">Click Widget</div>
-          </div>
-          <div class="panel-stack">
-            <div class="surface hero">
-              <div class="hero-icon">󰂱</div>
-              <div class="hero-copy">
-                <div class="hero-title">WH-1000XM5</div>
-                <div class="hero-subtitle">
-                  Connected for audio · 76% battery
-                </div>
-              </div>
-              <div class="toggle on"></div>
-            </div>
-
-            <div class="surface">
-              <div class="section-label">Paired Devices</div>
-              <div class="list">
-                <div class="item selected">
-                  <div class="item-left">󰋋</div>
-                  <div class="item-copy">
-                    <div class="item-title">WH-1000XM5</div>
-                    <div class="item-subtitle">Audio output</div>
-                  </div>
-                  <div class="item-right">Connected</div>
-                </div>
-                <div class="item">
-                  <div class="item-left">󰄜</div>
-                  <div class="item-copy">
-                    <div class="item-title">MX Master 3S</div>
-                    <div class="item-subtitle">Mouse</div>
-                  </div>
-                  <div class="item-right">Ready</div>
-                </div>
-                <div class="item subtle">
-                  <div class="item-left">󰂲</div>
-                  <div class="item-copy">
-                    <div class="item-title">Add New Device</div>
-                    <div class="item-subtitle">Scan for nearby devices</div>
-                  </div>
-                  <div class="item-right">Open</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel visible" id="audio-panel">
-          <div class="panel-header">
-            <div class="panel-title">Volume</div>
-            <div class="panel-meta">Starter Design</div>
-          </div>
-          <div class="panel-stack">
-            <div class="surface hero">
-              <div class="hero-icon">󰕾</div>
-              <div class="hero-copy">
-                <div class="hero-title">Speakers</div>
-                <div class="hero-subtitle">Default output · Balanced</div>
-              </div>
-              <div class="toggle on"></div>
-            </div>
-
-            <div class="surface slider-block">
-              <div class="slider-row">
-                <span>󰕾</span>
-                <div class="slider-track">
-                  <div class="slider-fill" style="width: 72%">
-                    <div class="slider-knob"></div>
-                  </div>
-                </div>
-                <span>72</span>
-              </div>
-              <div class="slider-row">
-                <span>󰍬</span>
-                <div class="slider-track">
-                  <div class="slider-fill" style="width: 38%">
-                    <div class="slider-knob"></div>
-                  </div>
-                </div>
-                <span>38</span>
-              </div>
-            </div>
-
-            <div class="surface">
-              <div class="section-label">Output Devices</div>
-              <div class="list">
-                <div class="item selected">
-                  <div class="item-left">󰓃</div>
-                  <div class="item-copy">
-                    <div class="item-title">Built-in Speakers</div>
-                    <div class="item-subtitle">Analog Stereo</div>
-                  </div>
-                  <div class="item-right">Active</div>
-                </div>
-                <div class="item">
-                  <div class="item-left">󰋋</div>
-                  <div class="item-copy">
-                    <div class="item-title">WH-1000XM5</div>
-                    <div class="item-subtitle">Bluetooth audio</div>
-                  </div>
-                  <div class="item-right">Switch</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="button-row">
-              <button class="ghost-btn">Mute</button>
-              <button class="solid-btn">Sound Settings</button>
-            </div>
-          </div>
-        </section>
-      </div>
-
+      <!-- ───────────────── CONTROLS DOCK ───────────────── -->
       <div id="controls">
         <div class="control-card">
           <div class="control-title">Theme</div>
@@ -828,22 +898,18 @@
         </div>
 
         <div class="control-card">
-          <div class="control-title">Open Panel</div>
-          <div class="panel-row">
-            <button class="panel-btn" data-panel-target="wifi-panel">
-              Wi-Fi
+          <div class="control-title">Bar Demo State</div>
+          <div class="theme-row">
+            <button class="theme-btn active-theme" data-demo-state="quiet">
+              Quiet
             </button>
-            <button class="panel-btn" data-panel-target="bluetooth-panel">
-              Bluetooth
-            </button>
-            <button class="panel-btn active" data-panel-target="audio-panel">
-              Audio
-            </button>
+            <button class="theme-btn" data-demo-state="bat">On battery</button>
           </div>
           <div class="control-note">
-            Initial direction: Waybar icons act as triggers, while the actual
-            widget lives in a separate popup surface. This keeps the preview
-            aligned with an eventual GTK layer-shell implementation.
+            Tiny Anchor: the dot is always there for click access; everything
+            else is conditional.<br />
+            <strong>Quiet</strong> — AC + 100%, all defaults. Just the dot.<br />
+            <strong>On battery</strong> — battery + 60% appear.
           </div>
         </div>
       </div>
@@ -881,18 +947,12 @@
         },
       };
 
-      const panelButtons = document.querySelectorAll("[data-panel-target]");
-      const barModules = document.querySelectorAll("[data-panel]");
-      const panels = document.querySelectorAll(".panel");
-
       function applyTheme(name) {
         const t = THEMES[name];
         if (!t) return;
-
         const root = document.documentElement;
         const hex = (rgb) =>
           "#" + rgb.map((v) => v.toString(16).padStart(2, "0")).join("");
-
         root.style.setProperty("--bg", hex(t.bg));
         root.style.setProperty("--brown", hex(t.brown));
         root.style.setProperty("--orange", hex(t.orange));
@@ -903,40 +963,51 @@
         root.style.setProperty("--orange-rgb", t.orange.join(", "));
         root.style.setProperty("--amber-rgb", t.amber.join(", "));
         root.style.setProperty("--text-rgb", t.text.join(", "));
-
-        document.querySelectorAll(".theme-btn").forEach((btn) => {
-          btn.classList.toggle("active-theme", btn.dataset.theme === name);
+        document.querySelectorAll("[data-theme]").forEach((el) => {
+          el.classList.toggle("active-theme", el.dataset.theme === name);
         });
       }
 
-      function setOpenPanel(id) {
-        panels.forEach((panel) => {
-          panel.classList.toggle("visible", panel.id === id);
+      document
+        .querySelectorAll(".theme-btn[data-theme], .theme-card")
+        .forEach((el) => {
+          el.addEventListener("click", () => applyTheme(el.dataset.theme));
         });
 
-        panelButtons.forEach((btn) => {
-          btn.classList.toggle("active", btn.dataset.panelTarget === id);
-        });
+      // Bar demo state: drives the Tiny Anchor's appearance so we
+      // can preview how it adapts to system state without faking
+      // live signals.
+      function setBarState(name) {
+        const bar = document.getElementById("anchor-bar");
+        const bat = bar.querySelector(".anchor-bat");
+        const batFill = bat.querySelector(".bfill");
+        const batText = bat.querySelector(".cluster-text");
+        bar.classList.remove("glow", "warn-glow");
+        bat.classList.remove("warn");
 
-        barModules.forEach((module) => {
-          module.classList.toggle("open", module.dataset.panel === id);
+        if (name === "quiet") {
+          bar.dataset.state = "quiet";
+        } else if (name === "bat") {
+          bar.dataset.state = "bat";
+          batFill.style.width = "60%";
+          batText.textContent = "60%";
+        } else if (name === "vpn") {
+          bar.dataset.state = "vpn";
+          bar.classList.add("glow");
+        } else if (name === "busy") {
+          bar.dataset.state = "vpn mic bat";
+          bar.classList.add("warn-glow");
+          batFill.style.width = "18%";
+          batText.textContent = "18%";
+          bat.classList.add("warn");
+        }
+
+        document.querySelectorAll("[data-demo-state]").forEach((btn) => {
+          btn.classList.toggle("active-theme", btn.dataset.demoState === name);
         });
       }
-
-      document.querySelectorAll(".theme-btn").forEach((btn) => {
-        btn.addEventListener("click", () => applyTheme(btn.dataset.theme));
-      });
-
-      panelButtons.forEach((btn) => {
-        btn.addEventListener("click", () =>
-          setOpenPanel(btn.dataset.panelTarget),
-        );
-      });
-
-      barModules.forEach((module) => {
-        module.addEventListener("click", () =>
-          setOpenPanel(module.dataset.panel),
-        );
+      document.querySelectorAll("[data-demo-state]").forEach((btn) => {
+        btn.addEventListener("click", () => setBarState(btn.dataset.demoState));
       });
 
       function tickClock() {
@@ -950,13 +1021,11 @@
           weekday: "short",
           day: "2-digit",
         });
-
         document.getElementById("clock-time").textContent = time;
         document.getElementById("clock-date").textContent = date;
       }
 
       applyTheme("mono-mesh");
-      setOpenPanel("audio-panel");
       tickClock();
       setInterval(tickClock, 1000);
     </script>

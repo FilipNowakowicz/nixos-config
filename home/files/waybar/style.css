@@ -59,27 +59,24 @@ window#waybar {
   font-weight: 500;
 }
 
-/* ── Right modules ────────────────────────────────────── */
+/* ── Anchor pill ──────────────────────────────────────── */
 
-#network,
-#bluetooth,
-#pulseaudio,
-#custom-battery-status {
-  padding: 0 12px;
+#custom-anchor {
+  padding: 0 10px;
+  font-size: 13px;
+  letter-spacing: 2px;
+  transition: border-color 240ms ease;
 }
 
-#custom-battery-status.performance {
-  color: @amber;
+#custom-anchor.glow {
+  border-color: alpha(@amber, 0.42);
 }
 
-#custom-battery-status.warning {
-  color: @orange;
+#custom-anchor.warn-glow {
+  border-color: alpha(@orange, 0.5);
 }
 
-#custom-battery-status.critical {
-  color: @amber;
-  font-weight: bold;
-}
+/* ── Tray / chevron ───────────────────────────────────── */
 
 #custom-chevron {
   padding: 0 6px 0 10px;
@@ -90,23 +87,4 @@ window#waybar {
 
 #tray {
   padding: 0 8px 0 4px;
-}
-
-/* ── Bluetooth ────────────────────────────────────────── */
-
-#bluetooth {
-  opacity: 0.4;
-}
-
-#bluetooth.connected {
-  opacity: 1;
-}
-
-/* ── Status ───────────────────────────────────────────── */
-
-#battery.warning {
-  color: @orange;
-}
-#battery.critical {
-  color: @amber;
 }

@@ -22,6 +22,7 @@
       brightnessctl
       cliphist
       swayosd
+      wlsunset
 
       # ── Desktop UX ─────────────────────────────────────────────────────────
       pavucontrol
