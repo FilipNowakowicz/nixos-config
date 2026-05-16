@@ -6,7 +6,6 @@
 }:
 let
   repoBaseUrl = "https://github.com/FilipNowakowicz/NixOS";
-  docsBaseUrl = "${repoBaseUrl}/blob/main";
   invariants = import ./invariants.nix { inherit lib pkgs; };
 
   hostHealth =
@@ -221,22 +220,10 @@ let
       inherit health;
     };
 
-  goalsData = map (
-    goal:
-    goal
-    // {
-      docs = map (path: {
-        inherit path;
-        url = "${docsBaseUrl}/${path}";
-      }) (goal.docs or [ ]);
-    }
-  ) (import ./goals.nix);
-
   hostsData = lib.mapAttrsToList extractHost allNixosConfigs;
 
   data = {
     hosts = hostsData;
-    goals = goalsData;
     repository = repoBaseUrl;
   };
 in

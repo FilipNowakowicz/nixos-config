@@ -173,7 +173,7 @@ let
 
     homeserver-gcp = {
       system = "x86_64-linux";
-      status = "active";
+      status = "inactive";
       homeManager.role = "server";
       tailnetFQDN = "homeserver-gcp.tail90fc7a.ts.net";
       backup = {

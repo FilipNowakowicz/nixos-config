@@ -22,7 +22,7 @@ The repository separates hardware, host identity, system profiles, and user conf
 - [Operations](docs/operations.md) - deployment, validation, and formatting commands.
 - [Security Model](docs/security.md) - sops recipients, initrd SSH, Tailscale exposure, USBGuard, hardening, and backups.
 - [Neovim](docs/neovim.md) - editor architecture, module layout, and current follow-up work.
-- [Backlog](docs/backlog.md), [Goals](docs/goals.md), and [Homeserver Goals](docs/homeserver-goals.md) - deferred and remaining roadmap work.
+- [Backlog](docs/backlog.md) - deferred and remaining infrastructure work.
 
 ---
 
@@ -104,7 +104,7 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 - **Workstation Backups**: `main` backs up user-critical state and persisted service identity to Backblaze B2 with Restic, including Codex/Claude state, Wi-Fi profiles, Mullvad, Tailscale, Bluetooth, fingerprint, USBGuard, Secure Boot PKI, machine-id, and SSH host identity.
 - **Scoped Agent Maintenance Sudo**: `main` keeps normal `wheel` sudo passworded, but allows a narrow set of passwordless maintenance commands for interactive agent sessions: Restic start/status, boot cleanup, selected EFI entry deletion, Nix GC, and switching this flake path.
 - **Tailscale ACLs as Nix**: Security rules and tag owners are generated declaratively from the host registry, providing a single source of truth for network access control.
-- **Generated Inventory Export**: `packages/inventory-data.nix` exports the host and goal inventory as JSON for the homepage site.
+- **Generated Inventory Export**: `packages/inventory-data.nix` exports host inventory as JSON for the homepage site.
 - **Systemd Hardening**: A custom DSL (`services.hardened`) applies a high-security sandbox baseline to critical services (Vaultwarden, Nginx, Syncthing).
 - **Intrusion Prevention**: Fail2ban integrated into the security profile with automated E2E testing.
 - **Idle Policy (desktop)**: Hypridle locks at 10 minutes of inactivity and suspends at 15 minutes.
@@ -123,8 +123,6 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 │   ├── architecture.md                 # Structural rules and module boundaries
 │   ├── operations.md                   # Deployment and validation runbook
 │   ├── security.md                     # Secrets, exposure, and hardening model
-│   ├── goals.md                        # Active roadmap
-│   ├── homeserver-goals.md             # Ordered homeserver implementation roadmap
 │   └── backlog.md                      # Deferred work
 ├── lib/
 │   ├── hosts.nix                      # Host registry (typed schema; single source of truth for all hosts)
@@ -138,7 +136,7 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 │   └── acl.nix                        # Declarative Tailscale ACL generator
 ├── packages/
 │   ├── control-center/                # Packaged GTK4 control center app and wrapper
-│   └── inventory-data.nix             # Host/goal inventory export as JSON
+│   └── inventory-data.nix             # Host inventory export as JSON
 ├── hosts/
 │   ├── main/                          # Primary workstation
 │   │   ├── CLAUDE.md                  # Host-local runbook and gotchas
