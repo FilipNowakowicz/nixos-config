@@ -136,9 +136,18 @@ class HomeViewMixin:
         picker = Gtk.Grid(column_homogeneous=True, column_spacing=6,
                           row_spacing=6)
         picker.add_css_class("theme-picker")
-        themes = ["mono-mesh", "desert-dusk", "acid-statue", "nighthawks"]
+        themes = [
+            ("mono-mesh", "Mono Mesh"),
+            ("desert-dusk", "Desert Dusk"),
+            ("acid-statue", "Acid Statue"),
+            ("nighthawks", "Nighthawks"),
+            ("lunar-peaks", "Lunar Peaks"),
+            ("obsidian-ridge", "Obsidian Ridge"),
+            ("cold-concrete", "Cold Concrete"),
+            ("gilded-contours", "Gilded Contours"),
+        ]
         theme_cards = {}
-        for i, name in enumerate(themes):
+        for i, (name, label) in enumerate(themes):
             card = Gtk.Button()
             card.add_css_class("theme-card")
             card.add_css_class(f"swatch-{name}")
@@ -147,9 +156,9 @@ class HomeViewMixin:
             sw.add_css_class("theme-swatch")
             sw.add_css_class(f"swatch-{name}")
             inner.append(sw)
-            inner.append(self._label(name, "theme-card-name", xalign=0.5))
+            inner.append(self._label(label, "theme-card-name", xalign=0.5))
             card.set_child(inner)
-            picker.attach(card, i, 0, 1, 1)
+            picker.attach(card, i % 4, i // 4, 1, 1)
             theme_cards[name] = card
 
             def _on_theme_pick(_b, n=name):

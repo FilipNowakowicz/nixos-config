@@ -282,6 +282,18 @@ def build_css(colors):
     .theme-swatch.swatch-nighthawks {{
         background: linear-gradient(90deg, #2a3040 0%, #4a5568 50%, #8aa4b8 100%);
     }}
+    .theme-swatch.swatch-lunar-peaks {{
+        background: linear-gradient(90deg, #151718 0%, #a6a6a6 50%, #d8d8d8 100%);
+    }}
+    .theme-swatch.swatch-obsidian-ridge {{
+        background: linear-gradient(90deg, #1d1d1d 0%, #5f5f5f 50%, #8f8f8f 100%);
+    }}
+    .theme-swatch.swatch-cold-concrete {{
+        background: linear-gradient(90deg, #111820 0%, #9bb8bd 50%, #d8d2b8 100%);
+    }}
+    .theme-swatch.swatch-gilded-contours {{
+        background: linear-gradient(90deg, #0d1830 0%, #d3ad7a 50%, #e0c290 100%);
+    }}
 
     /* Now playing */
     .nowplaying {{
