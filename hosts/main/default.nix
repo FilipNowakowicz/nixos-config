@@ -189,10 +189,20 @@ in
     thermald.enable = true;
     power-profiles-daemon.enable = true;
     fwupd.enable = true;
+    btrfs.autoScrub = {
+      enable = true;
+      fileSystems = [ "/" ];
+    };
 
     openssh = {
       enable = true;
       openFirewall = false; # Accessible via Tailscale only
+      hostKeys = [
+        {
+          path = "/etc/ssh/ssh_host_ed25519_key";
+          type = "ed25519";
+        }
+      ];
     };
 
     tailscale = {
