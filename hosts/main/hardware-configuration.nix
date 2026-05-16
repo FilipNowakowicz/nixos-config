@@ -4,7 +4,7 @@
 # target machine only after hardware topology, firmware-facing device exposure,
 # or required kernel module detection changes, then review the diff before
 # merging.
-# Last reviewed: 2026-04-24.
+# Last reviewed: 2026-05-16.
 { modulesPath, ... }:
 {
   imports = [
