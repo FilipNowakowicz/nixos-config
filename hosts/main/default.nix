@@ -88,6 +88,7 @@ in
     # "loose" keeps a weaker source-reachability check, but relaxes anti-spoofing
     # protection compared with strict mode.
     firewall.checkReversePath = "loose";
+    firewall.interfaces.tailscale0.allowedTCPPorts = [ 22 ];
     # Point to systemd-resolved stub for split DNS (Tailscale tailnet hostnames)
     nameservers = [ "127.0.0.53" ];
   };
@@ -148,15 +149,15 @@ in
           unitConfig.DefaultDependencies = false;
           serviceConfig = {
             Type = "oneshot";
-            ExecStart = pkgs.writeShellScript "flush-initrd-network" ''
-              for iface in /sys/class/net/*; do
-                iface=$(basename "$iface")
-                [ "$iface" = "lo" ] && continue
-                ${pkgs.iproute2}/bin/ip link set dev "$iface" down 2>/dev/null || true
-                ${pkgs.iproute2}/bin/ip addr flush dev "$iface" 2>/dev/null || true
-              done
-            '';
           };
+          script = ''
+            for iface in /sys/class/net/*; do
+              iface=$(basename "$iface")
+              [ "$iface" = "lo" ] && continue
+              ${pkgs.iproute2}/bin/ip link set dev "$iface" down 2>/dev/null || true
+              ${pkgs.iproute2}/bin/ip addr flush dev "$iface" 2>/dev/null || true
+            done
+          '';
         };
       };
 
@@ -535,6 +536,7 @@ in
   };
 
   sops = {
+    age.sshKeyPaths = [ "/persist/etc/ssh/ssh_host_ed25519_key" ];
     defaultSopsFile = ./secrets/secrets.yaml;
     secrets = {
       user_password.neededForUsers = true;
