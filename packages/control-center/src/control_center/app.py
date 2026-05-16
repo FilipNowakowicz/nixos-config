@@ -7,6 +7,7 @@ and are mixed in here.
 """
 
 import os
+import signal
 import threading
 import time
 from types import SimpleNamespace
@@ -17,12 +18,14 @@ from .constants import (
     FAST_STATE_KEYS,
     G,
     PANEL_CONTENT_WIDTH,
+    PANEL_MARGIN,
     PANEL_TOTAL_WIDTH,
     SLOW_STATE_KEYS,
+    VIEWS,
 )
 from .css import build_css
 from .gather import gather_fast_state, gather_slow_state
-from .state_file import clear_state
+from .state_file import clear_state, read_state, write_state
 from .views.bluetooth import BluetoothViewMixin
 from .views.dnd import DndViewMixin
 from .views.home import HomeViewMixin
@@ -46,9 +49,11 @@ class ControlCenter(
     SLOW_POLL_MS = 5000
     PENDING_TTL_S = 6
 
-    def __init__(self, initial_view, colors, state):
+    def __init__(self, initial_view, colors, state, start_hidden=False):
         super().__init__(application_id="io.personal.control-center")
         self.initial_view = initial_view
+        self._current_view = initial_view
+        self._visible = not start_hidden
         self.colors = colors
         self.state = state
         self.win = None
@@ -84,8 +89,8 @@ class ControlCenter(
         Gtk4LayerShell.set_layer(self.win, Gtk4LayerShell.Layer.OVERLAY)
         Gtk4LayerShell.set_anchor(self.win, Gtk4LayerShell.Edge.TOP, True)
         Gtk4LayerShell.set_anchor(self.win, Gtk4LayerShell.Edge.RIGHT, True)
-        Gtk4LayerShell.set_margin(self.win, Gtk4LayerShell.Edge.TOP, 6)
-        Gtk4LayerShell.set_margin(self.win, Gtk4LayerShell.Edge.RIGHT, 15)
+        Gtk4LayerShell.set_margin(self.win, Gtk4LayerShell.Edge.TOP, PANEL_MARGIN)
+        Gtk4LayerShell.set_margin(self.win, Gtk4LayerShell.Edge.RIGHT, PANEL_MARGIN)
         Gtk4LayerShell.set_keyboard_mode(
             self.win, Gtk4LayerShell.KeyboardMode.ON_DEMAND
         )
@@ -115,16 +120,20 @@ class ControlCenter(
         outer.append(self.stack)
 
         self.win.set_child(outer)
-        self.win.present()
+        if self._visible:
+            self.win.present()
+        else:
+            self.win.set_visible(False)
 
         self._fast_poll_id = GLib.timeout_add(self.FAST_POLL_MS, self._tick_fast)
         self._slow_poll_id = GLib.timeout_add(self.SLOW_POLL_MS, self._tick_slow)
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR1, self._on_ipc_toggle)
         self._tick_fast()  # populate visible state immediately
         self._tick_slow()  # fill network/VPN details in the background
 
     def _on_close_request(self, *_args):
-        clear_state(os.getpid())
-        return False
+        self._hide_window()
+        return True
 
     def _on_shutdown(self, *_args):
         if self._fast_poll_id:
@@ -133,15 +142,45 @@ class ControlCenter(
         if self._slow_poll_id:
             GLib.source_remove(self._slow_poll_id)
             self._slow_poll_id = 0
+        clear_state(os.getpid())
 
     def _on_key(self, _ctrl, keyval, _keycode, _state):
         if keyval == Gdk.KEY_Escape:
             if self.stack.get_visible_child_name() != "home":
                 self.go_back()
                 return True
-            self.quit()
+            self._hide_window()
             return True
         return False
+
+    def _write_presence(self):
+        write_state(os.getpid(), self._current_view, self._visible)
+
+    def _show_window(self):
+        if self.win is None:
+            return
+        self._visible = True
+        self.win.present()
+        self._write_presence()
+
+    def _hide_window(self):
+        if self.win is None:
+            return
+        self._visible = False
+        self.win.set_visible(False)
+        self._write_presence()
+
+    def _on_ipc_toggle(self):
+        state = read_state()
+        view = state.get("view", "home")
+        if view in VIEWS:
+            self.stack.set_visible_child_name(view)
+            self._current_view = view
+        if state.get("visible", True):
+            self._show_window()
+        else:
+            self._hide_window()
+        return True
 
     # ── Refresh loop ──────────────────────────────────────────
 
@@ -338,10 +377,14 @@ class ControlCenter(
     def go_to(self, view):
         self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT)
         self.stack.set_visible_child_name(view)
+        self._current_view = view
+        self._write_presence()
 
     def go_back(self):
         self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_RIGHT)
         self.stack.set_visible_child_name("home")
+        self._current_view = "home"
+        self._write_presence()
 
     # ── Reusable component builders ───────────────────────────
 

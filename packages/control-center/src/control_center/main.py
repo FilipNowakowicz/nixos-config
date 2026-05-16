@@ -4,14 +4,11 @@ import os
 import signal
 import sys
 
-from gi.repository import GLib
-
 from .app import ControlCenter
 from .constants import VIEWS
 from .gather import _default_state, gather_fast_state
 from .state_file import (
     acquire_lock,
-    clear_state,
     process_alive,
     read_state,
     release_lock,
@@ -22,41 +19,49 @@ from .theme import load_colors
 
 def main():
     initial = "home"
-    if len(sys.argv) == 2:
-        arg = sys.argv[1]
+    start_hidden = False
+    args = sys.argv[1:]
+    if len(args) > 2:
+        print(
+            f"usage: control-center [--daemon] [{'|'.join(VIEWS)}]",
+            file=sys.stderr,
+        )
+        return 2
+    for arg in args:
         if arg in VIEWS:
             initial = arg
+        elif arg == "--daemon":
+            start_hidden = True
         elif arg in ("-h", "--help"):
-            print(f"usage: control-center [{'|'.join(VIEWS)}]")
+            print(f"usage: control-center [--daemon] [{'|'.join(VIEWS)}]")
             return 0
         else:
-            print(f"usage: control-center [{'|'.join(VIEWS)}]", file=sys.stderr)
+            print(
+                f"usage: control-center [--daemon] [{'|'.join(VIEWS)}]",
+                file=sys.stderr,
+            )
             return 2
-    elif len(sys.argv) > 2:
-        print(f"usage: control-center [{'|'.join(VIEWS)}]", file=sys.stderr)
-        return 2
 
     acquire_lock()
     state = read_state()
     pid = state.get("pid")
     current = state.get("view")
+    visible = bool(state.get("visible", False))
     if isinstance(pid, int) and process_alive(pid):
-        os.kill(pid, signal.SIGTERM)
-        if current == initial:
-            clear_state(pid)
+        if start_hidden:
             release_lock()
             return 0
-        for _ in range(20):
-            if not process_alive(pid):
-                break
-            GLib.usleep(25_000)
+        write_state(pid, initial, not (visible and current == initial))
+        release_lock()
+        os.kill(pid, signal.SIGUSR1)
+        return 0
 
-    write_state(os.getpid(), initial)
+    write_state(os.getpid(), initial, not start_hidden)
     release_lock()
     initial_state = _default_state()
     try:
         initial_state = gather_fast_state(initial_state)
     except Exception:
         pass
-    app = ControlCenter(initial, load_colors(), initial_state)
+    app = ControlCenter(initial, load_colors(), initial_state, start_hidden)
     return app.run(None)

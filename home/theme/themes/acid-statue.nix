@@ -7,8 +7,8 @@
   colors = {
     bg = "1e2330"; # dark blue-grey background
     brown = "2e3a4a"; # muted slate surface
-    orange = "4a7a6a"; # desaturated teal accent
-    amber = "a8e840"; # acid green highlight
+    orange = "43675d"; # more muted teal accent
+    amber = "7ea63f"; # toned moss-green highlight
     text = "c8d4c0"; # cool off-white text
   };
 

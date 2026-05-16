@@ -31,9 +31,9 @@ def read_state():
         return {}
 
 
-def write_state(pid, view):
+def write_state(pid, view, visible):
     with open(STATE_PATH, "w") as f:
-        json.dump({"pid": pid, "view": view}, f)
+        json.dump({"pid": pid, "view": view, "visible": visible}, f)
 
 
 def clear_state(expected_pid):

@@ -421,17 +421,9 @@ in
 
   # NetworkManager manages networking; avoid boot blocking on online targets.
   systemd = {
-    # NixOS's services.blueman defines systemd.user.services.blueman-applet
-    # *and* `systemd.packages = [pkgs.blueman]` installs the package's own
-    # blueman-applet.service. The two ExecStart= lines collide (Type=dbus
-    # refuses multiple ExecStarts), the unit becomes invalid, and D-Bus
-    # activation of org.blueman.Applet fails — which breaks blueman-manager's
-    # device list (it calls Applet.QueryPlugins() at startup).
-    # Reset ExecStart to clear the upstream entry before re-adding ours.
-    user.services.blueman-applet.serviceConfig.ExecStart = lib.mkForce [
-      ""
-      "${pkgs.blueman}/bin/blueman-applet"
-    ];
+    # The control center owns Bluetooth status/control now, so suppress the
+    # redundant Blueman tray icon instead of autostarting blueman-applet.
+    user.services.blueman-applet.enable = false;
 
     services = {
       # Policy.AutoEnable races the Intel CNVi adapter's MGMT init on this

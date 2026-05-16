@@ -117,7 +117,6 @@ let
         with pkgs;
         [
           mako
-          tailscale
           wireplumber
         ]
       );

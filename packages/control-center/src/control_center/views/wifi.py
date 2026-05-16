@@ -1,8 +1,14 @@
 """Wi-Fi detail view: hero card, stat strip, network list."""
 
-from gi.repository import Gtk
+from gi.repository import GLib, Gtk
 
-from ..actions import act_connect_wifi, act_set_wifi_radio
+from ..actions import (
+    act_connect_wifi,
+    act_open_hidden_wifi,
+    act_open_network_settings,
+    act_set_wifi_radio,
+    act_wifi_rescan,
+)
 from ..constants import G
 
 
@@ -28,10 +34,29 @@ class WifiViewMixin:
         strip.add_css_class("vpn-stat")
         view.append(strip)
 
-        view.append(self._section_label("Available Networks", action="Rescan"))
+        section = self._section_label("Available Networks", action="Rescan")
+        section_btn = section.get_last_child()
+        view.append(section)
         lst = self._box(Gtk.Orientation.VERTICAL, spacing=2, css="drawer-list")
         view.append(lst)
-        view.append(self._ghost_btn("Open Network Settings"))
+        settings_btn = self._ghost_btn("Open Network Settings")
+        view.append(settings_btn)
+
+        def _rescan_done():
+            section_btn.set_label("Rescan")
+            self._tick_slow()
+            return False
+
+        def _on_rescan(_b):
+            section_btn.set_label("Scanning...")
+            act_wifi_rescan()
+            GLib.timeout_add(1800, _rescan_done)
+        section_btn.connect("clicked", _on_rescan)
+
+        def _on_settings(_b):
+            self._hide_window()
+            act_open_network_settings()
+        settings_btn.connect("clicked", _on_settings)
 
         def refresh(s):
             w = s["wifi"]
@@ -98,10 +123,14 @@ class WifiViewMixin:
                         G["wifi"], "No networks", "Try Rescan", "—",
                         subtle=True,
                     ))
-                lst.append(self._drawer_item(
+                hidden = self._drawer_item(
                     G["plus"], "Hidden Network", "Join by SSID", "›",
                     subtle=True,
+                )
+                hidden.connect("clicked", lambda _b: (
+                    self._hide_window(), act_open_hidden_wifi(),
                 ))
+                lst.append(hidden)
 
         self._refreshers.append(refresh)
         refresh(self.state)

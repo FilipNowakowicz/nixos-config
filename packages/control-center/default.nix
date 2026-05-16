@@ -17,6 +17,7 @@
   curl,
   mako,
   networkmanager,
+  networkmanagerapplet,
   mullvad-vpn,
   power-profiles-daemon,
   systemd,
@@ -34,6 +35,7 @@ let
     curl
     mako
     networkmanager
+    networkmanagerapplet
     mullvad-vpn
     power-profiles-daemon
     systemd

@@ -7,6 +7,7 @@ Owns the module-level globals that are shared with the state-gathering pass:
 
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -32,6 +33,17 @@ def _fire(cmd):
         )
     except (OSError, FileNotFoundError):
         pass
+
+
+def _fire_if_found(cmd):
+    try:
+        exe = shutil.which(cmd[0])
+    except Exception:
+        exe = None
+    if exe:
+        _fire([exe, *cmd[1:]])
+        return True
+    return False
 
 
 def act_set_sink_volume(pct):
@@ -78,6 +90,18 @@ def act_set_wifi_radio(on):
 
 def act_connect_wifi(ssid):
     _fire(["nmcli", "dev", "wifi", "connect", ssid])
+
+
+def act_wifi_rescan():
+    _fire(["nmcli", "dev", "wifi", "rescan"])
+
+
+def act_open_network_settings():
+    _fire_if_found(["nm-connection-editor"])
+
+
+def act_open_hidden_wifi():
+    _fire_if_found(["nm-connection-editor", "--create", "--type=wifi"])
 
 
 def act_bt_powered(on):

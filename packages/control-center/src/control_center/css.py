@@ -1,6 +1,6 @@
 """GTK CSS for the panel. Produced at startup once the theme palette is loaded."""
 
-from .constants import DEFAULTS, PANEL_CONTENT_WIDTH
+from .constants import DEFAULTS, PANEL_CONTENT_WIDTH, PANEL_PADDING
 from .theme import h2rgb
 
 
@@ -28,12 +28,12 @@ def build_css(colors):
 
     #panel {{
         min-width: {PANEL_CONTENT_WIDTH}px;
-        padding: 16px;
+        padding: {PANEL_PADDING}px;
         border-radius: 20px;
         border: 1px solid {rgba(orange, 0.28)};
         background: linear-gradient(180deg,
-            {rgba(bg, 0.96)} 0%,
-            {rgba(brown, 0.92)} 100%);
+            {rgba(bg, 0.985)} 0%,
+            {rgba(brown, 0.955)} 100%);
         box-shadow:
             0 24px 56px rgba(0, 0, 0, 0.35),
             inset 0 1px 0 rgba(255, 255, 255, 0.03);

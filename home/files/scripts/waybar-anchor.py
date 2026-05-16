@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Waybar anchor bar status — single-pill control-center trigger.
 
-Outputs JSON: always a dot, conditional indicators for VPN, DND,
+Outputs JSON: always a dot, conditional indicators for DND,
 mic-muted, and battery (hidden when AC+100%). Dot recolors by severity.
 """
 
@@ -49,17 +49,6 @@ def main():
     indicators = []
     classes = []
     severity = 0  # 0 = quiet, 1 = amber, 2 = warn
-
-    # ── VPN (Tailscale) ────────────────────────────────────────────
-    ts_out, ts_ok = _run(["tailscale", "status", "--json"])
-    if ts_ok:
-        try:
-            if json.loads(ts_out).get("BackendState") == "Running":
-                indicators.append(f'<span color="{amber}">󰒃</span>')
-                classes.append("vpn")
-                severity = max(severity, 1)
-        except (json.JSONDecodeError, KeyError):
-            pass
 
     # ── DND ────────────────────────────────────────────────────────
     dnd_out, dnd_ok = _run(["makoctl", "mode"])
