@@ -6,6 +6,30 @@
   ...
 }:
 let
+  agentMaintenanceCommands = [
+    # Verify and trigger post-reinstall backup/check jobs.
+    "/run/current-system/sw/bin/systemctl start restic-backups-local.service"
+    "/run/current-system/sw/bin/systemctl start restic-check-local.service"
+    "/run/current-system/sw/bin/systemctl status restic-backups-local.service --no-pager"
+    "/run/current-system/sw/bin/systemctl status restic-backups-local.timer --no-pager"
+    "/run/current-system/sw/bin/systemctl status restic-check-local.service --no-pager"
+    "/run/current-system/sw/bin/systemctl status restic-check-local.timer --no-pager"
+
+    # Clean stale boot entries and old system generations after rebuilds.
+    "/run/current-system/sw/bin/bootctl status --no-pager"
+    "/run/current-system/sw/bin/bootctl cleanup"
+    "/run/current-system/sw/bin/efibootmgr -b [0-9A-F][0-9A-F][0-9A-F][0-9A-F] -B"
+    "/run/current-system/sw/bin/nix-collect-garbage --delete-older-than *"
+
+    # Apply this flake only. This is still privileged, so keep the path fixed.
+    "/run/current-system/sw/bin/nh os switch --hostname main /home/user/nix"
+  ];
+
+  passwordlessAgentCommand = command: {
+    inherit command;
+    options = [ "NOPASSWD" ];
+  };
+
   tailscaleBypassRules = pkgs.writeShellScript "tailscale-bypass-rules" ''
     set -eu
 
@@ -116,7 +140,20 @@ in
     ];
   };
 
-  environment.systemPackages = with pkgs; [ sbctl ];
+  environment.systemPackages = with pkgs; [
+    efibootmgr
+    nh
+    sbctl
+  ];
+
+  # Narrow passwordless sudo for interactive agent-assisted maintenance.
+  # Keep wheel passworded globally; only these exact commands are exempt.
+  security.sudo.extraRules = [
+    {
+      users = [ "user" ];
+      commands = map passwordlessAgentCommand agentMaintenanceCommands;
+    }
+  ];
 
   boot = {
     # Lanzaboote (Secure Boot)
