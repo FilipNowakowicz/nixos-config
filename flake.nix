@@ -119,7 +119,6 @@
         allNixosConfigs
         ciNixosConfigs
         homeConfigurations
-        vmRegistry
         ;
 
       deployOutputs = import ./flake/deploy.nix {
@@ -175,7 +174,6 @@
             pre-commit-hooks
             treefmt-nix
             hostRegistry
-            vmRegistry
             ciNixosConfigs
             aclGen
             deploy-rs
@@ -216,7 +214,6 @@
           profiles-desktop = import ./modules/nixos/profiles/desktop.nix;
           profiles-observability = import ./modules/nixos/profiles/observability;
           profiles-security = import ./modules/nixos/profiles/security.nix;
-          profiles-vm = import ./modules/nixos/profiles/vm.nix;
         };
 
         homeModules = {

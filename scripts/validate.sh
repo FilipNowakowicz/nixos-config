@@ -33,12 +33,11 @@ Commands:
   docs               Check repository Markdown links
   flake-eval         Run flake evaluation only (no builds)
   light              Build lightweight blocking checks
-  host <name>        Build one host closure: main-ci, vm-ci, homeserver-gcp
+  host <name>        Build one host closure: main-ci, homeserver-gcp
   hosts              Build all host system closures used in CI
   package <name>     Build one package output used in CI
   profile-test <name>
                      Build one profile test: profile-security, profile-observability, profile-hardening
-  smoke-vm           Build the desktop VM smoke test
   smoke-homeserver-gcp
                      Build the homeserver-gcp endpoint smoke test
   profile-tests      Build all profile NixOS tests
@@ -54,9 +53,6 @@ build_host() {
   case "$1" in
   main-ci)
     build_attrs ".#nixosConfigurations.main-ci.config.system.build.toplevel"
-    ;;
-  vm-ci)
-    build_attrs ".#nixosConfigurations.vm-ci.config.system.build.toplevel"
     ;;
   homeserver-gcp)
     build_attrs ".#nixosConfigurations.homeserver-gcp.config.system.build.toplevel"
@@ -114,7 +110,6 @@ light)
     ".#checks.${system}.homeserver-gcp-sops-bootstrap" \
     ".#checks.${system}.invariants-homeserver-gcp" \
     ".#checks.${system}.invariants-main" \
-    ".#checks.${system}.invariants-vm" \
     ".#checks.${system}.lib-generators" \
     ".#checks.${system}.lib-generators-golden" \
     ".#checks.${system}.lib-acl" \
@@ -133,12 +128,7 @@ package)
 hosts)
   build_attrs \
     ".#nixosConfigurations.main-ci.config.system.build.toplevel" \
-    ".#nixosConfigurations.vm-ci.config.system.build.toplevel" \
     ".#nixosConfigurations.homeserver-gcp.config.system.build.toplevel"
-  ;;
-
-smoke-vm)
-  build_attrs ".#legacyPackages.${system}.ciTests.vm-smoke"
   ;;
 
 smoke-homeserver-gcp)
@@ -158,7 +148,6 @@ profile-tests)
 
 heavy)
   build_attrs \
-    ".#legacyPackages.${system}.ciTests.vm-smoke" \
     ".#legacyPackages.${system}.ciTests.homeserver-gcp-smoke" \
     ".#legacyPackages.${system}.ciTests.profile-security" \
     ".#legacyPackages.${system}.ciTests.profile-observability" \

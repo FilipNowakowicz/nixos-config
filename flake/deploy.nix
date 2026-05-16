@@ -23,12 +23,7 @@ let
 
   allDeployNodes = mkDeployNodes ciNixosConfigs;
 
-  ciDeployNodes = mkDeployNodes (
-    ciNixosConfigs
-    // {
-      vm = ciNixosConfigs.vm-ci;
-    }
-  );
+  ciDeployNodes = mkDeployNodes ciNixosConfigs;
 in
 {
   inherit allDeployNodes ciDeployNodes;

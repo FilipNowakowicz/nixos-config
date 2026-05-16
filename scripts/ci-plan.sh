@@ -16,13 +16,11 @@ tests_change='^tests/nixos/'
 docs_change='^(README\.md|docs/|.*\.md$|.*/CLAUDE\.md$|AGENTS\.md$)'
 package_change='^packages/'
 main_change='^hosts/main/'
-vm_change='^hosts/vm/'
 homeserver_change='^hosts/homeserver-gcp/'
 module_all_hosts='^modules/nixos/(default\.nix|services/|profiles/(base|backup|security|sops-base|user)\.nix)'
 module_desktop_hosts='^modules/nixos/(profiles/(desktop|observability-client)\.nix|hardware/nvidia-prime\.nix)'
 module_server_hosts='^modules/nixos/profiles/observability/'
 module_machine_hosts='^modules/nixos/profiles/(impermanence-base|machine-common)\.nix'
-module_vm_host='^modules/nixos/profiles/vm\.nix'
 module_microvm_guest='^modules/nixos/profiles/microvm-guest\.nix'
 home_all_hosts='^home/(profiles/base\.nix|users/user/common\.nix)'
 home_desktop_hosts='^home/(neovim/|profiles/(desktop|workstation)\.nix|profiles/workflow-packs/|users/user/home\.nix|theme/|files/(nvim/|firefox|hypr|kitty|waybar|scripts/(theme-switch|waybar-weather|clipboard-pick)\.sh))'
@@ -35,27 +33,22 @@ run_lint=false
 run_light=false
 run_packages=false
 main_ci=false
-vm=false
 profile_tests=false
-vm_smoke=false
 homeserver_gcp_smoke=false
 closure_main=false
 
 select_all_hosts() {
   main_ci=true
-  vm=true
   closure_main=true
 }
 
 select_all_tests() {
   profile_tests=true
-  vm_smoke=true
   homeserver_gcp_smoke=true
 }
 
 select_desktop_hosts() {
   main_ci=true
-  vm=true
   closure_main=true
 }
 
@@ -94,7 +87,7 @@ if [[ -n $changed_files ]]; then
 
     if
       [[ $path =~ ^modules/nixos/ ]] &&
-        ! grep -qE "${module_all_hosts}|${module_desktop_hosts}|${module_server_hosts}|${module_machine_hosts}|${module_vm_host}|${module_microvm_guest}" <<<"$path"
+        ! grep -qE "${module_all_hosts}|${module_desktop_hosts}|${module_server_hosts}|${module_machine_hosts}|${module_microvm_guest}" <<<"$path"
     then
       unknown_module_changed=true
     fi
@@ -130,11 +123,6 @@ if [[ -n $changed_files ]]; then
     closure_main=true
   fi
 
-  if grep -qE "${vm_change}" <<<"$changed_files"; then
-    vm=true
-    vm_smoke=true
-  fi
-
   if grep -qE "${homeserver_change}" <<<"$changed_files"; then
     homeserver_gcp_smoke=true
   fi
@@ -146,7 +134,6 @@ if [[ -n $changed_files ]]; then
 
   if grep -qE "${module_desktop_hosts}" <<<"$changed_files"; then
     select_desktop_hosts
-    vm_smoke=true
     profile_tests=true
   fi
 
@@ -156,13 +143,7 @@ if [[ -n $changed_files ]]; then
   fi
 
   if grep -qE "${module_machine_hosts}" <<<"$changed_files"; then
-    vm=true
-    vm_smoke=true
-  fi
-
-  if grep -qE "${module_vm_host}" <<<"$changed_files"; then
-    vm=true
-    vm_smoke=true
+    select_all_hosts
   fi
 
   if [[ $unknown_module_changed == "true" ]]; then
@@ -204,17 +185,10 @@ if [[ $main_ci == "true" ]]; then
   hosts_matrix+='{"name":"main-ci"}'
   sep=","
 fi
-if [[ $vm == "true" ]]; then
-  hosts_matrix+="${sep}"'{"name":"vm-ci"}'
-fi
 hosts_matrix+=']}'
 
 tests_matrix='{"include":['
 sep=""
-if [[ $vm_smoke == "true" ]]; then
-  tests_matrix+='{"name":"vm-smoke","command":"smoke-vm","target":""}'
-  sep=","
-fi
 if [[ $homeserver_gcp_smoke == "true" ]]; then
   tests_matrix+="${sep}"'{"name":"homeserver-gcp-smoke","command":"smoke-homeserver-gcp","target":""}'
   sep=","
@@ -227,13 +201,13 @@ if [[ $profile_tests == "true" ]]; then
 fi
 tests_matrix+=']}'
 
-if [[ $main_ci == "true" || $vm == "true" ]]; then
+if [[ $main_ci == "true" ]]; then
   emit_bool hosts true
 else
   emit_bool hosts false
 fi
 
-if [[ $vm_smoke == "true" || $homeserver_gcp_smoke == "true" || $profile_tests == "true" ]]; then
+if [[ $homeserver_gcp_smoke == "true" || $profile_tests == "true" ]]; then
   emit_bool tests true
 else
   emit_bool tests false

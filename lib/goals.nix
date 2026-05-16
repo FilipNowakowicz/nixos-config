@@ -26,7 +26,6 @@
     hosts = [
       "main"
       "homeserver-gcp"
-      "vm"
     ];
     services = [
       "inventory"

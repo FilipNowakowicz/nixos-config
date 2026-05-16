@@ -13,13 +13,12 @@ Current recipient groups:
 | Group                  | Purpose                                              |
 | :--------------------- | :--------------------------------------------------- |
 | `&user`                | Personal operator key; can decrypt all repo secrets. |
-| `&vm_host`             | QEMU `vm` SSH-host-derived age identity.             |
 | `&main_host`           | `main` SSH-host-derived age identity.                |
 | `&homeserver_gcp_host` | `homeserver-gcp` SSH-host-derived age identity.      |
 
 Host behavior:
 
-- `main`, `vm`, and `homeserver-gcp` use SSH-host-derived age identities through `sops.age.sshKeyPaths`.
+- `main` and `homeserver-gcp` use SSH-host-derived age identities through `sops.age.sshKeyPaths`.
 - `homeserver-gcp` uses a pre-baked encrypted SSH host key committed to the repo; `sops-nix` derives `&homeserver_gcp_host` from `/etc/ssh/ssh_host_ed25519_key` on first boot.
 - `boot.initrd.secrets` must point only at sops-managed `/run/secrets/*` paths; this is enforced by an invariant check.
 - Intentional plaintext exceptions must be narrow entries in `.plaintext-secrets-allowlist`.

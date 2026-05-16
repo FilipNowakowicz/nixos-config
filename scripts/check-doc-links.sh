@@ -30,7 +30,7 @@ external_schemes = {
 
 def tracked_markdown_files() -> list[Path]:
     output = subprocess.check_output(["git", "ls-files", "*.md"], text=True)
-    return [repo / line for line in output.splitlines() if line]
+    return [path for line in output.splitlines() if line and (path := repo / line).exists()]
 
 
 def strip_fenced_code(text: str) -> str:

@@ -2,9 +2,6 @@ keys:
   # Replace with output of: age-keygen -o ~/.config/sops/age/keys.txt
   - &user age1v357mlvnesrq0gcgjystzsqaw4d3avaxz8fnxhlaqpktjzzytvqq796haz
 
-  # VM SSH host key converted to age: ssh-to-age < /etc/ssh/ssh_host_ed25519_key.pub
-  - &vm_host age18g3r6u8cpw8re990wvpsk8rrvphz5ndthmck4ufk96prua8vuchqkg4h0e
-
   # Main SSH host key converted to age: ssh-to-age < /etc/ssh/ssh_host_ed25519_key.pub
   - &main_host age1nn9990zfx0azcv9fm0m5gmcw2lhg5e2px0wawgnew0234w3nrdws0v2c0f
 
@@ -13,11 +10,6 @@ keys:
   - &homeserver_gcp_host age13av6mujh9r7xv880k8elnfkqztpx3c8eahfwdl42wzss6sz9jchsc3hqg6
 
 creation_rules:
-  - path_regex: hosts/vm/secrets/.*
-    key_groups:
-      - age:
-          - *user
-          - *vm_host
   - path_regex: hosts/main/secrets/.*
     key_groups:
       - age:

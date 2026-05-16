@@ -6,7 +6,6 @@
   pre-commit-hooks,
   treefmt-nix,
   hostRegistry,
-  vmRegistry,
   ciNixosConfigs,
   aclGen,
   deploy-rs,
@@ -16,26 +15,6 @@
   invariantChecks,
 }:
 let
-  vmApp = {
-    type = "app";
-    program = toString (
-      pkgs.writeShellScript "vm" ''
-        export VM_REGISTRY='${builtins.toJSON vmRegistry}'
-        export OVMF_CODE="${pkgs.OVMF.fd}/FV/OVMF_CODE.fd"
-        export OVMF_SOURCE="${pkgs.OVMF.fd}/FV/OVMF_VARS.fd"
-        export QEMU_BIN="${pkgs.qemu}/bin/qemu-system-x86_64"
-        export QEMU_IMG_BIN="${pkgs.qemu}/bin/qemu-img"
-        export JQ_BIN="${pkgs.jq}/bin/jq"
-        export SSH_KEYGEN_BIN="${pkgs.openssh}/bin/ssh-keygen"
-        export NIXOS_ANYWHERE_BIN="${nixos-anywhere.packages.${system}.nixos-anywhere}/bin/nixos-anywhere"
-        export SOPS_BIN="${pkgs.sops}/bin/sops"
-        export SSH_TO_AGE_BIN="${pkgs.ssh-to-age}/bin/ssh-to-age"
-        exec ${pkgs.bash}/bin/bash ${../scripts/vm.sh} "$@"
-      ''
-    );
-    meta.description = "Manage QEMU/KVM virtual machines";
-  };
-
   controlCenterPackage =
     let
       python = pkgs.python3.withPackages (ps: [ ps.pygobject3 ]);
@@ -124,7 +103,6 @@ in
       );
       meta.description = "Run clean-clone documentation, planner, evaluation, and formatting checks";
     };
-    vm = vmApp;
     control-center = {
       type = "app";
       program = "${controlCenterPackage}/bin/control-center";
@@ -175,8 +153,6 @@ in
           deadnix
           sops
           ssh-to-age
-          qemu
-          OVMF
           python3
           vulnix
           direnv
@@ -194,8 +170,6 @@ in
         if [ -n "$common_git_dir" ]; then
           ${pkgs.coreutils}/bin/install -Dm755 ${commitMsgHook} "$common_git_dir/hooks/commit-msg"
         fi
-        # Make 'vm' command available directly in the dev shell
-        alias vm="nix run '.#vm' --"
         exec ${pkgs.zsh}/bin/zsh
       '';
     };

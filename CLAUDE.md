@@ -9,9 +9,8 @@ approaches proactively. Explain why, not just what.
 ## Environment
 
 - **Dev machine:** NixOS (main)
-- **Dev shell:** `nix develop` — provides `deploy-rs`, `nixos-anywhere`, `nixd`, `statix`, `deadnix`, `sops`, `ssh-to-age`, `qemu`, `OVMF`, `vulnix`, `direnv`, and the flake-managed pre-commit hook tooling.
+- **Dev shell:** `nix develop` — provides `deploy-rs`, `nixos-anywhere`, `nixd`, `statix`, `deadnix`, `sops`, `ssh-to-age`, `vulnix`, `direnv`, and the flake-managed pre-commit hook tooling.
 - **Per-project shells:** `direnv` enabled — use `use flake` in `.envrc` for automatic environment loading.
-- **Deploy (VM):** `deploy '.#vm'` (QEMU `vm` is legacy-supported testing only)
 - **Deploy (WSL):** `home-manager switch --flake .#user@wsl`
 - **Deploy (main):** `nh os switch --hostname main .` (alias: `rebuild`)
 - **Main storage model:** `main` uses LUKS + Btrfs subvolumes (`@root`, `@home`, `@nix`, `@persist`) with initrd rollback of `@root` from `@root-blank` on every boot. Persistent state is explicit in `hosts/main/impermanence.nix`.
@@ -35,9 +34,7 @@ approaches proactively. Explain why, not just what.
 
 ---
 
-## VM Management
-
-### nix run '.#vm' (QEMU — legacy-supported)
+## Network And Access
 
 - **Tailscale** — used for secure remote access and service mesh.
 - **Tailscale ACLs** — generated declaratively from `lib/hosts.nix`.
@@ -47,22 +44,11 @@ approaches proactively. Explain why, not just what.
   - Build/inspect ACLs: `nix build '.#packages.x86_64-linux.tailscale-acl'`.
 - **Tailscale Certs** — `homeserver-gcp` uses `tailscale-cert.service` to fetch TLS certificates automatically.
 
-`scripts/vm.sh` and `nix run '.#vm'` are archived for testing impermanence,
-bootloader, and LUKS on main hardware before real deployment.
-
-```bash
-nix run '.#vm' -- create <name>   # Full setup (impermanence testing only)
-nix run '.#vm' -- start <name>    # Launch existing VM
-nix run '.#vm' -- ssh <name>      # SSH into VM
-```
-
-**VM registry** (`lib/hosts.nix`) is the single source of truth for all hosts.
-
 ---
 
 ## Repository Structure
 
-- `flake.nix` — entry point, defines hosts, home-manager, deploy-rs nodes, VM app
+- `flake.nix` — entry point, defines hosts, home-manager, and deploy-rs nodes
 - `lib/hosts.nix` — host registry (single source of truth for all hosts)
 - `lib/generators.nix` — typed Alloy HCL generators
 - `lib/dashboards.nix` — typed Grafana dashboard builders
@@ -72,16 +58,14 @@ nix run '.#vm' -- ssh <name>      # SSH into VM
 - `lib/pubkeys.nix` — centralized SSH public keys
 - `lib/syncthing.nix` — shared Syncthing device/folder registry
 - `docs/architecture.md` — structural rules and module boundaries
-- `docs/operations.md` — deployment, VM workflows, and validation runbook
+- `docs/operations.md` — deployment and validation runbook
 - `docs/security.md` — secrets, exposure, and hardening model
 - `hosts/main/` — real machine config, disko layout, LUKS/Btrfs, impermanence, Lanzaboote (Secure Boot)
   - `hosts/main/CLAUDE.md` — host-local runbook for impermanence, backups, scoped sudo, and recovery gotchas
-- `hosts/vm/` — dev/test VM config (desktop profile + home-manager)
 - `hosts/homeserver-gcp/` — GCP homeserver (Vaultwarden, Syncthing, LGTM, Nginx, Tailscale, TLS)
 - `hosts/installer/` — minimal NixOS ISO config for fresh installs
-- `scripts/vm.sh` — legacy-supported QEMU VM management script
 - `scripts/closure-diff.sh` — compute closure diffs in CI
-- `modules/nixos/profiles/` — system profiles (base, desktop, security, observability, observability-client, vm, sops-base)
+- `modules/nixos/profiles/` — system profiles (base, desktop, security, observability, observability-client, sops-base)
 - `modules/nixos/services/` — standalone systemd services (hardened.nix, failure-notify)
 - `modules/nixos/hardware/` — hardware drivers and graphics (NVIDIA PRIME)
 - `home/profiles/` — home-manager profiles (base, desktop, workstation)
@@ -110,7 +94,6 @@ Managed with sops-nix + age. Edit secrets with `sops <file>`.
 - **Adding a host key:** `ssh-to-age < /etc/ssh/ssh_host_ed25519_key.pub` → add result to `.sops.yaml`
 - **.sops.yaml:** repo root, defines key groups per path regex
 - **Initrd Secrets:** `boot.initrd.secrets` MUST only point to sops-managed paths (e.g., `config.sops.secrets.X.path`). This is enforced by an invariant check.
-- **vm host:** has its own SSH host key in `hosts/vm/secrets/` — injected during `create`/`reinstall`
 
 ---
 
@@ -124,7 +107,7 @@ homeserver implementation plan.
 
 ## Security Preferences
 
-- **Broad passwordless sudo is for VMs/dev machines and `machine-common` hosts only.**
+- **Broad passwordless sudo is for dev machines and `machine-common` hosts only.**
 - **Scoped passwordless sudo on `main` is limited to `agentMaintenanceCommands`** for interactive maintenance; keep the allowlist narrow and command-specific.
 - **Interactive access should rely on SSH keys.** Host user password hashes are still managed through sops where declared for login/recovery compatibility.
 - **Scope secrets appropriately.** Each host should only be able to decrypt
@@ -139,4 +122,4 @@ homeserver implementation plan.
 - Prefer home-manager for user-level config over system-level
 - Keep things declarative — avoid imperative workarounds
 - Flag anything that might cause issues on rebuild
-- Validate only what you changed: if VM config changed build `vm-ci`, if `main` changed build `main-ci`, if `homeserver-gcp` changed build its closure, if shared profiles changed build all affected hosts
+- Validate only what you changed: if `main` changed build `main-ci`, if `homeserver-gcp` changed build its closure, if shared profiles changed build all affected hosts

@@ -204,24 +204,6 @@ in
       ++ registryAssertionsFor "main"
     ) allNixosConfigs.main.config;
 
-    invariants-vm = invariants.mkInvariantCheck "vm" (
-      [
-        {
-          name = "has stateVersion";
-          check = cfg: require (cfg.system.stateVersion != null) "system.stateVersion must be set";
-        }
-        {
-          name = "passwordless sudo enabled";
-          check =
-            cfg:
-            require (!cfg.security.sudo.wheelNeedsPassword) "security.sudo.wheelNeedsPassword must be false";
-        }
-        sshFail2banHardened
-        obsClientUsesCanonicalUsername
-      ]
-      ++ registryAssertionsFor "vm"
-    ) allNixosConfigs.vm.config;
-
     invariants-homeserver-gcp = invariants.mkInvariantCheck "homeserver-gcp" (
       [
         {
@@ -311,9 +293,6 @@ in
     };
 
   ciTestsFor = system: {
-    vm-smoke = import ../tests/nixos/vm-smoke.nix {
-      inherit nixpkgs system inputs;
-    };
     homeserver-gcp-smoke = import ../tests/nixos/homeserver-gcp-smoke.nix {
       inherit nixpkgs system inputs;
     };

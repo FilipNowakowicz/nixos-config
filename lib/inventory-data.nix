@@ -94,13 +94,6 @@ let
                 && (backup.timerConfig.OnCalendar or null) == "daily";
             }
           ]
-        else if name == "vm" then
-          [
-            {
-              name = "passwordless sudo enabled";
-              check = c: !c.security.sudo.wheelNeedsPassword;
-            }
-          ]
         else if name == "homeserver-gcp" then
           [
             {

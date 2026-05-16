@@ -4,8 +4,6 @@
 #   system      — nixpkgs system string for this host (used for nixosSystem/deploy activation)
 #   status      — support lifecycle: "active", "inactive", or "legacy-supported"
 #   deploy      — presence generates a deploy-rs node; absence = local-only (main)
-#   sshPort     — VM-only; used to filter hosts for the VM script
-#   diskSize    — VM-only; used by nixos-anywhere and qemu-img
 #   tailnetFQDN — per-host Tailscale FQDN; passed via hostMeta specialArg to host configs
 #                 and used by the ACL generator for host-specific destinations when needed
 #   tailscale   — Tailscale metadata; presence means host is on the tailnet
@@ -24,8 +22,6 @@ let
     "system"
     "status"
     "deploy"
-    "sshPort"
-    "diskSize"
     "tailnetFQDN"
     "tailscale"
     "homeManager"
@@ -83,12 +79,6 @@ let
           !p "deploy"
           || (builtins.isAttrs cfg.deploy && cfg.deploy ? sshUser && builtins.isString cfg.deploy.sshUser)
         ) "${name}.deploy.sshUser: must be a string")
-        (ok (!p "sshPort" || builtins.isInt cfg.sshPort)
-          "${name}.sshPort: must be an int, got ${builtins.typeOf (cfg.sshPort or null)}"
-        )
-        (ok (!p "diskSize" || builtins.isString cfg.diskSize)
-          "${name}.diskSize: must be a string, got ${builtins.typeOf (cfg.diskSize or null)}"
-        )
         (ok (
           !p "tailnetFQDN" || builtins.isString cfg.tailnetFQDN
         ) "${name}.tailnetFQDN: must be a string, got ${builtins.typeOf (cfg.tailnetFQDN or null)}")
@@ -179,20 +169,6 @@ let
       };
       tailscale.tag = "workstation";
       backup.class = "standard";
-    };
-
-    vm = {
-      system = "x86_64-linux";
-      status = "legacy-supported";
-      homeManager = {
-        role = "desktop";
-        profiles = [ "desktop" ];
-        enableSpotify = false;
-        packs = [ "coding" ];
-      };
-      sshPort = 2222;
-      diskSize = "40G";
-      deploy.sshUser = "user";
     };
 
     homeserver-gcp = {

@@ -96,10 +96,6 @@ let
       ];
     };
 
-    vm-ci = mkNixos "vm" {
-      skipHeavyPackages = true;
-    };
-
     homeserver-gcp = mkNixos "homeserver-gcp" {
       extraModules = [
         (
@@ -126,10 +122,9 @@ let
     };
   };
 
-  vmRegistry = lib.filterAttrs (_: cfg: cfg ? sshPort && cfg ? diskSize) hostRegistry;
 in
 {
-  inherit allNixosConfigs ciNixosConfigs vmRegistry;
+  inherit allNixosConfigs ciNixosConfigs;
 
   homeConfigurations = {
     user = home-manager.lib.homeManagerConfiguration {

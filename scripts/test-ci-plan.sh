@@ -56,13 +56,11 @@ assert_contains "$desktop_output" "run_lint=true"
 assert_contains "$desktop_output" "run_light=true"
 assert_contains "$desktop_output" "hosts=true"
 assert_contains "$desktop_output" '{"name":"main-ci"}'
-assert_contains "$desktop_output" '{"name":"vm-ci"}'
 assert_contains "$desktop_output" "run_packages=false"
 
 main_output="$(run_plan $'hosts/main/default.nix')"
 assert_contains "$main_output" "closure_main=true"
 assert_contains "$main_output" '{"name":"main-ci"}'
-assert_not_contains "$main_output" '{"name":"vm-ci"}'
 
 server_output="$(run_plan $'modules/nixos/profiles/observability/backends.nix')"
 assert_contains "$server_output" "tests=true"
@@ -72,7 +70,6 @@ assert_contains "$server_output" '{"name":"homeserver-gcp-smoke","command":"smok
 homeserver_output="$(run_plan $'hosts/homeserver-gcp/default.nix')"
 assert_contains "$homeserver_output" "tests=true"
 assert_contains "$homeserver_output" '{"name":"homeserver-gcp-smoke","command":"smoke-homeserver-gcp","target":""}'
-assert_not_contains "$homeserver_output" '{"name":"vm-smoke"'
 
 package_output="$(run_plan $'packages/inventory-data.nix')"
 assert_contains "$package_output" "run_packages=true"
@@ -95,7 +92,7 @@ assert_contains "$unknown_home_output" '{"name":"main-ci"}'
 unknown_module_output="$(run_plan $'modules/nixos/profiles/unknown.nix')"
 assert_contains "$unknown_module_output" "run_packages=true"
 assert_contains "$unknown_module_output" "tests=true"
-assert_contains "$unknown_module_output" '{"name":"vm-ci"}'
+assert_contains "$unknown_module_output" '{"name":"main-ci"}'
 
 closure_output="$(run_plan $'scripts/closure-diff.sh')"
 assert_contains "$closure_output" "closure=true"
