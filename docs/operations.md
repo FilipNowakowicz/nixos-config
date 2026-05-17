@@ -149,6 +149,33 @@ Rules of thumb:
 - Docs changes: run `bash scripts/validate.sh docs`; CI runs this even for docs-only PRs.
 - NixOS test changes: run the relevant smoke/profile test if KVM is available.
 
+## Ad Hoc Nix Commands
+
+Interactive `nix` commands resolve `nixpkgs` through this flake's pinned input
+on NixOS hosts from this repo.
+
+That means commands such as these should use the same package set as the active
+system configuration, rather than an ambient machine-specific registry entry:
+
+```bash
+nix run nixpkgs#hello
+nix shell nixpkgs#ripgrep
+```
+
+Legacy `<nixpkgs>` lookups are also pointed at `flake:nixpkgs` via
+`nix.nixPath`, so both flake-style and older shell workflows stay aligned.
+
+On interactive workstation shells, the default command-not-found hook is
+replaced with `nix-index`, and `comma` is available for one-off commands:
+
+```bash
+, rg pattern .
+, fd flake
+```
+
+Use `comma` for temporary tools you do not want to add to the permanent package
+set.
+
 ## Desktop Apps
 
 The control center is now built from the repo-local package at

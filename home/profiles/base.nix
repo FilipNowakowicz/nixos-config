@@ -155,6 +155,53 @@
 
       # Accept autosuggestion with Ctrl+Space
       (( ''${+widgets[autosuggest-accept]} )) && bindkey '^ ' autosuggest-accept
+
+      command_not_found_handle() {
+        emulate -L zsh
+
+        local cmd="$1"
+        local attrs
+        attrs=("''${(@f)$(/run/current-system/sw/bin/nix-locate --minimal --no-group --type x --type s --whole-name --at-root "/bin/$cmd" 2>/dev/null)}")
+
+        if (( $#attrs == 0 )); then
+          print -u2 -- "$cmd: command not found"
+          return 127
+        fi
+
+        if (( $#attrs == 1 )); then
+          print -u2 -- "The program '$cmd' is currently not installed."
+          print -u2 -- "Run it once with:"
+          print -u2 -- "  , $cmd ..."
+          print -u2 -- ""
+          print -u2 -- "Or with an explicit flake package:"
+          print -u2 -- "  nix shell nixpkgs#''${attrs[1]} -c $cmd ..."
+          print -u2 -- ""
+          print -u2 -- "To install it permanently:"
+          print -u2 -- "  nix profile install nixpkgs#''${attrs[1]}"
+          return 127
+        fi
+
+        print -u2 -- "The program '$cmd' is currently not installed."
+        print -u2 -- "Run it once with:"
+        print -u2 -- "  , $cmd ..."
+        print -u2 -- ""
+        print -u2 -- "Or choose a specific package:"
+        local attr
+        for attr in $attrs; do
+          print -u2 -- "  nix shell nixpkgs#$attr -c $cmd ..."
+        done
+        print -u2 -- ""
+        print -u2 -- "To install one permanently:"
+        for attr in $attrs; do
+          print -u2 -- "  nix profile install nixpkgs#$attr"
+        done
+        return 127
+      }
+
+      command_not_found_handler() {
+        command_not_found_handle "$@"
+      }
+
       # Starship init
       eval "$(starship init zsh)"
     '';

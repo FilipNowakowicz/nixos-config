@@ -1,8 +1,15 @@
 { pkgs, ... }:
 {
   # ── Compositor & Wayland ───────────────────────────────────────────────
-  programs.hyprland.enable = true;
-  programs.dconf.enable = true;
+  programs = {
+    hyprland.enable = true;
+    dconf.enable = true;
+    command-not-found.enable = false;
+    nix-index = {
+      enable = true;
+      enableZshIntegration = true;
+    };
+  };
 
   # swayosd-server needs /dev/input access for its libinput backend
   users.users.user.extraGroups = [ "input" ];

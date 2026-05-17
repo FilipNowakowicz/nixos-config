@@ -1,4 +1,9 @@
-{ lib, pkgs, ... }:
+{
+  inputs,
+  lib,
+  pkgs,
+  ...
+}:
 {
   zramSwap.enable = true;
 
@@ -9,6 +14,11 @@
   # ── Nix ────────────────────────────────────────────────────────────────────
   nixpkgs.config.allowUnfree = true;
   nix = {
+    registry.nixpkgs.flake = inputs.nixpkgs;
+
+    # Keep legacy nixpkgs lookups aligned with the flake-pinned registry entry.
+    nixPath = [ "nixpkgs=flake:nixpkgs" ];
+
     settings.experimental-features = [
       "nix-command"
       "flakes"

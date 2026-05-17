@@ -90,6 +90,7 @@ in
   imports = [
     inputs.disko.nixosModules.disko
     inputs.lanzaboote.nixosModules.lanzaboote
+    inputs.nix-index-database.nixosModules.default
     ./dashboard.nix
     ./disko.nix
     ./impermanence.nix
@@ -139,6 +140,8 @@ in
       "nix-cache-1:eEcFiWPHQpJmlcnNeGoPg6xxOp3itNZiWwFaE+NebIk="
     ];
   };
+
+  programs.nix-index-database.comma.enable = true;
 
   environment.systemPackages = with pkgs; [
     efibootmgr

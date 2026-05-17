@@ -32,6 +32,48 @@ let
 
   registryAssertionsFor = hostName: invariants.mkRegistryAssertions hostName hostRegistry.${hostName};
 
+  nixpkgsRegistryPinnedToFlakeInput = {
+    name = "nixpkgs registry is pinned to the flake input";
+    check =
+      cfg:
+      let
+        expected = builtins.toString inputs.nixpkgs;
+        registry = cfg.nix.registry.nixpkgs or { };
+        actual = builtins.toString (registry.flake or "");
+        actualTarget = builtins.toString (registry.to.path or "");
+        violations = lib.filter (msg: msg != "") [
+          (lib.optionalString (
+            actual != expected
+          ) "nix.registry.nixpkgs.flake must point at the flake input (${expected}), got ${actual}")
+          (lib.optionalString (
+            actualTarget != expected
+          ) "nix.registry.nixpkgs.to.path must resolve to the flake input (${expected}), got ${actualTarget}")
+          (lib.optionalString (
+            (cfg.nix.nixPath or [ ]) != [ "nixpkgs=flake:nixpkgs" ]
+          ) "nix.nixPath must be [ \"nixpkgs=flake:nixpkgs\" ]")
+        ];
+      in
+      mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
+  };
+
+  mainInteractiveShellUsesNixIndexAndComma = {
+    name = "main interactive shell uses nix-index and comma";
+    check =
+      cfg:
+      let
+        violations = lib.filter (msg: msg != "") [
+          (lib.optionalString cfg.programs.command-not-found.enable "programs.command-not-found.enable must be false")
+          (lib.optionalString (
+            !(cfg.programs.nix-index.enable or false)
+          ) "programs.nix-index.enable must be true")
+          (lib.optionalString (
+            !(cfg.programs.nix-index-database.comma.enable or false)
+          ) "programs.nix-index-database.comma.enable must be true")
+        ];
+      in
+      mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
+  };
+
   sshFail2banHardened = {
     name = "SSH hosts enforce hardened fail2ban";
     check =
@@ -195,6 +237,8 @@ in
               invalid == [ ]
             ) "boot.initrd.secrets must point to /run/secrets/*, got: ${lib.concatStringsSep ", " invalid}";
         }
+        nixpkgsRegistryPinnedToFlakeInput
+        mainInteractiveShellUsesNixIndexAndComma
         sshFail2banHardened
         obsClientUsesCanonicalUsername
         mainSshIsTailnetOnly
@@ -254,6 +298,7 @@ in
               cfg.sops.age.sshKeyPaths != [ ]
             ) "sops.age.sshKeyPaths must contain at least one SSH host key path";
         }
+        nixpkgsRegistryPinnedToFlakeInput
         sshFail2banHardened
         homeserverGcpB2BackupUsesCriticalPolicy
       ]
