@@ -12,7 +12,8 @@ in
 
     remoteEndpoint.host = lib.mkOption {
       type = lib.types.str;
-      description = "Base hostname for the observability ingest stack (Tailscale FQDN)";
+      description = "Tailscale FQDN of the host running the observability ingest stack. Used to construct remote write, log push, and trace export URLs under /obs/*.";
+      example = "homeserver-gcp.example.ts.net";
     };
 
     ingestAuth.username = lib.mkOption {

@@ -59,7 +59,8 @@ in
       remoteWriteURL = lib.mkOption {
         type = with lib.types; nullOr str;
         default = null;
-        description = "Remote write URL for Prometheus metrics";
+        description = "Prometheus remote write endpoint. When null and mimir.enable is true, writes to the local Mimir instance instead.";
+        example = "https://homeserver-gcp.example.ts.net/obs/mimir/api/v1/push";
       };
     };
 
@@ -87,7 +88,8 @@ in
       exportURL = lib.mkOption {
         type = with lib.types; nullOr str;
         default = null;
-        description = "Remote OTLP HTTP endpoint for trace export";
+        description = "Remote OTLP/HTTP endpoint for trace export. When null, traces are forwarded to the local Tempo instance instead.";
+        example = "https://homeserver-gcp.example.ts.net/obs/otlp/v1/traces";
       };
     };
   };

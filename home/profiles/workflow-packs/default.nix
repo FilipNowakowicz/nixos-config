@@ -8,9 +8,9 @@
   ];
 
   options.workflowPacks = {
-    browsing.enable = lib.mkEnableOption "browser workflow pack";
-    coding.enable = lib.mkEnableOption "coding workflow pack";
-    latex.enable = lib.mkEnableOption "LaTeX workflow pack";
-    learning.enable = lib.mkEnableOption "learning workflow pack";
+    browsing.enable = lib.mkEnableOption "browser workflow pack (Chromium)";
+    coding.enable = lib.mkEnableOption "coding workflow pack (VS Code)";
+    latex.enable = lib.mkEnableOption "LaTeX workflow pack (TeX Live, latexmk, PDF viewer)";
+    learning.enable = lib.mkEnableOption "learning workflow pack (Anki flashcard app)";
   };
 }

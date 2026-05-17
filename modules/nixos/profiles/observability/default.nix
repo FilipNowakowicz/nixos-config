@@ -28,12 +28,14 @@ in
       adminPasswordFile = lib.mkOption {
         type = with lib.types; nullOr path;
         default = null;
-        description = "File containing the Grafana admin password";
+        description = "Path to a file containing the Grafana admin password. Loaded via the Grafana \$__file{} directive.";
+        example = lib.literalExpression "config.sops.secrets.grafana_admin_password.path";
       };
       secretKeyFile = lib.mkOption {
         type = with lib.types; nullOr path;
         default = null;
-        description = "File containing the Grafana secret key for signing cookies/tokens";
+        description = "Path to a file containing the Grafana secret key used for signing cookies and session tokens.";
+        example = lib.literalExpression "config.sops.secrets.grafana_secret_key.path";
       };
     };
 
@@ -41,22 +43,26 @@ in
       username = lib.mkOption {
         type = with lib.types; nullOr str;
         default = null;
-        description = "Username for authenticated ingest";
+        description = "Username for HTTP Basic Auth when pushing metrics, logs, or traces to a remote ingest endpoint.";
+        example = "telemetry";
       };
       passwordFile = lib.mkOption {
         type = with lib.types; nullOr path;
         default = null;
-        description = "Password file for authenticated ingest";
+        description = "Path to a file containing the ingest password. Read directly by Prometheus for remote write; mounted as a group-readable secret for Alloy and the OTel collector.";
+        example = lib.literalExpression "config.sops.secrets.ingest_password.path";
       };
       group = lib.mkOption {
         type = with lib.types; nullOr str;
         default = null;
-        description = "Supplementary group allowed to read authenticated ingest credentials.";
+        description = "Supplementary group granted read access to the ingest password secret. Prometheus, Alloy, and the OTel collector services are added to this group automatically.";
+        example = "telemetry-ingest";
       };
       serviceEnvironmentFile = lib.mkOption {
         type = with lib.types; nullOr path;
         default = null;
-        description = "Path to an env file containing BASICAUTH_PASSWORD for the OTel collector.";
+        description = "Path to an environment file for the OTel collector service. Must contain BASICAUTH_PASSWORD=<secret>. Required when authenticated remote trace export is enabled.";
+        example = lib.literalExpression "config.sops.templates.\"otel-env\".path";
       };
     };
   };

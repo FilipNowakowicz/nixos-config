@@ -98,42 +98,47 @@ in
     package = lib.mkOption {
       type = lib.types.package;
       default = pkgs.neovim-unwrapped;
+      defaultText = lib.literalExpression "pkgs.neovim-unwrapped";
       description = "Neovim package to install.";
     };
 
-    cheatsheet.enable = lib.mkEnableOption "install the Neovim cheatsheet" // {
+    cheatsheet.enable = lib.mkEnableOption "CHEATSHEET.md generated in the nvim config directory" // {
       default = true;
     };
 
-    projectDetection.enable = lib.mkEnableOption "project-local Neovim detection" // {
-      default = true;
-    };
+    projectDetection.enable =
+      lib.mkEnableOption "per-project config detection via root markers (configures LSP roots)"
+      // {
+        default = true;
+      };
 
     languages = {
-      nix.enable = lib.mkEnableOption "Nix editor tooling" // {
+      nix.enable = lib.mkEnableOption "Nix editor tooling (nixd LSP, nixfmt formatter)" // {
         default = true;
       };
 
       python = {
-        enable = lib.mkEnableOption "Python editor tooling" // {
-          default = true;
-        };
+        enable =
+          lib.mkEnableOption "Python editor tooling (basedpyright LSP, ruff formatter, neotest, DAP)"
+          // {
+            default = true;
+          };
 
         testRunner = lib.mkOption {
           type = lib.types.enum [ "pytest" ];
           default = "pytest";
-          description = "Python test runner for neotest.";
+          description = "Python test runner adapter for neotest.";
         };
 
-        dap = lib.mkEnableOption "Python DAP profiles" // {
+        dap = lib.mkEnableOption "Python DAP debug adapter profiles (debugpy)" // {
           default = true;
         };
       };
 
       tex = {
-        enable = lib.mkEnableOption "LaTeX editor tooling";
+        enable = lib.mkEnableOption "LaTeX editor tooling (texlab LSP, latexmk build)";
 
-        grammar = lib.mkEnableOption "LTeX grammar tooling";
+        grammar = lib.mkEnableOption "LTeX grammar and spell checking (slower; catches prose issues in .tex files)";
       };
     };
   };

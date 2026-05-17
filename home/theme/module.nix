@@ -184,12 +184,17 @@ in
     active = lib.mkOption {
       type = lib.types.str;
       default = "mono-mesh";
-      description = "The active theme name";
+      description = ''
+        Name of the active theme. Must match a .nix filename under home/theme/themes/
+        (without the .nix extension). Theme assets are symlinked into XDG config
+        paths for Kitty, Hyprland, Waybar, and Mako on every rebuild.
+      '';
+      example = "mono-mesh";
     };
     _activeThemeColors = lib.mkOption {
       type = lib.types.attrs;
       internal = true;
-      description = "Active theme colors (internal)";
+      description = "Color palette of the active theme, exposed for other modules to consume (e.g. generated configs).";
     };
   };
 

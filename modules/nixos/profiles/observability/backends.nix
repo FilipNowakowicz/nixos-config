@@ -8,9 +8,9 @@ let
 in
 {
   options.profiles.observability = {
-    loki.enable = lib.mkEnableOption "Loki";
-    tempo.enable = lib.mkEnableOption "Tempo";
-    mimir.enable = lib.mkEnableOption "Mimir";
+    loki.enable = lib.mkEnableOption "Loki log aggregation backend (stores logs shipped by Alloy)";
+    tempo.enable = lib.mkEnableOption "Tempo distributed tracing backend (receives OTLP traces from collectors)";
+    mimir.enable = lib.mkEnableOption "Mimir long-term metrics storage backend (Prometheus remote write target)";
   };
 
   config = lib.mkIf cfg.enable {

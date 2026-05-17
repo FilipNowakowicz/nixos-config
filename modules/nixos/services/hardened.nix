@@ -45,6 +45,10 @@ let
           Baseline hardening keys to omit entirely for this service, leaving the
           upstream unit or systemd default in place.
         '';
+        example = [
+          "MemoryDenyWriteExecute"
+          "RestrictNamespaces"
+        ];
       };
 
       extraConfig = lib.mkOption {
@@ -54,6 +58,12 @@ let
           Additional serviceConfig options merged on top of the baseline.
           Use relaxBase when a baseline key should be omitted instead of
           overridden.
+        '';
+        example = lib.literalExpression ''
+          {
+            BindReadOnlyPaths = [ "/etc/ssl/certs" ];
+            AmbientCapabilities = "CAP_NET_BIND_SERVICE";
+          }
         '';
       };
     };
@@ -69,6 +79,14 @@ in
       Apply a security hardening baseline to the named systemd services.
       Each entry merges the base sandbox options with per-service extraConfig
       and optional relaxBase omissions.
+    '';
+    example = lib.literalExpression ''
+      {
+        nginx = {
+          relaxBase = [ "MemoryDenyWriteExecute" ];
+          extraConfig.AmbientCapabilities = "CAP_NET_BIND_SERVICE";
+        };
+      }
     '';
   };
 
