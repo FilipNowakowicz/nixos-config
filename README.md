@@ -79,6 +79,7 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 - **Bootloader**: [Lanzaboote](https://github.com/nix-community/lanzaboote) manages Secure Boot, signing a unified kernel image.
 - **Disk Encryption**: LUKS encrypts the Btrfs root disk.
 - **Btrfs Layout**: `disko` creates `@root`, `@home`, `@nix`, and `@persist`; `/nix` and `/persist` are marked `neededForBoot`.
+- **Compression & Local Snapshots**: the primary Btrfs subvolumes mount with `compress=zstd`, and `btrbk-local.timer` keeps daily local snapshots of `@home` and `@persist` for same-disk recovery.
 - **Ephemeral Root**: initrd systemd rolls `@root` back to the empty `@root-blank` snapshot on every boot, moves the previous root to top-level `old_roots/`, and keeps old roots for 30 days.
 - **Persistent State**: impermanence bind mounts machine identity, SSH host keys, service state, Wi-Fi profiles, Mullvad, Tailscale, Bluetooth, USBGuard, Secure Boot PKI, logs, and NixOS state from `/persist`.
 - **Filesystem Maintenance**: Btrfs scrub is enabled monthly for `/`; fstrim runs via the standard timer.
@@ -102,7 +103,8 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 - **Packaged Control Center**: The desktop control center now lives in `packages/control-center` as a first-class flake package/app instead of a loose Home Manager script, so its GTK4 code and runtime wrapper are versioned together.
 - **USB Device Control**: USBGuard enabled on `main` with a strict deny-default policy and a curated allowlist for trusted internal/peripheral devices.
 - **Workstation Backups**: `main` backs up user-critical state and persisted service identity to Backblaze B2 with Restic, including Codex/Claude state, Wi-Fi profiles, Mullvad, Tailscale, Bluetooth, fingerprint, USBGuard, Secure Boot PKI, machine-id, and SSH host identity.
-- **Scoped Agent Maintenance Sudo**: `main` keeps normal `wheel` sudo passworded, but allows a narrow set of passwordless maintenance commands for interactive agent sessions: Restic start/status, boot cleanup, selected EFI entry deletion, Nix GC, and switching this flake path.
+- **Recovery Boundary**: local Btrfs snapshots are for short-term rollback on the same disk; Restic/B2 remains the off-site recovery path.
+- **Scoped Agent Maintenance Sudo**: `main` keeps normal `wheel` sudo passworded, but allows a narrow set of passwordless maintenance commands for interactive agent sessions: local snapshot start/status, Restic start/status, boot cleanup, selected EFI entry deletion, Nix GC, and switching this flake path.
 - **Tailscale ACLs as Nix**: Security rules and tag owners are generated declaratively from the host registry, providing a single source of truth for network access control.
 - **Generated Inventory Export**: `packages/inventory-data.nix` exports host inventory as JSON for the homepage site.
 - **Systemd Hardening**: A custom DSL (`services.hardened`) applies a high-security sandbox baseline to critical services (Vaultwarden, Nginx, Syncthing).

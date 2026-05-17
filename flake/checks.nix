@@ -172,6 +172,52 @@ let
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
 
+  mainBtrbkPolicyMatchesLocalSnapshotIntent = {
+    name = "main btrbk policy keeps local snapshots scoped and bounded";
+    check =
+      cfg:
+      let
+        instance = lib.attrByPath [ "services" "btrbk" "instances" "local" ] null cfg;
+        fs = cfg.fileSystems."/.btrfs-root" or null;
+        settings = if instance == null then { } else instance.settings or { };
+        volume = lib.attrByPath [ "volume" "/.btrfs-root" ] { } settings;
+        subvolumes = volume.subvolume or { };
+        expectedSubvolumes = [
+          "@home"
+          "@persist"
+        ];
+        actualSubvolumes = builtins.attrNames subvolumes;
+        subvolumeCheck = requirePaths actualSubvolumes expectedSubvolumes;
+        violations = lib.filter (msg: msg != "") [
+          (lib.optionalString (instance == null) "services.btrbk.instances.local must exist")
+          (lib.optionalString (
+            instance != null && !(instance.snapshotOnly or false)
+          ) "services.btrbk.instances.local.snapshotOnly must be true")
+          (lib.optionalString (
+            instance != null && (instance.onCalendar or null) != "daily"
+          ) "services.btrbk.instances.local.onCalendar must be \"daily\"")
+          (lib.optionalString (
+            instance != null && (settings.snapshot_preserve_min or null) != "2d"
+          ) "services.btrbk.instances.local.settings.snapshot_preserve_min must be \"2d\"")
+          (lib.optionalString (
+            instance != null && (settings.snapshot_preserve or null) != "14d"
+          ) "services.btrbk.instances.local.settings.snapshot_preserve must be \"14d\"")
+          (lib.optionalString (instance != null && (volume.snapshot_dir or null) != ".snapshots")
+            "services.btrbk.instances.local.settings.volume.\"/.btrfs-root\".snapshot_dir must be \".snapshots\""
+          )
+          (lib.optionalString (instance != null && !subvolumeCheck.passed) subvolumeCheck.message)
+          (lib.optionalString (fs == null) "fileSystems.\"/.btrfs-root\" must exist")
+          (lib.optionalString (
+            fs != null && (fs.fsType or null) != "btrfs"
+          ) "fileSystems.\"/.btrfs-root\" must be a btrfs mount")
+          (lib.optionalString (
+            fs != null && !builtins.elem "subvol=/" (fs.options or [ ])
+          ) "fileSystems.\"/.btrfs-root\" must mount the btrfs top-level with subvol=/")
+        ];
+      in
+      mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
+  };
+
   homeserverGcpB2BackupUsesCriticalPolicy = {
     name = "homeserver-gcp B2 backup uses critical policy";
     check =
@@ -237,6 +283,7 @@ let
   mainBackupInvariants = [
     mainLocalBackupProtectsCriticalPaths
     mainBackupPathsArePersisted
+    mainBtrbkPolicyMatchesLocalSnapshotIntent
   ];
 
   homeserverAccessInvariants = [

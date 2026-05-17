@@ -14,6 +14,9 @@ let
     "/run/current-system/sw/bin/systemctl status restic-backups-local.timer --no-pager"
     "/run/current-system/sw/bin/systemctl status restic-check-local.service --no-pager"
     "/run/current-system/sw/bin/systemctl status restic-check-local.timer --no-pager"
+    "/run/current-system/sw/bin/systemctl start btrbk-local.service"
+    "/run/current-system/sw/bin/systemctl status btrbk-local.service --no-pager"
+    "/run/current-system/sw/bin/systemctl status btrbk-local.timer --no-pager"
 
     # Clean stale boot entries and old system generations after rebuilds.
     "/run/current-system/sw/bin/bootctl status --no-pager"
@@ -167,6 +170,19 @@ in
 
   programs.nix-index-database.comma.enable = true;
 
+  # Hidden maintenance mount for the filesystem top-level. btrbk snapshots
+  # subvolumes by their real top-level names (`@home`, `@persist`) rather than
+  # via nested mount paths.
+  fileSystems."/.btrfs-root" = {
+    device = "/dev/disk/by-label/main-root";
+    fsType = "btrfs";
+    options = [
+      "subvol=/"
+      "noatime"
+      "discard=async"
+    ];
+  };
+
   environment.systemPackages = with pkgs; [
     efibootmgr
     nh
@@ -266,6 +282,21 @@ in
       enable = true;
       fileSystems = [ "/" ];
     };
+    btrbk.instances.local = {
+      onCalendar = "daily";
+      snapshotOnly = true;
+      settings = {
+        snapshot_preserve_min = "2d";
+        snapshot_preserve = "14d";
+        volume."/.btrfs-root" = {
+          snapshot_dir = ".snapshots";
+          subvolume = {
+            "@home" = { };
+            "@persist" = { };
+          };
+        };
+      };
+    };
 
     openssh = {
       enable = true;
@@ -307,6 +338,7 @@ in
       services = [
         # "prometheus"
         # "opentelemetry-collector"
+        "btrbk-local"
         "restic-backups-local"
         "restic-check-local"
         "thermald"

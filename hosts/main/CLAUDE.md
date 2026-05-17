@@ -12,13 +12,16 @@ nh os switch --hostname main .
 systemctl status rollback-root.service --no-pager
 systemctl list-timers --all --no-pager | rg 'restic|btrfs|fstrim|nix'
 journalctl -b -u rollback-root.service --no-pager
+sudo systemctl status btrbk-local.timer --no-pager
 ```
 
 ## Storage Model
 
 - **Disk layout**: `hosts/main/disko.nix` targets the stable NVMe by-id path and creates an ESP plus LUKS-encrypted Btrfs.
 - **Subvolumes**: `@root`, `@home`, `@nix`, and `@persist`.
+- **Compression**: all primary subvolumes mount with `compress=zstd`.
 - **Ephemeral root**: initrd systemd moves the current `@root` to top-level `old_roots/<timestamp>` and snapshots `@root-blank` back to `@root` on every boot.
+- **Local snapshots**: `btrbk-local.timer` snapshots `@home` and `@persist` daily via the hidden `/.btrfs-root` mount, keeping at least 2 days and pruning after 14 days.
 - **Persistent mounts**: `hosts/main/impermanence.nix` and `modules/nixos/profiles/impermanence-base.nix` bind state from `/persist`.
 - **Boot-critical mounts**: `/nix` and `/persist` are `neededForBoot`; do not remove this without proving stage 1 still reaches stage 2.
 
@@ -113,14 +116,18 @@ Important covered state:
 Manual verification:
 
 ```bash
+sudo systemctl start btrbk-local.service
+sudo systemctl status btrbk-local.timer --no-pager
+sudo btrfs subvolume list /.btrfs-root | rg '\.snapshots'
 sudo systemctl start restic-backups-local.service
 sudo systemctl start restic-check-local.service
 journalctl -u restic-backups-local.service -n 120 --no-pager
 journalctl -u restic-check-local.service -n 120 --no-pager
 ```
 
-The `main` host has scoped passwordless sudo for these Restic start/status
-commands so an interactive agent can run them after the rule is deployed.
+The `main` host has scoped passwordless sudo for these snapshot and Restic
+start/status commands so an interactive agent can run them after the rule is
+deployed.
 
 ## Scoped Agent Maintenance Sudo
 
@@ -129,6 +136,7 @@ a narrow `agentMaintenanceCommands` allowlist for `user` with `NOPASSWD`.
 
 Allowed categories:
 
+- start/status for `btrbk-local`;
 - start/status for `restic-backups-local` and `restic-check-local`;
 - `bootctl status --no-pager` and `bootctl cleanup`;
 - `efibootmgr -b XXXX -B` for explicit EFI entry deletion;

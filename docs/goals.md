@@ -38,136 +38,17 @@ Defer goals that:
 
 | Order | Goal                                         | Priority | Difficulty | Status  |
 | :---- | :------------------------------------------- | :------- | :--------- | :------ |
-| 1     | Impermanence VM integration tests            | P0       | Hard       | Planned |
-| 2     | Btrfs compression and local snapshots        | P1       | Medium     | Planned |
-| 3     | Systemd hardening tiers                      | P1       | Medium     | Planned |
-| 4     | Backup restore drill automation              | P1       | Medium     | Planned |
-| 5     | Structured Nix tests                         | P1       | Medium     | Planned |
-| 6     | Blackbox probes for externally visible paths | P1       | Medium     | Planned |
-| 7     | Audit logs in Loki                           | P2       | Medium     | Planned |
-| 8     | Drift detection                              | P2       | Medium     | Planned |
-| 9     | Home Manager user secrets                    | P2       | Medium     | Planned |
-| 10    | NixOS specialisations                        | P2       | Easy       | Planned |
-| 11    | Profile defaults and override hygiene        | P2       | Medium     | Planned |
+| 1     | Structured Nix tests                         | P1       | Medium     | Planned |
+| 2     | Blackbox probes for externally visible paths | P1       | Medium     | Planned |
+| 3     | Audit logs in Loki                           | P2       | Medium     | Planned |
+| 4     | Drift detection                              | P2       | Medium     | Planned |
+| 5     | Home Manager user secrets                    | P2       | Medium     | Planned |
+| 6     | NixOS specialisations                        | P2       | Easy       | Planned |
+| 7     | Profile defaults and override hygiene        | P2       | Medium     | Planned |
 
 ## Goal Details
 
-### 1. Impermanence VM Integration Tests
-
-`main` depends heavily on impermanent root behavior, but current coverage does
-not boot a VM, simulate a reboot, and verify the persistence contract. This is
-the highest-value missing regression test because a mistake here can either lose
-state that should persist or preserve state that should be disposable.
-
-Implementation:
-
-- Add a NixOS VM test for the `main` impermanence model or a reduced test host
-  that uses the same rollback-root and persistence modules.
-- Create canary files in disposable root paths and persistent paths.
-- Reboot the VM and assert that disposable state is gone while `/persist`
-  backed state remains.
-- Include at least one negative case for a path that should not be persisted.
-
-Acceptance:
-
-- `nix flake check` or a documented check target can run the VM test on a KVM
-  capable machine.
-- The test fails if rollback-root stops running or if expected persisted paths
-  are not mounted.
-- The test is documented in `docs/operations.md` or near the existing validation
-  command list.
-
-Critique:
-
-- This is more valuable than adding new features because it protects the most
-  unusual part of the workstation design.
-- Keep the first version narrow. Do not try to test the entire real hardware
-  configuration in a VM.
-
-### 2. Btrfs Compression and Local Snapshots
-
-`main` already uses Btrfs subvolumes and off-site Restic backups. Transparent
-compression and local snapshots would improve storage efficiency and short-term
-recovery without changing the off-site backup model.
-
-Implementation:
-
-- Enable conservative `zstd` compression mount options for suitable Btrfs
-  subvolumes such as `@nix` and `@home`.
-- Add `btrbk` or an equivalent Btrfs-native snapshot policy for local recovery
-  points.
-- Keep Restic as the off-site disaster recovery path.
-- Document retention and cleanup behavior so local snapshots do not silently
-  consume unbounded disk space.
-
-Acceptance:
-
-- Compression is enabled for selected subvolumes after rebuild.
-- Local snapshots are created and pruned on a documented schedule.
-- Restore expectations clearly distinguish local snapshots from Restic backups.
-
-Critique:
-
-- Compression is low risk and should be done before broader snapshot policy.
-- Local snapshots are valuable, but they are not backups. The docs must keep
-  that boundary explicit.
-
-### 3. Systemd Hardening Tiers
-
-The repo already has `services.hardened`, but service sandboxing is still partly
-ad hoc. A small set of typed hardening tiers would make service policy easier to
-review and reduce copy-pasted systemd security settings.
-
-Implementation:
-
-- Define a small number of tiers, such as network-facing, local-only, and
-  filesystem-minimal.
-- Encode common settings like `ProtectHome`, `ProtectSystem`,
-  `RestrictAddressFamilies`, `PrivateTmp`, `DynamicUser`, and system call
-  filtering where appropriate.
-- Allow explicit per-service relaxations with comments near the service.
-- Add tests for at least one strict tier and one relaxation path.
-
-Acceptance:
-
-- Critical services use named tiers rather than unrelated hand-written
-  hardening fragments.
-- Relaxations are visible in review and justified near the service definition.
-- Existing service behavior remains covered by smoke or NixOS tests.
-
-Critique:
-
-- This goal fits the repository because it extends an existing DSL pattern.
-- Do not make the tier system too clever. Security-sensitive exceptions should
-  stay obvious, not hidden behind deep abstraction.
-
-### 4. Backup Restore Drill Automation
-
-Backups are only trustworthy if restores are tested. The repository has Restic
-configuration and restore documentation, but the next step is an automated,
-low-risk drill that verifies a small canary restore path.
-
-Implementation:
-
-- Add a systemd timer, CI job, or documented local command that restores a small
-  canary file to a temporary directory.
-- Verify file contents, permissions where relevant, and exit status.
-- Emit logs or alerts on failure.
-- Keep the drill read-only with respect to live service state.
-
-Acceptance:
-
-- A failed restore check is visible to the operator.
-- The drill can run repeatedly without overwriting live data.
-- `docs/restore-drill.md` describes the automated path and manual fallback.
-
-Critique:
-
-- This is operationally more important than adding more backup destinations.
-- Start with one canary restore before attempting full service restore
-  automation.
-
-### 5. Structured Nix Tests
+### 1. Structured Nix Tests
 
 Some current library tests are file-diff or golden-output based. Structured
 tests with a tool such as `nix-unit` would make failures clearer and reduce
@@ -192,7 +73,7 @@ Critique:
 - This is useful, but less urgent than impermanence VM coverage because the
   blast radius is smaller.
 
-### 6. Blackbox Probes for Externally Visible Paths
+### 2. Blackbox Probes for Externally Visible Paths
 
 The observability stack covers internal metrics and logs, but it should also
 answer whether user-facing endpoints are reachable from the expected network
@@ -218,7 +99,7 @@ Critique:
 - This fits because it validates the externally observable behavior of services.
 - Avoid probing every route. Cover representative service and auth boundaries.
 
-### 7. Audit Logs in Loki
+### 3. Audit Logs in Loki
 
 Security-relevant host events should be searchable alongside other operational
 logs. Good initial targets are sudo activity, SSH sessions, selected sops
@@ -243,7 +124,7 @@ Critique:
 - Scope narrowly around events that would actually be reviewed after an
   incident.
 
-### 8. Drift Detection
+### 4. Drift Detection
 
 Declarative infrastructure loses value when live state silently diverges from
 the registry. The repository already checks Tailscale ACL drift; a small
@@ -268,7 +149,7 @@ Critique:
 - This fits the single-source-of-truth model.
 - Keep it narrow. Broad host auditing can become noisy and hard to trust.
 
-### 9. Home Manager User Secrets
+### 5. Home Manager User Secrets
 
 Some user-scoped credentials are better owned by user services than by global
 system secrets or ad hoc dotfiles. `sops-nix` can write secrets with a specific
@@ -293,7 +174,7 @@ Critique:
 - This is valuable if there are real user secrets to manage.
 - Do not migrate placeholder or rarely used credentials just for consistency.
 
-### 10. NixOS Specialisations
+### 6. NixOS Specialisations
 
 NixOS specialisations can provide boot-selectable variants for recovery or
 debugging without permanently weakening the default configuration.
@@ -317,7 +198,7 @@ Critique:
 - Useful, but optional. Add this only for a real recovery workflow, not because
   the feature exists.
 
-### 11. Profile Defaults and Override Hygiene
+### 7. Profile Defaults and Override Hygiene
 
 Base profiles currently use many direct assignments. Using `mkDefault` in the
 right places would make host overrides cleaner and reduce future `mkForce`

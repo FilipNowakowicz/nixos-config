@@ -40,6 +40,29 @@ systemctl list-timers --all --no-pager | rg 'restic|btrfs|fstrim|nix'
 systemctl --failed --no-pager
 ```
 
+`main` mounts its primary Btrfs subvolumes with `compress=zstd`; verify that in
+the `findmnt` output for `/`, `/home`, `/nix`, and `/persist`. A hidden
+maintenance mount at `/.btrfs-root` exposes the filesystem top-level so
+`btrbk-local` can snapshot `@home` and `@persist` directly.
+
+`btrbk-local.timer` runs daily, keeps at least 2 days of snapshots, and prunes
+anything older than 14 days. These snapshots are for short-term same-disk
+recovery only; Restic/B2 remains the off-site disaster recovery path.
+
+Force or inspect the local snapshot job after storage changes:
+
+```bash
+sudo systemctl start btrbk-local.service
+sudo systemctl status btrbk-local.service --no-pager
+sudo systemctl status btrbk-local.timer --no-pager
+sudo btrfs subvolume list /.btrfs-root | rg '\.snapshots'
+```
+
+Restore from a local snapshot by mounting or copying from the relevant
+read-only snapshot under `/.btrfs-root/.snapshots/<subvolume>/`. Prefer local
+snapshots for accidental recent edits on the same disk; prefer Restic/B2 for
+disk-loss, host-loss, or older point-in-time recovery.
+
 Force the first backup/check after changing backup coverage:
 
 ```bash
