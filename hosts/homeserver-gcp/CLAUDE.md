@@ -3,7 +3,7 @@
 GCP-hosted headless server. Runs Vaultwarden, LGTM stack, Tailscale, and Nginx.
 No LUKS or impermanence (GCP handles at-rest encryption; state persists on the GCE disk).
 
-Status: **active** — deployed on GCP, accessible via Tailscale.
+Status: **active** — deployed on GCP and accessible via Tailscale.
 
 ## Services
 

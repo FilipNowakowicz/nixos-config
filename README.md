@@ -8,7 +8,7 @@ The repository separates hardware, host identity, system profiles, and user conf
 ## Overview
 
 - **Reproducible & Declarative**: NixOS defines the entire system state, services, and hardware. Home Manager manages the user environment and dotfiles.
-- **Multi-Host Ready**: Built from reusable profiles for a primary workstation (`main`), a GCP homeserver (`homeserver-gcp`), and Home Manager profiles. The host registry defines the target architecture (`system`) per host; the current fleet is `x86_64-linux`.
+- **Multi-Host Ready**: Built from reusable profiles for a primary workstation (`main`), a deployable GCP homeserver (`homeserver-gcp`), and standalone Home Manager profiles. The host registry defines the target architecture (`system`) per host; the current fleet is `x86_64-linux`.
 - **Secrets Management**: Handled by [sops-nix](https://github.com/Mic92/sops-nix) with age encryption, with secrets decrypted at boot by the host itself.
 - **Impermanent Root**: `main` uses an ephemeral root filesystem with [impermanence](https://github.com/nix-community/impermanence). System state is reset on boot, with persistent data explicitly stored on `/persist`.
 - **Declarative Disks**: Disk layouts for real hosts are managed declaratively with [disko](https://github.com/nix-community/disko).
@@ -123,7 +123,9 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 ├── .sops.yaml                         # SOPS configuration for secret management
 ├── docs/
 │   ├── architecture.md                 # Structural rules and module boundaries
+│   ├── neovim.md                       # Neovim module layout and generated config contract
 │   ├── operations.md                   # Deployment and validation runbook
+│   ├── restore-drill.md                # Manual backup restore verification procedure
 │   ├── security.md                     # Secrets, exposure, and hardening model
 │   └── backlog.md                      # Deferred work
 ├── lib/
@@ -134,10 +136,9 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 │   ├── cve-checks.nix                 # CVE scanning check builders
 │   ├── pubkeys.nix                    # Standard SSH public keys
 │   ├── recovery-pubkeys.nix           # Initrd recovery-only SSH public keys
-│   ├── syncthing.nix                  # Shared Syncthing device/folder registry
 │   └── acl.nix                        # Declarative Tailscale ACL generator
 ├── packages/
-│   ├── control-center/                # Packaged GTK4 control center app and wrapper
+│   ├── control-center/                # Packaged GTK4 control center app, source, and wrapper
 │   └── inventory-data.nix             # Host inventory export as JSON
 ├── hosts/
 │   ├── main/                          # Primary workstation
@@ -146,7 +147,8 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 │   │   ├── disko.nix
 │   │   ├── impermanence.nix
 │   │   └── hardware-configuration.nix
-│   ├── homeserver-gcp/                # GCP homeserver (Vaultwarden, LGTM, Nginx)
+│   ├── homeserver-gcp/                # GCP homeserver (Vaultwarden, AdGuard, LGTM, Nginx)
+│   │   ├── CLAUDE.md
 │   │   ├── default.nix
 │   │   └── secrets/
 │   └── installer/                     # Minimal NixOS ISO for fresh installs
@@ -163,25 +165,29 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 │       ├── hardware/                  # Hardware-specific modules (NVIDIA PRIME)
 │       ├── profiles/
 │       │   ├── base.nix               # Base system settings (Nix, locale)
+│       │   ├── backup.nix             # Backup policy driven from host registry metadata
 │       │   ├── desktop.nix            # Desktop environment (Hyprland, PipeWire)
-│       │   ├── security.nix           # Security hardening (Firewall, SSH)
-│       │   ├── observability/         # LGTM observability stack (Grafana, Loki, Tempo, Mimir)
-│       │   ├── observability-client.nix
-│       │   ├── backup.nix
 │       │   ├── impermanence-base.nix
 │       │   ├── machine-common.nix
 │       │   ├── machine-dev.nix
+│       │   ├── meta.nix               # Host metadata projection into the module graph
 │       │   ├── microvm-guest.nix
+│       │   ├── nix-trusted-users.nix  # Trusted-user policy helpers
+│       │   ├── observability/         # LGTM observability stack (Grafana, Loki, Tempo, Mimir)
+│       │   ├── observability-client.nix
+│       │   ├── security.nix           # Security hardening (Firewall, SSH)
 │       │   ├── sops-base.nix
 │       │   └── user.nix               # User account and home-manager base
 │       └── services/
 │           ├── hardened.nix           # Systemd service hardening DSL (sandbox extraction)
 │           └── systemd-failure-notify.nix
 └── home/
+    ├── neovim/                        # Home Manager Neovim module and generators
     ├── profiles/                      # User-level profiles (home-manager)
     │   ├── base.nix
     │   ├── desktop.nix
-    │   └── workstation.nix            # Workstation-specific packages (TeX, Anki, VS Code)
+    │   ├── workflow-packs/            # Capability packs toggled from host metadata
+    │   └── workstation.nix            # Workstation package bundle
     ├── theme/
     │   ├── active.nix                 # Active theme pointer
     │   ├── module.nix                 # Home Manager theme module
@@ -189,10 +195,13 @@ The `main` host uses a secure, encrypted systemd-boot setup:
     │   └── wallpapers/
     ├── users/
     │   └── user/
+    │       ├── common.nix
     │       ├── home.nix
     │       ├── server.nix
+    │       ├── secrets.nix
     │       └── wsl.nix                # Portable HM for Windows (WSL)
     └── files/                         # Static dotfiles and scripts
+        ├── hypr/
         ├── kitty/
         ├── nvim/
         ├── scripts/                   # Utility scripts; control-center moved to packages/control-center
@@ -219,16 +228,16 @@ ISO outside the host registry.
 | Host             | Status  | Description                                                                        |
 | ---------------- | ------- | ---------------------------------------------------------------------------------- |
 | `main`           | Active  | Primary workstation, running a full desktop environment with NVIDIA PRIME support. |
-| `homeserver-gcp` | Active  | GCP homeserver running Vaultwarden, Syncthing, LGTM, Nginx, and Tailscale.         |
+| `homeserver-gcp` | Active  | GCP homeserver for Vaultwarden, AdGuard, LGTM, Nginx, and Tailscale.               |
 | `installer`      | Utility | Minimal ISO configuration used to bootstrap new installations.                     |
 
 ### Deployment
 
-| Host             | Command                                  | Notes                                        |
-| ---------------- | ---------------------------------------- | -------------------------------------------- |
-| `main`           | `nh os switch --hostname main .`         | Active impermanent workstation rebuild.      |
-| `homeserver-gcp` | `deploy '.#homeserver-gcp'`              | GCP homeserver; see `scripts/deploy-gcp.sh`. |
-| `user@wsl`       | `home-manager switch --flake .#user@wsl` | Portable Home Manager for WSL.               |
+| Host             | Command                                  | Notes                                               |
+| ---------------- | ---------------------------------------- | --------------------------------------------------- |
+| `main`           | `nh os switch --hostname main .`         | Active impermanent workstation rebuild.             |
+| `homeserver-gcp` | `deploy '.#homeserver-gcp'`              | Active GCP homeserver; see `scripts/deploy-gcp.sh`. |
+| `user@wsl`       | `home-manager switch --flake .#user@wsl` | Portable Home Manager for WSL.                      |
 
 ---
 

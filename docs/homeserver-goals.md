@@ -2,10 +2,14 @@
 
 This is the remaining implementation roadmap for `homeserver-gcp`.
 
-Current baseline: GCP `e2-medium` in `us-central1`, reachable through
-Tailscale only, running Vaultwarden, Nginx with Tailscale-issued TLS, the LGTM
-observability stack, and Backblaze B2 restic backups. Provisioning is automated
-through `scripts/deploy-gcp.sh`.
+Current baseline: GCP `e2-medium` in `europe-west2` (`europe-west2-a` zone by
+default), reachable through Tailscale only, running Vaultwarden, AdGuard Home,
+Nginx with Tailscale-issued TLS, the LGTM observability stack, and Backblaze B2
+restic backups. Provisioning is automated through `scripts/deploy-gcp.sh`.
+
+The host is active in `lib/hosts.nix`, but this document is still a roadmap for
+deferred provider-side improvements rather than a list of missing baseline
+functionality.
 
 Completed milestones have been folded into the durable docs:
 

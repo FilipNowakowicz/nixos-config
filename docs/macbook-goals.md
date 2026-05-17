@@ -94,8 +94,9 @@ hardware.enableRedistributableFirmware = true;
 
 services.thermald.enable = true;
 
-# Syncthing — add to existing lib/syncthing.nix device registry
-services.syncthing.enable = true;
+# Syncthing currently comes from the Home Manager `server` role
+# (`home/users/user/server.nix`); keep that unless a system-level service is
+# intentionally introduced.
 
 # Tailscale subnet router
 services.tailscale.enable = true;
@@ -121,10 +122,12 @@ invariants-macbook-air = invariants.mkInvariantCheck "macbook-air" (
 ) allNixosConfigs.macbook-air.config;
 ```
 
-### 6. Syncthing device registry (`lib/syncthing.nix`)
+### 6. Syncthing ownership model
 
-Add `macbook-air` as a device. Decide which folders it should hold — at minimum
-the same folders as `homeserver-gcp` so it acts as a second always-on peer.
+There is no shared `lib/syncthing.nix` registry in the current tree. Before
+adding `macbook-air`, decide whether Syncthing should continue to be managed
+per host through the Home Manager `server` role or whether the repo now has
+enough always-on peers to justify introducing a typed registry.
 
 ### 7. Install
 
