@@ -50,6 +50,28 @@ in
           };
           loki.enable = true;
           mimir.enable = true;
+          collectors = {
+            metrics.enable = true;
+            blackbox = {
+              enable = true;
+              probes = {
+                vaultwarden-root = {
+                  url = "https://${testFqdn}/";
+                  expectedStatusCodes = [
+                    200
+                    301
+                    302
+                  ];
+                  skipTLSVerify = true;
+                };
+                grafana-auth-boundary = {
+                  url = "https://${testFqdn}/grafana/";
+                  expectedStatusCodes = [ 200 ];
+                  skipTLSVerify = true;
+                };
+              };
+            };
+          };
         };
 
         services = {
@@ -129,49 +151,75 @@ in
 
         networking.hosts."127.0.0.1" = [ testFqdn ];
 
-        environment.systemPackages = [ pkgs.curl ];
+        environment.systemPackages = [
+          pkgs.curl
+          pkgs.python3
+        ];
       };
 
-    testScript = ''
-      import os
-      assert os.path.exists('/dev/kvm'), \
-        "KVM not available: /dev/kvm missing. Smoke tests require KVM acceleration."
-
-      start_all()
-
-      server.wait_for_unit("vaultwarden.service")
-      server.wait_for_unit("grafana.service")
-      server.wait_for_unit("smoke-test-grafana-auth.service")
-      server.wait_for_unit("nginx.service")
-
-      # / → Vaultwarden reachable (200 or redirect to login)
-      server.wait_until_succeeds(
-        "curl -sk https://${testFqdn}/ -o /dev/null -w '%{http_code}'"
-        " | grep -qE '^(200|301|302)'",
-        timeout=30,
-      )
-
-      # /grafana/ → Grafana sub-path routing works
-      server.wait_until_succeeds(
-        "curl -sk https://${testFqdn}/grafana/ -o /dev/null -w '%{http_code}'"
-        " | grep -q '^200'",
-        timeout=30,
-      )
-
-      # Vaultwarden notification websocket route is explicit and reaches the upstream.
-      server.succeed(
-        "config=$(systemctl cat nginx.service"
-        " | sed -n \"s#.*-c \\([^ ]*nginx\\.conf\\).*#\\1#p\""
-        " | tr -d \"'\\\"\""
-        " | head -n 1)"
-        " && grep -q 'location = /notifications/hub' \"$config\""
-      )
-
-      # /obs/* → 401 without credentials (auth boundary enforced, not 404/502)
-      for path in ["/obs/loki/", "/obs/mimir/", "/obs/otlp/"]:
-          server.succeed(
-            f"curl -sk https://${testFqdn}{path} -o /dev/null -w '%{{http_code}}'"
-            f" | grep -q '^401'"
-          )
-    '';
+    testScript = builtins.concatStringsSep "\n" [
+      "import os"
+      ""
+      "assert os.path.exists('/dev/kvm'), \\"
+      "  \"KVM not available: /dev/kvm missing. Smoke tests require KVM acceleration.\""
+      ""
+      "start_all()"
+      ""
+      "server.wait_for_unit(\"vaultwarden.service\")"
+      "server.wait_for_unit(\"grafana.service\")"
+      "server.wait_for_unit(\"prometheus.service\")"
+      "server.wait_for_unit(\"prometheus-blackbox-exporter.service\")"
+      "server.wait_for_unit(\"smoke-test-grafana-auth.service\")"
+      "server.wait_for_unit(\"nginx.service\")"
+      ""
+      "# / -> Vaultwarden reachable (200 or redirect to login)"
+      "server.wait_until_succeeds("
+      "  \"curl -sk https://${testFqdn}/ -o /dev/null -w '%{http_code}'\""
+      "  \" | grep -qE '^(200|301|302)'\","
+      "  timeout=30,"
+      ")"
+      ""
+      "# /grafana/ -> Grafana sub-path routing works"
+      "server.wait_until_succeeds("
+      "  \"curl -sk https://${testFqdn}/grafana/ -o /dev/null -w '%{http_code}'\""
+      "  \" | grep -q '^200'\","
+      "  timeout=30,"
+      ")"
+      ""
+      "# Vaultwarden notification websocket route is explicit and reaches the upstream."
+      "server.succeed("
+      "  \"config=$(systemctl cat nginx.service\""
+      "  \" | sed -n \\\"s#.*-c \\\\([^ ]*nginx\\\\.conf\\\\).*#\\\\1#p\\\"\""
+      "  \" | tr -d \\\"'\\\\\\\"\\\"\""
+      "  \" | head -n 1)\""
+      "  \" && grep -q 'location = /notifications/hub' \\\"$config\\\"\""
+      ")"
+      ""
+      "# /obs/* -> 401 without credentials (auth boundary enforced, not 404/502)"
+      "for path in [\"/obs/loki/\", \"/obs/mimir/\", \"/obs/otlp/\"]:"
+      "    server.succeed("
+      "      f\"curl -sk https://${testFqdn}{path} -o /dev/null -w '%{{http_code}}'\""
+      "      f\" | grep -q '^401'\""
+      "    )"
+      ""
+      "server.wait_until_succeeds("
+      "  '''python3 - <<\\'PY\\'"
+      "import json"
+      "import urllib.request"
+      ""
+      "for probe in (\"vaultwarden-root\", \"grafana-auth-boundary\"):"
+      "    with urllib.request.urlopen("
+      "        \"http://127.0.0.1:9090/api/v1/query?query=probe_success%7Bprobe%3D%22\""
+      "        + probe"
+      "        + \"%22%7D\""
+      "    ) as response:"
+      "        payload = json.load(response)"
+      "    result = payload[\"data\"][\"result\"]"
+      "    assert result, probe"
+      "    assert result[0][\"value\"][1] == \"1\", (probe, result)"
+      "PY''',"
+      "  timeout=90,"
+      ")"
+      ""
+    ];
   }

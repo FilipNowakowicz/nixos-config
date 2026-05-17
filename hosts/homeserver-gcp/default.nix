@@ -153,6 +153,27 @@ in
       metrics.enable = true;
       logs.enable = true;
       traces.enable = true;
+      blackbox = {
+        enable = true;
+        probes = {
+          vaultwarden-root = {
+            url = "https://${tailnetFQDN}/";
+            expectedStatusCodes = [
+              200
+              301
+              302
+            ];
+          };
+
+          # Probe Grafana through nginx so auth_request and upstream routing both
+          # stay observable from inside the tailnet boundary. This host itself is
+          # not a human Tailscale identity, so the healthy outcome is a denial.
+          grafana-auth-boundary = {
+            url = "https://${tailnetFQDN}/grafana/";
+            expectedStatusCodes = [ 403 ];
+          };
+        };
+      };
     };
   };
 

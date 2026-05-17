@@ -12,6 +12,7 @@
 #   VulnixScanStale   — no successful scan in 26 h (daily + 2 h buffer)
 #   LynisScoreLow     — hardening index < 60 for 0 m
 #   LynisScanStale    — no successful audit in 26 h (daily + 2 h buffer)
+#   BlackboxProbeFailed — blackbox HTTP probe failing for 5 min
 {
   config,
   lib,
@@ -106,6 +107,16 @@ let
             annotations = {
               summary = "Vulnix scan stale on {{ $labels.instance }}";
               description = "Last CVE scan {{ $value | printf \"%.1f\" }}h ago (threshold: 26h). Check vulnix-scan.service logs.";
+            };
+          }
+          {
+            alert = "BlackboxProbeFailed";
+            expr = ''probe_success{job=~"blackbox-.*"} == 0'';
+            for = "5m";
+            labels.severity = "critical";
+            annotations = {
+              summary = "Blackbox probe failed for {{ $labels.probe }}";
+              description = "Synthetic check to {{ $labels.instance }} has failed for more than 5 minutes. Review nginx routing, TLS, auth boundary, and upstream service health.";
             };
           }
         ];

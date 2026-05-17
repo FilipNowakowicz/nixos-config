@@ -7,6 +7,7 @@
 let
   cfg = config.profiles.observability;
   gen = import ../../../../lib/generators.nix { inherit lib; };
+  mkYaml = name: data: (pkgs.formats.yaml { }).generate name data;
 
   shouldUseIngestAuth = cfg.ingestAuth.username != null && cfg.ingestAuth.passwordFile != null;
   shouldUseRemoteTraceAuth = shouldUseIngestAuth && cfg.collectors.traces.exportURL != null;
@@ -51,6 +52,83 @@ let
       };
     }
   ];
+
+  sanitizeProbeName =
+    name:
+    lib.replaceStrings
+      [
+        "."
+        "/"
+        ":"
+        " "
+      ]
+      [
+        "_"
+        "_"
+        "_"
+        "_"
+      ]
+      name;
+
+  blackboxProbes = lib.mapAttrsToList (
+    name: probe:
+    probe
+    // {
+      inherit name;
+      moduleName = "http_${sanitizeProbeName name}";
+    }
+  ) cfg.collectors.blackbox.probes;
+
+  blackboxConfig = mkYaml "blackbox-exporter.yaml" {
+    modules = lib.listToAttrs (
+      map (probe: {
+        name = probe.moduleName;
+        value = {
+          prober = "http";
+          inherit (probe) timeout;
+          http = {
+            method = "GET";
+            valid_status_codes = probe.expectedStatusCodes;
+          }
+          // lib.optionalAttrs (probe.headers != { }) {
+            inherit (probe) headers;
+          }
+          // lib.optionalAttrs probe.skipTLSVerify {
+            tls_config.insecure_skip_verify = true;
+          };
+        };
+      }) blackboxProbes
+    );
+  };
+
+  blackboxScrapeConfigs = map (probe: {
+    job_name = "blackbox-${probe.name}";
+    metrics_path = "/probe";
+    params.module = [ probe.moduleName ];
+    static_configs = [
+      {
+        targets = [ probe.url ];
+        labels = {
+          probe = probe.name;
+          target = probe.url;
+        };
+      }
+    ];
+    relabel_configs = [
+      {
+        source_labels = [ "__address__" ];
+        target_label = "__param_target";
+      }
+      {
+        source_labels = [ "__param_target" ];
+        target_label = "instance";
+      }
+      {
+        target_label = "__address__";
+        replacement = "127.0.0.1:${toString config.services.prometheus.exporters.blackbox.port}";
+      }
+    ];
+  }) blackboxProbes;
 in
 {
   options.profiles.observability.collectors = {
@@ -92,6 +170,52 @@ in
         example = "https://homeserver-gcp.example.ts.net/obs/otlp/v1/traces";
       };
     };
+
+    blackbox = {
+      enable = lib.mkEnableOption "Prometheus blackbox HTTP probes";
+
+      probes = lib.mkOption {
+        type =
+          with lib.types;
+          attrsOf (
+            submodule (_: {
+              options = {
+                url = lib.mkOption {
+                  type = str;
+                  description = "Absolute URL to probe from this host.";
+                  example = "https://homeserver-gcp.example.ts.net/grafana/";
+                };
+
+                expectedStatusCodes = lib.mkOption {
+                  type = listOf int;
+                  default = [ 200 ];
+                  description = "HTTP status codes treated as success for this probe.";
+                };
+
+                timeout = lib.mkOption {
+                  type = str;
+                  default = "10s";
+                  description = "Probe timeout passed to blackbox exporter.";
+                };
+
+                headers = lib.mkOption {
+                  type = attrsOf str;
+                  default = { };
+                  description = "Optional HTTP headers sent with the probe request.";
+                };
+
+                skipTLSVerify = lib.mkOption {
+                  type = bool;
+                  default = false;
+                  description = "Whether to skip TLS certificate verification for this probe.";
+                };
+              };
+            })
+          );
+        default = { };
+        description = "Named HTTP probes scraped through the local blackbox exporter.";
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -103,6 +227,14 @@ in
           authenticated remote trace export is enabled, because the OpenTelemetry
           collector basicauth extension reads BASICAUTH_PASSWORD from an env file.
         '';
+      }
+      {
+        assertion = !cfg.collectors.blackbox.enable || cfg.collectors.metrics.enable;
+        message = "profiles.observability.collectors.blackbox.enable requires profiles.observability.collectors.metrics.enable";
+      }
+      {
+        assertion = !cfg.collectors.blackbox.enable || cfg.collectors.blackbox.probes != { };
+        message = "profiles.observability.collectors.blackbox.enable requires at least one probe definition";
       }
     ];
 
@@ -143,7 +275,8 @@ in
             job_name = "node";
             static_configs = [ { targets = [ "127.0.0.1:9100" ]; } ];
           }
-        ];
+        ]
+        ++ lib.optionals cfg.collectors.blackbox.enable blackboxScrapeConfigs;
 
         remoteWrite =
           if cfg.collectors.metrics.remoteWriteURL != null then
@@ -161,6 +294,12 @@ in
                 url = "http://127.0.0.1:9009/api/v1/push";
               }
             ];
+
+        exporters.blackbox = lib.mkIf cfg.collectors.blackbox.enable {
+          enable = true;
+          listenAddress = "127.0.0.1";
+          configFile = blackboxConfig;
+        };
       };
 
       alloy = lib.mkIf cfg.collectors.logs.enable {
