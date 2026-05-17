@@ -20,6 +20,7 @@ Host behavior:
 
 - `main` and `homeserver-gcp` use SSH-host-derived age identities through `sops.age.sshKeyPaths`.
 - `homeserver-gcp` uses a pre-baked encrypted SSH host key committed to the repo; `sops-nix` derives `&homeserver_gcp_host` from `/etc/ssh/ssh_host_ed25519_key` on first boot.
+- Planned Home Manager user-secret backups under `home/users/user/secrets/` are encrypted only to `&user`; hosts do not decrypt them automatically.
 - `boot.initrd.secrets` must point only at sops-managed `/run/secrets/*` paths; this is enforced by a native NixOS assertion in the shared SOPS profile.
 - Intentional plaintext exceptions must be narrow entries in `.plaintext-secrets-allowlist`.
 

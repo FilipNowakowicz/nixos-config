@@ -325,6 +325,7 @@ Secrets are managed with [sops-nix](https://github.com/Mic92/sops-nix) and [age]
 - This allows a host to decrypt its own secrets automatically during activation. Impermanent hosts keep their SSH key under `/persist` so the age key remains stable across reboots.
 - The user's personal age key (`user`) can decrypt all secrets.
 - `homeserver-gcp` uses a pre-baked encrypted SSH host key committed in `hosts/homeserver-gcp/secrets/`; deployed once during initial GCE image bootstrap.
+- Planned Home Manager user-secret backups live under `home/users/user/secrets/` and are encrypted only for `&user`.
 
 ### Setup
 
@@ -353,6 +354,33 @@ Secrets are managed with [sops-nix](https://github.com/Mic92/sops-nix) and [age]
    # Edits a file, decrypting it temporarily
    sops hosts/homeserver-gcp/secrets/secrets.yaml
    ```
+
+### Planned Home Manager User Secrets
+
+The repo is prepared for optional user-scoped auth backup through the
+Home Manager `sops-nix` module. This is intended for convenience and recovery of
+selected user credentials, not for every app cache.
+
+Prepared targets:
+
+- `~/.codex/auth.json`
+- `~/.claude/.credentials.json`
+- `~/.gemini/oauth_creds.json`
+- `~/.config/gh/hosts.yml`
+- `~/.config/gcloud/application_default_credentials.json`
+
+Not included:
+
+- `~/.config/gcloud/credentials.db`
+- `~/.config/gcloud/access_tokens.db`
+
+Those SQLite files are token caches and low-value to restore declaratively.
+
+To finish rollout:
+
+1. Set `userSecrets.enable = true;` in the relevant Home Manager config.
+2. Encrypt the current live files into `home/users/user/secrets/`.
+3. Activate Home Manager and verify the apps still read the restored paths.
 
 **Host Key Rotation**: Rotating a host's SSH key or changing its identity requires a corresponding update to `.sops.yaml` (new age key) followed by `sops updatekeys <path/to/secrets.yaml>` to re-encrypt the file for the new key. Failing to do this before deployment will result in a boot-time decryption failure.
 

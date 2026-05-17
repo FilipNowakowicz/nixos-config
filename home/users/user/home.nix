@@ -271,9 +271,12 @@ in
 
   imports = [
     ./common.nix
+    ./secrets.nix
     ../../profiles/workflow-packs
     ../../theme/module.nix
   ];
+
+  userSecrets.enable = lib.mkDefault true;
 
   themes.active = (import ../../theme/active.nix).name;
 

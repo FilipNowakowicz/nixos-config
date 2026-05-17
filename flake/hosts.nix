@@ -68,6 +68,7 @@ let
           imports = [ ../modules/nixos ];
         }
         (lib.mkIf (hostMeta ? homeManager) {
+          home-manager.sharedModules = [ inputs.sops-nix.homeManagerModules.sops ];
           home-manager.users.user.imports = mkHomeManagerImports hostMeta;
         })
         {
@@ -128,6 +129,7 @@ in
         enableSpotify = true;
       };
       modules = [
+        inputs.sops-nix.homeManagerModules.sops
         ../home/users/user/home.nix
       ];
     };
