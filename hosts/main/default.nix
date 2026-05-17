@@ -21,14 +21,18 @@ let
     "/run/current-system/sw/bin/efibootmgr -b [0-9A-F][0-9A-F][0-9A-F][0-9A-F] -B"
     "/run/current-system/sw/bin/nix-collect-garbage --delete-older-than *"
 
-    # Apply this flake only. This is still privileged, so keep the path fixed.
-    "/run/current-system/sw/bin/nh os switch --hostname main /home/user/nix"
+    # Argument-free wrapper so the allowlist entry cannot be abused.
+    "/run/current-system/sw/bin/nixos-switch-main"
   ];
 
   passwordlessAgentCommand = command: {
     inherit command;
     options = [ "NOPASSWD" ];
   };
+
+  nixosSwitchMain = pkgs.writeShellScriptBin "nixos-switch-main" ''
+    exec ${lib.getExe pkgs.nh} os switch --hostname main /home/user/nix
+  '';
 
   tailscaleBypassRules = pkgs.writeShellScript "tailscale-bypass-rules" ''
     set -eu
@@ -146,6 +150,7 @@ in
   environment.systemPackages = with pkgs; [
     efibootmgr
     nh
+    nixosSwitchMain
     sbctl
   ];
 
