@@ -148,6 +148,37 @@ let
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
 
+  mainBackupPathsArePersisted = {
+    name = "main backup paths are persisted or on a persistent fs";
+    check =
+      cfg:
+      let
+        persistence = cfg.environment.persistence."/persist" or { };
+        normalize = entry: key: if builtins.isAttrs entry then entry.${key} else entry;
+        persistedDirs = map (d: normalize d "directory") (persistence.directories or [ ]);
+        persistedFiles = map (f: normalize f "file") (persistence.files or [ ]);
+
+        # /home, /nix, and /persist are independent btrfs subvolumes that are
+        # not rolled back. Anything under them already survives reboot.
+        persistentRoots = [
+          "/home/"
+          "/nix/"
+          "/persist/"
+        ];
+
+        isPersistent =
+          path:
+          lib.any (root: lib.hasPrefix root path) persistentRoots
+          || lib.elem path persistedDirs
+          || lib.elem path persistedFiles
+          || lib.any (d: lib.hasPrefix (d + "/") path) persistedDirs;
+
+        offenders = lib.filter (p: !(isPersistent p)) (cfg.services.restic.backups.local.paths or [ ]);
+      in
+      mkResult (offenders == [ ])
+        "backup path(s) not persisted (would be wiped on rollback boot): ${lib.concatStringsSep ", " offenders}";
+  };
+
   mainLocalBackupProtectsCriticalPaths = {
     name = "main local backup covers critical operator data";
     check =
@@ -244,6 +275,7 @@ in
         mainSshIsTailnetOnly
         mainUsbguardIsDenyDefault
         mainLocalBackupProtectsCriticalPaths
+        mainBackupPathsArePersisted
       ]
       ++ registryAssertionsFor "main"
     ) allNixosConfigs.main.config;

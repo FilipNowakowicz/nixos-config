@@ -24,25 +24,78 @@ journalctl -b -u rollback-root.service --no-pager
 
 ## Persistent State
 
-Current explicit persistence includes:
+Every stateful path on `main` falls into one of three categories. Adding a new
+stateful service means picking one of them deliberately.
+
+### Persisted (bind-mounted from `/persist`)
+
+Identity and crypto:
 
 - `/etc/machine-id`
 - `/etc/ssh/ssh_host_ed25519_key*`
-- `/etc/NetworkManager/system-connections`
-- `/etc/mullvad-vpn`
-- `/var/cache/mullvad-vpn`
-- `/var/lib/tailscale`
-- `/var/lib/bluetooth`
-- `/var/lib/fprint`
-- `/var/lib/sbctl`
-- `/var/lib/usbguard`
-- `/var/lib/nixos`
-- `/var/lib/systemd/coredump`
-- `/var/log`
+- `/var/lib/sbctl` — Lanzaboote / Secure Boot PKI
 
-When adding a stateful service, copy existing live state into `/persist` before
-adding the path to impermanence. Otherwise the bind mount starts empty and the
-service may lose state at the next rollback boot.
+Network and VPN identity:
+
+- `/etc/NetworkManager/system-connections` — saved Wi-Fi / VPN profiles
+- `/etc/mullvad-vpn`, `/var/cache/mullvad-vpn`
+- `/var/lib/tailscale`
+- `/var/lib/fail2ban` — banned-IP database
+
+Hardware and desktop state:
+
+- `/var/lib/bluetooth` — pairings
+- `/var/lib/fprint` — fingerprint enrollments
+- `/var/lib/usbguard` — rule hashes
+- `/var/lib/systemd/backlight` — screen brightness across reboots
+- `/var/lib/systemd/rfkill` — radio block state across reboots
+- `/var/cache/tuigreet` — `--remember` last-user cache
+
+Operational state:
+
+- `/var/log` — journald and friends
+- `/var/lib/nixos` — UID/GID stability across rebuilds
+- `/var/lib/systemd/coredump`
+- `/var/lib/systemd/timers` — `Persistent=true` timer catchup (e.g. `restic-check-local`)
+- `/var/cache/restic-backups-local` — restic index/pack cache; loss means re-fetching from B2
+
+### Declarative-regenerated (rebuilt by NixOS activation each boot)
+
+Not persisted, but identical after every rebuild because Nix rewrites them
+deterministically. Treat as code, not state:
+
+- `/etc/*` not in the persisted list — pulled from `/run/current-system/etc`.
+- `/var/lib/private/*` for `DynamicUser=yes` services (alloy, otel-collector) —
+  the service unit recreates the runtime tree; only the WAL inside is lost.
+- `/var/lib/NetworkManager/` runtime — _saved_ profiles are persisted via
+  `/etc/NetworkManager/system-connections`; runtime DHCP leases are not.
+
+### Intentionally ephemeral (reset on every boot, by design)
+
+- `/root`, `/tmp`, `/var/tmp` — start clean.
+- `/var/lib/fwupd`, `/var/cache/fwupd*` — refetched by `fwupd-refresh.timer`.
+- `/var/lib/systemd/random-seed` — kernel reseeds from hardware entropy.
+- `/var/lib/systemd/timesync` — NTP resyncs on boot.
+- `/var/lib/upower`, `/var/lib/colord`, `/var/lib/AccountsService` — UX caches
+  with no operator-visible loss.
+
+### Adding a new stateful service
+
+1. Decide which category fits. If it's persisted:
+   ```bash
+   sudo cp -a /var/lib/<thing> /persist/var/lib/   # snapshot live state first
+   ```
+   Skip the copy and the bind mount lands on an empty dir; the service loses
+   its state at the next rollback boot.
+2. Add the path to `environment.persistence."/persist".directories` (or
+   `.files`) in `hosts/main/impermanence.nix`.
+3. If the path also needs to survive disk loss, add it to
+   `services.restic.backups.local.paths` in `hosts/main/default.nix`. The
+   `main backup paths are persisted or on a persistent fs` invariant in
+   `flake/checks.nix` enforces backup ⊆ persistence — a backed-up path that
+   isn't persisted would silently lose state on rollback and back up the empty
+   directory on the next run.
+4. `nh os switch --hostname main .` to land the bind mount.
 
 ## Backups
 

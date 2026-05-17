@@ -29,10 +29,16 @@
     "/var/lib/bluetooth" # Bluetooth pairings
     "/var/lib/fprint" # fingerprint enrollments
     "/var/lib/usbguard" # USBGuard rule hashes
+    "/var/lib/fail2ban" # banned-IP database (resets to empty without this)
     "/var/cache/tuigreet" # tuigreet --remember last-user cache
+    "/var/cache/restic-backups-local" # restic index/pack cache; avoid B2 re-download after each rollback
     "/etc/NetworkManager/system-connections" # saved Wi-Fi / VPN profiles
     "/etc/mullvad-vpn" # Mullvad account + device + settings
     "/var/cache/mullvad-vpn" # Mullvad relay/API cache
+    # systemd state that affects boot-time behavior, not just runtime:
+    "/var/lib/systemd/timers" # Persistent=true timer catchup (restic-check-local)
+    "/var/lib/systemd/backlight" # restore screen brightness across reboots
+    "/var/lib/systemd/rfkill" # restore Wi-Fi / Bluetooth block state
   ];
 
   # btrfs and find aren't in initrd by default; coreutils + mount/umount are.

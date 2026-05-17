@@ -13,92 +13,27 @@ in `docs/backlog.md`.
 - Prefer explicit policy and recovery documentation over broad "hardening"
   changes that are difficult to validate.
 
-## Recommended Order
+## Completed
 
-| Order | Goal                             | Difficulty | Scope            | Why now                                                                                                   |
-| :---- | :------------------------------- | :--------- | :--------------- | :-------------------------------------------------------------------------------------------------------- |
-| 1     | `nix.registry` pinning           | Easy       | Cross-system     | Removes ambient registry drift and makes ad hoc `nix` commands match the flake.                           |
-| 2     | `nix-index` and `comma`          | Easy       | Developer UX     | Immediate quality-of-life improvement with little design risk.                                            |
-| 3     | `xdg.mimeApps`                   | Easy       | Home Manager     | Small declarative cleanup that reduces desktop drift.                                                     |
-| 4     | Persistence coverage audit       | Medium     | `main`           | Best follow-up to impermanence: ensure every stateful path is either explicit or intentionally ephemeral. |
-| 5     | FIDO2 for auth and SSH           | Medium     | `main`           | Natural next security layer on top of TPM, fingerprint, USBGuard, and Secure Boot.                        |
-| 6     | LUKS2 FIDO2 unlock               | Medium     | `main`           | Strengthens disk-unlock posture and recovery options beyond TPM-only unlock.                              |
-| 7     | `systemd.tmpfiles` normalization | Medium     | Cross-system     | Standardizes directory and file bootstrapping around an existing repo pattern.                            |
-| 8     | Custom module option docs        | Medium     | Internal modules | Improves discoverability and editor/tooling support as the module surface grows.                          |
-| 9     | Desktop declarativity review     | Medium     | Home Manager     | Clarifies where typed HM modules help and where raw dotfiles remain the right tradeoff.                   |
-| 10    | Recovery-path audit              | Hard       | `main`           | Validates that the current boot, unlock, and break-glass paths remain coherent under failure.             |
+| Goal                         | Difficulty | Scope        |
+| :--------------------------- | :--------- | :----------- |
+| ✓ `nix.registry` pinning     | Easy       | Cross-system |
+| ✓ `nix-index` and `comma`    | Easy       | Developer UX |
+| ✓ `xdg.mimeApps`             | Easy       | Home Manager |
+| ✓ Persistence coverage audit | Medium     | `main`       |
+
+## Active Goals
+
+| Order | Goal                             | Difficulty | Scope            | Why now                                                                                       |
+| :---- | :------------------------------- | :--------- | :--------------- | :-------------------------------------------------------------------------------------------- |
+| 5     | FIDO2 for auth and SSH           | Medium     | `main`           | Natural next security layer on top of TPM, fingerprint, USBGuard, and Secure Boot.            |
+| 6     | LUKS2 FIDO2 unlock               | Medium     | `main`           | Strengthens disk-unlock posture and recovery options beyond TPM-only unlock.                  |
+| 7     | `systemd.tmpfiles` normalization | Medium     | Cross-system     | Standardizes directory and file bootstrapping around an existing repo pattern.                |
+| 8     | Custom module option docs        | Medium     | Internal modules | Improves discoverability and editor/tooling support as the module surface grows.              |
+| 9     | Desktop declarativity review     | Medium     | Home Manager     | Clarifies where typed HM modules help and where raw dotfiles remain the right tradeoff.       |
+| 10    | Recovery-path audit              | Hard       | `main`           | Validates that the current boot, unlock, and break-glass paths remain coherent under failure. |
 
 ## Goal Details
-
-### 1. `nix.registry` pinning
-
-Pin the global flake registry to this flake's `nixpkgs` input so interactive
-commands use the same package set as the repo.
-
-Implementation:
-
-- Set the system registry entry for `nixpkgs` from the flake input instead of
-  relying on ambient host state.
-- Keep the behavior consistent across hosts and shells.
-- Document the operator expectation for `nix run nixpkgs#...` and similar
-  commands.
-
-Acceptance:
-
-- Ad hoc `nix` commands resolve `nixpkgs` through the flake-pinned input.
-- Registry state no longer differs silently between machines.
-
-### 2. `nix-index` and `comma`
-
-Replace the default command-not-found experience with tools that are actually
-useful on NixOS.
-
-Implementation:
-
-- Enable `nix-index` on machines where interactive shell use matters.
-- Add `comma` for one-off package execution without polluting the permanent
-  package set.
-- Document the intended workflow briefly so the feature is discoverable.
-
-Acceptance:
-
-- Missing command lookups point to real package candidates.
-- One-off commands such as `, rg` work without manual package installation.
-
-### 3. `xdg.mimeApps`
-
-Make desktop file associations explicit instead of relying on runtime
-discovery.
-
-Implementation:
-
-- Declare preferred handlers for the common formats actually used on `main`.
-- Keep the scope narrow; this is about stable defaults, not exhaustive MIME
-  coverage.
-
-Acceptance:
-
-- Common file-opening behavior is reproducible after rebuilds and on fresh
-  systems.
-
-### 4. Persistence coverage audit
-
-Audit `main` so every stateful path is clearly classified as persistent or
-ephemeral.
-
-Implementation:
-
-- Review system and desktop state that currently lives outside `/nix`, `/home`,
-  and `/persist`.
-- Confirm that each path is either listed under impermanence or intentionally
-  reset on boot.
-- Add lightweight documentation or checks where the current state model is easy
-  to misunderstand.
-
-Acceptance:
-
-- The persistence model is explicit rather than relying on memory or accident.
-- Adding new stateful services has a clearer checklist.
 
 ### 5. FIDO2 for auth and SSH
 

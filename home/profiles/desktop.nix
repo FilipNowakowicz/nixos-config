@@ -110,6 +110,7 @@
       "image/png" = "imv.desktop";
       "image/gif" = "imv.desktop";
       "image/webp" = "imv.desktop";
+      "image/avif" = "imv.desktop";
       "image/tiff" = "imv.desktop";
       "image/bmp" = "imv.desktop";
       "image/svg+xml" = "imv.desktop";
