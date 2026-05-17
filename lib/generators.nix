@@ -42,7 +42,7 @@ let
             body = lib.removeAttrs value [ "__alloyBlock" ];
           in
           "${indentStr depth}${name} {\n${renderBody (depth + 1) body}\n${indentStr depth}}"
-        else if lib.isList value && lib.all isBlock value then
+        else if lib.isList value && value != [ ] && lib.all isBlock value then
           lib.concatStringsSep "\n" (
             map (
               block:

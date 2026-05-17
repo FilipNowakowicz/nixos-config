@@ -39,9 +39,8 @@ Before starting:
 
 - [ ] Check actual storage: Apple menu → About This Mac → Storage (128 GB or 256 GB).
 - [ ] Arrange wired network for install — the minimal installer ISO has no
-      broadcom firmware so WiFi won't work. Easiest option: **iPhone USB
-      tethering** (Hotspot → USB Only, shows up as ethernet, no drivers needed).
-      A USB-to-ethernet adapter also works.
+      BCM4360 firmware. A **USB-to-ethernet adapter** is the safest option;
+      iPhone USB tethering may also work as temporary ethernet.
 - [ ] Confirm a USB drive is available for the installer ISO.
 
 ## Implementation Plan

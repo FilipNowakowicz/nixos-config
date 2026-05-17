@@ -38,13 +38,39 @@ Defer goals that:
 
 | Order | Goal                                  | Priority | Difficulty | Status  |
 | :---- | :------------------------------------ | :------- | :--------- | :------ |
-| 1     | Home Manager user secrets             | P2       | Medium     | Planned |
-| 2     | NixOS specialisations                 | P2       | Easy       | Planned |
-| 3     | Profile defaults and override hygiene | P2       | Medium     | Planned |
+| 1     | Drift detection                       | P2       | Medium     | Planned |
+| 2     | Home Manager user secrets             | P2       | Medium     | Planned |
+| 3     | NixOS specialisations                 | P2       | Easy       | Planned |
+| 4     | Profile defaults and override hygiene | P2       | Medium     | Planned |
 
 ## Goal Details
 
-### 1. Home Manager User Secrets
+### 1. Drift Detection
+
+Declarative infrastructure loses value when live state silently diverges from
+the registry. The repository already checks Tailscale ACL drift; a small
+post-deploy drift check can extend that idea to selected host facts.
+
+Implementation:
+
+- Compare live host state against `lib/hosts.nix` for a narrow set of facts.
+- Start with Tailscale identity, tags, exposed ports, or expected systemd units.
+- Run checks after deploy or as a manual operations command.
+- Report actionable differences without trying to auto-repair everything.
+
+Acceptance:
+
+- Manual changes to selected live state are detected.
+- The check output points to the registry or module that owns the expected
+  value.
+- False positives are low enough that the check remains worth running.
+
+Critique:
+
+- This fits the single-source-of-truth model.
+- Keep it narrow. Broad host auditing can become noisy and hard to trust.
+
+### 2. Home Manager User Secrets
 
 Some user-scoped credentials are better owned by user services than by global
 system secrets or ad hoc dotfiles. `sops-nix` can write secrets with a specific
@@ -69,7 +95,7 @@ Critique:
 - This is valuable if there are real user secrets to manage.
 - Do not migrate placeholder or rarely used credentials just for consistency.
 
-### 2. NixOS Specialisations
+### 3. NixOS Specialisations
 
 NixOS specialisations can provide boot-selectable variants for recovery or
 debugging without permanently weakening the default configuration.
@@ -93,7 +119,7 @@ Critique:
 - Useful, but optional. Add this only for a real recovery workflow, not because
   the feature exists.
 
-### 3. Profile Defaults and Override Hygiene
+### 4. Profile Defaults and Override Hygiene
 
 Base profiles currently use many direct assignments. Using `mkDefault` in the
 right places would make host overrides cleaner and reduce future `mkForce`
