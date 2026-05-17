@@ -36,95 +36,16 @@ Defer goals that:
 
 ## Recommended Order
 
-| Order | Goal                                         | Priority | Difficulty | Status  |
-| :---- | :------------------------------------------- | :------- | :--------- | :------ |
-| 1     | Structured Nix tests                         | P1       | Medium     | Planned |
-| 2     | Blackbox probes for externally visible paths | P1       | Medium     | Planned |
-| 3     | Audit logs in Loki                           | P2       | Medium     | Planned |
-| 4     | Drift detection                              | P2       | Medium     | Planned |
-| 5     | Home Manager user secrets                    | P2       | Medium     | Planned |
-| 6     | NixOS specialisations                        | P2       | Easy       | Planned |
-| 7     | Profile defaults and override hygiene        | P2       | Medium     | Planned |
+| Order | Goal                                  | Priority | Difficulty | Status  |
+| :---- | :------------------------------------ | :------- | :--------- | :------ |
+| 1     | Drift detection                       | P2       | Medium     | Planned |
+| 2     | Home Manager user secrets             | P2       | Medium     | Planned |
+| 3     | NixOS specialisations                 | P2       | Easy       | Planned |
+| 4     | Profile defaults and override hygiene | P2       | Medium     | Planned |
 
 ## Goal Details
 
-### 1. Structured Nix Tests
-
-Some current library tests are file-diff or golden-output based. Structured
-tests with a tool such as `nix-unit` would make failures clearer and reduce
-fragility for generator and ACL logic.
-
-Implementation:
-
-- Convert the most important generator and ACL tests first.
-- Keep golden tests only where exact rendered output is the useful contract.
-- Expose structured tests through `flake check`.
-
-Acceptance:
-
-- Failures identify the specific expression or assertion that broke.
-- Generator and ACL behavior remains covered without relying only on full-file
-  diffs.
-- Existing golden tests are either retained intentionally or removed after
-  equivalent coverage exists.
-
-Critique:
-
-- This is useful, but less urgent than impermanence VM coverage because the
-  blast radius is smaller.
-
-### 2. Blackbox Probes for Externally Visible Paths
-
-The observability stack covers internal metrics and logs, but it should also
-answer whether user-facing endpoints are reachable from the expected network
-perspective.
-
-Implementation:
-
-- Add blackbox exporter or equivalent synthetic probes for important
-  `homeserver-gcp` HTTPS paths.
-- Probe from inside the tailnet boundary to match the intended exposure model.
-- Alert on sustained failures, not single transient misses.
-- Include at least Vaultwarden and Grafana auth path coverage.
-
-Acceptance:
-
-- A broken reverse proxy, certificate issue, or unreachable service produces a
-  clear alert.
-- Probe targets and expected status codes are documented.
-- Probes do not require public internet exposure.
-
-Critique:
-
-- This fits because it validates the externally observable behavior of services.
-- Avoid probing every route. Cover representative service and auth boundaries.
-
-### 3. Audit Logs in Loki
-
-Security-relevant host events should be searchable alongside other operational
-logs. Good initial targets are sudo activity, SSH sessions, selected sops
-decryptions, and service failures.
-
-Implementation:
-
-- Decide whether to collect from auditd, journald units, or both.
-- Add Alloy pipeline configuration for selected audit events.
-- Label events consistently by host, unit, and event type.
-- Avoid shipping secrets or high-volume noisy data.
-
-Acceptance:
-
-- Important operator actions are queryable in Loki.
-- Dashboards or saved queries exist for common audit questions.
-- The logging path is documented in `docs/security.md`.
-
-Critique:
-
-- Useful, but it should not become a broad SIEM project.
-- Scope narrowly around events that would actually be reviewed after an
-  incident.
-
-### 4. Drift Detection
+### 1. Drift Detection
 
 Declarative infrastructure loses value when live state silently diverges from
 the registry. The repository already checks Tailscale ACL drift; a small
@@ -149,7 +70,7 @@ Critique:
 - This fits the single-source-of-truth model.
 - Keep it narrow. Broad host auditing can become noisy and hard to trust.
 
-### 5. Home Manager User Secrets
+### 2. Home Manager User Secrets
 
 Some user-scoped credentials are better owned by user services than by global
 system secrets or ad hoc dotfiles. `sops-nix` can write secrets with a specific
@@ -174,7 +95,7 @@ Critique:
 - This is valuable if there are real user secrets to manage.
 - Do not migrate placeholder or rarely used credentials just for consistency.
 
-### 6. NixOS Specialisations
+### 3. NixOS Specialisations
 
 NixOS specialisations can provide boot-selectable variants for recovery or
 debugging without permanently weakening the default configuration.
@@ -198,7 +119,7 @@ Critique:
 - Useful, but optional. Add this only for a real recovery workflow, not because
   the feature exists.
 
-### 7. Profile Defaults and Override Hygiene
+### 4. Profile Defaults and Override Hygiene
 
 Base profiles currently use many direct assignments. Using `mkDefault` in the
 right places would make host overrides cleaner and reduce future `mkForce`
