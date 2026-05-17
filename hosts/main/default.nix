@@ -303,6 +303,7 @@ in
         "/home/user/.codex"
         "/home/user/.claude"
         "/home/user/.claude.json"
+        "/home/user/.config/sops"
         "/etc/machine-id"
         "/etc/ssh/ssh_host_ed25519_key"
         "/etc/ssh/ssh_host_ed25519_key.pub"
