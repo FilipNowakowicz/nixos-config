@@ -1,9 +1,14 @@
 {
+  config,
   inputs,
   lib,
   pkgs,
   ...
 }:
+let
+  trustedUsers = config.nix.settings.trusted-users or [ ];
+  broadTrustedUsers = lib.filter (user: user == "*" || lib.hasPrefix "@" user) trustedUsers;
+in
 {
   zramSwap.enable = true;
 
@@ -56,4 +61,8 @@
     usbutils
     wget
   ];
+
+  warnings =
+    lib.optional (broadTrustedUsers != [ ])
+      "nix.settings.trusted-users contains broad trust entries (${lib.concatStringsSep ", " broadTrustedUsers}); prefer exact users unless this is intentional.";
 }

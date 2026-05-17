@@ -1,4 +1,9 @@
-{ lib, ... }:
+{ config, lib, ... }:
+let
+  invalidInitrdSecrets = lib.filter (
+    value: value != null && !(lib.hasPrefix "/run/secrets/" (toString value))
+  ) (lib.attrValues config.boot.initrd.secrets);
+in
 {
   # ── Sops (shared base — all hosts set defaultSopsFile and declare secrets) ──
   sops = {
@@ -10,4 +15,11 @@
 
   # ── User (SSH authorised keys) ──────────────────────────────────────────────
   users.users.user.openssh.authorizedKeys.keys = import ../../../lib/pubkeys.nix;
+
+  assertions = [
+    {
+      assertion = invalidInitrdSecrets == [ ];
+      message = "boot.initrd.secrets must point to sops-managed /run/secrets/* paths, got: ${lib.concatStringsSep ", " (map toString invalidInitrdSecrets)}";
+    }
+  ];
 }

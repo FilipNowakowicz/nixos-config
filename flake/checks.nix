@@ -22,14 +22,6 @@ let
     in
     mkResult (missing == [ ]) "missing expected path(s): ${lib.concatStringsSep ", " missing}";
 
-  invalidInitrdSecrets =
-    cfg:
-    let
-      values = lib.attrValues cfg.boot.initrd.secrets;
-      nonNull = lib.filter (v: v != null) values;
-    in
-    lib.filter (v: !lib.hasPrefix "/run/secrets/" v) nonNull;
-
   registryAssertionsFor = hostName: invariants.mkRegistryAssertions hostName hostRegistry.${hostName};
 
   nixpkgsRegistryPinnedToFlakeInput = {
@@ -72,31 +64,6 @@ let
         ];
       in
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
-  };
-
-  sshFail2banHardened = {
-    name = "SSH hosts enforce hardened fail2ban";
-    check =
-      cfg:
-      let
-        violations = lib.filter (msg: msg != "") [
-          (lib.optionalString (!cfg.services.fail2ban.enable) "services.fail2ban.enable must be true")
-          (lib.optionalString (cfg.services.fail2ban.maxretry > 3) "services.fail2ban.maxretry must be <= 3")
-          (lib.optionalString (
-            cfg.services.fail2ban.bantime != "30m"
-          ) "services.fail2ban.bantime must be \"30m\"")
-          (lib.optionalString (
-            !cfg.services.fail2ban."bantime-increment".enable
-          ) "services.fail2ban.bantime-increment.enable must be true")
-          (lib.optionalString (
-            cfg.services.fail2ban."bantime-increment".maxtime == null
-          ) "services.fail2ban.bantime-increment.maxtime must be set")
-        ];
-      in
-      if !cfg.services.openssh.enable then
-        mkResult true "services.openssh.enable is false"
-      else
-        mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
 
   obsClientUsesCanonicalUsername = {
@@ -243,97 +210,91 @@ let
       in
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
+
+  commonSystemInvariants = [
+    {
+      name = "has stateVersion";
+      check = cfg: require (cfg.system.stateVersion != null) "system.stateVersion must be set";
+    }
+    nixpkgsRegistryPinnedToFlakeInput
+  ];
+
+  mainAccessInvariants = [
+    {
+      name = "no passwordless sudo";
+      check =
+        cfg: require cfg.security.sudo.wheelNeedsPassword "security.sudo.wheelNeedsPassword must be true";
+    }
+    mainSshIsTailnetOnly
+    mainUsbguardIsDenyDefault
+  ];
+
+  mainExperienceInvariants = [
+    mainInteractiveShellUsesNixIndexAndComma
+    obsClientUsesCanonicalUsername
+  ];
+
+  mainBackupInvariants = [
+    mainLocalBackupProtectsCriticalPaths
+    mainBackupPathsArePersisted
+  ];
+
+  homeserverAccessInvariants = [
+    {
+      name = "passwordless sudo enabled";
+      check =
+        cfg:
+        require (!cfg.security.sudo.wheelNeedsPassword)
+          "security.sudo.wheelNeedsPassword must be false (deploy-rs needs passwordless sudo; access is SSH-key-only over Tailscale)";
+    }
+    {
+      name = "firewall enabled";
+      check = cfg: require cfg.networking.firewall.enable "networking.firewall.enable must be true";
+    }
+    {
+      name = "SSH and HTTPS are not globally open";
+      check = cfg: invariants.checkNoGlobalTCPPorts [ 22 443 ] cfg;
+    }
+    {
+      name = "SSH and HTTPS stay Tailscale-only";
+      check =
+        cfg:
+        invariants.checkTCPPortsRestrictedToInterface {
+          interface = "tailscale0";
+          ports = [
+            22
+            443
+          ];
+        } cfg;
+    }
+    {
+      name = "sops uses SSH host key for decryption";
+      check =
+        cfg:
+        require (
+          cfg.sops.age.sshKeyPaths != [ ]
+        ) "sops.age.sshKeyPaths must contain at least one SSH host key path";
+    }
+  ];
+
+  homeserverBackupInvariants = [
+    homeserverGcpB2BackupUsesCriticalPolicy
+  ];
 in
 {
   invariantChecks = {
     invariants-main = invariants.mkInvariantCheck "main" (
-      [
-        {
-          name = "has stateVersion";
-          check = cfg: require (cfg.system.stateVersion != null) "system.stateVersion must be set";
-        }
-        {
-          name = "no passwordless sudo";
-          check =
-            cfg: require cfg.security.sudo.wheelNeedsPassword "security.sudo.wheelNeedsPassword must be true";
-        }
-        {
-          name = "initrd secrets point to sops-managed paths";
-          check =
-            cfg:
-            let
-              invalid = invalidInitrdSecrets cfg;
-            in
-            mkResult (
-              invalid == [ ]
-            ) "boot.initrd.secrets must point to /run/secrets/*, got: ${lib.concatStringsSep ", " invalid}";
-        }
-        nixpkgsRegistryPinnedToFlakeInput
-        mainInteractiveShellUsesNixIndexAndComma
-        sshFail2banHardened
-        obsClientUsesCanonicalUsername
-        mainSshIsTailnetOnly
-        mainUsbguardIsDenyDefault
-        mainLocalBackupProtectsCriticalPaths
-        mainBackupPathsArePersisted
-      ]
+      commonSystemInvariants
+      ++ mainAccessInvariants
+      ++ mainExperienceInvariants
+      ++ mainBackupInvariants
       ++ registryAssertionsFor "main"
     ) allNixosConfigs.main.config;
 
     invariants-homeserver-gcp = invariants.mkInvariantCheck "homeserver-gcp" (
-      [
-        {
-          name = "has stateVersion";
-          check = cfg: require (cfg.system.stateVersion != null) "system.stateVersion must be set";
-        }
-        {
-          name = "passwordless sudo enabled";
-          check =
-            cfg:
-            require (!cfg.security.sudo.wheelNeedsPassword)
-              "security.sudo.wheelNeedsPassword must be false (deploy-rs needs passwordless sudo; access is SSH-key-only over Tailscale)";
-        }
-        {
-          name = "firewall enabled";
-          check = cfg: require cfg.networking.firewall.enable "networking.firewall.enable must be true";
-        }
-        {
-          name = "nix trusted-users stay minimal";
-          check =
-            cfg:
-            invariants.checkExpectedTrustedUsers (
-              [ "root" ]
-              ++ lib.optional (hostRegistry.homeserver-gcp ? deploy) hostRegistry.homeserver-gcp.deploy.sshUser
-            ) cfg;
-        }
-        {
-          name = "SSH and HTTPS are not globally open";
-          check = cfg: invariants.checkNoGlobalTCPPorts [ 22 443 ] cfg;
-        }
-        {
-          name = "SSH and HTTPS stay Tailscale-only";
-          check =
-            cfg:
-            invariants.checkTCPPortsRestrictedToInterface {
-              interface = "tailscale0";
-              ports = [
-                22
-                443
-              ];
-            } cfg;
-        }
-        {
-          name = "sops uses SSH host key for decryption";
-          check =
-            cfg:
-            require (
-              cfg.sops.age.sshKeyPaths != [ ]
-            ) "sops.age.sshKeyPaths must contain at least one SSH host key path";
-        }
-        nixpkgsRegistryPinnedToFlakeInput
-        sshFail2banHardened
-        homeserverGcpB2BackupUsesCriticalPolicy
-      ]
+      commonSystemInvariants
+      ++ homeserverAccessInvariants
+      ++ homeserverBackupInvariants
       ++ registryAssertionsFor "homeserver-gcp"
     ) ciNixosConfigs.homeserver-gcp.config;
 

@@ -20,7 +20,7 @@ Host behavior:
 
 - `main` and `homeserver-gcp` use SSH-host-derived age identities through `sops.age.sshKeyPaths`.
 - `homeserver-gcp` uses a pre-baked encrypted SSH host key committed to the repo; `sops-nix` derives `&homeserver_gcp_host` from `/etc/ssh/ssh_host_ed25519_key` on first boot.
-- `boot.initrd.secrets` must point only at sops-managed `/run/secrets/*` paths; this is enforced by an invariant check.
+- `boot.initrd.secrets` must point only at sops-managed `/run/secrets/*` paths; this is enforced by a native NixOS assertion in the shared SOPS profile.
 - Intentional plaintext exceptions must be narrow entries in `.plaintext-secrets-allowlist`.
 
 ## Host Key Rotation
@@ -121,9 +121,27 @@ documented in the host module near the service they affect.
 
 Validation coverage includes:
 
+- native NixOS assertions for local module safety contracts, such as SOPS-backed initrd secret paths and hardening DSL usage;
 - invariant checks for high-level host expectations;
 - `profile-hardening` NixOS test for sandbox behavior;
 - service-specific smoke tests for GCP homeserver paths.
+
+## Validation Model
+
+Security validation is split by where each rule belongs:
+
+- Native NixOS assertions fail normal host evaluation for local module
+  contracts. Use them when a module defines or consumes the option and an
+  invalid value should block `nixos-rebuild`, such as SOPS-backed initrd secret
+  paths, SSH/fail2ban coupling, or exact per-host Nix trusted users.
+- Native NixOS warnings are for suspicious settings that should be visible but
+  may be valid during a deliberate exception, such as globally exposed SSH on a
+  tailnet-first host.
+- Flake invariant checks cover fleet-level policy, host registry consistency,
+  backup coverage, and generated-output expectations where the NixOS module
+  system is not the natural owner.
+- NixOS VM tests and smoke tests cover behavior that must be observed at
+  runtime rather than inferred from evaluated options.
 
 ## Scoped Agent Maintenance Sudo
 

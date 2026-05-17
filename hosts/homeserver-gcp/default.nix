@@ -8,6 +8,25 @@
 }:
 let
   inherit (hostMeta) tailnetFQDN;
+  expectedTrustedUsers = [
+    "root"
+    "user"
+  ];
+  actualTrustedUsers = config.nix.settings.trusted-users or [ ];
+  missingTrustedUsers = lib.filter (
+    user: !(builtins.elem user actualTrustedUsers)
+  ) expectedTrustedUsers;
+  unexpectedTrustedUsers = lib.filter (
+    user: !(builtins.elem user expectedTrustedUsers)
+  ) actualTrustedUsers;
+  trustedUserViolations = lib.filter (msg: msg != "") [
+    (lib.optionalString (
+      missingTrustedUsers != [ ]
+    ) "missing trusted users: ${lib.concatStringsSep ", " missingTrustedUsers}")
+    (lib.optionalString (
+      unexpectedTrustedUsers != [ ]
+    ) "unexpected trusted users: ${lib.concatStringsSep ", " unexpectedTrustedUsers}")
+  ];
 in
 {
   imports = [
@@ -69,6 +88,13 @@ in
   # Passwordless sudo is safe here: access is SSH-key-only over Tailscale,
   # no interactive console, and deploy-rs needs it for activation.
   security.sudo.wheelNeedsPassword = false;
+
+  assertions = [
+    {
+      assertion = trustedUserViolations == [ ];
+      message = "homeserver-gcp nix.settings.trusted-users must stay minimal: ${lib.concatStringsSep "; " trustedUserViolations}";
+    }
+  ];
 
   nix = {
     # deploy-rs remoteBuild connects as `user`; trust it so remote builds do not
