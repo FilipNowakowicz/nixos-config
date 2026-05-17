@@ -166,6 +166,7 @@ in
   boot = {
     # Lanzaboote (Secure Boot)
     loader.systemd-boot.enable = lib.mkForce false;
+    loader.systemd-boot.configurationLimit = 5;
     lanzaboote = {
       enable = true;
       pkiBundle = "/var/lib/sbctl";
