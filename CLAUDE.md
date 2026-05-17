@@ -19,7 +19,7 @@ approaches proactively. Explain why, not just what.
 - **Validate flake eval:** `bash scripts/validate.sh flake-eval`
 - **Automated updates:** Weekly `flake.lock` updates (`flake-update.yml`); auto-merges if `merge-gate` status check passes.
 - **Merge Gate:** Consolidates all required checks (flake-check, invariants, smoke-tests) into a single required status check for branch protection.
-- **Module Topology:** `modules/nixos/default.nix` globally imports `profiles/observability/`, `profiles/backup.nix`, `services/systemd-failure-notify.nix`, and `services/hardened.nix` for all hosts. Hosts must explicitly import host-specific profiles (e.g., `desktop`, `security`, `base`) but must NOT re-import the globally-provided ones.
+- **Module Topology:** `modules/nixos/default.nix` globally imports `profiles/observability/`, `profiles/backup.nix`, `profiles/meta.nix`, `services/systemd-failure-notify.nix`, and `services/hardened.nix` for all hosts. Hosts must explicitly import host-specific profiles (e.g., `desktop`, `security`, `base`) but must NOT re-import the globally-provided ones.
 - **Host Registry:** `lib/hosts.nix` is the single source of truth and uses typed schema validation. It includes target architecture (`system`) for multi-arch support.
 - **Validate light CI suite:** `bash scripts/validate.sh light`
 - **Validate hosts:** `bash scripts/validate.sh hosts`
@@ -65,16 +65,16 @@ approaches proactively. Explain why, not just what.
 - `hosts/homeserver-gcp/` — GCP homeserver (Vaultwarden, Syncthing, LGTM, Nginx, Tailscale, TLS)
 - `hosts/installer/` — minimal NixOS ISO config for fresh installs
 - `scripts/closure-diff.sh` — compute closure diffs in CI
-- `modules/nixos/profiles/` — system profiles (base, desktop, security, observability, observability-client, sops-base)
+- `modules/nixos/profiles/` — system profiles (base, desktop, security, observability, observability-client, sops-base, meta, machine-common, machine-dev, impermanence-base, user)
 - `modules/nixos/services/` — standalone systemd services (hardened.nix, failure-notify)
 - `modules/nixos/hardware/` — hardware drivers and graphics (NVIDIA PRIME)
-- `home/profiles/` — home-manager profiles (base, desktop, workstation)
+- `home/profiles/` — home-manager profiles (base, desktop, workstation) plus `workflow-packs/` (browsing, coding, latex, learning)
 - `home/theme/` — runtime-swappable themes and Home Manager module
   - `active.nix` is intentionally local state (tracks current theme). On a fresh clone, run:
     `git update-index --skip-worktree home/theme/active.nix`
     To commit a new default: `git update-index --no-skip-worktree home/theme/active.nix`, commit, re-apply.
 - `home/files/` — dotfiles and standalone scripts (NIX_REPO injected)
-- `home/users/user/` — user home-manager entry points (`home.nix`, `server.nix`, `wsl.nix`)
+- `home/users/user/` — user home-manager entry points (`home.nix`, `server.nix`, `wsl.nix`, `common.nix`)
 - `templates/python/` — reusable Python dev shell template (`nix flake init -t ~/nix#python`); provides python3, uv, ruff, basedpyright; sets `UV_PYTHON_DOWNLOADS=never` and `UV_PYTHON` to pin Python to nixpkgs
 
 ---

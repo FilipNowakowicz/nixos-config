@@ -133,7 +133,7 @@ Allowed categories:
 - `bootctl status --no-pager` and `bootctl cleanup`;
 - `efibootmgr -b XXXX -B` for explicit EFI entry deletion;
 - `nix-collect-garbage --delete-older-than *`;
-- `nh os switch --hostname main /home/user/nix`.
+- `nixos-switch-main` (argument-free wrapper; internally runs `nh os switch --hostname main /home/user/nix`).
 
 Do not replace this with broad passwordless sudo. Add new commands only when
 they are repeat maintenance operations and can be expressed narrowly.
