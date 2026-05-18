@@ -13,11 +13,12 @@ README high-level; put command-heavy procedures here.
 
 ## Deployment Matrix
 
-| Target           | Status | Command                                  | Notes                                        |
-| :--------------- | :----- | :--------------------------------------- | :------------------------------------------- |
-| `main`           | Active | `nh os switch --hostname main .`         | Primary workstation.                         |
-| `homeserver-gcp` | Active | `deploy '.#homeserver-gcp'`              | GCP homeserver; see `scripts/deploy-gcp.sh`. |
-| `user@wsl`       | Active | `home-manager switch --flake .#user@wsl` | Portable Home Manager profile for WSL.       |
+| Target           | Status | Command                                  | Notes                                                                |
+| :--------------- | :----- | :--------------------------------------- | :------------------------------------------------------------------- |
+| `main`           | Active | `nh os switch --hostname main .`         | Primary workstation.                                                 |
+| `homeserver-gcp` | Active | `deploy '.#homeserver-gcp'`              | GCP homeserver; see `scripts/deploy-gcp.sh`.                         |
+| `mac`            | Active | `deploy '.#mac'`                         | Companion workstation (2017 MacBook Air); `nh os switch` also works. |
+| `user@wsl`       | Active | `home-manager switch --flake .#user@wsl` | Portable Home Manager profile for WSL.                               |
 
 ## main Workstation Operations
 

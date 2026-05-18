@@ -327,6 +327,45 @@ let
   homeserverBackupInvariants = [
     homeserverGcpB2BackupUsesCriticalPolicy
   ];
+
+  # mac is a companion workstation: deploy-rs target like homeserver-gcp
+  # (passwordless wheel, SSH tailnet-only) but interactive like main (USBGuard
+  # absent for now, no published HTTPS service). Reuse the homeserver access
+  # invariants minus the HTTPS port assertion.
+  macAccessInvariants = [
+    {
+      name = "passwordless sudo enabled";
+      check =
+        cfg:
+        require (!cfg.security.sudo.wheelNeedsPassword)
+          "security.sudo.wheelNeedsPassword must be false (deploy-rs needs passwordless sudo; access is SSH-key-only over Tailscale)";
+    }
+    {
+      name = "firewall enabled";
+      check = cfg: require cfg.networking.firewall.enable "networking.firewall.enable must be true";
+    }
+    {
+      name = "SSH is not globally open";
+      check = cfg: invariants.checkNoGlobalTCPPorts [ 22 ] cfg;
+    }
+    {
+      name = "SSH stays Tailscale-only";
+      check =
+        cfg:
+        invariants.checkTCPPortsRestrictedToInterface {
+          interface = "tailscale0";
+          ports = [ 22 ];
+        } cfg;
+    }
+    {
+      name = "sops uses SSH host key for decryption";
+      check =
+        cfg:
+        require (
+          cfg.sops.age.sshKeyPaths != [ ]
+        ) "sops.age.sshKeyPaths must contain at least one SSH host key path";
+    }
+  ];
 in
 {
   invariantChecks = {
@@ -345,6 +384,10 @@ in
       ++ registryAssertionsFor "homeserver-gcp"
     ) ciNixosConfigs.homeserver-gcp.config;
 
+    invariants-mac = invariants.mkInvariantCheck "mac" (
+      commonSystemInvariants ++ macAccessInvariants ++ registryAssertionsFor "mac"
+    ) allNixosConfigs.mac.config;
+
     homeserver-gcp-sops-bootstrap =
       let
         secretsDir = ../hosts/homeserver-gcp/secrets;
@@ -360,6 +403,22 @@ in
           ${lib.optionalString (
             !hasPub
           ) ''echo "  hosts/homeserver-gcp/secrets/ssh_host_ed25519_key.pub.enc"''}
+          exit 1
+        '';
+
+    mac-sops-bootstrap =
+      let
+        secretsDir = ../hosts/mac/secrets;
+        hasKey = builtins.pathExists (secretsDir + "/ssh_host_ed25519_key.enc");
+        hasPub = builtins.pathExists (secretsDir + "/ssh_host_ed25519_key.pub.enc");
+      in
+      if hasKey && hasPub then
+        pkgs.runCommand "mac-sops-bootstrap-check" { } "touch $out"
+      else
+        pkgs.runCommand "mac-sops-bootstrap-check" { } ''
+          echo "mac sops bootstrap incomplete — missing pre-baked host key files:"
+          ${lib.optionalString (!hasKey) ''echo "  hosts/mac/secrets/ssh_host_ed25519_key.enc"''}
+          ${lib.optionalString (!hasPub) ''echo "  hosts/mac/secrets/ssh_host_ed25519_key.pub.enc"''}
           exit 1
         '';
   };

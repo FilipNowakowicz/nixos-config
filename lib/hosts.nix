@@ -192,6 +192,29 @@ let
       deploy.sshUser = "user";
     };
 
+    # 2017 MacBook Air (A1466) repurposed as a companion workstation.
+    # Canonical state lives on `main`; mac syncs via Syncthing, so no backup class.
+    # Heaviest packs (latex, learning) are dropped to keep the 128 GB SSD usable;
+    # the workstation dev-tool block from home.nix is preserved.
+    mac = {
+      system = "x86_64-linux";
+      status = "active";
+      homeManager = {
+        role = "desktop";
+        profiles = [ "desktop" ];
+        enableSpotify = false;
+        packs = [
+          "browsing"
+          "coding"
+        ];
+      };
+      tailscale = {
+        tag = "workstation";
+        acceptFrom.workstation = [ 22 ];
+      };
+      deploy.sshUser = "user";
+    };
+
   };
 in
 builtins.mapAttrs validateHost raw

@@ -9,6 +9,10 @@ keys:
   # Pre-generated; private key stored encrypted in hosts/homeserver-gcp/secrets/
   - &homeserver_gcp_host age13av6mujh9r7xv880k8elnfkqztpx3c8eahfwdl42wzss6sz9jchsc3hqg6
 
+  # mac SSH host key converted to age: ssh-to-age < /etc/ssh/ssh_host_ed25519_key.pub
+  # Pre-generated; private key stored encrypted in hosts/mac/secrets/
+  - &mac_host age18sl0mheda2g4atmwsn60sds0026p62cd5xr2he2pad3lmrkr24qsvs0sx2
+
 creation_rules:
   - path_regex: home/users/user/secrets/.*\.(json|yaml|yml)$
     key_groups:
@@ -24,3 +28,8 @@ creation_rules:
       - age:
           - *user
           - *homeserver_gcp_host
+  - path_regex: hosts/mac/secrets/.*
+    key_groups:
+      - age:
+          - *user
+          - *mac_host
