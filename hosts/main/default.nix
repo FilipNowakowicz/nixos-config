@@ -647,6 +647,10 @@ in
       # ID: 0781:5581, serial: 4C530001250727100272
       allow id 0781:5581 serial "4C530001250727100272" name "Ultra"
 
+      # Allow Toshiba TransMemory USB installer stick
+      # ID: 0930:6544, serial: C412F52D6C79C2307002C73F
+      allow id 0930:6544 serial "C412F52D6C79C2307002C73F" name "TransMemory"
+
       # Reject everything else
       reject
     '';
