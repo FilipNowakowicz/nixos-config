@@ -8,6 +8,10 @@ REPO_WALLPAPERS_DIR="$NIX_REPO/home/theme/wallpapers"
 ACTIVE_FILE="$NIX_REPO/home/theme/active.nix"
 LINKS_FILE="$THEMES_DIR/links.sh"
 WAYBAR_STATE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/waybar-toggle/state"
+LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/theme-switch.lock"
+
+exec 9>"$LOCK_FILE"
+flock 9
 
 list_themes() {
   find "$REPO_THEMES_DIR" -maxdepth 1 -type f -name '*.nix' -printf '%f\n' |
@@ -34,6 +38,12 @@ waybar_pids() {
   ps -eo pid=,comm=,args= |
     awk '$2 == ".waybar-wrapped" && $3 == "waybar" { print $1 }
          $2 == "waybar" { print $1 }' |
+    sort -n -u
+}
+
+swaybg_pids() {
+  ps -eo pid=,comm=,args= |
+    awk '($2 == "swaybg" || $2 == ".swaybg-wrapped") && $0 ~ /swaybg -m fill -i .*current[.]png/ { print $1 }' |
     sort -n -u
 }
 
@@ -183,7 +193,12 @@ fi
 
 # Check if already active
 if [[ $CURRENT_THEME == "$THEME" ]]; then
-  echo "Theme '$THEME' is already active"
+  if [[ -z $(swaybg_pids) ]]; then
+    swaybg -m fill -i "$HOME/.local/share/wallpapers/current.png" 9>&- &
+    echo "Theme '$THEME' is already active; restarted wallpaper"
+  else
+    echo "Theme '$THEME' is already active"
+  fi
   exit 0
 fi
 
@@ -236,20 +251,27 @@ fi
 old_swaybg_pids=()
 while IFS= read -r pid; do
   [[ -n $pid ]] && old_swaybg_pids+=("$pid")
-done < <(pgrep -x swaybg || true)
-swaybg -m fill -i "$HOME/.local/share/wallpapers/current.png" &
+done < <(swaybg_pids)
+swaybg -m fill -i "$HOME/.local/share/wallpapers/current.png" 9>&- &
 sleep 0.2
 if ((${#old_swaybg_pids[@]} > 0)); then
   kill "${old_swaybg_pids[@]}" 2>/dev/null || true
+  sleep 0.2
+  for pid in "${old_swaybg_pids[@]}"; do
+    kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null || true
+  done
 fi
 
 for socket in /tmp/kitty-*/kitty-*; do
   [[ -S $socket ]] && kitty @ --to "unix:$socket" load-config 2>/dev/null || true
 done
 
-pkill mako || true
-sleep 0.5
-systemctl --user restart mako.service 2>/dev/null || true
+if ! systemctl --user restart mako.service 2>/dev/null; then
+  pkill -x mako 2>/dev/null || true
+  sleep 0.2
+  systemctl --user restart mako.service 2>/dev/null || true
+fi
+systemctl --user reset-failed mako.service 2>/dev/null || true
 
 notify-send "Theme changed" "Switched to: $THEME" || true
 echo "✓ Theme switched to $THEME"

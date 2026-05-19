@@ -139,6 +139,7 @@ in
           kitty
           procps
           systemd
+          util-linux
           libnotify
           fzf
         ];
