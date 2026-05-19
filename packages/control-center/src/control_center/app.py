@@ -26,6 +26,7 @@ from .constants import (
 from .css import build_css
 from .gather import gather_fast_state, gather_slow_state
 from .state_file import clear_state, read_state, write_state
+from .theme import load_colors
 from .views.bluetooth import BluetoothViewMixin
 from .views.dnd import DndViewMixin
 from .views.home import HomeViewMixin
@@ -55,12 +56,14 @@ class ControlCenter(
         self._current_view = initial_view
         self._visible = not start_hidden
         self.colors = colors
+        self._css_provider = None
         self.state = state
         self.win = None
         self.stack = None
         self._refreshers = []
         self._fast_poll_id = 0
         self._slow_poll_id = 0
+        self._theme_reload_signal_id = 0
         self._fast_gathering = False
         self._slow_gathering = False
         # Optimistic overrides while slow writes (e.g. tailscale up) catch up.
@@ -72,13 +75,7 @@ class ControlCenter(
     # ── Window + stack ────────────────────────────────────────
 
     def _build(self, _app):
-        provider = Gtk.CssProvider()
-        provider.load_from_data(build_css(self.colors).encode())
-        Gtk.StyleContext.add_provider_for_display(
-            Gdk.Display.get_default(),
-            provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
-        )
+        self._install_css_provider()
 
         self.win = Gtk.ApplicationWindow(application=self)
         self.win.set_decorated(False)
@@ -128,6 +125,11 @@ class ControlCenter(
         self._fast_poll_id = GLib.timeout_add(self.FAST_POLL_MS, self._tick_fast)
         self._slow_poll_id = GLib.timeout_add(self.SLOW_POLL_MS, self._tick_slow)
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR1, self._on_ipc_toggle)
+        self._theme_reload_signal_id = GLib.unix_signal_add(
+            GLib.PRIORITY_DEFAULT,
+            signal.SIGUSR2,
+            self._on_theme_reload,
+        )
         self._tick_fast()  # populate visible state immediately
         self._tick_slow()  # fill network/VPN details in the background
 
@@ -142,6 +144,9 @@ class ControlCenter(
         if self._slow_poll_id:
             GLib.source_remove(self._slow_poll_id)
             self._slow_poll_id = 0
+        if self._theme_reload_signal_id:
+            GLib.source_remove(self._theme_reload_signal_id)
+            self._theme_reload_signal_id = 0
         clear_state(os.getpid())
 
     def _on_key(self, _ctrl, keyval, _keycode, _state):
@@ -182,6 +187,11 @@ class ControlCenter(
             self._hide_window()
         return True
 
+    def _on_theme_reload(self):
+        self._refresh_theme_css(force=True)
+        self._tick_fast()
+        return True
+
     # ── Refresh loop ──────────────────────────────────────────
 
     def _tick_fast(self):
@@ -214,6 +224,7 @@ class ControlCenter(
 
     def _apply_fast_state(self, state):
         self._fast_gathering = False
+        self._refresh_theme_css()
         return self._apply_state(state, FAST_STATE_KEYS)
 
     def _apply_slow_state(self, state):
@@ -240,6 +251,30 @@ class ControlCenter(
             }
         self._refresh_ui()
         return False
+
+    def _install_css_provider(self):
+        display = Gdk.Display.get_default()
+        if display is None:
+            return
+        if self._css_provider is not None:
+            Gtk.StyleContext.remove_provider_for_display(
+                display,
+                self._css_provider,
+            )
+        self._css_provider = Gtk.CssProvider()
+        self._css_provider.load_from_data(build_css(self.colors).encode())
+        Gtk.StyleContext.add_provider_for_display(
+            display,
+            self._css_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
+
+    def _refresh_theme_css(self, force=False):
+        colors = load_colors()
+        if not force and colors == self.colors:
+            return
+        self.colors = colors
+        self._install_css_provider()
 
     @staticmethod
     def _set_class(widget, klass, on):

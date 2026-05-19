@@ -29,6 +29,13 @@ theme_wallpaper() {
   grep -oP 'wallpaper\s*=\s*\.\./wallpapers/\K[^;]+' "$theme_file" | head -1
 }
 
+waybar_pids() {
+  ps -eo pid=,comm=,args= |
+    awk '$2 == ".waybar-wrapped" && $3 == "waybar" { print $1 }
+         $2 == "waybar" { print $1 }' |
+    sort -n -u
+}
+
 ensure_theme_assets() {
   local theme="$1"
   local theme_dir="$THEMES_DIR/$theme"
@@ -190,13 +197,30 @@ fi
 source "$LINKS_FILE"
 ensure_theme_assets "$THEME"
 link_theme_assets "$THEMES_DIR/$THEME"
+theme_file="$REPO_THEMES_DIR/$THEME.nix"
+bg=$(theme_value "$theme_file" bg)
+brown=$(theme_value "$theme_file" brown)
+amber=$(theme_value "$theme_file" amber)
+
+if [[ -f /tmp/control-center.json ]]; then
+  control_center_pid=$(
+    sed -n 's/.*"pid"[[:space:]]*:[[:space:]]*\([0-9]\+\).*/\1/p' \
+      /tmp/control-center.json | head -1
+  )
+  if [[ -n ${control_center_pid:-} ]] && kill -0 "$control_center_pid" 2>/dev/null; then
+    kill -USR2 "$control_center_pid" 2>/dev/null || true
+  fi
+fi
 
 # Reload apps
-hyprctl reload >/dev/null 2>&1 || true
+hyprctl keyword general:col.active_border "rgb($amber)" >/dev/null 2>&1 || true
+hyprctl keyword general:col.inactive_border "rgb($brown)" >/dev/null 2>&1 || true
+hyprctl keyword decoration:shadow:color "rgba(${bg}cc)" >/dev/null 2>&1 || true
 
-pkill waybar || true
-sleep 0.3
-waybar &
+while IFS= read -r pid; do
+  [[ -n $pid ]] || continue
+  kill -USR2 "$pid" 2>/dev/null || true
+done < <(waybar_pids)
 
 old_swaybg_pids=()
 while IFS= read -r pid; do
