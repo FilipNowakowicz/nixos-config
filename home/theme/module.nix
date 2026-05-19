@@ -32,6 +32,7 @@ let
 
   # Get the active theme
   activeTheme = validThemes.${cfg.active} or (lib.head (lib.attrValues validThemes));
+  runtimeActiveThemeFile = "${config.home.homeDirectory}/nix/home/theme/active.nix";
 
   themeLinkTargets = [
     {
@@ -204,10 +205,22 @@ in
       "themes/links.sh".text = themeLinksSnippet;
     };
 
-    # Symlink active theme configs into live app paths on every rebuild
+    # Symlink active theme configs into live app paths on every activation.
+    # Read active.nix at activation time so a runtime theme-switch survives a
+    # reboot even when the Home Manager generation was built with another theme.
     home.activation.linkActiveTheme = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       . "${config.xdg.configHome}/themes/links.sh"
-      link_theme_assets "${config.xdg.configHome}/themes/${activeTheme.name}"
+
+      active_theme="${activeTheme.name}"
+      active_file=${lib.escapeShellArg runtimeActiveThemeFile}
+      if [[ -f "$active_file" ]]; then
+        runtime_theme=$(sed -n 's|.*themes/\([a-z0-9-]\+\)\.nix.*|\1|p' "$active_file" | head -n1)
+        if [[ -n "$runtime_theme" && -d "${config.xdg.configHome}/themes/$runtime_theme" ]]; then
+          active_theme="$runtime_theme"
+        fi
+      fi
+
+      link_theme_assets "${config.xdg.configHome}/themes/$active_theme"
     '';
   };
 }
