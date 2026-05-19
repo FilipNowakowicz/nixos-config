@@ -7,6 +7,7 @@ REPO_THEMES_DIR="$NIX_REPO/home/theme/themes"
 REPO_WALLPAPERS_DIR="$NIX_REPO/home/theme/wallpapers"
 ACTIVE_FILE="$NIX_REPO/home/theme/active.nix"
 LINKS_FILE="$THEMES_DIR/links.sh"
+WAYBAR_STATE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/waybar-toggle/state"
 
 list_themes() {
   find "$REPO_THEMES_DIR" -maxdepth 1 -type f -name '*.nix' -printf '%f\n' |
@@ -34,6 +35,14 @@ waybar_pids() {
     awk '$2 == ".waybar-wrapped" && $3 == "waybar" { print $1 }
          $2 == "waybar" { print $1 }' |
     sort -n -u
+}
+
+waybar_visible() {
+  if [[ -f $WAYBAR_STATE_FILE ]]; then
+    [[ $(<"$WAYBAR_STATE_FILE") == "visible" ]]
+    return
+  fi
+  hyprctl layers 2>/dev/null | grep -q 'namespace: waybar'
 }
 
 ensure_theme_assets() {
@@ -217,10 +226,12 @@ hyprctl keyword general:col.active_border "rgb($amber)" >/dev/null 2>&1 || true
 hyprctl keyword general:col.inactive_border "rgb($brown)" >/dev/null 2>&1 || true
 hyprctl keyword decoration:shadow:color "rgba(${bg}cc)" >/dev/null 2>&1 || true
 
-while IFS= read -r pid; do
-  [[ -n $pid ]] || continue
-  kill -USR2 "$pid" 2>/dev/null || true
-done < <(waybar_pids)
+if waybar_visible; then
+  while IFS= read -r pid; do
+    [[ -n $pid ]] || continue
+    kill -USR2 "$pid" 2>/dev/null || true
+  done < <(waybar_pids)
+fi
 
 old_swaybg_pids=()
 while IFS= read -r pid; do

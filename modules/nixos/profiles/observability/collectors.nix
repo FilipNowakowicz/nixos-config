@@ -89,7 +89,7 @@ let
 
   auditJournalSources = lib.mapAttrsToList (name: source: {
     type = "loki.source.journal";
-    label = "audit_${name}";
+    label = "audit_${lib.replaceStrings [ "-" ] [ "_" ] name}";
     body = {
       forward_to = [ (gen.ref "loki.write.target.receiver") ];
       inherit (source) matches;

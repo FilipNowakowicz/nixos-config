@@ -154,6 +154,16 @@ in
         text = builtins.readFile ../../files/scripts/waybar-weather.sh;
       })
 
+      (writeShellApplication {
+        name = "waybar-toggle";
+        runtimeInputs = with pkgs; [
+          hyprland
+          procps
+          gnugrep
+        ];
+        text = builtins.readFile ../../files/scripts/waybar-toggle.sh;
+      })
+
       waybarAnchor
 
       controlCenter
