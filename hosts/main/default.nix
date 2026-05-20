@@ -504,6 +504,17 @@ in
 
   # NetworkManager manages networking; avoid boot blocking on online targets.
   systemd = {
+    # Hyprland starts the Home Manager graphical session through this target
+    # after exporting WAYLAND_DISPLAY/AQ_DRM_DEVICES into the user systemd
+    # environment. Keep Sunshine on the same target so Wayland capture sees the
+    # live session.
+    user.services.sunshine = {
+      after = lib.mkForce [ "nixos-fake-graphical-session.target" ];
+      partOf = lib.mkForce [ "nixos-fake-graphical-session.target" ];
+      wantedBy = lib.mkForce [ "nixos-fake-graphical-session.target" ];
+      wants = lib.mkForce [ "nixos-fake-graphical-session.target" ];
+    };
+
     # The control center owns Bluetooth status/control now, so suppress the
     # redundant Blueman tray icon instead of autostarting blueman-applet.
     user.services.blueman-applet.enable = false;
