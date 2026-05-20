@@ -84,6 +84,10 @@ The host declares scoped passwordless sudo for a small set of agent-assisted
 maintenance commands. Keep using normal passworded sudo for anything outside
 that allowlist.
 
+`main` also hosts companion-workstation services for `mac`: Sunshine runs as a
+system service, and Input Leap is installed in Home Manager. Their network
+surface is limited to `tailscale0`; the general LAN firewall remains closed.
+
 Clean stale boot artifacts:
 
 ```bash
@@ -157,6 +161,33 @@ The first pass checks a narrow set of registry-backed facts:
 - Tailscale tag and tailnet FQDN from `lib/hosts.nix`
 - Tailscale-only TCP ports derived from `networking.firewall.interfaces.tailscale0.allowedTCPPorts`
 - Selected enabled systemd units such as `tailscaled`, `sshd`, and core homeserver services
+
+## Mac Companion Workstation
+
+Deploy from `main`:
+
+```bash
+deploy '.#mac'
+```
+
+Local fallback on the Mac:
+
+```bash
+nh os switch --hostname mac .
+```
+
+After Mac changes, check the live host:
+
+```bash
+ssh user@mac.tail90fc7a.ts.net
+systemctl --failed --no-pager
+systemctl --user status syncthing.service --no-pager
+systemctl status tailscaled sshd thermald power-profiles-daemon --no-pager
+```
+
+Syncthing, Input Leap, and Moonlight still need interactive pairing after a
+fresh install. The aliases `input-main`, `input-server`, and `moon-main` are
+installed as helpers, but certificate/device approval remains operator state.
 
 ## Tailscale ACL Drift
 

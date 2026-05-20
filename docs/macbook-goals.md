@@ -56,8 +56,8 @@ weak but H.264/H.265 decode is fine.
 ### Syncthing node
 
 Always-on (when open) peer for the Mac's home directory and any shared
-folders. Joins the existing Syncthing fabric defined under `home/users/user/`.
-No system-level Syncthing service — keep this in the Home Manager profile.
+folders. Runs as a Home Manager user service so pairing state and accepted
+folders live with the user, not in a system-level Syncthing service.
 
 ### Persistent tmux session
 
@@ -96,13 +96,14 @@ home LAN devices that should not run Tailscale themselves.
       the minimal ISO). iPhone USB tethering is a viable fallback.
 - [ ] USB drive for the installer ISO.
 
-## Status (2026-05-19)
+## Status (2026-05-20)
 
-Configuration is **installed on the MacBook Air** and reachable over Tailscale
-as `mac.tail90fc7a.ts.net` / `100.73.117.103`. The post-install smoke checks
-pass: SSH works, the system is running, no units are failed, Tailscale is
-authed, secrets are decrypted, impermanence mounts are in place, and
-`deploy --dry-activate '.#mac'` reaches the target successfully.
+Configuration is **installed on the MacBook Air** and wired as a companion
+workstation. It is reachable over Tailscale as `mac.tail90fc7a.ts.net` /
+`100.73.117.103`. The post-install smoke checks pass: SSH works, the system is
+running, no units are failed, Tailscale is authed, secrets are decrypted,
+impermanence mounts are in place, and `deploy --dry-activate '.#mac'` reaches
+the target successfully.
 
 What's already in the repo:
 
@@ -115,6 +116,11 @@ What's already in the repo:
   (both reuse `main`'s hash so the same login works) + `observability_ingest_password`.
 - `hosts/mac/disko.nix`, `hardware-configuration.nix`, `impermanence.nix`,
   `default.nix`, `CLAUDE.md`.
+- `home/users/user/mac.nix` — Mac-specific Home Manager additions:
+  `input-leap`, `moonlight-qt`, Syncthing, and helper aliases.
+- `home/users/user/main.nix` + `hosts/main/default.nix` — `main` has
+  `input-leap`, Sunshine, and Tailscale-scoped firewall ports for companion
+  access from the Mac.
 - `flake/checks.nix` — `invariants-mac` + `mac-sops-bootstrap` checks.
 - `scripts/validate.sh` — `host mac` target + light-suite entries.
 - `docs/operations.md` — mac in the deploy matrix.
@@ -135,12 +141,14 @@ What deliberately diverged from the original plan:
 - `boot.loader.efi.canTouchEfiVariables = false`. Apple firmware drops
   EFI variable writes silently; systemd-boot's fallback bootloader at
   `/EFI/BOOT/BOOTX64.EFI` is reachable via the Option-key boot picker.
-- Hyprland + Input Leap + Moonlight + Syncthing are **not yet wired in**.
-  Plan section "Home Manager profile" is a follow-up — the current
-  `home/users/user/home.nix` (via `role = "desktop"`) provides Hyprland
-  and the workstation desktop apps already; the Mac-specific additions
-  (`input-leap`, `moonlight-qt`, `services.syncthing.enable = true`) need
-  a `home/users/user/mac.nix` or a conditional in `home.nix`.
+- Hyprland is inherited from the desktop Home Manager/NixOS profiles.
+  Mac-specific companion apps are now wired through `home/users/user/mac.nix`.
+  Syncthing runs as a Home Manager user service; device pairing and concrete
+  folder selection are intentionally live Syncthing state rather than guessed
+  device IDs in this repo.
+- Home Manager user secrets are disabled on `mac`; that host does not carry
+  the operator age key at `~/.config/sops/age/keys.txt`. System secrets still
+  decrypt through the Mac SSH host key.
 
 ## Install Runbook (archived)
 
@@ -313,12 +321,15 @@ Post-install (next session):
 
 Workload follow-ups (not part of the bootstrap):
 
-- [ ] `home/users/user/mac.nix` or conditional adds for `input-leap`
-      (client) + `moonlight-qt` + `services.syncthing.enable = true` with
-      the Syncthing folder set defined in `lib/syncthing.nix`.
-- [ ] Input Leap server config on `main` (TLS cert exchange + Tailscale-only
-      bind).
-- [ ] Sunshine host config on `main` for Moonlight client on mac.
+- [x] `home/users/user/mac.nix` adds `input-leap`, `moonlight-qt`, and
+      `services.syncthing.enable = true`.
+- [x] `main` has Input Leap and Sunshine packages/services with the relevant
+      Tailscale interface ports opened.
+- [ ] Pair Syncthing devices in the GUI and accept only the folders that
+      should exist on the 128 GB Mac SSD.
+- [ ] Complete Input Leap TLS certificate exchange, then use `input-main` on
+      the Mac and `input-server` on `main`.
+- [ ] Pair Moonlight against Sunshine on `main`; use `moon-main` on the Mac.
 
 ## Open Questions
 

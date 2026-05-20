@@ -13,7 +13,9 @@ approaches proactively. Explain why, not just what.
 - **Per-project shells:** `direnv` enabled — use `use flake` in `.envrc` for automatic environment loading.
 - **Deploy (WSL):** `home-manager switch --flake .#user@wsl`
 - **Deploy (main):** `nh os switch --hostname main .` (alias: `rebuild`)
+- **Deploy (mac):** `deploy '.#mac'` from `main`; local fallback is `nh os switch --hostname mac .`
 - **Main storage model:** `main` uses LUKS + Btrfs subvolumes (`@root`, `@home`, `@nix`, `@persist`) with initrd rollback of `@root` from `@root-blank` on every boot. Persistent state is explicit in `hosts/main/impermanence.nix`.
+- **Mac role:** `mac` is a 2017 MacBook Air companion workstation with Tailscale-only SSH, Home Manager Syncthing, Input Leap client tooling, and Moonlight for Sunshine streams from `main`.
 - **Main backups:** `main` Restic/B2 backup coverage is declared in `hosts/main/default.nix` and includes selected home state plus persisted service identity such as Wi-Fi profiles, Mullvad, Tailscale, Bluetooth, USBGuard, Secure Boot PKI, machine-id, and SSH host key.
 - **Agent maintenance sudo:** `main` keeps normal wheel sudo passworded but grants `user` narrow NOPASSWD rules for agent-assisted maintenance commands declared as `agentMaintenanceCommands` in `hosts/main/default.nix`. Do not broaden this to `NOPASSWD: ALL`.
 - **Validate flake eval:** `bash scripts/validate.sh flake-eval`
@@ -56,12 +58,13 @@ approaches proactively. Explain why, not just what.
 - `lib/cve-checks.nix` — CVE scanning check builders
 - `lib/acl.nix` — Tailscale ACL generator (derives rules from host registry)
 - `lib/pubkeys.nix` — centralized SSH public keys
-- `lib/syncthing.nix` — shared Syncthing device/folder registry
 - `docs/architecture.md` — structural rules and module boundaries
 - `docs/operations.md` — deployment and validation runbook
 - `docs/security.md` — secrets, exposure, and hardening model
 - `hosts/main/` — real machine config, disko layout, LUKS/Btrfs, impermanence, Lanzaboote (Secure Boot)
   - `hosts/main/CLAUDE.md` — host-local runbook for impermanence, backups, scoped sudo, and recovery gotchas
+- `hosts/mac/` — 2017 MacBook Air companion workstation with Broadcom Wi-Fi, impermanence, sops, and Tailscale
+  - `hosts/mac/CLAUDE.md` — host-local runbook for Mac install, deploys, and hardware caveats
 - `hosts/homeserver-gcp/` — GCP homeserver (Vaultwarden, Syncthing, LGTM, Nginx, Tailscale, TLS)
 - `hosts/installer/` — minimal NixOS ISO config for fresh installs
 - `scripts/closure-diff.sh` — compute closure diffs in CI
@@ -74,7 +77,7 @@ approaches proactively. Explain why, not just what.
     `git update-index --skip-worktree home/theme/active.nix`
     To commit a new default: `git update-index --no-skip-worktree home/theme/active.nix`, commit, re-apply.
 - `home/files/` — dotfiles and standalone scripts (NIX_REPO injected)
-- `home/users/user/` — user home-manager entry points (`home.nix`, `server.nix`, `wsl.nix`, `common.nix`)
+- `home/users/user/` — user Home Manager entry points and host overlays (`home.nix`, `main.nix`, `mac.nix`, `server.nix`, `wsl.nix`, `common.nix`)
 - `templates/python/` — reusable Python dev shell template (`nix flake init -t ~/nix#python`); provides python3, uv, ruff, basedpyright; sets `UV_PYTHON_DOWNLOADS=never` and `UV_PYTHON` to pin Python to nixpkgs
 
 ---
@@ -101,7 +104,7 @@ Managed with sops-nix + age. Edit secrets with `sops <file>`.
 
 - **Broad passwordless sudo is for dev machines and `machine-common` hosts only.**
 - **Scoped passwordless sudo on `main` is limited to `agentMaintenanceCommands`** for interactive maintenance; keep the allowlist narrow and command-specific.
-- **Interactive access should rely on SSH keys.** Host user password hashes are still managed through sops where declared for login/recovery compatibility.
+- **Interactive access should rely on SSH keys.** Host user password hashes are still managed through sops where declared for login/recovery compatibility. `main` and `mac` expose SSH only through Tailscale-scoped firewall rules.
 - **Scope secrets appropriately.** Each host should only be able to decrypt
   the secrets it needs, as defined in `.sops.yaml`.
 

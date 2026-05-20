@@ -140,7 +140,22 @@ in
     # "loose" keeps a weaker source-reachability check, but relaxes anti-spoofing
     # protection compared with strict mode.
     firewall.checkReversePath = "loose";
-    firewall.interfaces.tailscale0.allowedTCPPorts = [ 22 ];
+    firewall.interfaces.tailscale0 = {
+      allowedTCPPorts = [
+        22
+        24800
+        47984
+        47989
+        48010
+      ];
+      allowedUDPPorts = [
+        47998
+        47999
+        48000
+        48002
+        48010
+      ];
+    };
     # Point to systemd-resolved stub for split DNS (Tailscale tailnet hostnames)
     nameservers = [ "127.0.0.53" ];
   };
@@ -283,6 +298,13 @@ in
     resolved = {
       enable = true;
       settings.Resolve.DNSSEC = "false"; # Tailscale manages its own trust chain
+    };
+
+    sunshine = {
+      enable = true;
+      autoStart = true;
+      capSysAdmin = true;
+      openFirewall = false;
     };
 
     thermald.enable = true;

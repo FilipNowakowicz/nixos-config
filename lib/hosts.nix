@@ -167,7 +167,17 @@ let
           "learning"
         ];
       };
-      tailscale.tag = "workstation";
+      tailnetFQDN = "main.tail90fc7a.ts.net";
+      tailscale = {
+        tag = "workstation";
+        acceptFrom.workstation = [
+          22
+          24800
+          47984
+          47989
+          48010
+        ];
+      };
       backup.class = "standard";
     };
 
@@ -208,9 +218,13 @@ let
           "coding"
         ];
       };
+      tailnetFQDN = "mac.tail90fc7a.ts.net";
       tailscale = {
         tag = "workstation";
-        acceptFrom.workstation = [ 22 ];
+        acceptFrom.workstation = [
+          22
+          22000
+        ];
       };
       deploy.sshUser = "user";
     };

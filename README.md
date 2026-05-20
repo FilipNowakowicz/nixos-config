@@ -8,7 +8,7 @@ The repository separates hardware, host identity, system profiles, and user conf
 ## Overview
 
 - **Reproducible & Declarative**: NixOS defines the entire system state, services, and hardware. Home Manager manages the user environment and dotfiles.
-- **Multi-Host Ready**: Built from reusable profiles for a primary workstation (`main`), a deployable GCP homeserver (`homeserver-gcp`), and standalone Home Manager profiles. The host registry defines the target architecture (`system`) per host; the current fleet is `x86_64-linux`.
+- **Multi-Host Ready**: Built from reusable profiles for a primary workstation (`main`), a companion MacBook Air (`mac`), a deployable GCP homeserver (`homeserver-gcp`), and standalone Home Manager profiles. The host registry defines the target architecture (`system`) per host; the current fleet is `x86_64-linux`.
 - **Secrets Management**: Handled by [sops-nix](https://github.com/Mic92/sops-nix) with age encryption, with secrets decrypted at boot by the host itself.
 - **Impermanent Root**: `main` uses an ephemeral root filesystem with [impermanence](https://github.com/nix-community/impermanence). System state is reset on boot, with persistent data explicitly stored on `/persist`.
 - **Declarative Disks**: Disk layouts for real hosts are managed declaratively with [disko](https://github.com/nix-community/disko).
@@ -21,6 +21,7 @@ The repository separates hardware, host identity, system profiles, and user conf
 - [Architecture](docs/architecture.md) - layer boundaries, global imports, and host registry rules.
 - [Operations](docs/operations.md) - deployment, validation, and formatting commands.
 - [Security Model](docs/security.md) - sops recipients, initrd SSH, Tailscale exposure, USBGuard, hardening, and backups.
+- [MacBook Goals](docs/macbook-goals.md) - companion workstation topology, install archive, and remaining pairing tasks.
 - [Neovim](docs/neovim.md) - editor architecture, module layout, and current follow-up work.
 - [Backlog](docs/backlog.md) - deferred and remaining infrastructure work.
 
@@ -35,6 +36,7 @@ Supported contracts:
 - Flake evaluation, formatting, lightweight checks, library tests, invariants, and CI planner tests should work from a clean clone.
 - `x86_64-linux` is the only supported system today.
 - `main` is the active workstation target and is hardware-bound to the owner's machine.
+- `mac` is the active companion workstation target for Input Leap, Moonlight, Syncthing, and emergency SSH.
 - `homeserver-gcp` is the active GCP homeserver target.
 - Secrets are managed with sops-nix. Encrypted files are committed; private keys and live service credentials are not.
 - Destructive install/reinstall commands are operator-only and must not be run without reviewing target disks.
@@ -63,6 +65,7 @@ Requires extra local capability:
 
 - NixOS smoke/profile tests require KVM.
 - `main` switch requires the owner's workstation hardware and secrets.
+- `mac` switch/deploy requires the MacBook Air hardware and host secrets.
 - `homeserver-gcp` deploy requires GCP credentials, Tailscale auth key, and sops access.
 - R2 binary cache publishing requires CI secrets.
 
@@ -102,6 +105,7 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 - **Runtime Theming**: A runtime-swappable color system allows changing themes without a full NixOS rebuild.
 - **Packaged Control Center**: The desktop control center now lives in `packages/control-center` as a first-class flake package/app instead of a loose Home Manager script, so its GTK4 code and runtime wrapper are versioned together.
 - **USB Device Control**: USBGuard enabled on `main` with a strict deny-default policy and a curated allowlist for trusted internal/peripheral devices.
+- **Companion MacBook Air**: `mac` is a deployed NixOS desktop target with Broadcom Wi-Fi support, impermanence, Tailscale-only SSH, Home Manager Syncthing, Input Leap, and Moonlight.
 - **Workstation Backups**: `main` backs up user-critical state and persisted service identity to Backblaze B2 with Restic, including Codex/Claude state, Wi-Fi profiles, Mullvad, Tailscale, Bluetooth, fingerprint, USBGuard, Secure Boot PKI, machine-id, and SSH host identity.
 - **Recovery Boundary**: local Btrfs snapshots are for short-term rollback on the same disk; Restic/B2 remains the off-site recovery path.
 - **Scoped Agent Maintenance Sudo**: `main` keeps normal `wheel` sudo passworded, but allows a narrow set of passwordless maintenance commands for interactive agent sessions: local snapshot start/status, Restic start/status, boot cleanup, selected EFI entry deletion, Nix GC, and switching this flake path.
@@ -147,6 +151,7 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 │   │   ├── disko.nix
 │   │   ├── impermanence.nix
 │   │   └── hardware-configuration.nix
+│   ├── mac/                           # 2017 MacBook Air companion workstation
 │   ├── homeserver-gcp/                # GCP homeserver (Vaultwarden, AdGuard, LGTM, Nginx)
 │   │   ├── CLAUDE.md
 │   │   ├── default.nix
@@ -197,6 +202,8 @@ The `main` host uses a secure, encrypted systemd-boot setup:
     │   └── user/
     │       ├── common.nix
     │       ├── home.nix
+    │       ├── mac.nix                # Mac companion apps and user services
+    │       ├── main.nix               # Main workstation companion-service helpers
     │       ├── server.nix
     │       ├── secrets.nix
     │       └── wsl.nix                # Portable HM for Windows (WSL)

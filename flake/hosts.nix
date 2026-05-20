@@ -25,6 +25,11 @@ let
     workstation = ../home/profiles/workstation.nix;
   };
 
+  homeManagerHostModules = {
+    main = ../home/users/user/main.nix;
+    mac = ../home/users/user/mac.nix;
+  };
+
   mkHomeManagerImports =
     hostMeta:
     let
@@ -38,12 +43,18 @@ let
     in
     [ homeManagerRoleModules.${hm.role} ]
     ++ map (profile: homeManagerProfileModules.${profile}) (hm.profiles or [ ])
+    ++
+      lib.optional (builtins.hasAttr hostMeta.name homeManagerHostModules)
+        homeManagerHostModules.${hostMeta.name}
     ++ lib.optional (enabledPacks != [ ]) workflowPackModule;
 
   mkNixos =
     host: variantArgs:
     let
       hostMeta = hostRegistry.${host};
+      hostMetaWithName = hostMeta // {
+        name = host;
+      };
       extraModules = variantArgs.extraModules or [ ];
       homeManagerExtraArgs = builtins.removeAttrs variantArgs [ "extraModules" ];
     in
@@ -53,9 +64,9 @@ let
         inherit
           inputs
           self
-          hostMeta
           hostRegistry
           ;
+        hostMeta = hostMetaWithName;
       };
       modules = [
         ../hosts/${host}/default.nix
@@ -69,10 +80,11 @@ let
         }
         (lib.mkIf (hostMeta ? homeManager) {
           home-manager.sharedModules = [ inputs.sops-nix.homeManagerModules.sops ];
-          home-manager.users.user.imports = mkHomeManagerImports hostMeta;
+          home-manager.users.user.imports = mkHomeManagerImports hostMetaWithName;
         })
         {
           home-manager.extraSpecialArgs = {
+            hostName = host;
             skipHeavyPackages = false;
             enableSpotify = hostMeta.homeManager.enableSpotify or true;
           }

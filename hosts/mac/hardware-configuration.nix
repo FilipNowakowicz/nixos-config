@@ -3,7 +3,7 @@
 # This is a starter file; regenerate from the live machine after install only
 # if hardware topology, exposed firmware interfaces, or required initrd module
 # detection changes, then review the diff before merging.
-# Last reviewed: 2026-05-18.
+# Last reviewed: 2026-05-20.
 { modulesPath, ... }:
 {
   imports = [
@@ -11,9 +11,10 @@
   ];
 
   boot = {
-    # Apple NVMe (Samsung-built) lives on the standard nvme controller; xhci
-    # covers USB 3 ports, ahci covers the legacy SATA controller exposed for
-    # firmware updates. No TPM modules — pre-2018 MacBook Air has no T2.
+    # The Apple SSD is exposed as an ATA device on this host; keep ahci/sd_mod
+    # in the initrd. xhci covers USB 3 ports. nvme is harmless coverage for
+    # installer/live-ISO variance. No TPM modules — pre-2018 MacBook Air has
+    # no T2.
     initrd.availableKernelModules = [
       "xhci_pci"
       "ahci"

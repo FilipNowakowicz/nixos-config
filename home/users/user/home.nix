@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  hostName ? "main",
   skipHeavyPackages ? false,
   ...
 }:
@@ -320,7 +321,7 @@ in
     # Shared aliases and shell functions are in common.nix
     zsh = {
       shellAliases = {
-        rebuild = "nh os switch --hostname main .";
+        rebuild = "nh os switch --hostname ${hostName} .";
         theme = "theme-switch";
         cb = "clipboard-pick";
         copilot = "steam-run gh copilot";
@@ -357,7 +358,7 @@ in
 
   services = {
     # ── Syncthing ──────────────────────────────────────────────────────────
-    syncthing.enable = false;
+    syncthing.enable = lib.mkDefault false;
 
     # ── Cliphist ────────────────────────────────────────────────────────────
     cliphist.enable = true;

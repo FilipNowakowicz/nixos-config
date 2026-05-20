@@ -60,7 +60,16 @@ in
         device."wifi.scan-rand-mac-address" = "no";
       };
     };
-    firewall.interfaces.tailscale0.allowedTCPPorts = [ 22 ];
+    firewall.interfaces.tailscale0 = {
+      allowedTCPPorts = [
+        22
+        22000
+      ];
+      allowedUDPPorts = [
+        22000
+        21027
+      ];
+    };
     # Loose reverse-path filtering: this host commonly has two live default
     # routes (Wi-Fi + USB-Ethernet/iPhone tether). Strict rpfilter drops the
     # WiFi return traffic because the FIB best-route lookup picks the lower-

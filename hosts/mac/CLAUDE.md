@@ -25,9 +25,9 @@ findmnt -R / -o TARGET,SOURCE,FSTYPE,OPTIONS
 
 ## Storage Model
 
-- **Disk layout**: `hosts/mac/disko.nix` targets `/dev/nvme0n1` (single Apple
-  NVMe; replace with `/dev/disk/by-id/nvme-...` after first boot once the id
-  is known). 512 MB ESP + LUKS-encrypted Btrfs.
+- **Disk layout**: `hosts/mac/disko.nix` targets the stable Apple SSD by-id
+  path (`/dev/disk/by-id/ata-APPLE_SSD_SM0128G_S2XUNY4M230628`). 512 MB ESP +
+  LUKS-encrypted Btrfs.
 - **Subvolumes**: `@root`, `@home`, `@nix`, `@persist`.
 - **Compression**: `compress=zstd` on all primary subvolumes.
 - **Ephemeral root**: same rollback pattern as `main`. `@root` is moved to
@@ -62,8 +62,9 @@ for the actual list.
   disabled (`boot.loader.efi.canTouchEfiVariables = false`). Apple firmware
   often drops EFI variable changes silently; systemd-boot still drops a
   fallback `/EFI/BOOT/BOOTX64.EFI` that the Option-key boot picker finds.
-- **Lid switch**: suspends on battery, ignored on AC power so Syncthing /
-  Input Leap stay reachable when docked. Same idle-suspend after 15 min.
+- **Lid switch**: suspends on battery, ignored on AC power so Syncthing and
+  paired companion services stay reachable when docked. Same idle-suspend
+  after 15 min.
 - **Heat**: thermald + power-profiles-daemon enabled. Broadwell + 8 GB RAM
   is the hard ceiling; don't expect to run heavy builds locally.
 
@@ -161,9 +162,9 @@ status` if the installer ISO joins the tailnet — it does not by default,
    The user/root password hashes from `hosts/mac/secrets/secrets.yaml` are
    re-used from `main`, so the same user password works for console login.
 
-8. **Replace the disk pointer with `/dev/disk/by-id/...`** in
-   `hosts/mac/disko.nix` once the live system reports it (`ls -l
-/dev/disk/by-id | grep nvme`), then redeploy.
+8. **Verify the disk pointer** in `hosts/mac/disko.nix` still matches the live
+   system (`ls -l /dev/disk/by-id | grep APPLE_SSD`), then redeploy if it ever
+   changes.
 
 ## Ongoing Deploys
 
@@ -189,4 +190,4 @@ running on the Mac itself with the dev shell available.
 - **Lid suspends on battery** — long-running tmux sessions die when the lid
   closes on battery. For session continuity prefer `homeserver-gcp`.
 - **No backups** — canonical state lives on `main`; mac files are recoverable
-  via Syncthing (when implemented) or a fresh install + reclone of `~/nix`.
+  via Syncthing pairing or a fresh install + reclone of `~/nix`.

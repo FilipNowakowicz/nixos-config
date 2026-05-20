@@ -2,6 +2,9 @@
 
 Primary workstation. Uses LUKS, Btrfs, impermanence, Lanzaboote Secure Boot,
 Tailscale, Mullvad, USBGuard, Restic/B2 backups, and a full desktop stack.
+Also hosts companion services for `mac`: Sunshine for Moonlight streaming and
+Input Leap server tooling, both reachable only over Tailscale-scoped firewall
+rules.
 
 Status: **active** — hardware-bound to the owner's laptop/workstation.
 
