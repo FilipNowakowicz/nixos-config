@@ -10,12 +10,12 @@ Secrets are managed by `sops-nix` with age recipients configured in `.sops.yaml`
 
 Current recipient groups:
 
-| Group                  | Purpose                                              |
-| :--------------------- | :--------------------------------------------------- |
-| `&user`                | Personal operator key; can decrypt all repo secrets. |
-| `&main_host`           | `main` SSH-host-derived age identity.                |
-| `&mac_host`            | `mac` SSH-host-derived age identity.                 |
-| `&homeserver_gcp_host` | `homeserver-gcp` SSH-host-derived age identity.      |
+| Group                  | Purpose                                                  |
+| :--------------------- | :------------------------------------------------------- |
+| `&user`                | Personal operator key; root secret for all repo secrets. |
+| `&main_host`           | `main` SSH-host-derived age identity.                    |
+| `&mac_host`            | `mac` SSH-host-derived age identity.                     |
+| `&homeserver_gcp_host` | `homeserver-gcp` SSH-host-derived age identity.          |
 
 Host behavior:
 
@@ -23,10 +23,25 @@ Host behavior:
 - `mac` also uses a pre-baked encrypted SSH host key committed under
   `hosts/mac/secrets/`; sops derives `&mac_host` from the persisted private key
   on boot.
-- `homeserver-gcp` uses a pre-baked encrypted SSH host key committed to the repo; `sops-nix` derives `&homeserver_gcp_host` from `/etc/ssh/ssh_host_ed25519_key` on first boot.
+- `homeserver-gcp` uses a pre-baked encrypted SSH host key committed to the repo. During `scripts/deploy-gcp.sh`, the key is decrypted only into a local temporary directory, installed on the bootstrap VM over SSH, verified with `ssh-keyscan`, and copied into the installed NixOS root with `nixos-anywhere --extra-files`; OpenTofu never receives the private key as a variable, metadata value, output, or state value. The temporary local copy is removed by the deploy script exit trap.
 - Planned Home Manager user-secret backups under `home/users/user/secrets/` are encrypted only to `&user`; hosts do not decrypt them automatically.
 - `boot.initrd.secrets` must point only at sops-managed `/run/secrets/*` paths; this is enforced by a native NixOS assertion in the shared SOPS profile.
 - Intentional plaintext exceptions must be narrow entries in `.plaintext-secrets-allowlist`.
+
+`&user` is the root secret for this repository. It is intentionally broad so the
+operator can recover and maintain every encrypted file from one personal age
+identity, but exposing that private key exposes every repo secret reachable
+through `.sops.yaml`. If the personal age key is copied to an untrusted machine,
+included in a public artifact, logged, backed up to an untrusted location, or
+otherwise suspected compromised, rotate the personal key and re-encrypt all repo
+secrets. Also rotate the underlying credentials that were decryptable by the old
+key unless the exposure window can be ruled out.
+
+Structured SOPS files under `home/users/user/secrets/` are accepted even though
+their cleartext keys disclose provider and account shape, such as which tools
+have restorable auth state and the visible GitHub hostname/username nesting in
+the GitHub CLI backup. Token values must still be encrypted, and the repository
+check rejects plaintext JSON/YAML auth backups in that directory.
 
 ## Host Key Rotation
 
@@ -43,7 +58,13 @@ For SSH-host-derived identities:
 
 For `homeserver-gcp`, rotate the dedicated age key by regenerating the encrypted
 key pair, updating `&homeserver_gcp_host` in `.sops.yaml`, and re-encrypting
-every file under `hosts/homeserver-gcp/secrets/` in the same change.
+every file under `hosts/homeserver-gcp/secrets/` in the same change. Because
+older bootstrap flows put the host private key in GCE instance metadata and
+local OpenTofu state, rotation should also verify that `ssh-host-key-b64` is
+absent from instance metadata, ignored `infra/*.tfstate*`, logs, and backups; if
+that cannot be proven, also rotate credentials decryptable by
+`&homeserver_gcp_host`, including Tailscale, Grafana, restic/B2, and service
+password material.
 
 ## Initrd SSH Recovery
 
@@ -100,7 +121,10 @@ Tailscale is the primary remote-access layer.
 - `homeserver-gcp` exposes SSH and HTTPS only on `tailscale0`; it does not globally open TCP `22` or `443`.
 - `homeserver-gcp` obtains TLS material through `tailscale-cert.service`; ACME is not used.
 - `homeserver-gcp` exposes HTTPS on the tailnet FQDN from `lib/hosts.nix`.
-- Observability ingest paths (`/obs/loki/`, `/obs/mimir/`, `/obs/otlp/`) are protected with basic auth sourced from sops.
+- Observability ingest is limited to exact push endpoints protected with basic auth sourced from sops:
+  `/obs/loki/loki/api/v1/push`, `/obs/mimir/api/v1/push`, and
+  `/obs/otlp/v1/traces`. Broader `/obs/*` API paths are denied so ingest
+  credentials cannot read or query Loki, Mimir, or OTLP APIs through nginx.
 - `homeserver-gcp` runs blackbox probes from inside the tailnet boundary against `https://<tailnet-fqdn>/` (Vaultwarden; expect `200/301/302`) and `https://<tailnet-fqdn>/grafana/` (Grafana auth boundary; expect `403` from the server's tagged-device identity).
 - `main` enables SSH but does not open the normal firewall path for general LAN access.
 - `mac` enables SSH and Syncthing listen ports only on `tailscale0`; it is not
@@ -110,13 +134,31 @@ Tailscale is the primary remote-access layer.
 
 Tailscale ACL output is generated by `lib/acl.nix`. Access is derived from
 registry metadata in `lib/hosts.nix`: `tailscale.acceptFrom` defines approved
-inbound TCP ports per source tag, and tags assigned to multiple hosts also get
-a same-tag peer rule for companion workstation cases such as `main` and `mac`.
-`tailnetFQDN` is used when host-specific destinations need a stable tailnet
-name. Admin break-glass access remains a separate deliberate rule. Drift between
-the rendered ACL and the live tailnet policy is checked by
+inbound TCP ports per source tag. Same-tag peer access is not inferred from tag
+reuse; it must be modeled with `acceptFrom` on the destination host. The
+generated rules preserve destination port lists and do not add reverse wildcard
+rules for return traffic. `tailnetFQDN` is used when host-specific destinations
+need a stable tailnet name.
+
+`autogroup:admin` intentionally owns generated tags and keeps `*:*` tailnet
+break-glass access. This means a Tailscale admin can assign node tags and bypass
+normal service ACLs during recovery. That is accepted for this personal
+single-operator tailnet; deployments that separate platform administration from
+day-to-day service access should replace this with narrower owner groups and
+non-wildcard admin ACLs.
+
+Drift between the rendered ACL and the live tailnet policy is checked by
 `.github/workflows/tailscale-acl-drift.yml` via
 `scripts/check-tailscale-acl-drift.sh`.
+
+Grafana is exposed through nginx at `/grafana/` with Tailscale identity resolved
+by a localhost auth helper. Grafana's auth-proxy listener trusts requests from
+`127.0.0.1`, so local processes and SSH users on `homeserver-gcp` can reach the
+Grafana listener directly and spoof auth-proxy headers. This is an accepted
+local break-glass boundary for the current host model. If untrusted shell users
+or untrusted local services are added later, move the nginx-to-Grafana boundary
+to a Unix socket or equivalent nginx-only channel before relying on Grafana
+roles as a local security boundary.
 
 ## USBGuard
 
@@ -166,11 +208,38 @@ Allowed command categories are limited to:
 - starting/statusing the local Restic backup and check units;
 - `bootctl` status/cleanup;
 - deleting an explicitly named EFI boot entry with `efibootmgr -b XXXX -B`;
-- Nix garbage collection with an explicit age;
-- switching this flake path for `main`.
+- Nix garbage collection through the fixed-argument `nix-gc-14d` wrapper.
 
 Do not broaden this to full passwordless sudo. Additions should be exact-command
 maintenance operations and should keep normal interactive sudo passworded.
+Do not add passwordless rebuild/switch commands that activate from
+user-writable paths such as `/home/user/nix`; switching `main` should require a
+normal passworded sudo boundary or a future reviewed immutable activation flow.
+
+## Deploy And Bootstrap Sudo
+
+Some non-`main` paths intentionally keep broad passwordless root after SSH
+access because the current deploy flow depends on it:
+
+- `hosts/mac` sets `security.sudo.wheelNeedsPassword = false` so deploy-rs can
+  activate the companion workstation over Tailscale.
+- `hosts/homeserver-gcp` sets `security.sudo.wheelNeedsPassword = false` for
+  deploy-rs activation over Tailscale-scoped SSH.
+- `modules/nixos/profiles/machine-dev.nix` sets passwordless wheel for
+  disposable development machines and microVM guests that import it.
+- The stock GCP bootstrap image creates a temporary `bootstrap` user with
+  `NOPASSWD:ALL` so `nixos-anywhere` can install NixOS.
+
+This is a deliberate deploy convenience tradeoff: whoever obtains one of those
+SSH identities effectively obtains root on that target. Do not use these
+profiles for multi-user or untrusted-shell hosts without replacing broad wheel
+sudo with a dedicated deploy user and a reviewed command allowlist.
+
+For the GCP bootstrap path, `scripts/deploy-gcp.sh` removes and verifies removal
+of the bootstrap-only metadata keys after a successful install. Removing the
+startup-script metadata prevents the temporary bootstrap user and sudoers entry
+from being recreated by later OpenTofu applies; the bootstrap OS itself is
+replaced by the installed NixOS system.
 
 ## Audit Timeline In Loki
 

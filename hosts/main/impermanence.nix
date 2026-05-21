@@ -34,7 +34,7 @@
     "/var/cache/restic-backups-local" # restic index/pack cache; avoid B2 re-download after each rollback
     "/etc/NetworkManager/system-connections" # saved Wi-Fi / VPN profiles
     "/etc/mullvad-vpn" # Mullvad account + device + settings
-    "/var/cache/mullvad-vpn" # Mullvad relay/API cache
+    "/var/cache/mullvad-vpn" # Mullvad relay/API cache (persisted across reboots but not backed up to B2)
     # systemd state that affects boot-time behavior, not just runtime:
     "/var/lib/systemd/timers" # Persistent=true timer catchup (restic-check-local)
     "/var/lib/systemd/backlight" # restore screen brightness across reboots

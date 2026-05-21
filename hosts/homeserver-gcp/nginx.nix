@@ -105,18 +105,22 @@ in
             '';
           };
 
-          "/obs/loki/" = proxy {
-            target = "http://127.0.0.1:3100/";
+          "/obs/" = {
+            return = "404";
+          };
+
+          "= /obs/loki/loki/api/v1/push" = proxy {
+            target = "http://127.0.0.1:3100/loki/api/v1/push";
             basicAuthFile = cfg.ingestHtpasswdFile;
           };
 
-          "/obs/mimir/" = proxy {
-            target = "http://127.0.0.1:9009/";
+          "= /obs/mimir/api/v1/push" = proxy {
+            target = "http://127.0.0.1:9009/api/v1/push";
             basicAuthFile = cfg.ingestHtpasswdFile;
           };
 
-          "/obs/otlp/" = proxy {
-            target = "http://127.0.0.1:14318/";
+          "= /obs/otlp/v1/traces" = proxy {
+            target = "http://127.0.0.1:14318/v1/traces";
             basicAuthFile = cfg.ingestHtpasswdFile;
           };
         };

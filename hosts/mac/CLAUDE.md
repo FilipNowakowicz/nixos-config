@@ -44,13 +44,23 @@ findmnt -R / -o TARGET,SOURCE,FSTYPE,OPTIONS
 
 ## Persistent State
 
-The persistence list is intentionally coarse: blanket `/var/lib`,
-`/var/cache`, and `/root`, plus the explicit network/systemd state entries.
-Tighten over time as specific paths prove worth calling out — `main`
-started the same way before its persistence list was enumerated.
+The persistence list follows the same explicit-minimum model as `main`.
+Canonical state lives on `main`; mac syncs via Syncthing so recovery usually
+means a fresh install followed by re-pairing Syncthing.
 
-See `hosts/mac/impermanence.nix` and `modules/nixos/profiles/impermanence-base.nix`
-for the actual list.
+From `modules/nixos/profiles/impermanence-base.nix` (shared baseline):
+
+- `/var/log`, `/var/lib/nixos`, `/var/lib/systemd/coredump`
+- `/etc/machine-id`, SSH host keys
+
+From `hosts/mac/impermanence.nix`:
+
+- `/var/lib/tailscale` — tailnet node identity
+- `/var/lib/bluetooth` — Bluetooth pairings
+- `/etc/NetworkManager/system-connections` — saved Wi-Fi / VPN profiles
+- `/var/lib/systemd/timers` — `Persistent=true` timer catchup
+- `/var/lib/systemd/backlight` — screen brightness across reboots
+- `/var/lib/systemd/rfkill` — radio block state across reboots
 
 ## Hardware Notes
 

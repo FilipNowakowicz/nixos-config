@@ -88,7 +88,7 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 
 - **Bootloader**: [Lanzaboote](https://github.com/nix-community/lanzaboote) manages Secure Boot, signing a unified kernel image.
 - **Disk Encryption**: LUKS encrypts the Btrfs root disk.
-- **Btrfs Layout**: `disko` creates `@root`, `@home`, `@nix`, and `@persist`; `/nix` and `/persist` are marked `neededForBoot`.
+- **Btrfs Layout**: `disko` creates `@root`, `@root-blank`, `@home`, `@nix`, and `@persist`; `/nix` and `/persist` are marked `neededForBoot`.
 - **Compression & Local Snapshots**: the primary Btrfs subvolumes mount with `compress=zstd`, and `btrbk-local.timer` keeps daily local snapshots of `@home` and `@persist` for same-disk recovery.
 - **Ephemeral Root**: initrd systemd rolls `@root` back to the empty `@root-blank` snapshot on every boot, moves the previous root to top-level `old_roots/`, and keeps old roots for 30 days.
 - **Persistent State**: impermanence bind mounts machine identity, SSH host keys, service state, Wi-Fi profiles, Mullvad, Tailscale, Bluetooth, USBGuard, Secure Boot PKI, logs, and NixOS state from `/persist`.
@@ -115,7 +115,7 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 - **Companion MacBook Air**: `mac` is a deployed NixOS desktop target with Broadcom Wi-Fi support, impermanence, Tailscale-only SSH, Home Manager Syncthing, Input Leap, and Moonlight.
 - **Workstation Backups**: `main` backs up user-critical state and persisted service identity to Backblaze B2 with Restic, including Codex/Claude state, Wi-Fi profiles, Mullvad, Tailscale, Bluetooth, fingerprint, USBGuard, Secure Boot PKI, machine-id, and SSH host identity.
 - **Recovery Boundary**: local Btrfs snapshots are for short-term rollback on the same disk; Restic/B2 remains the off-site recovery path.
-- **Scoped Agent Maintenance Sudo**: `main` keeps normal `wheel` sudo passworded, but allows a narrow set of passwordless maintenance commands for interactive agent sessions: local snapshot start/status, Restic start/status, boot cleanup, selected EFI entry deletion, Nix GC, and switching this flake path.
+- **Scoped Agent Maintenance Sudo**: `main` keeps normal `wheel` sudo passworded, but allows a narrow set of passwordless maintenance commands for interactive agent sessions: local snapshot start/status, Restic start/status, boot cleanup, selected EFI entry deletion, and fixed-argument Nix GC.
 - **Tailscale ACLs as Nix**: Security rules and tag owners are generated declaratively from the host registry, providing a single source of truth for network access control.
 - **Generated Inventory Export**: `packages/inventory-data.nix` exports host inventory as JSON for the homepage site.
 - **Systemd Hardening**: A custom DSL (`services.hardened`) applies a high-security sandbox baseline to critical services (Vaultwarden, Nginx, Syncthing).
@@ -331,9 +331,9 @@ The stack includes pre-configured dashboards for fleet overview and deep-dives i
 
 Authenticated ingest routes on `https://homeserver-gcp.<tailnet-name>.ts.net`:
 
-- `/obs/loki/` → Loki push API
-- `/obs/mimir/` → Mimir remote_write API
-- `/obs/otlp/` → OpenTelemetry Collector HTTP ingest
+- `/obs/loki/loki/api/v1/push` -> Loki push API
+- `/obs/mimir/api/v1/push` -> Mimir remote_write API
+- `/obs/otlp/v1/traces` -> OpenTelemetry Collector trace ingest
 
 Implementation is in `modules/nixos/profiles/observability/`, with client-side telemetry shipping via `modules/nixos/profiles/observability-client.nix`.
 
@@ -356,7 +356,7 @@ Secrets are managed with [sops-nix](https://github.com/Mic92/sops-nix) and [age]
 - Host keys are derived from their respective SSH host public keys using `ssh-to-age`.
 - This allows a host to decrypt its own secrets automatically during activation. Impermanent hosts keep their SSH key under `/persist` so the age key remains stable across reboots.
 - The user's personal age key (`user`) can decrypt all secrets.
-- `homeserver-gcp` uses a pre-baked encrypted SSH host key committed in `hosts/homeserver-gcp/secrets/`; deployed once during initial GCE image bootstrap.
+- `homeserver-gcp` uses a pre-baked encrypted SSH host key committed in `hosts/homeserver-gcp/secrets/`; `scripts/deploy-gcp.sh` decrypts it only into a local temporary directory, verifies the VM presents that key before install, and copies it into the NixOS root with `nixos-anywhere --extra-files`. The private key is not passed through OpenTofu variables, outputs, instance metadata, or desired state.
 - Home Manager user-secret backups (`home/users/user/secrets/`) are encrypted for `&user` only; see [`docs/security.md`](docs/security.md) for the full recipient table.
 
 ### Setup
@@ -510,7 +510,7 @@ Tailscale security rules are managed declaratively within the flake. The `lib/ac
 
 - **Current Policy Scope**: The ACL model is intentionally explicit. It consumes `tailscale.tag`, `tailscale.acceptFrom`, and `tailnetFQDN` where host-specific destinations are needed.
 - **Registry Richness**: Other host metadata such as `role`, `ip`, and `backup.class` remains available to the rest of the flake, but does not affect ACL generation yet.
-- **Generator**: `lib/acl.nix` maps tags to owners, emits explicit tag-to-tag rules including shared-tag workstation peers, and keeps `autogroup:admin` as deliberate break-glass access.
+- **Generator**: `lib/acl.nix` maps tags to owners, emits explicit tag-to-tag port rules from `acceptFrom`, and keeps `autogroup:admin` as deliberate break-glass access.
 - **Validation**: Unit tests in `tests/lib/acl.nix` verify the generated rules and output shape.
 - **Drift Detection**: `.github/workflows/tailscale-acl-drift.yml` runs `scripts/check-tailscale-acl-drift.sh` against the live tailnet policy.
 - **Output**: The generated ACL JSON can be inspected via:
@@ -549,7 +549,7 @@ Examples:
 - Docs-only changes run lint and Markdown link checks, then skip eval/build-heavy jobs.
 - WSL-only changes skip expensive host jobs; eval, lint, and light checks still run.
 
-The workflow uses a signed Cloudflare R2 binary cache. PR and merge-queue jobs substitute from that cache but do not publish to it, keeping slow full-closure uploads off the merge path. Cache publication runs after successful `push` or manual `workflow_dispatch` builds, so merged changes warm the cache for later CI runs.
+The workflow uses a signed Cloudflare R2 binary cache. PR, merge-queue, and manual dispatch jobs substitute from that cache but do not publish to it, keeping cache write/signing secrets limited to successful pushes on protected `main`. Merged changes warm the cache for later CI runs.
 
 ---
 

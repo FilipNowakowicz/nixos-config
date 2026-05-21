@@ -12,8 +12,7 @@ let
 
   testFqdn = "homeserver-gcp.test";
 
-  # SHA1 htpasswd entry for admin:test — only needs to be parseable by nginx;
-  # the test verifies 401 on unauthenticated requests, not successful auth.
+  # SHA1 htpasswd entry for admin:test.
   testHtpasswd = pkgs.writeText "test-htpasswd" "admin:{SHA}qUqP5cyxm6YcTAhz05Hph5gvu9M=";
 
   testGrafanaPassword = pkgs.writeText "grafana-admin-pw" "test";
@@ -49,9 +48,11 @@ in
             secretKeyFile = testGrafanaSecretKey;
           };
           loki.enable = true;
+          tempo.enable = true;
           mimir.enable = true;
           collectors = {
             metrics.enable = true;
+            traces.enable = true;
             blackbox = {
               enable = true;
               probes = {
@@ -168,6 +169,7 @@ in
       "server.wait_for_unit(\"vaultwarden.service\")"
       "server.wait_for_unit(\"grafana.service\")"
       "server.wait_for_unit(\"prometheus.service\")"
+      "server.wait_for_unit(\"opentelemetry-collector.service\")"
       "server.wait_for_unit(\"prometheus-blackbox-exporter.service\")"
       "server.wait_for_unit(\"smoke-test-grafana-auth.service\")"
       "server.wait_for_unit(\"nginx.service\")"
@@ -183,7 +185,7 @@ in
       "server.wait_until_succeeds("
       "  \"curl -sk https://${testFqdn}/grafana/ -o /dev/null -w '%{http_code}'\""
       "  \" | grep -q '^200'\","
-      "  timeout=30,"
+      "  timeout=90,"
       ")"
       ""
       "# Vaultwarden notification websocket route is explicit and reaches the upstream."
@@ -195,11 +197,36 @@ in
       "  \" && grep -q 'location = /notifications/hub' \\\"$config\\\"\""
       ")"
       ""
-      "# /obs/* -> 401 without credentials (auth boundary enforced, not 404/502)"
-      "for path in [\"/obs/loki/\", \"/obs/mimir/\", \"/obs/otlp/\"]:"
+      "# Exact ingest routes require credentials."
+      "ingest_paths = ["
+      "    \"/obs/loki/loki/api/v1/push\","
+      "    \"/obs/mimir/api/v1/push\","
+      "    \"/obs/otlp/v1/traces\","
+      "]"
+      "for path in ingest_paths:"
       "    server.succeed("
       "      f\"curl -sk https://${testFqdn}{path} -o /dev/null -w '%{{http_code}}'\""
       "      f\" | grep -q '^401'\""
+      "    )"
+      ""
+      "# Authenticated ingest reaches a backend instead of nginx's auth or deny fallback."
+      "for path in ingest_paths:"
+      "    server.succeed("
+      "      f\"curl -sk -X POST -u admin:test https://${testFqdn}{path} -o /dev/null -w '%{{http_code}}'\""
+      "      f\" | grep -qEv '^(401|404|502)$'\""
+      "    )"
+      ""
+      "# Broader observability APIs are denied even with ingest credentials."
+      "for path in ["
+      "    \"/obs/loki/\","
+      "    \"/obs/loki/loki/api/v1/query\","
+      "    \"/obs/mimir/\","
+      "    \"/obs/mimir/prometheus/api/v1/query\","
+      "    \"/obs/otlp/\","
+      "]:"
+      "    server.succeed("
+      "      f\"curl -sk -u admin:test https://${testFqdn}{path} -o /dev/null -w '%{{http_code}}'\""
+      "      f\" | grep -q '^404'\""
       "    )"
       ""
       "server.wait_until_succeeds("

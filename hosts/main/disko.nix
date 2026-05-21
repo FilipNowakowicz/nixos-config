@@ -71,6 +71,7 @@
                       "discard=async"
                     ];
                   };
+                  "/@root-blank" = { };
                 };
               };
             };

@@ -17,7 +17,13 @@ let
     };
     mac = {
       role = "desktop";
-      tailscale.tag = "workstation";
+      tailscale = {
+        tag = "workstation";
+        acceptFrom.workstation = [
+          22
+          22
+        ];
+      };
     };
     homeserver-gcp = {
       role = "homeserver";
@@ -70,50 +76,33 @@ let
       ];
     };
 
-    # Server↔workstation, workstation peers, plus the admin break-glass.
+    # One grouped workstation rule, plus admin break-glass.
     testAclCount = {
       expr = lib.length result.acls;
-      expected = 4;
+      expected = 2;
     };
 
-    # Rules are sorted by "srcTag→dstTag"; server < workstation alphabetically.
     testFirstAclSrc = {
       expr = (lib.elemAt result.acls 0).src;
-      expected = [ "tag:server" ];
+      expected = [ "tag:workstation" ];
     };
 
     testFirstAclDst = {
       expr = (lib.elemAt result.acls 0).dst;
-      expected = [ "tag:workstation:*" ];
+      expected = [
+        "tag:server:22"
+        "tag:server:443"
+        "tag:workstation:22"
+      ];
     };
 
     testSecondAclSrc = {
       expr = (lib.elemAt result.acls 1).src;
-      expected = [ "tag:workstation" ];
+      expected = [ "autogroup:admin" ];
     };
 
     testSecondAclDst = {
       expr = (lib.elemAt result.acls 1).dst;
-      expected = [ "tag:server:*" ];
-    };
-
-    testThirdAclSrc = {
-      expr = (lib.elemAt result.acls 2).src;
-      expected = [ "tag:workstation" ];
-    };
-
-    testThirdAclDst = {
-      expr = (lib.elemAt result.acls 2).dst;
-      expected = [ "tag:workstation:*" ];
-    };
-
-    testFourthAclSrc = {
-      expr = (lib.elemAt result.acls 3).src;
-      expected = [ "autogroup:admin" ];
-    };
-
-    testFourthAclDst = {
-      expr = (lib.elemAt result.acls 3).dst;
       expected = [ "*:*" ];
     };
 
@@ -128,21 +117,34 @@ let
       expected = false;
     };
 
-    # Wildcard server destination is expected (tag:server:*).
-    testHasWildcardServerDestination = {
+    testNoWildcardServerDestination = {
       expr = lib.any (rule: lib.any (dst: dst == "tag:server:*") rule.dst) result.acls;
-      expected = true;
+      expected = false;
     };
 
-    # Bidirectional: servers must also be able to respond to workstations.
-    testHasWildcardWorkstationDestination = {
+    testNoImplicitReverseWildcardWorkstationDestination = {
       expr = lib.any (rule: lib.any (dst: dst == "tag:workstation:*") rule.dst) result.acls;
+      expected = false;
+    };
+
+    testNoServerSourceRule = {
+      expr = lib.any (rule: rule.src == [ "tag:server" ]) result.acls;
+      expected = false;
+    };
+
+    testHasServerDestinationPorts = {
+      expr = lib.any (
+        rule:
+        rule.src == [ "tag:workstation" ]
+        && builtins.elem "tag:server:22" rule.dst
+        && builtins.elem "tag:server:443" rule.dst
+      ) result.acls;
       expected = true;
     };
 
     testHasWorkstationPeerRule = {
       expr = lib.any (
-        rule: rule.src == [ "tag:workstation" ] && rule.dst == [ "tag:workstation:*" ]
+        rule: rule.src == [ "tag:workstation" ] && builtins.elem "tag:workstation:22" rule.dst
       ) result.acls;
       expected = true;
     };
@@ -150,7 +152,7 @@ let
     # Deduplication: duplicate ports in acceptFrom must not produce duplicate rules.
     testBackupMetadataDoesNotChangeAclCount = {
       expr = lib.length result.acls;
-      expected = 4;
+      expected = 2;
     };
 
     testNonTailscaleHostExcludedFromTagOwners = {

@@ -8,7 +8,7 @@
 #                 and used by the ACL generator for host-specific destinations when needed
 #   tailscale   — Tailscale metadata; presence means host is on the tailnet
 #     .tag        — Tailscale tag assigned to this host (without "tag:" prefix)
-#     .acceptFrom — source-tag -> allowed inbound TCP ports on this host
+#     .acceptFrom — source-tag -> allowed inbound ports (TCP+UDP) on this host
 #   homeManager — primary-user Home Manager mapping for this host
 #     .role     — entrypoint module under home/users/user
 #     .profiles — extra profile modules under home/profiles
@@ -85,24 +85,27 @@ let
         (ok (
           !p "tailnetFQDN" || builtins.isString cfg.tailnetFQDN
         ) "${name}.tailnetFQDN: must be a string, got ${builtins.typeOf (cfg.tailnetFQDN or null)}")
-        (ok (
-          !p "tailscale"
-          || (
-            builtins.isAttrs cfg.tailscale
-            && cfg.tailscale ? tag
-            && builtins.isString cfg.tailscale.tag
-            && (
-              !cfg.tailscale ? acceptFrom
-              || (
-                builtins.isAttrs cfg.tailscale.acceptFrom
-                && builtins.all (
-                  ports:
-                  builtins.isList ports && builtins.all (port: builtins.isInt port && port > 0 && port < 65536) ports
-                ) (builtins.attrValues cfg.tailscale.acceptFrom)
+        (ok
+          (
+            !p "tailscale"
+            || (
+              builtins.isAttrs cfg.tailscale
+              && cfg.tailscale ? tag
+              && builtins.isString cfg.tailscale.tag
+              && (
+                !cfg.tailscale ? acceptFrom
+                || (
+                  builtins.isAttrs cfg.tailscale.acceptFrom
+                  && builtins.all (
+                    ports:
+                    builtins.isList ports && builtins.all (port: builtins.isInt port && port > 0 && port < 65536) ports
+                  ) (builtins.attrValues cfg.tailscale.acceptFrom)
+                )
               )
             )
           )
-        ) "${name}.tailscale: expected tag string and optional acceptFrom attrset of TCP ports (1-65535)")
+          "${name}.tailscale: expected tag string and optional acceptFrom attrset of ports (1-65535, TCP+UDP)"
+        )
         (ok
           (
             !p "homeManager"
@@ -186,6 +189,10 @@ let
           47984
           47989
           48010
+          47998
+          47999
+          48000
+          48002 # Sunshine A/V UDP streams
         ];
       };
       backup.class = "standard";

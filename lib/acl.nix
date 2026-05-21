@@ -1,8 +1,9 @@
-# Tailscale ACL generator — derives tag owners and bidirectional access rules
-# from acceptFrom relationships in the host registry.
+# Tailscale ACL generator — derives tag owners and access rules from
+# acceptFrom relationships in the host registry.
 # Feed the output to builtins.toJSON for acl.hujson.
 # Rules are tag-to-tag (not per-FQDN) so new nodes join the correct group
-# automatically and return traffic is always permitted.
+# automatically. Tailscale ACLs are connection-oriented, so accepted inbound
+# flows do not need separate reverse rules for return traffic.
 { lib }:
 let
   tailscaleHosts = hosts: lib.filterAttrs (_: cfg: cfg ? tailscale) hosts;
@@ -11,20 +12,6 @@ let
     hosts: lib.unique (map (cfg: cfg.tailscale.tag) (lib.attrValues (tailscaleHosts hosts)));
 
   sortedUnique = values: builtins.sort builtins.lessThan (lib.unique values);
-
-  collectSharedTagPairs =
-    hosts:
-    let
-      tags = collectTagNames hosts;
-      tailscaleHostValues = lib.attrValues (tailscaleHosts hosts);
-      sharedTags = lib.filter (
-        tag: lib.length (lib.filter (cfg: cfg.tailscale.tag == tag) tailscaleHostValues) > 1
-      ) tags;
-    in
-    map (tag: {
-      srcTag = tag;
-      dstTag = tag;
-    }) sharedTags;
 
   mkTagOwners =
     tags:
@@ -35,76 +22,61 @@ let
       }) tags
     );
 
-  # Collect unique (srcTag, dstTag) pairs from all acceptFrom relationships.
-  # acceptFrom.X on a host with tag Y means tag:X → tag:Y is needed.
-  collectTagPairs =
+  formatDestination = p: "tag:${p.dstTag}:${toString p.port}";
+
+  # Collect unique (srcTag, dstTag, port) triples from all acceptFrom relationships.
+  # acceptFrom.X on a host with tag Y means tag:X -> tag:Y:<port> is needed.
+  collectTagPortTriples =
     hostRegistry:
     let
       hosts = lib.attrValues (tailscaleHosts hostRegistry);
-      pairs = builtins.concatMap (
+      triples = builtins.concatMap (
         cfg:
         let
           acceptFrom = cfg.tailscale.acceptFrom or { };
           dstTag = cfg.tailscale.tag;
         in
-        map (srcTag: "${srcTag}→${dstTag}") (builtins.attrNames acceptFrom)
+        builtins.concatMap (
+          srcTag: map (port: "${srcTag}->${dstTag}->${toString port}") (acceptFrom.${srcTag} or [ ])
+        ) (builtins.attrNames acceptFrom)
       ) hosts;
-      uniqueKeys = sortedUnique pairs;
+      uniqueKeys = sortedUnique triples;
     in
     map (
       key:
       let
-        parts = lib.splitString "→" key;
+        parts = lib.splitString "->" key;
       in
       {
         srcTag = builtins.elemAt parts 0;
         dstTag = builtins.elemAt parts 1;
+        port = lib.toInt (builtins.elemAt parts 2);
       }
     ) uniqueKeys;
 
-  # For each unique (srcTag, dstTag) pair, emit both directions so TCP return
-  # traffic passes the stateless packet filter on each node.
+  # Group triples by source tag. A single ACL rule can contain several
+  # destination tag:port entries, preserving the registry's port boundaries.
   mkTagAclRules =
     hostRegistry:
     let
-      fwdPairs = collectTagPairs hostRegistry ++ collectSharedTagPairs hostRegistry;
-      # Reverse direction for return traffic.
-      revKeys = sortedUnique (map (p: "${p.dstTag}→${p.srcTag}") fwdPairs);
-      revPairs = map (
-        key:
-        let
-          parts = lib.splitString "→" key;
-        in
-        {
-          srcTag = builtins.elemAt parts 0;
-          dstTag = builtins.elemAt parts 1;
-        }
-      ) revKeys;
-      allKeys = sortedUnique (
-        (map (p: "${p.srcTag}→${p.dstTag}") fwdPairs) ++ (map (p: "${p.srcTag}→${p.dstTag}") revPairs)
-      );
-      allPairs = map (
-        key:
-        let
-          parts = lib.splitString "→" key;
-        in
-        {
-          srcTag = builtins.elemAt parts 0;
-          dstTag = builtins.elemAt parts 1;
-        }
-      ) allKeys;
+      triples = collectTagPortTriples hostRegistry;
+      srcTags = sortedUnique (map (p: p.srcTag) triples);
     in
-    map (p: {
+    map (srcTag: {
       action = "accept";
-      src = [ "tag:${p.srcTag}" ];
-      dst = [ "tag:${p.dstTag}:*" ];
-    }) allPairs;
+      src = [ "tag:${srcTag}" ];
+      dst = map formatDestination (
+        builtins.sort (a: b: a.dstTag < b.dstTag || (a.dstTag == b.dstTag && a.port < b.port)) (
+          lib.filter (p: p.srcTag == srcTag) triples
+        )
+      );
+    }) srcTags;
 
 in
 {
   # Generate a Tailscale ACL attrset from the host registry.
   # Hosts without a `tailscale` attribute are ignored.
-  # Tag-to-tag bidirectional rules are derived from acceptFrom relationships.
+  # Tag-to-tag:port rules are derived from acceptFrom relationships.
   # Serialize with builtins.toJSON to get acl.hujson content.
   mkAcl = hostRegistry: {
     tagOwners = mkTagOwners (collectTagNames hostRegistry);

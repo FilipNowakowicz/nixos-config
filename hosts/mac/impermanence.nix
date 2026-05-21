@@ -13,16 +13,10 @@
   # Ephemeral root: @root is rolled back to @root-blank on every boot. Same
   # pattern as main; old roots are moved to /old_roots/<ts> for 30 days. See
   # hosts/main/impermanence.nix for the rationale and recovery walkthrough.
-  #
-  # Companion-class persistence: this list starts deliberately coarse with
-  # blanket /var/lib + /var/cache because canonical state lives on `main` and
-  # gets to mac via Syncthing. Tighten later by enumerating individual
-  # services if disk pressure or compliance ever demands it.
   environment.persistence."/persist".directories = [
-    "/var/lib"
-    "/var/cache"
-    "/etc/NetworkManager/system-connections"
-    "/root"
+    "/var/lib/tailscale" # tailnet node identity + peers
+    "/var/lib/bluetooth" # Bluetooth pairings
+    "/etc/NetworkManager/system-connections" # saved Wi-Fi / VPN profiles
     # systemd state that affects boot-time behavior rather than runtime:
     "/var/lib/systemd/timers"
     "/var/lib/systemd/backlight"

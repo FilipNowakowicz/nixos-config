@@ -34,5 +34,20 @@ if [[ ${#paths[@]} -eq 0 ]]; then
   exit 0
 fi
 
-echo "Pushing ${#paths[@]} path(s) to R2..."
-nix copy --to "$R2_STORE" "${paths[@]}"
+validated_paths=()
+for path in "${paths[@]}"; do
+  if [[ $path != /nix/store/* ]]; then
+    echo "Refusing to push non-store path: ${path:-<empty>}" >&2
+    exit 1
+  fi
+
+  if ! nix path-info "$path" >/dev/null; then
+    echo "Refusing to push unknown store path: $path" >&2
+    exit 1
+  fi
+
+  validated_paths+=("$path")
+done
+
+echo "Pushing ${#validated_paths[@]} path(s) to R2..."
+nix copy --to "$R2_STORE" -- "${validated_paths[@]}"

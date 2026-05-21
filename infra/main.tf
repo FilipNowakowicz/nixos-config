@@ -78,12 +78,6 @@ resource "google_compute_instance" "homeserver_gcp" {
     # this key into a temporary sudo-capable bootstrap account.
     bootstrap-ssh-public-key = var.bootstrap_ssh_public_key
 
-    # Pre-baked SSH host key for sops bootstrap — consumed by the
-    # injectGceSshHostKey activation script on first boot.
-    # The key is only needed until Tailscale is up; remove it afterwards:
-    #   gcloud compute instances remove-metadata homeserver-gcp --keys=ssh-host-key-b64
-    ssh-host-key-b64 = var.ssh_host_key_b64
-
     # Enable GCE serial console login for emergency recovery.
     serial-port-enable = "TRUE"
 
@@ -103,6 +97,8 @@ resource "google_compute_instance" "homeserver_gcp" {
       chown bootstrap:bootstrap /home/bootstrap/.ssh/authorized_keys
       chmod 600 /home/bootstrap/.ssh/authorized_keys
 
+      # Temporary broad sudo for nixos-anywhere. scripts/deploy-gcp.sh removes
+      # the metadata that recreates this account after a successful install.
       printf 'bootstrap ALL=(ALL) NOPASSWD:ALL\n' >/etc/sudoers.d/90-bootstrap
       chmod 440 /etc/sudoers.d/90-bootstrap
 
@@ -112,7 +108,8 @@ resource "google_compute_instance" "homeserver_gcp" {
 
   lifecycle {
     ignore_changes = [
-      metadata["ssh-host-key-b64"],
+      metadata["bootstrap-ssh-public-key"],
+      metadata["startup-script"],
     ]
   }
 }

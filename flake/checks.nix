@@ -233,6 +233,7 @@ let
         pathCheck = requirePaths backup.paths [
           "/var/lib/vaultwarden"
           "/var/lib/grafana"
+          "/var/lib/private/AdGuardHome"
         ];
         violations = lib.filter (msg: msg != "") [
           (lib.optionalString (

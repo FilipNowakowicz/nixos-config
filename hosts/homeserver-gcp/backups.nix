@@ -46,7 +46,7 @@
     paths = [
       "/var/lib/vaultwarden"
       "/var/lib/grafana"
-      "/var/lib/AdGuardHome"
+      "/var/lib/private/AdGuardHome"
     ];
     repositoryFile = config.sops.secrets.restic_repository.path;
     passwordFile = config.sops.secrets.restic_password.path;
