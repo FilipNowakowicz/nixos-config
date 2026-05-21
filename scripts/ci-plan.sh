@@ -11,7 +11,7 @@ base_sha="${BASE_SHA:-}"
 
 ci_core_change='^(\.github/workflows/nix\.yml|\.github/actions/setup-nix/|scripts/(ci-plan|validate|check-doc-links|doctor)\.sh)'
 flake_or_lib_change='^(flake\.nix|flake\.lock|lib/)'
-closure_script_change='^(scripts/closure-diff\.sh|\.github/scripts/upsert-closure-comment\.js)'
+closure_script_change='^scripts/closure-diff\.sh'
 tests_change='^tests/nixos/'
 docs_change='^(README\.md|docs/|.*\.md$|.*/CLAUDE\.md$|AGENTS\.md$)'
 package_change='^packages/'

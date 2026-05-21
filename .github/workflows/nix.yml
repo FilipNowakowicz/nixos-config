@@ -124,7 +124,7 @@ jobs:
           PRINT_PATHS=1 bash scripts/validate.sh light | tee "$PATHS_FILE" >/dev/null
 
       - name: Push to cache
-        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         continue-on-error: true
         env:
           PATHS_FILE: ${{ runner.temp }}/checks-light-paths.txt
@@ -143,10 +143,10 @@ jobs:
       - uses: ./.github/actions/setup-nix
 
       - name: Lint (statix)
-        run: nix run nixpkgs#statix -- check .
+        run: nix run .#statix -- check .
 
       - name: Dead code (deadnix)
-        run: nix run nixpkgs#deadnix -- --fail .
+        run: nix run .#deadnix -- --fail .
 
       - name: Format check (treefmt)
         run: nix fmt -- --fail-on-change
@@ -157,7 +157,7 @@ jobs:
           if [ "${#shell_scripts[@]}" -eq 0 ]; then
             exit 0
           fi
-          nix run nixpkgs#shellcheck -- "${shell_scripts[@]}"
+          nix run .#shellcheck -- "${shell_scripts[@]}"
 
       - name: Check Markdown links
         run: bash scripts/validate.sh docs
@@ -181,7 +181,7 @@ jobs:
           PRINT_PATHS=1 bash scripts/validate.sh package inventory-data | tee "$PATHS_FILE" >/dev/null
 
       - name: Push inventory package to cache
-        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         continue-on-error: true
         env:
           PATHS_FILE: ${{ runner.temp }}/inventory-paths.txt
@@ -214,7 +214,7 @@ jobs:
           PRINT_PATHS=1 bash scripts/validate.sh host "$HOST" | tee "$PATHS_FILE" >/dev/null
 
       - name: Push ${{ matrix.name }} to cache
-        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         continue-on-error: true
         env:
           HOST: ${{ matrix.name }}
@@ -259,7 +259,7 @@ jobs:
           PRINT_PATHS=1 bash scripts/validate.sh "$CMD" "$TARGET" | tee "$PATHS_FILE" >/dev/null
 
       - name: Push ${{ matrix.name }} to cache
-        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         continue-on-error: true
         env:
           CMD: ${{ matrix.command }}
@@ -279,7 +279,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      issues: write
+    outputs:
+      summary: ${{ steps.diff.outputs.summary }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -311,15 +312,61 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+  closure-diff-comment:
+    if: |
+      always()
+      && github.event_name == 'pull_request'
+      && needs.changes.outputs.closure == 'true'
+      && (needs.hosts.result == 'success' || needs.hosts.result == 'skipped')
+    needs: [changes, hosts, closure-diff]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
       - name: Upsert closure diff comment
-        if: always()
         env:
-          SUMMARY: ${{ steps.diff.outputs.summary }}
+          SUMMARY: ${{ needs.closure-diff.outputs.summary }}
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
-            const upsert = require("./.github/scripts/upsert-closure-comment.js");
-            await upsert({ github, context, core });
+            const body =
+              process.env.SUMMARY ||
+              "<!-- closure-diff-report -->\nClosure diff computation skipped or failed.";
+            const marker = "<!-- closure-diff-report -->";
+
+            try {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                per_page: 100,
+              });
+
+              const existing = comments.find(
+                (comment) =>
+                  comment.user?.type === "Bot" && comment.body?.includes(marker),
+              );
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                  body,
+                });
+                return;
+              }
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            } catch (error) {
+              core.warning(`Unable to upsert closure diff comment: ${error.message}`);
+            }
 
   merge-gate:
     needs:

@@ -549,7 +549,7 @@ Examples:
 - Docs-only changes run lint and Markdown link checks, then skip eval/build-heavy jobs.
 - WSL-only changes skip expensive host jobs; eval, lint, and light checks still run.
 
-The workflow uses a signed Cloudflare R2 binary cache. PR and merge-queue jobs substitute from that cache but do not publish to it, keeping slow full-closure uploads off the merge path. Cache publication runs after successful `push` or manual `workflow_dispatch` builds, so merged changes warm the cache for later CI runs.
+The workflow uses a signed Cloudflare R2 binary cache. PR, merge-queue, and manual dispatch jobs substitute from that cache but do not publish to it, keeping cache write/signing secrets limited to successful pushes on protected `main`. Merged changes warm the cache for later CI runs.
 
 ---
 

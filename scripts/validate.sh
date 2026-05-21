@@ -114,6 +114,7 @@ light)
     ".#checks.${system}.invariants-homeserver-gcp" \
     ".#checks.${system}.invariants-main" \
     ".#checks.${system}.invariants-mac" \
+    ".#checks.${system}.pre-commit" \
     ".#checks.${system}.lib-generators" \
     ".#checks.${system}.lib-generators-structured" \
     ".#checks.${system}.lib-acl" \

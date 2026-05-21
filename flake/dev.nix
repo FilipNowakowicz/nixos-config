@@ -56,6 +56,11 @@ in
 
   packages = {
     control-center = controlCenterPackage;
+    inherit (pkgs)
+      deadnix
+      shellcheck
+      statix
+      ;
 
     inventory-data = import ../packages/inventory-data.nix {
       inherit
@@ -149,6 +154,7 @@ in
     deploy-rs.lib.${system}.deployChecks { nodes = ciDeployNodes; }
     // invariantChecks
     // {
+      pre-commit = preCommitCheck;
       lib-generators = import ../tests/lib/generators.nix {
         inherit nixpkgs system;
       };
