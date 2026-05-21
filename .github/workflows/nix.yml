@@ -100,21 +100,27 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - uses: ./.github/actions/setup-nix
+        with:
+          enable-eval-cache: "true"
 
       - name: Flake evaluation
         run: bash scripts/validate.sh flake-eval
 
   checks-light:
-    needs: [push-policy, changes, eval]
-    if: |
-      needs.changes.outputs.run_light == 'true'
-      && (needs.eval.result == 'success' || needs.eval.result == 'skipped')
+    needs: [push-policy, changes]
+    if: needs.changes.outputs.run_light == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: ./.github/actions/setup-nix
+      - id: setup-nix
+        uses: ./.github/actions/setup-nix
+        with:
+          enable-eval-cache: "true"
+          enable-store-cache: "true"
+          cache-key-suffix: checks-light
+          store-cache-size-gb: "2"
 
       - name: Build lightweight blocking checks
         env:
@@ -132,6 +138,21 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           CACHE_SIGNING_KEY: ${{ secrets.CACHE_SIGNING_KEY }}
         run: bash scripts/push-to-r2.sh
+
+      - name: Save Nix store cache
+        if: success() && steps.setup-nix.outputs.store-cache-enabled == 'true'
+        uses: nix-community/cache-nix-action/save@7df957e333c1e5da7721f60227dbba6d06080569 # v7
+        with:
+          primary-key: ${{ steps.setup-nix.outputs.store-cache-primary-key }}
+          gc-max-store-size-linux: "2G"
+
+      - name: Summarize Nix store cache
+        if: success() && steps.setup-nix.outputs.store-cache-enabled == 'true'
+        env:
+          CACHE_LABEL: ${{ steps.setup-nix.outputs.store-cache-label }}
+          CACHE_HIT: ${{ steps.setup-nix.outputs.store-cache-hit }}
+          RESTORED_BYTES: ${{ steps.setup-nix.outputs.store-cache-restored-bytes }}
+        run: bash scripts/write-cache-summary.sh "$CACHE_LABEL" "$RESTORED_BYTES" "$CACHE_HIT"
 
   lint:
     needs: [push-policy, changes]
@@ -159,14 +180,15 @@ jobs:
           fi
           nix run .#shellcheck -- "${shell_scripts[@]}"
 
+      - name: Scan for plaintext secrets
+        run: bash scripts/scan-plaintext-secrets.sh
+
       - name: Check Markdown links
         run: bash scripts/validate.sh docs
 
   packages:
-    needs: [push-policy, changes, eval]
-    if: |
-      needs.changes.outputs.run_packages == 'true'
-      && needs.eval.result == 'success'
+    needs: [push-policy, changes]
+    if: needs.changes.outputs.run_packages == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -191,10 +213,8 @@ jobs:
         run: bash scripts/push-to-r2.sh
 
   hosts:
-    needs: [push-policy, changes, eval]
-    if: |
-      needs.changes.outputs.hosts == 'true'
-      && needs.eval.result == 'success'
+    needs: [push-policy, changes]
+    if: needs.changes.outputs.hosts == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
@@ -203,7 +223,13 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: ./.github/actions/setup-nix
+      - id: setup-nix
+        uses: ./.github/actions/setup-nix
+        with:
+          enable-eval-cache: "true"
+          enable-store-cache: "true"
+          cache-key-suffix: hosts-${{ matrix.name }}
+          store-cache-size-gb: "5"
 
       - name: Build ${{ matrix.name }}
         env:
@@ -224,13 +250,44 @@ jobs:
           CACHE_SIGNING_KEY: ${{ secrets.CACHE_SIGNING_KEY }}
         run: bash scripts/push-to-r2.sh
 
+      # Prime R2 with the full prod `main` closure (incremental over main-ci)
+      # so future PR closure-diff jobs can fetch the base SHA from cache
+      # instead of rebuilding it from scratch.
+      - name: Push full main closure to R2 (warms closure-diff base)
+        if: |
+          success()
+          && matrix.name == 'main-ci'
+          && github.event_name == 'push'
+          && github.ref == 'refs/heads/main'
+        continue-on-error: true
+        env:
+          PATHS_FILE: ${{ runner.temp }}/main-paths.txt
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CACHE_SIGNING_KEY: ${{ secrets.CACHE_SIGNING_KEY }}
+        run: |
+          rm -f "$PATHS_FILE"
+          PRINT_PATHS=1 bash scripts/validate.sh host main | tee "$PATHS_FILE" >/dev/null
+          bash scripts/push-to-r2.sh
+
+      - name: Save Nix store cache
+        if: success() && steps.setup-nix.outputs.store-cache-enabled == 'true'
+        uses: nix-community/cache-nix-action/save@7df957e333c1e5da7721f60227dbba6d06080569 # v7
+        with:
+          primary-key: ${{ steps.setup-nix.outputs.store-cache-primary-key }}
+          gc-max-store-size-linux: "5G"
+
+      - name: Summarize Nix store cache
+        if: success() && steps.setup-nix.outputs.store-cache-enabled == 'true'
+        env:
+          CACHE_LABEL: ${{ steps.setup-nix.outputs.store-cache-label }}
+          CACHE_HIT: ${{ steps.setup-nix.outputs.store-cache-hit }}
+          RESTORED_BYTES: ${{ steps.setup-nix.outputs.store-cache-restored-bytes }}
+        run: bash scripts/write-cache-summary.sh "$CACHE_LABEL" "$RESTORED_BYTES" "$CACHE_HIT"
+
   tests:
-    needs: [push-policy, changes, eval, hosts]
-    if: |
-      always()
-      && needs.changes.outputs.tests == 'true'
-      && needs.eval.result == 'success'
-      && (needs.hosts.result == 'success' || needs.hosts.result == 'skipped')
+    needs: [push-policy, changes]
+    if: needs.changes.outputs.tests == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
@@ -244,8 +301,13 @@ jobs:
           sudo rm -rf /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
 
-      - uses: ./.github/actions/setup-nix
+      - id: setup-nix
+        uses: ./.github/actions/setup-nix
         with:
+          enable-eval-cache: "true"
+          enable-store-cache: "true"
+          cache-key-suffix: tests-${{ matrix.name }}
+          store-cache-size-gb: "3"
           extra-nix-config: |
             system-features = nixos-test benchmark big-parallel kvm
 
@@ -269,6 +331,21 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           CACHE_SIGNING_KEY: ${{ secrets.CACHE_SIGNING_KEY }}
         run: bash scripts/push-to-r2.sh
+
+      - name: Save Nix store cache
+        if: success() && steps.setup-nix.outputs.store-cache-enabled == 'true'
+        uses: nix-community/cache-nix-action/save@7df957e333c1e5da7721f60227dbba6d06080569 # v7
+        with:
+          primary-key: ${{ steps.setup-nix.outputs.store-cache-primary-key }}
+          gc-max-store-size-linux: "3G"
+
+      - name: Summarize Nix store cache
+        if: success() && steps.setup-nix.outputs.store-cache-enabled == 'true'
+        env:
+          CACHE_LABEL: ${{ steps.setup-nix.outputs.store-cache-label }}
+          CACHE_HIT: ${{ steps.setup-nix.outputs.store-cache-hit }}
+          RESTORED_BYTES: ${{ steps.setup-nix.outputs.store-cache-restored-bytes }}
+        run: bash scripts/write-cache-summary.sh "$CACHE_LABEL" "$RESTORED_BYTES" "$CACHE_HIT"
 
   closure-diff:
     if: |
