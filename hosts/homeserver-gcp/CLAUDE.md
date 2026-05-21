@@ -12,8 +12,8 @@ Status: **active** — deployed on GCP and accessible via Tailscale.
 - **Nginx** — reverse proxy, TLS via Tailscale cert
 - **SSH** — firewall exposure limited to `tailscale0`
 - **Tailscale** — auth key from sops secret `tailscale_auth_key`
-- **AdGuard Home** — DNS (TCP/UDP 53) + web UI (HTTP port 3001), tailscale0 only; state at `/var/lib/AdGuardHome`
-- **Restic/B2** — off-site backups to Backblaze B2 (`/var/lib/vaultwarden`, `/var/lib/grafana`, `/var/lib/AdGuardHome`)
+- **AdGuard Home** — DNS (TCP/UDP 53) + web UI (HTTP port 3001), tailscale0 only; state is exposed at `/var/lib/AdGuardHome` and stored by systemd at `/var/lib/private/AdGuardHome`
+- **Restic/B2** — off-site backups to Backblaze B2 (`/var/lib/vaultwarden`, `/var/lib/grafana`, `/var/lib/private/AdGuardHome`)
 - **GCE snapshots** — daily 7-day boot disk snapshots for fast provider-local rollback
 
 ## Architecture
