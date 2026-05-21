@@ -115,6 +115,20 @@ let
       expected = false;
     };
 
+    backupMetadataAcceptsRepositoryFile = {
+      expr = runAssertion "backup metadata configures Restic backup target" (
+        baseConfig
+        // {
+          services = baseConfig.services // {
+            restic.backups.local = {
+              repositoryFile = "/run/secrets/restic_repository";
+            };
+          };
+        }
+      );
+      expected = true;
+    };
+
     tailnetMetadataRequiresTailscale = {
       expr = runAssertion "tailnet metadata enables Tailscale" (
         baseConfig

@@ -178,7 +178,7 @@ jobs:
           PATHS_FILE: ${{ runner.temp }}/inventory-paths.txt
         run: |
           rm -f "$PATHS_FILE"
-          PRINT_PATHS=1 bash scripts/validate.sh package inventory | tee "$PATHS_FILE" >/dev/null
+          PRINT_PATHS=1 bash scripts/validate.sh package inventory-data | tee "$PATHS_FILE" >/dev/null
 
       - name: Push inventory package to cache
         if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')

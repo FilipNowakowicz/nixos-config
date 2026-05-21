@@ -20,8 +20,13 @@ let
   hasResticBackup =
     backupName: cfg:
     builtins.hasAttr backupName cfg.services.restic.backups
-    && (cfg.services.restic.backups.${backupName} ? repository)
-    && cfg.services.restic.backups.${backupName}.repository != null;
+    && (
+      let
+        backup = cfg.services.restic.backups.${backupName};
+      in
+      (backup ? repository && backup.repository != null)
+      || (backup ? repositoryFile && backup.repositoryFile != null)
+    );
 in
 rec {
   formatList = values: lib.concatStringsSep ", " values;
