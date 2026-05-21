@@ -1,31 +1,27 @@
-# Security Policy
+# Security Boundary
 
-This is personal NixOS infrastructure published as a reference. It is not a
-distributed product with versioned releases, so there is no formal supported-
-version matrix.
+This repository is personal NixOS infrastructure published as a reference. It is
+not a reusable distribution, and it does not have supported release lines.
 
-## Reporting a Vulnerability
+Security-sensitive changes should preserve these boundaries:
 
-If you find a security-relevant issue — for example, a misconfigured systemd
-hardening profile, a leaked secret in committed history, or a sops recipient
-that grants access too broadly — please report it privately rather than
-opening a public issue.
+- Secrets committed to the repository must be encrypted with `sops`.
+- Private keys, decrypted auth files, live service credentials, and recovery
+  material must stay out of git history.
+- Host-specific secrets should only be decryptable by the intended operator or
+  host recipients in `.sops.yaml`.
+- Network exposure should stay explicit. Public listeners, Tailscale listeners,
+  initrd SSH, and firewall openings are security-relevant changes.
+- Passwordless sudo should remain narrow and command-specific.
+- Persistent paths on impermanent hosts should be treated as part of the trusted
+  state model, not as incidental storage.
+- Backup coverage and restore paths are part of the security model; identity
+  material needed after reinstall should be deliberately included or excluded.
 
-Email: **filip.nowakowicz@gmail.com**
+The detailed model lives in:
 
-Please include:
-
-- A clear description of the issue and the affected file(s) or host(s).
-- Steps to reproduce, if applicable.
-- Your assessment of the impact.
-
-I will acknowledge receipt within a few days and follow up with a fix or a
-reasoned explanation of why the behaviour is intentional.
-
-## Out of Scope
-
-- Findings in third-party dependencies pulled in via `flake.lock` — please
-  report those upstream (nixpkgs, sops-nix, deploy-rs, etc.).
-- Hardening choices that are documented as deliberate trade-offs (see
-  `docs/security.md`, the `hosts/*/CLAUDE.md` runbooks, and inline comments
-  on `services.hardened.*` relaxations).
+- `docs/security.md` for secrets, host identity, network exposure, hardening,
+  audit logs, and backups.
+- `.sops.yaml` for age recipient ownership.
+- `home/users/user/secrets/README.md` for user-scoped auth backups.
+- `hosts/*/CLAUDE.md` for host-local operational notes.
