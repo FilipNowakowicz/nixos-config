@@ -20,7 +20,7 @@ pkgs.runCommand "scan-plaintext-secrets-check"
     mkdir -p "$HOME"
     export GIT_CONFIG_NOSYSTEM=1
 
-    scan="${src}/scripts/scan-plaintext-secrets.sh"
+    scan="$src/scripts/scan-plaintext-secrets.sh"
 
     new_fixture() {
       mkdir -p "$TMPDIR/fixture-$1"

@@ -145,6 +145,11 @@ jobs:
         with:
           primary-key: ${{ steps.setup-nix.outputs.store-cache-primary-key }}
           gc-max-store-size-linux: "2G"
+          purge: true
+          purge-prefixes: nix-${{ runner.os }}-checks-light-
+          purge-created: 0
+          purge-last-accessed: 604800
+          purge-primary-key: never
 
       - name: Summarize Nix store cache
         if: success() && steps.setup-nix.outputs.store-cache-enabled == 'true'
@@ -276,6 +281,11 @@ jobs:
         with:
           primary-key: ${{ steps.setup-nix.outputs.store-cache-primary-key }}
           gc-max-store-size-linux: "5G"
+          purge: true
+          purge-prefixes: nix-${{ runner.os }}-hosts-${{ matrix.name }}-
+          purge-created: 0
+          purge-last-accessed: 604800
+          purge-primary-key: never
 
       - name: Summarize Nix store cache
         if: success() && steps.setup-nix.outputs.store-cache-enabled == 'true'
@@ -338,6 +348,11 @@ jobs:
         with:
           primary-key: ${{ steps.setup-nix.outputs.store-cache-primary-key }}
           gc-max-store-size-linux: "3G"
+          purge: true
+          purge-prefixes: nix-${{ runner.os }}-tests-${{ matrix.name }}-
+          purge-created: 0
+          purge-last-accessed: 604800
+          purge-primary-key: never
 
       - name: Summarize Nix store cache
         if: success() && steps.setup-nix.outputs.store-cache-enabled == 'true'
