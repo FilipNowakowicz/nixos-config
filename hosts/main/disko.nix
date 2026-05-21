@@ -1,8 +1,9 @@
+{ hostMeta, ... }:
 {
   disko.devices = {
     disk.main = {
       type = "disk";
-      device = "/dev/disk/by-id/nvme-eui.0025388401c2aa47";
+      device = hostMeta.hardware.diskById;
       content = {
         type = "gpt";
         partitions = {

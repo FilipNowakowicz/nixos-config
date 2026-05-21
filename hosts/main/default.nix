@@ -3,6 +3,7 @@
   inputs,
   lib,
   pkgs,
+  hostRegistry,
   ...
 }:
 let
@@ -409,7 +410,7 @@ in
         "/var/lib/sbctl"
         "/var/lib/usbguard"
       ];
-      repository = "b2:filipnowakowicz-backup:/main";
+      repositoryFile = config.sops.secrets.restic_repository.path;
       passwordFile = config.sops.secrets.restic_password.path;
       environmentFile = config.sops.secrets.b2_credentials.path;
     };
@@ -417,7 +418,7 @@ in
 
   profiles.observability-client = {
     enable = true;
-    remoteEndpoint.host = "homeserver-gcp.tail90fc7a.ts.net";
+    remoteEndpoint.host = hostRegistry.homeserver-gcp.tailnetFQDN;
   };
 
   services.hardened = {
@@ -565,13 +566,10 @@ in
         description = "Restic workstation repository integrity check";
         after = [ "network-online.target" ];
         wants = [ "network-online.target" ];
-        environment = {
-          RESTIC_REPOSITORY = "b2:filipnowakowicz-backup:/main";
-          RESTIC_PASSWORD_FILE = config.sops.secrets.restic_password.path;
-        };
+        environment.RESTIC_PASSWORD_FILE = config.sops.secrets.restic_password.path;
         serviceConfig = {
           Type = "oneshot";
-          ExecStart = "${pkgs.restic}/bin/restic check --read-data-subset=1G";
+          ExecStart = "${pkgs.restic}/bin/restic check --repository-file=${config.sops.secrets.restic_repository.path} --read-data-subset=1G";
           ExecStartPost = pkgs.writeShellScript "restic-check-metrics" ''
             tmp=/var/lib/node-exporter-textfiles/restic_check.prom.tmp
             {
@@ -703,6 +701,7 @@ in
         mode = "0440";
       };
       restic_password = { };
+      restic_repository = { };
       b2_credentials = { };
       initrd_ssh_host_ed25519_key = { };
     };

@@ -1,4 +1,7 @@
-{ pkgs, ... }:
+{ pkgs, hostRegistry, ... }:
+let
+  mainFQDN = hostRegistry.main.tailnetFQDN;
+in
 {
   userSecrets.enable = false;
 
@@ -13,7 +16,7 @@
   };
 
   programs.zsh.shellAliases = {
-    input-main = "input-leapc main.tail90fc7a.ts.net";
-    moon-main = "moonlight stream main.tail90fc7a.ts.net";
+    input-main = "input-leapc ${mainFQDN}";
+    moon-main = "moonlight stream ${mainFQDN}";
   };
 }

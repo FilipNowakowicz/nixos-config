@@ -15,13 +15,10 @@
       description = "Restic B2 repository integrity check";
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
-      environment = {
-        RESTIC_REPOSITORY = "b2:filipnowakowicz-gcp:";
-        RESTIC_PASSWORD_FILE = config.sops.secrets.restic_password.path;
-      };
+      environment.RESTIC_PASSWORD_FILE = config.sops.secrets.restic_password.path;
       serviceConfig = {
         Type = "oneshot";
-        ExecStart = "${pkgs.restic}/bin/restic check --read-data-subset=1G";
+        ExecStart = "${pkgs.restic}/bin/restic check --repository-file=${config.sops.secrets.restic_repository.path} --read-data-subset=1G";
         ExecStartPost = pkgs.writeShellScript "restic-check-metrics" ''
           tmp=/var/lib/node-exporter-textfiles/restic_check.prom.tmp
           {
@@ -51,7 +48,7 @@
       "/var/lib/grafana"
       "/var/lib/AdGuardHome"
     ];
-    repository = "b2:filipnowakowicz-gcp:";
+    repositoryFile = config.sops.secrets.restic_repository.path;
     passwordFile = config.sops.secrets.restic_password.path;
     environmentFile = config.sops.secrets.b2_credentials.path;
   };

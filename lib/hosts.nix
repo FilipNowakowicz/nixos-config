@@ -17,6 +17,8 @@
 #     .class    — "critical" (14d/8w/6m/2y) | "standard" (7d/4w/3m); absent = no backup module
 #     .name     — restic backup job name; defaults to "local"
 #   ip          — static IP (e.g. microvm guest); consumed by host network config via hostMeta
+#   hardware    — host-local hardware identifiers
+#     .diskById — stable /dev/disk/by-id/* path for the primary disk (consumed by disko)
 let
   knownFields = [
     "system"
@@ -27,6 +29,7 @@ let
     "homeManager"
     "backup"
     "ip"
+    "hardware"
   ];
 
   knownHomeManagerRoles = [
@@ -146,6 +149,13 @@ let
         (ok (!p "ip" || builtins.isString cfg.ip)
           "${name}.ip: must be a string, got ${builtins.typeOf (cfg.ip or null)}"
         )
+        (ok (
+          !p "hardware"
+          || (
+            builtins.isAttrs cfg.hardware
+            && (!cfg.hardware ? diskById || builtins.isString cfg.hardware.diskById)
+          )
+        ) "${name}.hardware: expected attrset with optional diskById string")
       ];
 
       _valid = builtins.foldl' (a: b: a && b) true checks;
@@ -179,6 +189,7 @@ let
         ];
       };
       backup.class = "standard";
+      hardware.diskById = "/dev/disk/by-id/nvme-eui.0025388401c2aa47";
     };
 
     homeserver-gcp = {
@@ -227,6 +238,7 @@ let
         ];
       };
       deploy.sshUser = "user";
+      hardware.diskById = "/dev/disk/by-id/ata-APPLE_SSD_SM0128G_S2XUNY4M230628";
     };
 
   };

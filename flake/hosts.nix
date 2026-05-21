@@ -84,6 +84,7 @@ let
         })
         {
           home-manager.extraSpecialArgs = {
+            inherit hostRegistry;
             hostName = host;
             skipHeavyPackages = false;
             enableSpotify = hostMeta.homeManager.enableSpotify or true;

@@ -20,10 +20,11 @@
     ];
   };
 
+  # user.name and user.email are rendered at activation by secrets.nix via a
+  # sops template + programs.git.includes. Hosts with userSecrets.enable = false
+  # (mac, wsl) must set identity manually (`git config --global user.{name,email}`).
   programs.git = {
     enable = true;
-    settings.user.name = "Filip Nowakowicz";
-    settings.user.email = "filip.nowakowicz@gmail.com";
     signing = {
       format = "ssh";
       key = "${config.home.homeDirectory}/.ssh/id_ed25519.pub";

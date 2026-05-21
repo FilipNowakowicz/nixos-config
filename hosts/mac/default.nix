@@ -3,6 +3,7 @@
   inputs,
   lib,
   pkgs,
+  hostRegistry,
   ...
 }:
 let
@@ -213,7 +214,7 @@ in
 
   profiles.observability-client = {
     enable = true;
-    remoteEndpoint.host = "homeserver-gcp.tail90fc7a.ts.net";
+    remoteEndpoint.host = hostRegistry.homeserver-gcp.tailnetFQDN;
   };
 
   # NetworkManager manages networking; avoid boot blocking on online targets.
@@ -246,8 +247,8 @@ in
         ssid="eduroam"
         key_mgmt=WPA-EAP
         eap=PEAP
-        identity="fn724@ic.ac.uk"
-        anonymous_identity="anonymous@ic.ac.uk"
+        identity="${config.sops.placeholder.eduroam_identity}"
+        anonymous_identity="${config.sops.placeholder.eduroam_anonymous_identity}"
         password="${config.sops.placeholder.imperial_wifi_password}"
         phase2="auth=MSCHAPV2"
         ca_cert="/etc/ssl/certs/ca-certificates.crt"
@@ -259,7 +260,7 @@ in
         ssid="Imperial-WPA"
         key_mgmt=WPA-EAP
         eap=PEAP
-        identity="fn724"
+        identity="${config.sops.placeholder.imperial_wpa_identity}"
         password="${config.sops.placeholder.imperial_wifi_password}"
         phase2="auth=MSCHAPV2"
         ca_cert="/etc/ssl/certs/ca-certificates.crt"
@@ -312,6 +313,9 @@ in
       user_password.neededForUsers = true;
       root_password.neededForUsers = true;
       imperial_wifi_password.restartUnits = [ "wpa-supplicant-wlp3s0.service" ];
+      eduroam_identity.restartUnits = [ "wpa-supplicant-wlp3s0.service" ];
+      eduroam_anonymous_identity.restartUnits = [ "wpa-supplicant-wlp3s0.service" ];
+      imperial_wpa_identity.restartUnits = [ "wpa-supplicant-wlp3s0.service" ];
       luks_keyfile = {
         format = "binary";
         sopsFile = ./secrets/luks-keyfile.enc;

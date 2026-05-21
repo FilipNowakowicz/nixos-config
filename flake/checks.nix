@@ -236,8 +236,8 @@ let
         ];
         violations = lib.filter (msg: msg != "") [
           (lib.optionalString (
-            backup.repository != "b2:filipnowakowicz-gcp:"
-          ) "services.restic.backups.b2.repository must target filipnowakowicz-gcp")
+            !(lib.hasPrefix "/run/secrets/" (backup.repositoryFile or ""))
+          ) "services.restic.backups.b2.repositoryFile must come from /run/secrets/*")
           (lib.optionalString (
             !(lib.hasPrefix "/run/secrets/" (backup.passwordFile or ""))
           ) "services.restic.backups.b2.passwordFile must come from /run/secrets/*")

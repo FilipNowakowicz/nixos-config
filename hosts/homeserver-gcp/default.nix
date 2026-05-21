@@ -247,6 +247,7 @@ in
         inherit (config.services.nginx) group;
       };
       restic_password = { };
+      restic_repository = { };
       b2_credentials = { };
     };
   };

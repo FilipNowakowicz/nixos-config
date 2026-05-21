@@ -1,3 +1,4 @@
+{ hostMeta, ... }:
 {
   # The Apple-branded SSD in this MacBook Air is exposed by the installer as an
   # ATA disk, not NVMe. Use the stable by-id path so USB installer/device order
@@ -5,7 +6,7 @@
   disko.devices = {
     disk.mac = {
       type = "disk";
-      device = "/dev/disk/by-id/ata-APPLE_SSD_SM0128G_S2XUNY4M230628";
+      device = hostMeta.hardware.diskById;
       content = {
         type = "gpt";
         partitions = {
