@@ -7,9 +7,8 @@ output "instance_name" {
   value = google_compute_instance.homeserver_gcp.name
 }
 
-output "ssh_host_key_removal_cmd" {
-  description = "Run this after first successful Tailscale join to remove bootstrap metadata"
-  value       = "gcloud compute instances remove-metadata ${google_compute_instance.homeserver_gcp.name} --zone=${var.zone} --keys=ssh-host-key-b64,bootstrap-ssh-public-key,startup-script"
+output "instance_zone" {
+  value = var.zone
 }
 
 output "snapshot_policy_name" {

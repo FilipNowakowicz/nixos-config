@@ -62,9 +62,3 @@ variable "bootstrap_ssh_public_key" {
   sensitive   = true
   description = "Public SSH key installed for temporary root bootstrap access"
 }
-
-variable "ssh_host_key_b64" {
-  type        = string
-  sensitive   = true
-  description = "Base64-encoded SSH host private key injected via instance metadata for sops bootstrap"
-}

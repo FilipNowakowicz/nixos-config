@@ -23,7 +23,7 @@ Host behavior:
 - `mac` also uses a pre-baked encrypted SSH host key committed under
   `hosts/mac/secrets/`; sops derives `&mac_host` from the persisted private key
   on boot.
-- `homeserver-gcp` uses a pre-baked encrypted SSH host key committed to the repo; `sops-nix` derives `&homeserver_gcp_host` from `/etc/ssh/ssh_host_ed25519_key` on first boot.
+- `homeserver-gcp` uses a pre-baked encrypted SSH host key committed to the repo. During `scripts/deploy-gcp.sh`, the key is decrypted only into a local temporary directory, installed on the bootstrap VM over SSH, verified with `ssh-keyscan`, and copied into the installed NixOS root with `nixos-anywhere --extra-files`; OpenTofu never receives the private key as a variable, metadata value, output, or state value. The temporary local copy is removed by the deploy script exit trap.
 - Planned Home Manager user-secret backups under `home/users/user/secrets/` are encrypted only to `&user`; hosts do not decrypt them automatically.
 - `boot.initrd.secrets` must point only at sops-managed `/run/secrets/*` paths; this is enforced by a native NixOS assertion in the shared SOPS profile.
 - Intentional plaintext exceptions must be narrow entries in `.plaintext-secrets-allowlist`.
@@ -43,7 +43,13 @@ For SSH-host-derived identities:
 
 For `homeserver-gcp`, rotate the dedicated age key by regenerating the encrypted
 key pair, updating `&homeserver_gcp_host` in `.sops.yaml`, and re-encrypting
-every file under `hosts/homeserver-gcp/secrets/` in the same change.
+every file under `hosts/homeserver-gcp/secrets/` in the same change. Because
+older bootstrap flows put the host private key in GCE instance metadata and
+local OpenTofu state, rotation should also verify that `ssh-host-key-b64` is
+absent from instance metadata, ignored `infra/*.tfstate*`, logs, and backups; if
+that cannot be proven, also rotate credentials decryptable by
+`&homeserver_gcp_host`, including Tailscale, Grafana, restic/B2, and service
+password material.
 
 ## Initrd SSH Recovery
 

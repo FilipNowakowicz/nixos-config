@@ -356,7 +356,7 @@ Secrets are managed with [sops-nix](https://github.com/Mic92/sops-nix) and [age]
 - Host keys are derived from their respective SSH host public keys using `ssh-to-age`.
 - This allows a host to decrypt its own secrets automatically during activation. Impermanent hosts keep their SSH key under `/persist` so the age key remains stable across reboots.
 - The user's personal age key (`user`) can decrypt all secrets.
-- `homeserver-gcp` uses a pre-baked encrypted SSH host key committed in `hosts/homeserver-gcp/secrets/`; deployed once during initial GCE image bootstrap.
+- `homeserver-gcp` uses a pre-baked encrypted SSH host key committed in `hosts/homeserver-gcp/secrets/`; `scripts/deploy-gcp.sh` decrypts it only into a local temporary directory, verifies the VM presents that key before install, and copies it into the NixOS root with `nixos-anywhere --extra-files`. The private key is not passed through OpenTofu variables, outputs, instance metadata, or desired state.
 - Home Manager user-secret backups (`home/users/user/secrets/`) are encrypted for `&user` only; see [`docs/security.md`](docs/security.md) for the full recipient table.
 
 ### Setup
