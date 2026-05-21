@@ -54,7 +54,7 @@ in
       # NetworkManager owns wired/tether; wlp3s0 is driven by a dedicated
       # wpa_supplicant unit below because NM defaults to the nl80211 driver,
       # which the proprietary Broadcom `wl` module rejects with "Association
-      # request to the driver failed" on Imperial's WPA-EAP APs (FT handshake).
+      # request to the driver failed" on the campus WPA-EAP APs (FT handshake).
       unmanaged = [ "interface-name:wlp3s0" ];
       settings = {
         connection."wifi.cloned-mac-address" = "permanent";
@@ -228,50 +228,15 @@ in
     nh
   ];
 
-  # ── Wi-Fi (Imperial-WPA / eduroam, wext driver) ─────────────────────────────
-  # NetworkManager + nl80211 cannot drive the BCM4360 against Imperial's WPA-EAP
-  # APs (driver rejects FT-aware association). This unit runs a per-interface
-  # wpa_supplicant in wext mode, with the password injected at activation time
-  # via a sops template. dhcpcd (above) handles DHCP once associated.
-  sops.templates."wpa_supplicant-wlp3s0.conf" = {
-    owner = "root";
-    group = "root";
-    mode = "0400";
-    restartUnits = [ "wpa-supplicant-wlp3s0.service" ];
-    content = ''
-      ctrl_interface=/run/wpa_supplicant
-      ap_scan=1
-      update_config=0
-
-      network={
-        ssid="eduroam"
-        key_mgmt=WPA-EAP
-        eap=PEAP
-        identity="${config.sops.placeholder.eduroam_identity}"
-        anonymous_identity="${config.sops.placeholder.eduroam_anonymous_identity}"
-        password="${config.sops.placeholder.imperial_wifi_password}"
-        phase2="auth=MSCHAPV2"
-        ca_cert="/etc/ssl/certs/ca-certificates.crt"
-        domain_suffix_match="wireless.ic.ac.uk"
-        priority=10
-      }
-
-      network={
-        ssid="Imperial-WPA"
-        key_mgmt=WPA-EAP
-        eap=PEAP
-        identity="${config.sops.placeholder.imperial_wpa_identity}"
-        password="${config.sops.placeholder.imperial_wifi_password}"
-        phase2="auth=MSCHAPV2"
-        ca_cert="/etc/ssl/certs/ca-certificates.crt"
-        domain_suffix_match="wireless.ic.ac.uk"
-        priority=5
-      }
-    '';
-  };
-
+  # ── Wi-Fi (campus WPA-EAP, wext driver) ─────────────────────────────────────
+  # NetworkManager + nl80211 cannot drive the BCM4360 against the campus
+  # WPA-EAP APs (driver rejects FT-aware association). This unit runs a
+  # per-interface wpa_supplicant in wext mode against a wpa_supplicant.conf
+  # delivered as a single sops secret (SSIDs, identities, password, and
+  # certificate pin live together in the encrypted blob). dhcpcd (above)
+  # handles DHCP once associated.
   systemd.services.wpa-supplicant-wlp3s0 = {
-    description = "WPA Supplicant for wlp3s0 (wext driver, Imperial WPA-EAP)";
+    description = "WPA Supplicant for wlp3s0 (wext driver, campus WPA-EAP)";
     wantedBy = [ "multi-user.target" ];
     after = [
       "network-pre.target"
@@ -291,7 +256,7 @@ in
     '';
 
     script = ''
-      exec wpa_supplicant -i wlp3s0 -D wext -c ${config.sops.templates."wpa_supplicant-wlp3s0.conf".path}
+      exec wpa_supplicant -i wlp3s0 -D wext -c ${config.sops.secrets.wpa_supplicant_wlp3s0_conf.path}
     '';
 
     serviceConfig = {
@@ -312,10 +277,12 @@ in
     secrets = {
       user_password.neededForUsers = true;
       root_password.neededForUsers = true;
-      imperial_wifi_password.restartUnits = [ "wpa-supplicant-wlp3s0.service" ];
-      eduroam_identity.restartUnits = [ "wpa-supplicant-wlp3s0.service" ];
-      eduroam_anonymous_identity.restartUnits = [ "wpa-supplicant-wlp3s0.service" ];
-      imperial_wpa_identity.restartUnits = [ "wpa-supplicant-wlp3s0.service" ];
+      wpa_supplicant_wlp3s0_conf = {
+        owner = "root";
+        group = "root";
+        mode = "0400";
+        restartUnits = [ "wpa-supplicant-wlp3s0.service" ];
+      };
       luks_keyfile = {
         format = "binary";
         sopsFile = ./secrets/luks-keyfile.enc;

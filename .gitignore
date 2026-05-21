@@ -4,3 +4,6 @@ result-*
 .pre-commit-config.yaml
 __pycache__/
 *.py[cod]
+
+# Per-machine Claude Code tool-permission allowlist (not shared).
+.claude/settings.local.json
