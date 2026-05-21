@@ -77,7 +77,10 @@ See [`docs/security.md`](docs/security.md) for the full secrets/exposure model.
 
 ## Security Preferences
 
-- **Broad passwordless sudo is for dev machines and `machine-common` hosts only.**
+- **Broad passwordless sudo is for deploy/dev exceptions only.** Current broad
+  exceptions are `hosts/mac`, `hosts/homeserver-gcp`, and
+  `modules/nixos/profiles/machine-dev.nix`; treat SSH access to those targets as
+  root-equivalent.
 - **`main` keeps `wheelNeedsPassword = true`** and uses a narrow
   `agentMaintenanceCommands` NOPASSWD allowlist for repeat maintenance commands.
   Do not broaden this to `NOPASSWD: ALL`.

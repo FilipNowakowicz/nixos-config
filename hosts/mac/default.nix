@@ -131,9 +131,9 @@ in
     "broadcom-sta-6.30.223.271-59-${config.boot.kernelPackages.kernel.version}"
   ];
 
-  # Passwordless sudo: deploy-rs needs it for activation, access is SSH-key-only
-  # over Tailscale, and the disk is LUKS-encrypted so console password loss does
-  # not buy an attacker anything. Same posture as homeserver-gcp.
+  # Broad passwordless sudo: deploy-rs needs it for activation. SSH access to
+  # this target is therefore root-equivalent; keep SSH Tailscale-scoped and
+  # key-only. Same posture as homeserver-gcp.
   security.sudo.wheelNeedsPassword = false;
 
   assertions = [

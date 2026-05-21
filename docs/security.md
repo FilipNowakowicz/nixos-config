@@ -193,11 +193,38 @@ Allowed command categories are limited to:
 - starting/statusing the local Restic backup and check units;
 - `bootctl` status/cleanup;
 - deleting an explicitly named EFI boot entry with `efibootmgr -b XXXX -B`;
-- Nix garbage collection with an explicit age;
-- switching this flake path for `main`.
+- Nix garbage collection through the fixed-argument `nix-gc-14d` wrapper.
 
 Do not broaden this to full passwordless sudo. Additions should be exact-command
 maintenance operations and should keep normal interactive sudo passworded.
+Do not add passwordless rebuild/switch commands that activate from
+user-writable paths such as `/home/user/nix`; switching `main` should require a
+normal passworded sudo boundary or a future reviewed immutable activation flow.
+
+## Deploy And Bootstrap Sudo
+
+Some non-`main` paths intentionally keep broad passwordless root after SSH
+access because the current deploy flow depends on it:
+
+- `hosts/mac` sets `security.sudo.wheelNeedsPassword = false` so deploy-rs can
+  activate the companion workstation over Tailscale.
+- `hosts/homeserver-gcp` sets `security.sudo.wheelNeedsPassword = false` for
+  deploy-rs activation over Tailscale-scoped SSH.
+- `modules/nixos/profiles/machine-dev.nix` sets passwordless wheel for
+  disposable development machines and microVM guests that import it.
+- The stock GCP bootstrap image creates a temporary `bootstrap` user with
+  `NOPASSWD:ALL` so `nixos-anywhere` can install NixOS.
+
+This is a deliberate deploy convenience tradeoff: whoever obtains one of those
+SSH identities effectively obtains root on that target. Do not use these
+profiles for multi-user or untrusted-shell hosts without replacing broad wheel
+sudo with a dedicated deploy user and a reviewed command allowlist.
+
+For the GCP bootstrap path, `scripts/deploy-gcp.sh` removes and verifies removal
+of the bootstrap-only metadata keys after a successful install. Removing the
+startup-script metadata prevents the temporary bootstrap user and sudoers entry
+from being recreated by later OpenTofu applies; the bootstrap OS itself is
+replaced by the installed NixOS system.
 
 ## Audit Timeline In Loki
 

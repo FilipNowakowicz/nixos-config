@@ -51,8 +51,9 @@ in
     stateVersion = "24.11";
   };
 
-  # Passwordless sudo is safe here: access is SSH-key-only over Tailscale,
-  # no interactive console, and deploy-rs needs it for activation.
+  # Broad passwordless sudo: deploy-rs needs it for activation. SSH access to
+  # this target is therefore root-equivalent; keep SSH Tailscale-scoped and
+  # key-only.
   security.sudo.wheelNeedsPassword = false;
 
   assertions = [

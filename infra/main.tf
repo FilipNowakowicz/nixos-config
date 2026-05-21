@@ -97,6 +97,8 @@ resource "google_compute_instance" "homeserver_gcp" {
       chown bootstrap:bootstrap /home/bootstrap/.ssh/authorized_keys
       chmod 600 /home/bootstrap/.ssh/authorized_keys
 
+      # Temporary broad sudo for nixos-anywhere. scripts/deploy-gcp.sh removes
+      # the metadata that recreates this account after a successful install.
       printf 'bootstrap ALL=(ALL) NOPASSWD:ALL\n' >/etc/sudoers.d/90-bootstrap
       chmod 440 /etc/sudoers.d/90-bootstrap
 

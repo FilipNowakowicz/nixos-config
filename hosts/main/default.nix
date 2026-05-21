@@ -23,10 +23,7 @@ let
     "/run/current-system/sw/bin/bootctl status --no-pager"
     "/run/current-system/sw/bin/bootctl cleanup"
     "/run/current-system/sw/bin/efibootmgr -b [0-9A-F][0-9A-F][0-9A-F][0-9A-F] -B"
-    "/run/current-system/sw/bin/nix-collect-garbage --delete-older-than *"
-
-    # Argument-free wrapper so the allowlist entry cannot be abused.
-    "/run/current-system/sw/bin/nixos-switch-main"
+    "/run/current-system/sw/bin/nix-gc-14d"
   ];
 
   passwordlessAgentCommand = command: {
@@ -36,6 +33,10 @@ let
 
   nixosSwitchMain = pkgs.writeShellScriptBin "nixos-switch-main" ''
     exec ${lib.getExe pkgs.nh} os switch --hostname main /home/user/nix
+  '';
+
+  nixGc14d = pkgs.writeShellScriptBin "nix-gc-14d" ''
+    exec ${pkgs.nix}/bin/nix-collect-garbage --delete-older-than 14d
   '';
 
   expectedTrustedUsers = [
@@ -203,6 +204,7 @@ in
   environment.systemPackages = with pkgs; [
     efibootmgr
     nh
+    nixGc14d
     nixosSwitchMain
     sbctl
   ];
