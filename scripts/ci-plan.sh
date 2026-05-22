@@ -184,6 +184,7 @@ sep=""
 if [[ $main_ci == "true" ]]; then
   hosts_matrix+='{"name":"main-ci"}'
   sep=","
+  hosts_matrix+="${sep}"'{"name":"main-full"}'
 fi
 hosts_matrix+=']}'
 

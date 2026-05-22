@@ -54,7 +54,7 @@ build_host() {
   main-ci)
     build_attrs ".#nixosConfigurations.main-ci.config.system.build.toplevel"
     ;;
-  main)
+  main | main-full)
     build_attrs ".#nixosConfigurations.main.config.system.build.toplevel"
     ;;
   homeserver-gcp)

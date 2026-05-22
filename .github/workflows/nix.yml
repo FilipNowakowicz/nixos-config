@@ -378,7 +378,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: ./.github/actions/setup-nix
+      - id: setup-nix
+        uses: ./.github/actions/setup-nix
+        with:
+          enable-eval-cache: "true"
+          enable-store-cache: "true"
+          cache-key-suffix: hosts-main-full
 
       - name: Compute closure diffs
         id: diff
