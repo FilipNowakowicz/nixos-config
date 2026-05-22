@@ -71,6 +71,21 @@ in
               ' 2>/dev/null || true
         }
 
+        prometheus_query_label() {
+          local expr="$1"
+          local label="$2"
+          curl --silent --show-error --fail --get \
+            --data-urlencode "query=$expr" \
+            http://127.0.0.1:9009/prometheus/api/v1/query 2>/dev/null \
+            | ${pkgs.jq}/bin/jq -r --arg label "$label" '
+                if .status == "success" and (.data.result | length) > 0 then
+                  (.data.result[0].metric[$label] // empty)
+                else
+                  empty
+                end
+              ' 2>/dev/null || true
+        }
+
         service_state() {
           local unit="$1"
           if systemctl is-active --quiet "$unit"; then
@@ -134,6 +149,10 @@ in
         vulnix_ts="$(metric /var/lib/node-exporter-textfiles/vulnix.prom vulnix_scan_timestamp_seconds)"
         vulnix_cves="$(metric /var/lib/node-exporter-textfiles/vulnix.prom vulnix_cve_total)"
         vulnix_packages="$(metric /var/lib/node-exporter-textfiles/vulnix.prom vulnix_affected_packages_total)"
+        homeserver_revision="$(cat /run/current-system/configuration-revision 2>/dev/null || true)"
+        homeserver_activated_at="$(metric /var/lib/node-exporter-textfiles/system_metadata.prom nixos_system_activated_at_seconds)"
+        main_system_revision="$(prometheus_query_label 'max by (revision) (nixos_system_revision_info{host="main"})' revision)"
+        main_system_activated_at="$(prometheus_query_value 'max(nixos_system_activated_at_seconds{host="main"})')"
         failed_units_json="$(systemctl --failed --plain --no-legend --no-pager | awk '{ print $1 }' | ${pkgs.jq}/bin/jq -R . | ${pkgs.jq}/bin/jq -s -c .)"
         tailscale_status_json="$(${pkgs.tailscale}/bin/tailscale status --json 2>/dev/null || printf '{}')"
         tailnet_devices_json="$(printf '%s' "$tailscale_status_json" | ${pkgs.jq}/bin/jq -c '
@@ -197,6 +216,10 @@ in
           --argjson vulnixAge "$(age_json "$vulnix_ts")" \
           --argjson vulnixCves "$(number_json "$vulnix_cves")" \
           --argjson vulnixPackages "$(number_json "$vulnix_packages")" \
+          --arg homeserverRevision "$homeserver_revision" \
+          --argjson homeserverActivatedAt "$(number_json "$homeserver_activated_at")" \
+          --arg mainRevision "$main_system_revision" \
+          --argjson mainActivatedAt "$(number_json "$main_system_activated_at")" \
           --argjson failedUnits "$failed_units_json" \
           --argjson tailnetDevices "$tailnet_devices_json" \
           '{
@@ -212,6 +235,11 @@ in
                   online: $homeserverOnline,
                   state: $tailscaleState
                 },
+                system: (
+                  {}
+                  + (if $homeserverRevision == "" then {} else { revision: $homeserverRevision } end)
+                  + (if $homeserverActivatedAt == null then {} else { activatedAt: $homeserverActivatedAt } end)
+                ),
                 services: {
                   adguard: { active: $adguardActive, unit: "adguardhome.service" },
                   nginx: { active: $nginxActive, unit: "nginx.service" },
@@ -249,6 +277,11 @@ in
                 tailscale: {
                   online: $mainOnline
                 },
+                system: (
+                  {}
+                  + (if $mainRevision == "" then {} else { revision: $mainRevision } end)
+                  + (if $mainActivatedAt == null then {} else { activatedAt: $mainActivatedAt } end)
+                ),
                 backups: [
                   {
                     name: "local",
