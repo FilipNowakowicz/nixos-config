@@ -3,6 +3,7 @@
 from gi.repository import Gtk
 
 from ..actions import (
+    act_open_sound_settings,
     act_set_default_source,
     act_set_source_volume,
     act_toggle_source_mute,
@@ -51,7 +52,13 @@ class MicrophoneViewMixin:
         inp = self._box(Gtk.Orientation.VERTICAL, spacing=2, css="drawer-list")
         view.append(inp)
 
-        view.append(self._ghost_btn("Open Sound Settings"))
+        settings_btn = self._ghost_btn("Open Sound Settings")
+
+        def _open_pavucontrol(_b):
+            self._hide_window()
+            act_open_sound_settings()
+        settings_btn.connect("clicked", _open_pavucontrol)
+        view.append(settings_btn)
 
         def refresh(s):
             a = s["audio"]

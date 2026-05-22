@@ -69,18 +69,32 @@ def main():
     # ── Battery ────────────────────────────────────────────────────
     bat_pct = None
     bat_charging = False
+    ac_online = False
     try:
-        candidates = ["/sys/class/power_supply/BAT0"] + [
-            f"/sys/class/power_supply/{e}"
-            for e in sorted(os.listdir("/sys/class/power_supply"))
-            if e.startswith("BAT")
-        ]
-        for p in candidates:
+        psu_root = "/sys/class/power_supply"
+        entries = sorted(os.listdir(psu_root))
+        for e in entries:
+            p = f"{psu_root}/{e}"
+            try:
+                ptype = open(f"{p}/type").read().strip()
+            except OSError:
+                continue
+            if ptype == "Mains":
+                try:
+                    if open(f"{p}/online").read().strip() == "1":
+                        ac_online = True
+                except OSError:
+                    pass
+        for e in entries:
+            if not e.startswith("BAT"):
+                continue
+            p = f"{psu_root}/{e}"
             if not os.path.isdir(p):
                 continue
             bat_pct = int(open(f"{p}/capacity").read().strip())
             status = open(f"{p}/status").read().strip()
-            bat_charging = status in ("Charging", "Full")
+            # "Not charging" with AC online = charge-threshold reached / full.
+            bat_charging = status in ("Charging", "Full") or ac_online
             break
     except (OSError, ValueError):
         pass

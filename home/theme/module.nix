@@ -48,10 +48,6 @@ let
       target = "${config.xdg.configHome}/hypr/hyprlock-colors.conf";
     }
     {
-      source = "waybar-colors.css";
-      target = "${config.xdg.configHome}/waybar/colors.css";
-    }
-    {
       source = "mako-config";
       target = "${config.xdg.configHome}/mako/config";
     }
@@ -76,6 +72,10 @@ let
             return 1
           fi
     ${mkThemeLinkCommands "$theme_dir"}
+
+          mkdir -p ${lib.escapeShellArg (builtins.dirOf "${config.xdg.configHome}/waybar/colors.css")}
+          rm -f ${lib.escapeShellArg "${config.xdg.configHome}/waybar/colors.css"}
+          install -m 0644 "$theme_dir/waybar-colors.css" ${lib.escapeShellArg "${config.xdg.configHome}/waybar/colors.css"}
         }
   '';
 

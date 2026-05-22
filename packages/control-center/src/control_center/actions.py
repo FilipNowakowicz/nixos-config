@@ -112,6 +112,10 @@ def act_open_bluetooth_settings():
     _fire_if_found(["blueman-manager"])
 
 
+def act_open_sound_settings():
+    _fire_if_found(["pavucontrol"])
+
+
 def act_bt_powered(on):
     _fire(["bluetoothctl", "power", "on" if on else "off"])
 

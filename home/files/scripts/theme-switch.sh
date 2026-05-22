@@ -7,8 +7,8 @@ REPO_THEMES_DIR="$NIX_REPO/home/theme/themes"
 REPO_WALLPAPERS_DIR="$NIX_REPO/home/theme/wallpapers"
 ACTIVE_FILE="$NIX_REPO/home/theme/active.nix"
 LINKS_FILE="$THEMES_DIR/links.sh"
-WAYBAR_STATE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/waybar-toggle/state"
 LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/theme-switch.lock"
+WAYBAR_PENDING_RELOAD="${XDG_STATE_HOME:-$HOME/.local/state}/waybar/needs-reload"
 
 exec 9>"$LOCK_FILE"
 flock 9
@@ -48,11 +48,15 @@ swaybg_pids() {
 }
 
 waybar_visible() {
-  if [[ -f $WAYBAR_STATE_FILE ]]; then
-    [[ $(<"$WAYBAR_STATE_FILE") == "visible" ]]
-    return
-  fi
-  hyprctl layers 2>/dev/null | grep -q 'namespace: waybar'
+  # Visible waybar sits at layer level 2 ("top"); SIGUSR1 drops it to level 1
+  # ("bottom") where it stays running but unseen. Checking the layer level is
+  # the authoritative signal — the launcher uses the same check.
+  hyprctl layers 2>/dev/null | awk '
+    /^[[:space:]]*Layer level 2/  { in_top = 1; next }
+    /^[[:space:]]*Layer level/    { in_top = 0; next }
+    in_top && /namespace: waybar/ { found = 1; exit }
+    END { exit !found }
+  '
 }
 
 ensure_theme_assets() {
@@ -246,14 +250,26 @@ if waybar_visible; then
     [[ -n $pid ]] || continue
     kill -USR2 "$pid" 2>/dev/null || true
   done < <(waybar_pids)
+  rm -f "$WAYBAR_PENDING_RELOAD"
+else
+  # Defer the reload until the bar is un-hidden so SIGUSR2 doesn't bring it
+  # back into view. waybar-toggle consumes this flag on its next show.
+  mkdir -p "$(dirname "$WAYBAR_PENDING_RELOAD")"
+  : >"$WAYBAR_PENDING_RELOAD"
 fi
+
+# Warm the kernel page cache so swaybg's decode is CPU-bound, not disk-bound.
+# Cold reads of large wallpapers (mono-mesh.jpg 5.2M, desert-dusk.png 8M) push
+# the buffer commit past the handover window and the compositor briefly falls
+# back to its default wallpaper.
+cat "$HOME/.local/share/wallpapers/current.png" >/dev/null 2>&1 || true
 
 old_swaybg_pids=()
 while IFS= read -r pid; do
   [[ -n $pid ]] && old_swaybg_pids+=("$pid")
 done < <(swaybg_pids)
 swaybg -m fill -i "$HOME/.local/share/wallpapers/current.png" 9>&- &
-sleep 0.2
+sleep 0.5
 if ((${#old_swaybg_pids[@]} > 0)); then
   kill "${old_swaybg_pids[@]}" 2>/dev/null || true
   sleep 0.2
@@ -262,9 +278,9 @@ if ((${#old_swaybg_pids[@]} > 0)); then
   done
 fi
 
-for socket in /tmp/kitty-*/kitty-*; do
-  [[ -S $socket ]] && kitty @ --to "unix:$socket" load-config 2>/dev/null || true
-done
+ps -eo pid=,comm= |
+  awk '$2 == ".kitty-wrapped" || $2 == "kitty" { print $1 }' |
+  xargs -r kill -USR1 2>/dev/null || true
 
 if ! systemctl --user restart mako.service 2>/dev/null; then
   pkill -x mako 2>/dev/null || true

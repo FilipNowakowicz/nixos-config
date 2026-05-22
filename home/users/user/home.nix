@@ -60,6 +60,11 @@ let
     };
 
   controlCenter = pkgs.callPackage ../../../packages/control-center { };
+  waybarStyle =
+    lib.replaceStrings
+      [ ''@import "colors.css";'' ]
+      [ ''@import url("file://${config.xdg.configHome}/waybar/colors.css");'' ]
+      (builtins.readFile ../../files/waybar/style.css);
 
   batteryNotify = pkgs.writeShellApplication {
     name = "battery-notify";
@@ -352,7 +357,7 @@ in
 
       # Waybar
       "waybar/config".source = ../../files/waybar/config;
-      "waybar/style.css".source = ../../files/waybar/style.css;
+      "waybar/style.css".text = waybarStyle;
     };
   };
 
