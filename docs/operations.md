@@ -91,8 +91,9 @@ sudo nix-gc-14d
 ```
 
 `main` also hosts companion-workstation services for `mac`: Sunshine runs as a
-system service, and Input Leap is installed in Home Manager. Their network
-surface is limited to `tailscale0`; the general LAN firewall remains closed.
+Home Manager user service tied to `nixos-fake-graphical-session.target`, and
+Input Leap is installed in Home Manager. Their network surface is limited to
+`tailscale0`; the general LAN firewall remains closed.
 
 Clean stale boot artifacts:
 
