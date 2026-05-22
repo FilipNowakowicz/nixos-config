@@ -4,6 +4,7 @@ let
   gen = import ../../lib/generators.nix { inherit lib; };
   certDir = "/var/lib/nginx/certs";
   homepageDir = "/var/lib/homepage/public";
+  homepageEventsTarget = "http://127.0.0.1:9273/";
   proxy = gen.nginx.proxyLocation;
 in
 {
@@ -102,6 +103,18 @@ in
             extraConfig = ''
               default_type application/json;
               add_header Cache-Control "no-store";
+            '';
+          };
+
+          "= /home/status.events" = {
+            proxyPass = homepageEventsTarget;
+            extraConfig = ''
+              proxy_http_version 1.1;
+              proxy_set_header Connection "";
+              proxy_buffering off;
+              proxy_cache off;
+              add_header Cache-Control "no-store";
+              add_header X-Accel-Buffering "no";
             '';
           };
 

@@ -5,6 +5,73 @@
 }:
 let
   inherit (hostMeta) tailnetFQDN;
+  eventStreamPort = 9273;
+  statusEventStream = pkgs.writeText "homepage-status-events.py" ''
+    import json
+    import os
+    import time
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    STATUS_PATH = "/var/lib/homepage/public/status.json"
+    PORT = ${toString eventStreamPort}
+
+
+    class Handler(BaseHTTPRequestHandler):
+      protocol_version = "HTTP/1.1"
+
+      def log_message(self, format, *args):
+        return
+
+      def do_GET(self):
+        if self.path != "/":
+          self.send_response(404)
+          self.end_headers()
+          return
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+
+        last_event_id = self.headers.get("Last-Event-ID") or None
+        keepalive = 0
+
+        while True:
+          try:
+            stat_result = os.stat(STATUS_PATH)
+            event_id = str(stat_result.st_mtime_ns)
+            if event_id != last_event_id:
+              with open(STATUS_PATH, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+              body = json.dumps(
+                {"generatedAt": payload.get("generatedAt")},
+                separators=(",", ":"),
+              )
+              self.wfile.write(f"id: {event_id}\n".encode("utf-8"))
+              self.wfile.write(b"event: status\n")
+              self.wfile.write(f"data: {body}\n\n".encode("utf-8"))
+              self.wfile.flush()
+              last_event_id = event_id
+
+            keepalive += 1
+            if keepalive >= 15:
+              self.wfile.write(b": keepalive\n\n")
+              self.wfile.flush()
+              keepalive = 0
+
+            time.sleep(1)
+          except (BrokenPipeError, ConnectionResetError):
+            return
+          except FileNotFoundError:
+            time.sleep(1)
+          except Exception:
+            time.sleep(1)
+
+
+    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+  '';
 in
 {
   systemd = {
@@ -300,6 +367,17 @@ in
       serviceConfig = {
         Type = "oneshot";
         RuntimeDirectory = "homepage-status";
+      };
+    };
+
+    services.homepage-status-events = {
+      description = "Stream homepage status updates over server-sent events";
+      after = [ "homepage-status.service" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        ExecStart = "${pkgs.python3}/bin/python3 ${statusEventStream}";
+        Restart = "always";
+        RestartSec = "2s";
       };
     };
 
