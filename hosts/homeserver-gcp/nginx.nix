@@ -90,10 +90,23 @@ in
             return = "301 /home/";
           };
 
+          "= /home/index.html" = {
+            alias = "${homepageDir}/index.html";
+            extraConfig = ''
+              add_header Cache-Control "no-store" always;
+            '';
+          };
+
+          "~ ^/home/src/(?<asset>.+\\.[0-9a-f]{10}\\.(?:js|css))$" = {
+            alias = "${homepageDir}/src/$asset";
+            extraConfig = ''
+              add_header Cache-Control "public, max-age=31536000, immutable" always;
+            '';
+          };
+
           "/home/" = {
             alias = "${homepageDir}/";
             extraConfig = ''
-              add_header Cache-Control "no-store" always;
               try_files $uri $uri/ /home/index.html;
             '';
           };
