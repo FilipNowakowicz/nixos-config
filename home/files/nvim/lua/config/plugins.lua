@@ -161,7 +161,16 @@ require("lazy").setup({
   -----------------------------------------------------------
   -- Editing utilities
   -----------------------------------------------------------
-  { "numToStr/Comment.nvim",  opts = {} },
+  {
+    "numToStr/Comment.nvim",
+    opts = {
+      pre_hook = function()
+        if vim.bo.filetype == "tex" or vim.bo.filetype == "plaintex" then
+          return vim.bo.commentstring
+        end
+      end,
+    },
+  },
   { "windwp/nvim-autopairs" },
   { "kylechui/nvim-surround", opts = {} },
   { "tpope/vim-sleuth" },

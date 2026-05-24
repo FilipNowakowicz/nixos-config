@@ -9,7 +9,7 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.opt_local.linebreak = true
     vim.opt_local.formatoptions:append("t")
 
-    vim.opt_local.conceallevel = 2
+    vim.opt_local.conceallevel = 0
   end,
 })
 
