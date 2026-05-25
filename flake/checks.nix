@@ -179,6 +179,7 @@ let
       let
         instance = lib.attrByPath [ "services" "btrbk" "instances" "local" ] null cfg;
         fs = cfg.fileSystems."/.btrfs-root" or null;
+        snapshotDirService = cfg.systemd.services.btrbk-local-snapshot-dir or null;
         settings = if instance == null then { } else instance.settings or { };
         volume = lib.attrByPath [ "volume" "/.btrfs-root" ] { } settings;
         subvolumes = volume.subvolume or { };
@@ -213,6 +214,21 @@ let
           (lib.optionalString (
             fs != null && !builtins.elem "subvol=/" (fs.options or [ ])
           ) "fileSystems.\"/.btrfs-root\" must mount the btrfs top-level with subvol=/")
+          (lib.optionalString (
+            snapshotDirService == null
+          ) "systemd.services.btrbk-local-snapshot-dir must exist")
+          (lib.optionalString (
+            snapshotDirService != null
+            && !builtins.elem "btrbk-local.service" (snapshotDirService.requiredBy or [ ])
+          ) "systemd.services.btrbk-local-snapshot-dir must be required by btrbk-local.service")
+          (lib.optionalString (
+            snapshotDirService != null
+            && !builtins.elem "btrbk-local.service" (snapshotDirService.before or [ ])
+          ) "systemd.services.btrbk-local-snapshot-dir must run before btrbk-local.service")
+          (lib.optionalString (
+            snapshotDirService != null
+            && (snapshotDirService.unitConfig.RequiresMountsFor or null) != "/.btrfs-root"
+          ) "systemd.services.btrbk-local-snapshot-dir must require mounts for /.btrfs-root")
         ];
       in
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);

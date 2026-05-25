@@ -553,6 +553,17 @@ in
         mv "$tmp" /var/lib/node-exporter-textfiles/restic_backup.prom
       '';
 
+      btrbk-local-snapshot-dir = {
+        description = "Ensure btrbk local snapshot directory exists";
+        requiredBy = [ "btrbk-local.service" ];
+        before = [ "btrbk-local.service" ];
+        unitConfig.RequiresMountsFor = "/.btrfs-root";
+        serviceConfig.Type = "oneshot";
+        script = ''
+          ${pkgs.coreutils}/bin/install -d -m 0750 -o btrbk -g btrbk /.btrfs-root/.snapshots
+        '';
+      };
+
       restic-check-local = {
         description = "Restic workstation repository integrity check";
         after = [ "network-online.target" ];

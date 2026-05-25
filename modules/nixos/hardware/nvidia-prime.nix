@@ -23,7 +23,11 @@ in
 
     nvidia = {
       modesetting.enable = true; # required for Wayland / Hyprland
-      powerManagement.enable = true; # suspend/resume reliability on laptops
+      # Keep runtime power gating focused on PRIME offload. The broader NVIDIA
+      # power-management option enables suspend/hibernate video-memory
+      # preservation, which keeps this offload-only dGPU active instead of
+      # allowing fine-grained Runtime D3 when idle.
+      powerManagement.enable = false;
       powerManagement.finegrained = true; # Turing+ (TU117M): full dGPU power-gate when idle
       open = false; # use proprietary kernel module
       nvidiaSettings = true;

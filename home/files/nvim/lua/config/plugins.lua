@@ -161,7 +161,16 @@ require("lazy").setup({
   -----------------------------------------------------------
   -- Editing utilities
   -----------------------------------------------------------
-  { "numToStr/Comment.nvim",  opts = {} },
+  {
+    "numToStr/Comment.nvim",
+    opts = {
+      pre_hook = function()
+        if vim.bo.filetype == "tex" or vim.bo.filetype == "plaintex" then
+          return vim.bo.commentstring
+        end
+      end,
+    },
+  },
   { "windwp/nvim-autopairs" },
   { "kylechui/nvim-surround", opts = {} },
   { "tpope/vim-sleuth" },
@@ -179,7 +188,27 @@ require("lazy").setup({
   -- Language-specific
   -----------------------------------------------------------
   { "ellisonleao/glow.nvim", cmd = "Glow", opts = {} },
-  { "lervag/vimtex", ft = { "tex", "plaintex" } },
+  {
+    "lervag/vimtex",
+    ft = { "tex", "plaintex" },
+    init = function()
+      vim.g.vimtex_view_method = "zathura"
+      vim.g.vimtex_compiler_method = "latexmk"
+      vim.g.tex_flavor = "latex"
+      vim.g.vimtex_quickfix_open_on_warning = 0
+      vim.g.vimtex_quickfix_mode = 2
+      vim.g.vimtex_imaps_enabled = 0
+      vim.g.vimtex_syntax_enabled = 0
+      vim.g.vimtex_compiler_latexmk = {
+        out_dir = "build",
+        options = {
+          "-pdf",
+          "-interaction=nonstopmode",
+          "-synctex=1",
+        },
+      }
+    end,
+  },
 }, {
   -- For NixOS compatibility
   lockfile = vim.fn.stdpath("data") .. "/lazy/lazy-lock.json",

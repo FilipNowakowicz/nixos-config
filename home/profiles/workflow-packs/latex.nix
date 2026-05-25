@@ -12,7 +12,10 @@ in
   config = lib.mkIf (cfg.enable && !skipHeavyPackages) {
     home.packages = with pkgs; [
       zathura
-      texlive.combined.scheme-medium
+      (texlive.withPackages (ps: [
+        ps.scheme-medium
+        ps.enumitem
+      ]))
     ];
   };
 }
