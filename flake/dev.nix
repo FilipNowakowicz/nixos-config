@@ -126,26 +126,41 @@ in
     security = pkgs.mkShell {
       packages = with pkgs; [
         nmap
+        masscan
+        rustscan
+        traceroute
         whois
         dnsutils
         sqlmap
         gobuster
         ffuf
+        feroxbuster
+        nuclei
+        amass
+        nikto
+        whatweb
+        testssl
         hydra
         john
         hashcat
         netcat-gnu
+        socat
+        tcpdump
         wireshark-cli
+        mitmproxy
+        proxychains-ng
+        seclists
+        exploitdb
       ];
       shellHook = ''
-        	echo "Security tools ready"
-        	echo ""
-        	echo "Available tools:"
-        	echo "  Network:   nmap, whois, dig, netcat"
-        	echo "  Web:       sqlmap, gobuster, ffuf"
-        	echo "  Password:  hydra, john, hashcat"
-        	echo "  Analysis:  wireshark-cli (tshark)"
-        	exec ${pkgs.zsh}/bin/zsh
+        echo "Security tools ready"
+        echo ""
+        echo "Available tools:"
+        echo "  Network:   nmap, masscan, rustscan, whois, dig, traceroute, netcat, socat"
+        echo "  Web:       sqlmap, gobuster, ffuf, feroxbuster, nuclei, amass, nikto, whatweb, testssl"
+        echo "  Password:  hydra, john, hashcat"
+        echo "  Analysis:  tcpdump, wireshark-cli (tshark), mitmproxy"
+        echo "  Data:      seclists, exploitdb"
       '';
     };
   };

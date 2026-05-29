@@ -712,6 +712,135 @@ in
     '';
   };
 
+  # Boot-selectable mode for anonymous/security-lab work. This hardens the host
+  # and removes daily-desktop network identity emitters, while keeping Tor
+  # workflows inside Whonix rather than pretending every host tool is anonymous.
+  specialisation.anonymous.configuration =
+    { lib, pkgs, ... }:
+    {
+      system.nixos.tags = [ "anonymous" ];
+
+      networking = {
+        hostName = lib.mkForce "nixos";
+        domain = lib.mkForce "";
+        firewall = {
+          checkReversePath = lib.mkForce "strict";
+          allowedTCPPorts = lib.mkForce [ ];
+          allowedUDPPorts = lib.mkForce [ ];
+          interfaces.tailscale0 = lib.mkForce { };
+        };
+        networkmanager = {
+          wifi = {
+            scanRandMacAddress = true;
+            macAddress = "random";
+          };
+          ethernet.macAddress = "random";
+        };
+      };
+
+      hardware.bluetooth = {
+        enable = lib.mkForce false;
+        powerOnBoot = lib.mkForce false;
+      };
+
+      services = {
+        avahi.enable = lib.mkForce false;
+        blueman.enable = lib.mkForce false;
+        fprintd.enable = lib.mkForce false;
+        fwupd.enable = lib.mkForce false;
+        openssh.enable = lib.mkForce false;
+        sunshine.enable = lib.mkForce false;
+        tailscale.enable = lib.mkForce false;
+
+        prometheus.enable = lib.mkForce false;
+        prometheus.exporters.node.enable = lib.mkForce false;
+        alloy.enable = lib.mkForce false;
+        opentelemetry-collector.enable = lib.mkForce false;
+      };
+
+      security = {
+        apparmor.enable = true;
+        pam.services = {
+          hyprlock.fprintAuth = lib.mkForce false;
+          greetd.fprintAuth = lib.mkForce false;
+        };
+      };
+
+      boot.kernel.sysctl = {
+        "kernel.dmesg_restrict" = 1;
+        "kernel.kptr_restrict" = lib.mkForce 2;
+        "kernel.perf_event_paranoid" = 3;
+        "kernel.yama.ptrace_scope" = 1;
+        "dev.tty.ldisc_autoload" = 0;
+        "net.ipv4.tcp_syncookies" = 1;
+      };
+
+      virtualisation.libvirtd.enable = true;
+      programs.virt-manager.enable = true;
+
+      users.users.user.extraGroups = [
+        "kvm"
+        "libvirtd"
+      ];
+
+      environment.systemPackages = with pkgs; [
+        virt-viewer
+        spice-gtk
+        swtpm
+      ];
+
+      systemd = {
+        user.services.sunshine.enable = lib.mkForce false;
+        services = {
+          bluetooth-load-btusb = {
+            enable = lib.mkForce false;
+            requiredBy = lib.mkForce [ ];
+          };
+          bluetooth-power-on = {
+            enable = lib.mkForce false;
+            wantedBy = lib.mkForce [ ];
+          };
+          tailscale-bypass-routing = {
+            enable = lib.mkForce false;
+            wantedBy = lib.mkForce [ ];
+          };
+          mullvad-tailscale-coexist = {
+            enable = lib.mkForce false;
+            wantedBy = lib.mkForce [ ];
+          };
+          restic-backups-local.enable = lib.mkForce false;
+          restic-check-local.enable = lib.mkForce false;
+          btrbk-local.enable = lib.mkForce false;
+          btrbk-local-snapshot-dir.enable = lib.mkForce false;
+          tailscaled.postStart = lib.mkForce "";
+          mullvad-daemon.postStart = lib.mkForce "";
+          mullvad-anonymous-mode = {
+            description = "Enable Mullvad lockdown and auto-connect in anonymous mode";
+            after = [ "mullvad-daemon.service" ];
+            bindsTo = [ "mullvad-daemon.service" ];
+            wantedBy = [ "multi-user.target" ];
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+            };
+            script = ''
+              for _ in $(${pkgs.coreutils}/bin/seq 1 30); do
+                ${pkgs.mullvad-vpn}/bin/mullvad status >/dev/null 2>&1 && break
+                ${pkgs.coreutils}/bin/sleep 1
+              done
+              ${pkgs.mullvad-vpn}/bin/mullvad lockdown-mode set on
+              ${pkgs.mullvad-vpn}/bin/mullvad auto-connect set on
+            '';
+          };
+        };
+        timers = {
+          restic-backups-local.enable = lib.mkForce false;
+          restic-check-local.enable = lib.mkForce false;
+          btrbk-local.enable = lib.mkForce false;
+        };
+      };
+    };
+
   sops = {
     age.sshKeyPaths = [ "/persist/etc/ssh/ssh_host_ed25519_key" ];
     defaultSopsFile = ./secrets/secrets.yaml;
