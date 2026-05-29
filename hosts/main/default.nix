@@ -142,6 +142,22 @@ in
     nameservers = [ "127.0.0.53" ];
   };
 
+  # Mullvad's killswitch (both the connected-state firewall and lockdown mode)
+  # lives in its own nftables table and uses a per-packet mark (0x6d6f6c65) as
+  # the escape hatch for split-tunnel exclusions. Marking outgoing tailscale0
+  # packets with that value before Mullvad's chain runs (priority -1 vs 0)
+  # makes Mullvad accept them regardless of connection or lockdown state, so
+  # both VPNs can run concurrently without disabling the kill switch.
+  networking.nftables.tables."tailscale-mullvad-compat" = {
+    family = "inet";
+    content = ''
+      chain output {
+        type filter hook output priority -1;
+        oifname "tailscale0" meta mark set 0x6d6f6c65
+      }
+    '';
+  };
+
   hardware = {
     bluetooth = {
       enable = true;
@@ -174,7 +190,13 @@ in
     ];
   };
 
-  programs.nix-index-database.comma.enable = true;
+  programs = {
+    nix-index-database.comma.enable = true;
+    virt-manager.enable = true;
+    nix-ld.enable = true;
+  };
+
+  virtualisation.libvirtd.enable = true;
 
   # Hidden maintenance mount for the filesystem top-level. btrbk snapshots
   # subvolumes by their real top-level names (`@home`, `@persist`) rather than
@@ -195,6 +217,9 @@ in
     nixGc14d
     nixosSwitchMain
     sbctl
+    spice-gtk
+    swtpm
+    virt-viewer
   ];
 
   # Narrow passwordless sudo for interactive agent-assisted maintenance.
@@ -624,21 +649,13 @@ in
       tailscaled.postStart = lib.mkAfter "${tailscaleBypassRules}";
       mullvad-daemon.postStart = lib.mkAfter "${tailscaleBypassRules}";
 
-      # Mullvad's lockdown mode installs an nftables killswitch (policy drop +
-      # `reject with tcp reset` on every output chain) that kills tailscale0
-      # traffic the same way it kills clearnet traffic — every TCP connection
-      # to a 100.64/10 peer gets an immediate RST.
-      #
-      # The bypass routing script above only fixes *routing*, not filtering, so
-      # it cannot rescue Tailscale on its own. Disable lockdown so that when
-      # Mullvad is disconnected (the default state) no killswitch firewall is
-      # active and Tailscale can use the normal NixOS firewall.
-      #
-      # Trade-off: while Mullvad is *actively connected* its in-tunnel firewall
-      # still blocks tailscale0. Use one VPN at a time — `mullvad disconnect`
-      # before relying on the tailnet.
-      mullvad-tailscale-coexist = {
-        description = "Disable Mullvad lockdown so Tailscale can coexist";
+      # Tailscale coexistence is handled at the nftables layer: outgoing
+      # tailscale0 packets are marked with Mullvad's split-tunnel exclusion
+      # mark (0x6d6f6c65) so Mullvad's chain accepts them regardless of
+      # connection or lockdown state. Lockdown can therefore be left on as
+      # a kill switch for all non-Tailscale traffic.
+      mullvad-lockdown = {
+        description = "Enable Mullvad lockdown mode (kill switch)";
         after = [ "mullvad-daemon.service" ];
         bindsTo = [ "mullvad-daemon.service" ];
         wantedBy = [ "multi-user.target" ];
@@ -651,8 +668,7 @@ in
             ${pkgs.mullvad-vpn}/bin/mullvad status >/dev/null 2>&1 && break
             ${pkgs.coreutils}/bin/sleep 1
           done
-          ${pkgs.mullvad-vpn}/bin/mullvad lockdown-mode set off
-          ${pkgs.mullvad-vpn}/bin/mullvad auto-connect set off
+          ${pkgs.mullvad-vpn}/bin/mullvad lockdown-mode set on
         '';
       };
     };
@@ -725,8 +741,6 @@ in
         domain = lib.mkForce "";
         firewall = {
           checkReversePath = lib.mkForce "strict";
-          allowedTCPPorts = lib.mkForce [ ];
-          allowedUDPPorts = lib.mkForce [ ];
           interfaces.tailscale0 = lib.mkForce { };
         };
         networkmanager = {
@@ -744,7 +758,6 @@ in
       };
 
       services = {
-        avahi.enable = lib.mkForce false;
         blueman.enable = lib.mkForce false;
         fprintd.enable = lib.mkForce false;
         fwupd.enable = lib.mkForce false;
@@ -756,15 +769,16 @@ in
         prometheus.exporters.node.enable = lib.mkForce false;
         alloy.enable = lib.mkForce false;
         opentelemetry-collector.enable = lib.mkForce false;
-      };
 
-      security = {
-        apparmor.enable = true;
-        pam.services = {
-          hyprlock.fprintAuth = lib.mkForce false;
-          greetd.fprintAuth = lib.mkForce false;
+        tor = {
+          enable = true;
+          client.enable = true;
         };
       };
+
+      programs.proxychains.enable = true;
+
+      security.apparmor.enable = true;
 
       boot.kernel.sysctl = {
         "kernel.dmesg_restrict" = 1;
@@ -774,20 +788,6 @@ in
         "dev.tty.ldisc_autoload" = 0;
         "net.ipv4.tcp_syncookies" = 1;
       };
-
-      virtualisation.libvirtd.enable = true;
-      programs.virt-manager.enable = true;
-
-      users.users.user.extraGroups = [
-        "kvm"
-        "libvirtd"
-      ];
-
-      environment.systemPackages = with pkgs; [
-        virt-viewer
-        spice-gtk
-        swtpm
-      ];
 
       systemd = {
         user.services.sunshine.enable = lib.mkForce false;
@@ -804,19 +804,15 @@ in
             enable = lib.mkForce false;
             wantedBy = lib.mkForce [ ];
           };
-          mullvad-tailscale-coexist = {
-            enable = lib.mkForce false;
-            wantedBy = lib.mkForce [ ];
-          };
           restic-backups-local.enable = lib.mkForce false;
           restic-check-local.enable = lib.mkForce false;
           btrbk-local.enable = lib.mkForce false;
           btrbk-local-snapshot-dir.enable = lib.mkForce false;
-          tailscaled.postStart = lib.mkForce "";
           mullvad-daemon.postStart = lib.mkForce "";
+          # Base mullvad-lockdown already sets lockdown-mode on; only add auto-connect.
           mullvad-anonymous-mode = {
-            description = "Enable Mullvad lockdown and auto-connect in anonymous mode";
-            after = [ "mullvad-daemon.service" ];
+            description = "Enable Mullvad auto-connect in anonymous mode";
+            after = [ "mullvad-lockdown.service" ];
             bindsTo = [ "mullvad-daemon.service" ];
             wantedBy = [ "multi-user.target" ];
             serviceConfig = {
@@ -824,11 +820,6 @@ in
               RemainAfterExit = true;
             };
             script = ''
-              for _ in $(${pkgs.coreutils}/bin/seq 1 30); do
-                ${pkgs.mullvad-vpn}/bin/mullvad status >/dev/null 2>&1 && break
-                ${pkgs.coreutils}/bin/sleep 1
-              done
-              ${pkgs.mullvad-vpn}/bin/mullvad lockdown-mode set on
               ${pkgs.mullvad-vpn}/bin/mullvad auto-connect set on
             '';
           };
@@ -860,7 +851,11 @@ in
   users.groups.telemetry-ingest = { };
 
   users.users.user = {
-    extraGroups = [ "video" ];
+    extraGroups = [
+      "kvm"
+      "libvirtd"
+      "video"
+    ];
     hashedPasswordFile = config.sops.secrets.user_password.path;
   };
 

@@ -40,6 +40,7 @@
     "/var/lib/systemd/timers" # Persistent=true timer catchup (restic-check-local)
     "/var/lib/systemd/backlight" # restore screen brightness across reboots
     "/var/lib/systemd/rfkill" # restore Wi-Fi / Bluetooth block state
+    "/var/lib/libvirt" # libvirt VM images and domain definitions (Whonix KVM)
   ];
 
 }
