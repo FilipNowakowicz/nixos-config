@@ -79,12 +79,17 @@ let
         else if name == "homeserver-gcp" then
           [
             {
-              name = "no passwordless sudo";
-              check = c: c.security.sudo.wheelNeedsPassword;
+              # deploy-rs target: wheel must be passwordless (SSH-key access over Tailscale)
+              name = "passwordless sudo enabled";
+              check = c: !c.security.sudo.wheelNeedsPassword;
             }
             {
               name = "firewall enabled";
               check = c: c.networking.firewall.enable;
+            }
+            {
+              name = "sops uses SSH host key for decryption";
+              check = c: c.sops.age.sshKeyPaths != [ ];
             }
             {
               name = "SSH and HTTPS are not globally open";
