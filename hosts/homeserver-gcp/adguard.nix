@@ -1,7 +1,7 @@
 _: {
   services.adguardhome = {
     enable = true;
-    mutableSettings = true;
+    mutableSettings = false;
     host = "0.0.0.0";
     port = 3001;
     settings = {
@@ -16,7 +16,29 @@ _: {
           "9.9.9.9"
           "8.8.8.8"
         ];
+        upstream_mode = "load_balance";
+        cache_enabled = true;
+        cache_size = 4194304;
       };
+      filters = [
+        {
+          enabled = true;
+          url = "https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt";
+          name = "AdGuard DNS filter";
+          id = 1;
+        }
+        {
+          enabled = true;
+          url = "https://adguardteam.github.io/HostlistsRegistry/assets/filter_2.txt";
+          name = "AdAway Default Blocklist";
+          id = 2;
+        }
+      ];
+      # Sites that must not be blocked regardless of filter list matches.
+      user_rules = [
+        "@@||stats.grafana.org^$important"
+        "@@||fc.yahoo.com^$important"
+      ];
     };
   };
 

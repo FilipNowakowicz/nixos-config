@@ -373,14 +373,22 @@ Updates inside the VMs: log out of the `user` session, log in as `sysmaint`
 
 Three mechanisms keep both VPNs running simultaneously:
 
-1. **nftables mark** (`tailscale-mullvad-compat` table, priority −1): marks
-   outgoing `tailscale0` packets with Mullvad's split-tunnel exclusion mark
-   (`0x6d6f6c65`) before Mullvad's kill-switch chain runs. Mullvad passes the
-   traffic without disabling the kill switch for clearnet.
-2. **Policy routing bypass** (`tailscale-bypass-routing.service`): adds
-   destination-specific rules at pref 114 for `100.64.0.0/10` and
-   `fd7a:115c:a1e0::/48` pointing at Tailscale's table, overriding Mullvad's
-   catch-all rule for tailnet addresses.
+1. **nftables mark** (`tailscale-mullvad-compat` table, priority filter−1): sets
+   both the conntrack mark (`ct mark 0x00000f41`, Mullvad's split-tunnel mark)
+   and the packet mark (`meta mark 0x6d6f6c65`) on outgoing `tailscale0` packets
+   before Mullvad's output chain runs (priority filter = 0). Mullvad's output
+   chain accepts traffic with `ct mark 0x00000f41` and the return traffic is also
+   accepted via the same conntrack mark propagated by Mullvad's prerouting chain.
+   Setting only the packet mark is insufficient — Mullvad's output chain only
+   checks the conntrack mark, not the packet mark.
+2. **Main-table route injection** (`tailscale-bypass-routing.service`): adds
+   `100.64.0.0/10 dev tailscale0` and `fd7a:115c:a1e0::/48 dev tailscale0` to
+   the main IPv4/IPv6 routing tables. Mullvad's own `lookup main
+suppress_prefixlength 0` rule (at whatever pref Mullvad chooses) finds these
+   routes and sends tailnet traffic to tailscale0 before Mullvad's catch-all
+   fires. This is immune to Mullvad's pref number changes (observed: 112/113 →
+   109/110 → 48/49 across restarts); a destination-based policy rule at a fixed
+   pref can never reliably beat a moving target.
 3. **Loose reverse-path filtering**: `firewall.checkReversePath = "loose"` to
    accept legitimate asymmetric tunneled return traffic.
 
