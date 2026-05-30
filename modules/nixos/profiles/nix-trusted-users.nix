@@ -29,10 +29,13 @@ in
         assertion = trustedUserViolations == [ ];
         message = "nix.settings.trusted-users must stay scoped to profiles.nix.extraTrustedUsers: ${lib.concatStringsSep "; " trustedUserViolations}";
       }
+      {
+        # Broad trust (`*` or any `@group`) is root-equivalent: a trusted Nix
+        # user can substitute arbitrary store paths and override sandbox/build
+        # settings. Fail the build instead of merely warning so CI rejects it.
+        assertion = broadTrustedUsers == [ ];
+        message = "nix.settings.trusted-users must not contain broad entries (${lib.concatStringsSep ", " broadTrustedUsers}); broad trust is root-equivalent. List exact users in profiles.nix.extraTrustedUsers instead.";
+      }
     ];
-
-    warnings =
-      lib.optional (broadTrustedUsers != [ ])
-        "nix.settings.trusted-users contains broad trust entries (${lib.concatStringsSep ", " broadTrustedUsers}); prefer exact users unless this is intentional.";
   };
 }
