@@ -508,6 +508,7 @@ in
             "loadavg"
             "meminfo"
             "netdev"
+            "power_supply"
             "systemd"
             "textfile"
             "thermal_zone"

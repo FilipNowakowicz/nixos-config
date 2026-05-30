@@ -1,40 +1,29 @@
-# Remaining Config Review Items
+# Config Review Backlog
 
-This file is the trimmed review backlog. Completed findings and their fix
-prompts were removed from `review/`; only unresolved or intentionally partial
-items remain.
+Unresolved or intentionally deferred findings. Completed items have been removed.
 
-## NixOS Modules
+---
 
-- Future hardening ideas still worth tracking:
-  `systemd.oomd`, bootloader/console hardening parity, datasource/backend
-  coupling assertions, and automatic failure-notify attachment.
+## Easy
 
-## Main And Mac Hosts
+- Verify AdGuard backup restore semantics — ensure stable export/staging paths are backed up rather than DynamicUser private paths.
 
-- Add a periodic full restic data-check path, with cost/runtime guardrails.
-- Clarify `main` battery/thermal node-exporter collector coverage relative to
-  the dashboard.
-- Remaining future host items:
-  age-key escrow, declarative `mac` travel mode, initrd/FIDO2 recovery for
-  `mac`, and coredump storage policy review on `main`.
+## Medium
 
-## Homeserver And Installer
-
-- Decide how far to take declarative AdGuard: current state is improved, but
-  mutable runtime state can still drift.
-- Keep backing up stable AdGuard export/staging paths instead of relying on
-  DynamicUser private paths; verify restore semantics.
+- Add a periodic full restic data-check path with cost/runtime guardrails.
+- Decide declarative AdGuard scope — current state is improved but mutable runtime state can still drift.
 - Write and test a homeserver/Vaultwarden restore runbook.
-- Remaining future homeserver items:
-  service-level disk quotas, Shielded VM/vTPM/integrity monitoring in
-  Terraform, metadata endpoint hardening, and a dedicated GCP network/VPC model.
 
-## Home Manager
+## Future
 
-- Other still-open cleanup candidates:
-  `firefox-private` profile parity, bat/base16 theme provisioning, duplicated
-  runtime inputs for Waybar/Kitty/Swaybg/Hyprland, HM fontconfig, GPG or
-  secret-service defaults, Mako template generation via Nix instead of shell
-  interpolation in `theme-switch.sh`, theme colorscheme defaults in the theme
-  loader, and whether to migrate raw Neovim config into `programs.neovim`.
+**Modules / hardening:**
+`systemd.oomd`, bootloader and console hardening parity across hosts, datasource/backend coupling assertions, automatic failure-notify attachment.
+
+**Hosts:**
+Age-key escrow, declarative `mac` travel mode, initrd/FIDO2 recovery for `mac`, coredump storage policy review on `main`.
+
+**Homeserver / GCP:**
+Service-level disk quotas, Shielded VM / vTPM / integrity monitoring in Terraform, metadata endpoint hardening, dedicated GCP network/VPC model.
+
+**Home Manager:**
+`firefox-private` profile parity, bat/base16 theme provisioning, deduplicate runtime inputs for Waybar/Kitty/Swaybg/Hyprland, HM fontconfig, GPG or secret-service defaults, Mako template generation via Nix instead of shell interpolation in `theme-switch.sh`, theme colorscheme defaults in the theme loader, migrate raw Neovim config into `programs.neovim`.
