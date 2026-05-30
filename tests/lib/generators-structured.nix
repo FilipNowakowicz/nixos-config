@@ -34,6 +34,8 @@ let
     }
   ];
 
+  emptyAlloyConfig = gen.toAlloyHCL [ ];
+
   dashboard = dash.mkDashboard {
     uid = "example-dashboard";
     title = "Example Dashboard";
@@ -97,6 +99,11 @@ let
     testAlloyComponentCount = {
       expr = lib.count (line: builtins.match ".* \\{.*" line != null) (lib.splitString "\n" alloyConfig);
       expected = 4;
+    };
+
+    testEmptyAlloyConfig = {
+      expr = emptyAlloyConfig;
+      expected = "";
     };
 
     testAlloyIncludesTopLevelComponents = {

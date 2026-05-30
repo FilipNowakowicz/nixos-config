@@ -14,6 +14,7 @@ pkgs.runCommand "secrets-directory-check"
       coreutils
       findutils
       gnugrep
+      sops
     ];
   }
   ''
@@ -79,6 +80,13 @@ pkgs.runCommand "secrets-directory-check"
 
     if bash ${../../scripts/check-secrets-directory.sh} --working-tree; then
       echo "expected SOPS file with plaintext token marker to fail" >&2
+      exit 1
+    fi
+
+    export SOPS_AGE_KEY_FILE="$src/tests/fixtures/sops-host/age-key.txt"
+    decrypted="$(sops --decrypt --extract '["service_password"]' "$src/tests/fixtures/sops-host/secrets/secrets.yaml")"
+    if [[ "$decrypted" != "test-host-secret" ]]; then
+      echo "expected test host SOPS fixture to decrypt" >&2
       exit 1
     fi
 

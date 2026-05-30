@@ -109,5 +109,9 @@ in
           "grep -q 'Authorization: Basic' /tmp/stub/last-request",
           timeout=90,
       )
+      obs_auth.succeed(
+          "auth=$(grep -m1 '^Authorization: Basic ' /tmp/stub/last-request | awk '{print $3}' | tr -d '\\r'); "
+          "test \"$(printf '%s' \"$auth\" | base64 -d)\" = 'telemetry:test-secret'"
+      )
     '';
   }

@@ -10,6 +10,22 @@ let
   gen = import ../../lib/generators.nix { inherit lib; };
 
   failures = lib.runTests {
+    testEmptyComponentList = {
+      expr = gen.toAlloyHCL [ ];
+      expected = "";
+    };
+
+    testEmptyComponentBody = {
+      expr = gen.toAlloyHCL [
+        {
+          type = "prometheus.exporter.unix";
+          label = "local";
+          body = { };
+        }
+      ];
+      expected = "prometheus.exporter.unix \"local\" {\n\n}";
+    };
+
     testStringAttribute = {
       expr = gen.toAlloyHCL [
         {
