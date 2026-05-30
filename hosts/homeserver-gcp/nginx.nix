@@ -54,6 +54,12 @@ in
       enable = true;
       recommendedProxySettings = true;
       recommendedTlsSettings = true;
+      appendHttpConfig = ''
+        log_format json_combined escape=json '{"time":"$time_iso8601","remote":"$remote_addr",'
+          '"method":"$request_method","uri":"$request_uri","status":$status,'
+          '"ua":"$http_user_agent","rt":$request_time}';
+        access_log syslog:server=unix:/dev/log,nohostname json_combined;
+      '';
 
       virtualHosts.${cfg.fqdn} = {
         forceSSL = true;

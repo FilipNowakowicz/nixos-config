@@ -100,6 +100,12 @@ in
         metrics.enable = true;
         logs.enable = true;
         audit.enable = true;
+        audit.extraSources.nginx = {
+          matches = "SYSLOG_IDENTIFIER=nginx";
+          eventType = "http";
+          scope = "edge-access";
+          formatAsJson = true;
+        };
         traces.enable = true;
         blackbox = {
           enable = true;
