@@ -126,6 +126,7 @@ light)
     ".#checks.${system}.lib-acl" \
     ".#checks.${system}.lib-invariants" \
     ".#checks.${system}.mac-sops-bootstrap" \
+    ".#checks.${system}.observability-alerts-lint" \
     ".#checks.${system}.secrets-directory" \
     ".#checks.${system}.lib-scan-plaintext-secrets"
   ;;

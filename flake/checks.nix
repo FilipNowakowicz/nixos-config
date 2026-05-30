@@ -367,6 +367,19 @@ let
     }
   ];
 
+  # Lint the Mimir ruler alert rules with promtool. Renders the exact same
+  # shared data the observability module deploys (lib/observability-alerts.nix)
+  # so a typo in a metric name, label, or expr fails the light lane instead of
+  # silently shipping a non-firing rule.
+  alertData = import ../lib/observability-alerts.nix;
+  rulesYaml = (pkgs.formats.yaml { }).generate "infrastructure-alerts.yaml" alertData.rules;
+  observabilityAlertsLint =
+    pkgs.runCommand "observability-alerts-lint" { nativeBuildInputs = [ pkgs.prometheus ]; }
+      ''
+        promtool check rules ${rulesYaml}
+        touch $out
+      '';
+
   mkSopsBootstrapCheck =
     hostName: secretsDir:
     let
@@ -407,6 +420,8 @@ in
     homeserver-gcp-sops-bootstrap = mkSopsBootstrapCheck "homeserver-gcp" ../hosts/homeserver-gcp/secrets;
 
     mac-sops-bootstrap = mkSopsBootstrapCheck "mac" ../hosts/mac/secrets;
+
+    observability-alerts-lint = observabilityAlertsLint;
   };
 
   cveReportPackagesFor =
