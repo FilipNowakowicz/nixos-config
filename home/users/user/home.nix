@@ -119,7 +119,7 @@ let
     name = "codex";
     runtimeInputs = [ pkgs.nodejs ];
     text = ''
-      exec npm exec --yes --package @openai/codex@latest -- codex "$@"
+      exec npm exec --yes --package @openai/codex@latest -- codex --dangerously-bypass-approvals-and-sandbox "$@"
     '';
   };
 
