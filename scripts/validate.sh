@@ -170,7 +170,8 @@ heavy)
 
 cve-reports)
   show_report_attrs \
-    ".#legacyPackages.${system}.ciReports.main"
+    ".#legacyPackages.${system}.ciReports.main" \
+    ".#legacyPackages.${system}.ciReports.homeserver-gcp"
   ;;
 
 "" | -h | --help | help)

@@ -420,6 +420,7 @@ in
     in
     {
       main = targetCveChecks.mkCveCheck "main" allNixosConfigs.main.config.system.build.toplevel;
+      homeserver-gcp = targetCveChecks.mkCveCheck "homeserver-gcp" ciNixosConfigs.homeserver-gcp.config.system.build.toplevel;
     };
 
   ciTestsFor = system: {
