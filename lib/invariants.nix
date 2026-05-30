@@ -37,6 +37,237 @@ rec {
 
   formatIntList = values: formatList (map builtins.toString values);
 
+  uniqueSorted = values: lib.sort builtins.lessThan (lib.unique values);
+
+  activeHostNames =
+    hostRegistry:
+    uniqueSorted (
+      lib.attrNames (lib.filterAttrs (_: hostMeta: (hostMeta.status or null) == "active") hostRegistry)
+    );
+
+  sopsHostNamesFromYaml =
+    yaml:
+    let
+      lines = lib.splitString "\n" yaml;
+      hostRuleForLine =
+        line:
+        let
+          match = builtins.match ".*path_regex: hosts/([^/]+)/secrets/.*" line;
+        in
+        if match == null then [ ] else match;
+      hostKeyForLine =
+        line:
+        let
+          match = builtins.match ".*&([A-Za-z0-9_-]+)_host .*" line;
+        in
+        if match == null then [ ] else map (lib.replaceStrings [ "_" ] [ "-" ]) match;
+    in
+    {
+      rules = uniqueSorted (lib.concatMap hostRuleForLine lines);
+      keys = uniqueSorted (lib.concatMap hostKeyForLine lines);
+    };
+
+  checkSopsRecipientParity =
+    hostRegistry: sopsYaml:
+    let
+      expectedHosts = activeHostNames hostRegistry;
+      sopsHosts = sopsHostNamesFromYaml sopsYaml;
+      missingRules = lib.filter (host: !(builtins.elem host sopsHosts.rules)) expectedHosts;
+      staleRules = lib.filter (host: !(builtins.elem host expectedHosts)) sopsHosts.rules;
+      missingKeys = lib.filter (host: !(builtins.elem host sopsHosts.keys)) expectedHosts;
+      staleKeys = lib.filter (host: !(builtins.elem host expectedHosts)) sopsHosts.keys;
+      violations = lib.filter (msg: msg != "") [
+        (lib.optionalString (
+          missingRules != [ ]
+        ) ".sops.yaml missing host secret rule(s): ${formatList missingRules}")
+        (lib.optionalString (
+          staleRules != [ ]
+        ) ".sops.yaml has stale host secret rule(s): ${formatList staleRules}")
+        (lib.optionalString (
+          missingKeys != [ ]
+        ) ".sops.yaml missing host recipient key(s): ${formatList missingKeys}")
+        (lib.optionalString (
+          staleKeys != [ ]
+        ) ".sops.yaml has stale host recipient key(s): ${formatList staleKeys}")
+      ];
+    in
+    mkResult (violations == [ ]) (
+      if violations == [ ] then
+        "SOPS host recipients match active host registry"
+      else
+        lib.concatStringsSep "; " violations
+    );
+
+  checkDeployTargetsHaveTailnetAddresses =
+    hostRegistry:
+    let
+      offenders = lib.attrNames (
+        lib.filterAttrs (
+          _: hostMeta: (hostMeta ? deploy) && !(hostMeta ? tailnetFQDN || hostMeta ? tailscale)
+        ) hostRegistry
+      );
+    in
+    mkResult (offenders == [ ]) (
+      if offenders == [ ] then
+        "deploy targets have tailnet metadata"
+      else
+        "deploy target(s) missing tailnetFQDN or tailscale metadata: ${formatList offenders}"
+    );
+
+  collectDiskoMountpoints =
+    value:
+    if builtins.isAttrs value then
+      let
+        here = lib.optional (builtins.isString (value.mountpoint or null)) value.mountpoint;
+        childNames = lib.filter (name: !(lib.hasPrefix "_" name)) (builtins.attrNames value);
+      in
+      here ++ lib.concatMap (name: collectDiskoMountpoints value.${name}) childNames
+    else
+      [ ];
+
+  checkImpermanentHostHasDiskoConfig =
+    cfg:
+    let
+      persistence = cfg.environment.persistence or { };
+      persistenceRoots = builtins.attrNames persistence;
+      activeRoots = lib.filter (
+        root:
+        let
+          rootCfg = persistence.${root};
+        in
+        (rootCfg.directories or [ ]) != [ ] || (rootCfg.files or [ ]) != [ ]
+      ) persistenceRoots;
+      diskoMountpoints = uniqueSorted (collectDiskoMountpoints (cfg.disko.devices or { }));
+      missingRoots = lib.filter (root: !(builtins.elem root diskoMountpoints)) activeRoots;
+    in
+    mkResult (missingRoots == [ ]) (
+      if missingRoots == [ ] then
+        "impermanent host persistence roots have matching disko mountpoints"
+      else
+        "environment.persistence root(s) missing matching disko mountpoint: ${formatList missingRoots}"
+    );
+
+  checkAnonymousSpecialisationPersistence =
+    cfg:
+    let
+      anonymousCfg = cfg.specialisation.anonymous.configuration or null;
+      persistence =
+        if anonymousCfg == null then { } else anonymousCfg.environment.persistence."/persist" or { };
+      allowedDirectories = [
+        "/var/lib/nixos"
+        "/var/lib/systemd/backlight"
+        "/var/lib/systemd/rfkill"
+      ];
+      allowedFiles = [
+        "/etc/ssh/ssh_host_ed25519_key"
+        "/etc/ssh/ssh_host_ed25519_key.pub"
+      ];
+      normalize = entry: key: if builtins.isAttrs entry then entry.${key} else entry;
+      directories = map (d: normalize d "directory") (persistence.directories or [ ]);
+      files = map (f: normalize f "file") (persistence.files or [ ]);
+      unexpectedDirectories = lib.filter (dir: !(builtins.elem dir allowedDirectories)) directories;
+      unexpectedFiles = lib.filter (file: !(builtins.elem file allowedFiles)) files;
+      missingDirectoryForces = lib.filter (dir: !(builtins.elem dir directories)) allowedDirectories;
+      missingFileForces = lib.filter (file: !(builtins.elem file files)) allowedFiles;
+      violations = lib.filter (msg: msg != "") [
+        (lib.optionalString (
+          unexpectedDirectories != [ ]
+        ) "anonymous specialisation persists unexpected dir(s): ${formatList unexpectedDirectories}")
+        (lib.optionalString (
+          unexpectedFiles != [ ]
+        ) "anonymous specialisation persists unexpected file(s): ${formatList unexpectedFiles}")
+        (lib.optionalString (missingDirectoryForces != [ ])
+          "anonymous specialisation lost expected minimal dir allowlist item(s): ${formatList missingDirectoryForces}"
+        )
+        (lib.optionalString (missingFileForces != [ ])
+          "anonymous specialisation lost expected minimal file allowlist item(s): ${formatList missingFileForces}"
+        )
+      ];
+    in
+    mkResult (anonymousCfg == null || violations == [ ]) (
+      if anonymousCfg == null then
+        "no anonymous specialisation configured"
+      else if violations == [ ] then
+        "anonymous specialisation persistence stays on the minimal allowlist"
+      else
+        lib.concatStringsSep "; " violations
+    );
+
+  checkMullvadTailscaleCoexistence =
+    cfg:
+    let
+      mullvadEnabled = cfg.services.mullvad-vpn.enable or false;
+      tailscaleEnabled = cfg.services.tailscale.enable or false;
+      bothEnabled = mullvadEnabled && tailscaleEnabled;
+      nftContent = cfg.networking.nftables.tables."tailscale-mullvad-compat".content or "";
+      bypassService = cfg.systemd.services.tailscale-bypass-routing or null;
+      tailscaledPostStart = cfg.systemd.services.tailscaled.postStart or "";
+      mullvadPostStart = cfg.systemd.services.mullvad-daemon.postStart or "";
+      mullvadLockdown = cfg.systemd.services.mullvad-lockdown or null;
+      requiredUnits = [
+        "tailscaled.service"
+        "mullvad-daemon.service"
+      ];
+      missingAfter =
+        if bypassService == null then
+          requiredUnits
+        else
+          lib.filter (unit: !(builtins.elem unit (bypassService.after or [ ]))) requiredUnits;
+      missingWants =
+        if bypassService == null then
+          requiredUnits
+        else
+          lib.filter (unit: !(builtins.elem unit (bypassService.wants or [ ]))) requiredUnits;
+      violations = lib.filter (msg: msg != "") [
+        (lib.optionalString (
+          bothEnabled && (cfg.networking.firewall.checkReversePath or null) != "loose"
+        ) ''networking.firewall.checkReversePath must be "loose" when Mullvad and Tailscale coexist'')
+        (lib.optionalString (
+          bothEnabled && !lib.hasInfix "priority filter - 1" nftContent
+        ) "tailscale-mullvad-compat nftables chain must run before Mullvad's filter priority")
+        (lib.optionalString (
+          bothEnabled && !lib.hasInfix ''oifname "tailscale0"'' nftContent
+        ) "tailscale-mullvad-compat nftables chain must target tailscale0")
+        (lib.optionalString (
+          bothEnabled && !lib.hasInfix "ct mark set 0x00000f41" nftContent
+        ) "tailscale-mullvad-compat nftables chain must set Mullvad's conntrack bypass mark")
+        (lib.optionalString (
+          bothEnabled && !lib.hasInfix "meta mark set 0x6d6f6c65" nftContent
+        ) "tailscale-mullvad-compat nftables chain must set Mullvad's policy-routing bypass mark")
+        (lib.optionalString (
+          bothEnabled && bypassService == null
+        ) "systemd.services.tailscale-bypass-routing must exist")
+        (lib.optionalString (
+          bothEnabled
+          && bypassService != null
+          && !builtins.elem "multi-user.target" (bypassService.wantedBy or [ ])
+        ) "tailscale-bypass-routing.service must be wanted by multi-user.target")
+        (lib.optionalString (
+          bothEnabled && missingAfter != [ ]
+        ) "tailscale-bypass-routing.service missing after unit(s): ${formatList missingAfter}")
+        (lib.optionalString (
+          bothEnabled && missingWants != [ ]
+        ) "tailscale-bypass-routing.service missing wanted unit(s): ${formatList missingWants}")
+        (lib.optionalString (
+          bothEnabled && tailscaledPostStart == ""
+        ) "systemd.services.tailscaled.postStart must re-assert the bypass route")
+        (lib.optionalString (
+          bothEnabled && mullvadPostStart == ""
+        ) "systemd.services.mullvad-daemon.postStart must re-assert the bypass route")
+        (lib.optionalString (
+          bothEnabled && mullvadLockdown == null
+        ) "systemd.services.mullvad-lockdown must exist")
+      ];
+    in
+    mkResult (!bothEnabled || violations == [ ]) (
+      if !bothEnabled then
+        "Mullvad and Tailscale are not both enabled"
+      else if violations == [ ] then
+        "Mullvad and Tailscale coexistence assumptions hold"
+      else
+        lib.concatStringsSep "; " violations
+    );
+
   interfaceAllowedTCPPorts =
     cfg: interface:
     let

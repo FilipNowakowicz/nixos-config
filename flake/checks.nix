@@ -227,6 +227,10 @@ let
   commonSystemInvariants = [
     invariants.hasStateVersion
     nixpkgsRegistryPinnedToFlakeInput
+    {
+      name = "impermanent hosts have matching disko config";
+      check = invariants.checkImpermanentHostHasDiskoConfig;
+    }
   ];
 
   mainAccessInvariants = [
@@ -238,6 +242,14 @@ let
     mainAgentMaintenanceSudoAllowlist
     invariants.mainSshIsTailnetOnly
     invariants.mainUsbguardIsDenyDefault
+    {
+      name = "anonymous specialisation persistence stays minimal";
+      check = invariants.checkAnonymousSpecialisationPersistence;
+    }
+    {
+      name = "Mullvad and Tailscale coexistence assumptions hold";
+      check = invariants.checkMullvadTailscaleCoexistence;
+    }
   ];
 
   mainExperienceInvariants = [
@@ -305,9 +317,24 @@ let
     ++ mainExperienceInvariants
     ++ mainBackupInvariants
     ++ registryAssertionsFor "main";
+
+  registrySecurityInvariants = [
+    {
+      name = "SOPS recipients match active host registry";
+      check = _: invariants.checkSopsRecipientParity hostRegistry (builtins.readFile ../.sops.yaml);
+    }
+    {
+      name = "deploy targets have tailnet addresses";
+      check = _: invariants.checkDeployTargetsHaveTailnetAddresses hostRegistry;
+    }
+  ];
 in
 {
   invariantChecks = {
+    invariants-registry-security =
+      invariants.mkInvariantCheck "registry-security" registrySecurityInvariants
+        { };
+
     invariants-main = invariants.mkInvariantCheck "main" mainInvariants allNixosConfigs.main.config;
 
     # CI ships `main-ci` (profiles.ci = true; skipHeavyPackages = true), not
