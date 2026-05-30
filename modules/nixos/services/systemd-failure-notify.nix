@@ -7,16 +7,19 @@
 let
   cfg = config.services.systemd-failure-notify;
 
-  notifyScript = pkgs.writeScript "systemd-failure-notify" ''
-    #!/usr/bin/env bash
-    SERVICE_NAME="''${SYSTEMD_UNIT%.*}"
+  # The failed unit name is passed as $1 from the template unit's ExecStart
+  # (the %i instance specifier). systemd does not export $SYSTEMD_UNIT to
+  # ExecStart, so the instance must be passed explicitly.
+  notifyScript = pkgs.writeShellScript "systemd-failure-notify" ''
+    set -euo pipefail
+    SERVICE_NAME="''${1%.*}"
     TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
     # Log to journal
     echo "[$TIMESTAMP] Service $SERVICE_NAME failed unexpectedly" | systemd-cat -t systemd-failure-notify -p warning
 
     # Try to send desktop notification if display is available
-    if [[ -n "$DISPLAY" || -n "$WAYLAND_DISPLAY" ]]; then
+    if [[ -n "''${DISPLAY:-}" || -n "''${WAYLAND_DISPLAY:-}" ]]; then
       export PATH="${pkgs.libnotify}/bin:$PATH"
       notify-send -a "systemd" -u critical "Service Failed" "$SERVICE_NAME failed at $TIMESTAMP" 2>/dev/null || true
     fi
@@ -49,7 +52,7 @@ in
 
         [Service]
         Type=oneshot
-        ExecStart=${pkgs.bash}/bin/bash ${notifyScript}
+        ExecStart=${notifyScript} %i
         StandardOutput=journal
         StandardError=journal
       '';
