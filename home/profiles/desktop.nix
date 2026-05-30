@@ -79,8 +79,19 @@
   };
 
   # GTK theming
+  # All shipped themes (home/theme/themes) are dark, so a dark GTK theme is the
+  # correct default. If themes ever gain a light variant this could be selected
+  # dynamically from config.themes._activeThemeColorscheme.background.
   gtk = {
     enable = true;
+    theme = {
+      name = "Adwaita-dark";
+      package = pkgs.gnome-themes-extra;
+    };
+    iconTheme = {
+      name = "Adwaita";
+      package = pkgs.adwaita-icon-theme;
+    };
     gtk3.extraConfig.gtk-application-prefer-dark-theme = true;
     gtk4.extraConfig.gtk-application-prefer-dark-theme = true;
   };
