@@ -69,7 +69,7 @@ See `F-tests-scripts-fix-context.md`.
 
 ### CVE Scanning
 
-**[PARTIAL][A+F] CVE scanning is completely inert**
+**[DONE][A+F] CVE scanning is completely inert**
 `lib/cve-checks.nix` + `validate.sh cve-reports` exist and are advertised in
 CLAUDE.md and README as an operated security signal, but:
 
@@ -80,8 +80,10 @@ CLAUDE.md and README as an operated security signal, but:
   terminal, not the report file.
 - Only scans `main`, omitting internet-adjacent `homeserver-gcp`.
   → PR 62 adds a scheduled/flake.lock PR workflow, fixes the stderr capture,
-  and scans both `main` and `homeserver-gcp`. It remains informational: vulnix
-  advisories produce a marker/warning rather than a merge-gating failure.
+  and scans both `main` and `homeserver-gcp`. Staying informational (not
+  merge-gating) is intentional: vulnix advisories are noisy and transitive;
+  a hard gate would create friction that gets bypassed. Reports remain visible
+  without blocking merges.
   See `A-flake-lib-fix-context.md`.
 
 ### Invariants / CI
@@ -151,7 +153,7 @@ not on `mac`. Every reboot clears all bans.
 | E      | [DONE] `homeConfigurations.user` (standalone) imports the desktop role without the `desktop.nix` profile — half-configured desktop (waybar/hypr but no kitty/firefox/GTK)                                  |
 | E      | [DONE] `workstation.nix` profile is entirely dead — no host lists it; the `lib/hosts.nix` comment referencing it is stale                                                                                  |
 | F      | [DONE] PromQL alert rules (`alerts.nix`) are never validated with `promtool check rules` — a metric-name typo ships silently and alerts never fire                                                         |
-| F      | [OPEN] No test that impermanence actually loses state on reboot — the defining property of `main` and `mac` is untested                                                                                    |
+| F      | [SKIP] No test that impermanence actually loses state on reboot — complexity (KVM + full boot + btrfs) outweighs value; upstream module is well-tested; misconfigurations are better caught by code review |
 | F      | [DONE] `agentMaintenanceCommands` NOPASSWD sudo allowlist (a real privesc surface) has no test                                                                                                             |
 | F      | [DONE] `installer` host is built by no CI job                                                                                                                                                              |
 
