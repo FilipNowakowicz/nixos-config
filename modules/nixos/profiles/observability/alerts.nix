@@ -21,10 +21,10 @@ let
   rulesFile = mkYaml "infrastructure-alerts.yaml" alertData.rules;
 
   # Alertmanager config layered on the shared base in lib/observability-alerts.nix
-  # (null route + null receiver). When `alertWebhookUrl` is set, alerts are routed
-  # to a webhook receiver (ntfy.sh format: POST the alert JSON to the URL).
+  # (null route + null receiver). When `alertWebhookUrlFile` is set, alerts are
+  # routed to a webhook receiver (ntfy.sh format: POST the alert JSON to the URL).
   # Override further in host config via lib.mkForce if needed.
-  webhookEnabled = cfg.alertWebhookUrl != "";
+  webhookEnabled = cfg.alertWebhookUrlFile != null;
   alertmanagerFile = mkYaml "alertmanager.yaml" (
     alertData.alertmanager
     // lib.optionalAttrs webhookEnabled {
@@ -36,7 +36,7 @@ let
           name = "webhook";
           webhook_configs = [
             {
-              url = cfg.alertWebhookUrl;
+              url_file = toString cfg.alertWebhookUrlFile;
               send_resolved = true;
             }
           ];

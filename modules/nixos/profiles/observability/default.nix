@@ -18,16 +18,17 @@ in
   options.profiles.observability = {
     enable = lib.mkEnableOption "LGTM observability profile";
 
-    alertWebhookUrl = lib.mkOption {
-      type = lib.types.str;
-      default = "";
+    alertWebhookUrlFile = lib.mkOption {
+      type = with lib.types; nullOr path;
+      default = null;
       description = ''
-        Webhook URL for Alertmanager notifications (e.g. an ntfy.sh topic URL).
-        When non-empty, a webhook receiver is configured and alerts are routed
-        to it. When empty (the default), alerts route to a null receiver so
+        Path to a file containing the webhook URL for Alertmanager notifications
+        (e.g. an ntfy.sh topic URL). Use a runtime secret path such as a sops
+        secret; the URL is read by Alertmanager and is not rendered into the Nix
+        store. When null (the default), alerts route to a null receiver so
         deployments without a configured URL keep working.
       '';
-      example = "https://ntfy.sh/my-alerts-topic";
+      example = lib.literalExpression "config.sops.secrets.alertmanager_webhook_url.path";
     };
 
     grafana = {
