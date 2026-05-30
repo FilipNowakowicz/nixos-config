@@ -5,8 +5,9 @@ result-*
 __pycache__/
 *.py[cod]
 
-# Per-machine Claude Code tool-permission allowlist (not shared).
-.claude/settings.local.json
+# Claude Code local data (worktrees, session state) — not shared.
+.claude/
+!.claude/settings.json
 
 # Large VM disk images — installed to /var/lib/libvirt/images/, never committed.
 *.qcow2
