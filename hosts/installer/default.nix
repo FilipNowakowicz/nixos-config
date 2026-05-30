@@ -10,7 +10,13 @@
 
   services.openssh = {
     enable = true;
-    settings.PermitRootLogin = "yes";
+    settings = {
+      # SSH on the installer is firewall-open on TCP/22; allow only key-based
+      # root login (nixos-anywhere needs root) and kill every password path.
+      PermitRootLogin = "prohibit-password";
+      PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
+    };
   };
 
   users.users.root.openssh.authorizedKeys.keys = import ../../lib/pubkeys.nix;
