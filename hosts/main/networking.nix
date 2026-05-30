@@ -1,7 +1,7 @@
 { lib, pkgs, ... }:
 let
   tailscaleBypassRules = pkgs.writeShellScript "tailscale-bypass-rules" ''
-    set -eu
+    set -euo pipefail
 
     ip_bin=${pkgs.iproute2}/bin/ip
     awk_bin=${pkgs.gawk}/bin/awk
@@ -34,14 +34,20 @@ let
     done
 
     if [ -z "''${tailscale_table:-}" ]; then
+      # Fail loudly: returning success here meant tailnet traffic could silently
+      # fall onto the Mullvad tunnel while the unit reported OK and
+      # systemd-failure-notify never fired. A non-zero exit surfaces the
+      # condition in `systemctl status` and the failure handler.
       echo "tailscale-bypass-routing: could not discover tailscale routing table" >&2
-      exit 0
+      exit 1
     fi
 
     # Mullvad installs broad policy routing rules that can capture tailnet
     # traffic on this workstation. Reassert destination-specific rules with a
     # higher priority than Mullvad's catch-all policy rule so 100.x/ts.net
-    # traffic always uses Tailscale's table.
+    # traffic always uses Tailscale's table. With `set -e` each `rule add`
+    # below aborts the script (and fails the unit) if the kernel rejects it,
+    # so a half-applied bypass is reported rather than swallowed.
     while "$ip_bin" rule del pref 120 to 100.64.0.0/10 2>/dev/null; do :; done
     while "$ip_bin" rule del pref 117 to 100.64.0.0/10 2>/dev/null; do :; done
     while "$ip_bin" rule del pref 114 to 100.64.0.0/10 2>/dev/null; do :; done
