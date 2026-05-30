@@ -4,11 +4,6 @@ Unresolved or intentionally deferred findings. Completed items have been removed
 
 ---
 
-## Medium
-
-- Add a periodic full restic data-check path with cost/runtime guardrails.
-- Write and test a homeserver/Vaultwarden restore runbook.
-
 ## Future
 
 **Modules / hardening:**

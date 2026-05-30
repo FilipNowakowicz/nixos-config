@@ -66,17 +66,11 @@ deploy '.#homeserver-gcp'
   for independent off-site application recovery.
 - **Off-site backup via B2** — `services.restic.backups.b2` uses the shared
   `backup.class = "critical"` policy from `modules/nixos/profiles/backup.nix`.
-  AdGuard is backed up from `/var/lib/restic-staging/adguardhome`, a neutral
-  root-owned copy created before each restic run, instead of the raw
-  `/var/lib/private/AdGuardHome` DynamicUser tree. On restore:
-  1. `systemctl stop adguardhome`
-  2. `rsync -a --delete /restore/source/ /var/lib/AdGuardHome/` — note the
-     trailing slash: `/var/lib/AdGuardHome` is a root-owned symlink to
-     `/var/lib/private/AdGuardHome`; rsync into it, don't replace the symlink.
-  3. `systemctl start adguardhome` — systemd DynamicUser automatically chowns
-     the entire state tree to the service UID on startup; no manual chown needed.
-     `AdGuardHome.yaml` in the restore is harmless: the next NixOS activation
-     overwrites it from the Nix config anyway (`mutableSettings = false`).
+  AdGuard is backed up from `/var/lib/restic-staging/adguardhome` (root-owned
+  staging copy) instead of the raw DynamicUser tree. Restore runbook:
+  [`.claude/homeserver-gcp/restore-adguard.md`](../../.claude/homeserver-gcp/restore-adguard.md).
+  Vaultwarden restore runbook:
+  [`.claude/homeserver-gcp/restore-vaultwarden.md`](../../.claude/homeserver-gcp/restore-vaultwarden.md).
 - **Restore canary** — `restic-restore-canary-b2.service` restores the latest
   `/var/lib/restic-backup-canary/homeserver-gcp.txt` from B2 and writes
   `restic_last_restore_test_timestamp_seconds` for alerts.

@@ -116,11 +116,15 @@ in
       ${pkgs.rsync}/bin/rsync -a --delete --no-owner --no-group /var/lib/AdGuardHome/ /var/lib/restic-staging/adguardhome/
 
       ${pkgs.sqlite}/bin/sqlite3 /var/lib/grafana/grafana.db ".backup '/var/lib/grafana/grafana.db.backup'"
+      ${pkgs.sqlite}/bin/sqlite3 /var/lib/vaultwarden/db.sqlite3 ".backup '/var/lib/vaultwarden/db.sqlite3.backup'"
     '';
     exclude = [
       "/var/lib/grafana/grafana.db"
       "/var/lib/grafana/grafana.db-wal"
       "/var/lib/grafana/grafana.db-shm"
+      "/var/lib/vaultwarden/db.sqlite3"
+      "/var/lib/vaultwarden/db.sqlite3-wal"
+      "/var/lib/vaultwarden/db.sqlite3-shm"
     ];
     repositoryFile = config.sops.secrets.restic_repository.path;
     passwordFile = config.sops.secrets.restic_password.path;
