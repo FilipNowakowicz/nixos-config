@@ -1,4 +1,9 @@
 { config, pkgs, ... }:
+let
+  canaryDir = "/var/lib/restic-backup-canary";
+  canaryFile = "${canaryDir}/homeserver-gcp.txt";
+  canaryContent = "restic restore canary: homeserver-gcp";
+in
 {
   systemd = {
     services = {
@@ -48,13 +53,13 @@
           ExecStart = pkgs.writeShellScript "restic-restore-canary" ''
             set -eu
 
-            canary_path=/var/lib/restic-backup-canary/homeserver-gcp.txt
+            canary_path=${canaryFile}
             workdir=$(${pkgs.coreutils}/bin/mktemp -d /run/restic-restore-canary.XXXXXX)
             trap '${pkgs.coreutils}/bin/rm -rf "$workdir"' EXIT
 
             ${pkgs.restic}/bin/restic --repository-file=${config.sops.secrets.restic_repository.path} \
               dump latest "$canary_path" > "$workdir/canary.txt"
-            ${pkgs.gnugrep}/bin/grep -qx 'restic restore canary: homeserver-gcp' "$workdir/canary.txt"
+            ${pkgs.gnugrep}/bin/grep -qx '${canaryContent}' "$workdir/canary.txt"
 
             tmp=/var/lib/node-exporter-textfiles/restic_restore_canary.prom.tmp
             {
@@ -89,7 +94,7 @@
     };
 
     tmpfiles.rules = [
-      "d /var/lib/restic-backup-canary 0755 root root -"
+      "d ${canaryDir} 0755 root root -"
       "d /var/lib/restic-staging 0750 root root -"
     ];
   };
@@ -98,15 +103,14 @@
     paths = [
       "/var/lib/vaultwarden"
       "/var/lib/grafana"
-      "/var/lib/restic-backup-canary"
+      canaryDir
       "/var/lib/restic-staging/adguardhome"
     ];
     # Grafana keeps live SQLite state (grafana.db + WAL) at /var/lib/grafana.
     # Backing up the live file risks capturing a torn mid-write state, so emit a
     # consistent snapshot with sqlite3 .backup and exclude the live db/WAL files.
     backupPrepareCommand = ''
-      ${pkgs.coreutils}/bin/install -d -m 0755 /var/lib/restic-backup-canary
-      ${pkgs.coreutils}/bin/printf '%s\n' 'restic restore canary: homeserver-gcp' > /var/lib/restic-backup-canary/homeserver-gcp.txt
+      ${pkgs.coreutils}/bin/printf '%s\n' '${canaryContent}' > ${canaryFile}
 
       ${pkgs.coreutils}/bin/install -d -m 0750 /var/lib/restic-staging/adguardhome
       ${pkgs.rsync}/bin/rsync -a --delete --no-owner --no-group /var/lib/AdGuardHome/ /var/lib/restic-staging/adguardhome/

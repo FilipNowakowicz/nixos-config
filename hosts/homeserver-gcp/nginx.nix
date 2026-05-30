@@ -119,14 +119,13 @@ in
             '';
           };
 
-          "~ ^/home/src/(?<asset>.+\\.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]\\.(?:js|css))$" =
-            {
-              alias = "${homepageDir}/src/$asset";
-              extraConfig = ''
-                ${securityHeaders}
-                add_header Cache-Control "public, max-age=31536000, immutable" always;
-              '';
-            };
+          "~ ^/home/src/(?<asset>.+\\.[0-9a-f]{10}\\.(?:js|css))$" = {
+            alias = "${homepageDir}/src/$asset";
+            extraConfig = ''
+              ${securityHeaders}
+              add_header Cache-Control "public, max-age=31536000, immutable" always;
+            '';
+          };
 
           "/home/" = {
             alias = "${homepageDir}/";

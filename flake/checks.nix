@@ -9,18 +9,7 @@
   invariants,
 }:
 let
-  mkResult = passed: message: {
-    inherit passed message;
-  };
-
-  require = condition: message: mkResult condition message;
-
-  requirePaths =
-    actual: expected:
-    let
-      missing = lib.filter (path: !(builtins.elem path actual)) expected;
-    in
-    mkResult (missing == [ ]) "missing expected path(s): ${lib.concatStringsSep ", " missing}";
+  inherit (invariants) mkResult require requirePaths;
 
   registryAssertionsFor = hostName: invariants.mkRegistryAssertions hostName hostRegistry.${hostName};
 
@@ -66,20 +55,21 @@ let
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
 
+  # Pre-sorted so the check can compare directly without sorting a constant on every eval.
   expectedAgentMaintenanceCommands = [
+    "/run/current-system/sw/bin/bootctl cleanup"
+    "/run/current-system/sw/bin/bootctl status --no-pager"
+    "/run/current-system/sw/bin/efibootmgr -b [0-9A-F][0-9A-F][0-9A-F][0-9A-F] -B"
+    "/run/current-system/sw/bin/nix-gc-14d"
+    "/run/current-system/sw/bin/systemctl start btrbk-local.service"
     "/run/current-system/sw/bin/systemctl start restic-backups-local.service"
     "/run/current-system/sw/bin/systemctl start restic-check-local.service"
+    "/run/current-system/sw/bin/systemctl status btrbk-local.service --no-pager"
+    "/run/current-system/sw/bin/systemctl status btrbk-local.timer --no-pager"
     "/run/current-system/sw/bin/systemctl status restic-backups-local.service --no-pager"
     "/run/current-system/sw/bin/systemctl status restic-backups-local.timer --no-pager"
     "/run/current-system/sw/bin/systemctl status restic-check-local.service --no-pager"
     "/run/current-system/sw/bin/systemctl status restic-check-local.timer --no-pager"
-    "/run/current-system/sw/bin/systemctl start btrbk-local.service"
-    "/run/current-system/sw/bin/systemctl status btrbk-local.service --no-pager"
-    "/run/current-system/sw/bin/systemctl status btrbk-local.timer --no-pager"
-    "/run/current-system/sw/bin/bootctl status --no-pager"
-    "/run/current-system/sw/bin/bootctl cleanup"
-    "/run/current-system/sw/bin/efibootmgr -b [0-9A-F][0-9A-F][0-9A-F][0-9A-F] -B"
-    "/run/current-system/sw/bin/nix-gc-14d"
   ];
 
   mainAgentMaintenanceSudoAllowlist = {
@@ -92,7 +82,7 @@ let
         );
         commands = lib.concatMap (rule: rule.commands or [ ]) userRules;
         actualCommands = lib.sort builtins.lessThan (map (command: command.command) commands);
-        expectedCommands = lib.sort builtins.lessThan expectedAgentMaintenanceCommands;
+        expectedCommands = expectedAgentMaintenanceCommands;
         invalidOptions = lib.filter (command: command.options or [ ] != [ "NOPASSWD" ]) commands;
       in
       require (
