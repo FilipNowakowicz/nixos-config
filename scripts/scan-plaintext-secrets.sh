@@ -6,11 +6,16 @@
 # Usage: scan-plaintext-secrets.sh
 set -euo pipefail
 
+# Resolve the shared pattern relative to this script before changing directory,
+# so the single source of truth in scripts/lib/ stays authoritative even when
+# the script runs from a different working tree (e.g. the Nix check fixtures).
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+pattern="$(<"$script_dir/lib/plaintext-secret-pattern.txt")"
+
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$repo_root"
 
 allowlist_file=".plaintext-secrets-allowlist"
-pattern='(ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN (OPENSSH|RSA|EC|DSA|PRIVATE KEY)-----|([a-z0-9_-]*(api[_-]?key|auth[_-]?token|access[_-]?token|secret|password|passwd)[a-z0-9_-]*[[:space:]]*[:=][[:space:]]*"?[A-Za-z0-9_+=/-]{16,}"?))'
 
 is_valid_secrets_path() {
   local path="$1"

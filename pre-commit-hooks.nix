@@ -21,12 +21,20 @@ let
     exit "$has_failed"
   '';
 
+  # Single source of truth for the plaintext-secret regex, shared with
+  # scripts/scan-plaintext-secrets.sh. Editing the pattern file updates both the
+  # pre-commit hook and the CI scan. The trailing newline from the file is
+  # stripped so the embedded pattern matches the script's `$(<file)` read.
+  plaintextSecretPattern = pkgs.lib.removeSuffix "\n" (
+    builtins.readFile ./scripts/lib/plaintext-secret-pattern.txt
+  );
+
   noPlaintextSecrets = pkgs.writeShellScript "no-plaintext-secrets" ''
     set -euo pipefail
 
     allowlist_file=".plaintext-secrets-allowlist"
     has_failed=0
-    pattern='(ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN (OPENSSH|RSA|EC|DSA|PRIVATE KEY)-----|([a-z0-9_-]*(api[_-]?key|auth[_-]?token|access[_-]?token|secret|password|passwd)[a-z0-9_-]*[[:space:]]*[:=][[:space:]]*"?[A-Za-z0-9_+=/-]{16,}"?))'
+    pattern=${pkgs.lib.escapeShellArg plaintextSecretPattern}
 
     is_valid_staged_secrets_path() {
       local path="$1"
