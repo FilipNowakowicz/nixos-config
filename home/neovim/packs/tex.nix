@@ -7,8 +7,19 @@
   packages = [ pkgs.texlab ] ++ lib.optional cfg.languages.tex.grammar pkgs.ltex-ls-plus;
 
   lsp = {
-    enable = [ ];
-    settings = { };
+    enable = [ "texlab" ];
+    settings = {
+      texlab = {
+        texlab = {
+          build = {
+            onSave = false;
+          };
+          chktex = {
+            onOpenAndSave = true;
+          };
+        };
+      };
+    };
   };
 
   formatters = { };
