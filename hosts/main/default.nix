@@ -470,17 +470,21 @@ in
   # ── USB Device Control ─────────────────────────────────────────────────────
   services.usbguard = {
     enable = true;
+    IPCAllowedUsers = [
+      "root"
+      "user"
+    ];
     rules = ''
       # Default policy: block all USB devices
       # Devices must be explicitly whitelisted below
 
-      # Allow Logitech USB Receiver (mouse)
+      # Allow Logitech USB Receiver (mouse) — HID interfaces only (guard against BadUSB spoofing)
       # ID: 046d:c54d
-      allow id 046d:c54d
+      allow id 046d:c54d with-interface equals { 03:*:* }
 
-      # Allow Huawei EarPods (USB-C headphones)
+      # Allow Huawei EarPods (USB-C headphones) — audio interfaces only
       # ID: 12d1:3a06
-      allow id 12d1:3a06
+      allow id 12d1:3a06 with-interface equals { 01:*:* }
 
       # Allow Intel CNVi Bluetooth (internal, Comet Lake AX201)
       # ID: 8087:0026

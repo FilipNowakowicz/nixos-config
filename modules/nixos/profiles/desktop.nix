@@ -52,7 +52,13 @@
       xdg-desktop-portal-hyprland
       xdg-desktop-portal-gtk
     ];
-    config.common.default = "*";
+    config.common = {
+      default = [ "gtk" ];
+      "org.freedesktop.impl.portal.Screenshot" = [ "hyprland" ];
+      "org.freedesktop.impl.portal.ScreenCast" = [ "hyprland" ];
+      "org.freedesktop.impl.portal.RemoteDesktop" = [ "hyprland" ];
+      "org.freedesktop.impl.portal.GlobalShortcuts" = [ "hyprland" ];
+    };
   };
 
   # ── System Packages ────────────────────────────────────────────────────
