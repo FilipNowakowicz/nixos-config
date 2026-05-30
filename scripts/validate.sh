@@ -120,6 +120,7 @@ light)
     ".#checks.${system}.homeserver-gcp-sops-bootstrap" \
     ".#checks.${system}.invariants-homeserver-gcp" \
     ".#checks.${system}.invariants-main" \
+    ".#checks.${system}.invariants-main-ci" \
     ".#checks.${system}.invariants-mac" \
     ".#checks.${system}.lib-generators" \
     ".#checks.${system}.lib-generators-structured" \

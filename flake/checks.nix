@@ -382,16 +382,27 @@ let
         ${lib.optionalString (!hasPub) ''echo "  hosts/${hostName}/secrets/ssh_host_ed25519_key.pub.enc"''}
         exit 1
       '';
+
+  # Invariant list shared by the full `main` closure and the `main-ci`
+  # closure CI actually builds, so a `profiles.ci`-gated change to a
+  # security option cannot slip past either variant.
+  mainInvariants =
+    commonSystemInvariants
+    ++ mainAccessInvariants
+    ++ mainExperienceInvariants
+    ++ mainBackupInvariants
+    ++ registryAssertionsFor "main";
 in
 {
   invariantChecks = {
-    invariants-main = invariants.mkInvariantCheck "main" (
-      commonSystemInvariants
-      ++ mainAccessInvariants
-      ++ mainExperienceInvariants
-      ++ mainBackupInvariants
-      ++ registryAssertionsFor "main"
-    ) allNixosConfigs.main.config;
+    invariants-main = invariants.mkInvariantCheck "main" mainInvariants allNixosConfigs.main.config;
+
+    # CI ships `main-ci` (profiles.ci = true; skipHeavyPackages = true), not
+    # the full `main` closure; pin the same invariants to it so the gated
+    # build is what gets validated.
+    invariants-main-ci =
+      invariants.mkInvariantCheck "main-ci" mainInvariants
+        ciNixosConfigs.main-ci.config;
 
     invariants-homeserver-gcp = invariants.mkInvariantCheck "homeserver-gcp" (
       commonSystemInvariants
