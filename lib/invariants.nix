@@ -15,6 +15,19 @@ let
     );
 in
 rec {
+  mkResult = passed: message: {
+    inherit passed message;
+  };
+
+  require = condition: message: mkResult condition message;
+
+  requirePaths =
+    actual: expected:
+    let
+      missing = lib.filter (path: !(builtins.elem path actual)) expected;
+    in
+    mkResult (missing == [ ]) "missing expected path(s): ${lib.concatStringsSep ", " missing}";
+
   formatList = values: lib.concatStringsSep ", " values;
 
   formatIntList = values: formatList (map builtins.toString values);
@@ -111,6 +124,154 @@ rec {
       message =
         if violations == [ ] then "fail2ban is hardened" else lib.concatStringsSep "; " violations;
     };
+
+  hasStateVersion = {
+    name = "has stateVersion";
+    check = cfg: require (cfg.system.stateVersion != null) "system.stateVersion must be set";
+  };
+
+  sshHostsEnforceHardenedFail2ban = {
+    name = "SSH hosts enforce hardened fail2ban";
+    check = cfg: if !cfg.services.openssh.enable then true else checkHardenedFail2ban cfg;
+  };
+
+  obsClientUsesCanonicalUsername = {
+    name = "observability client uses canonical ingest username";
+    check =
+      cfg:
+      let
+        clientEnabled = cfg.profiles.observability-client.enable or false;
+        usernameRaw = lib.attrByPath [
+          "profiles"
+          "observability"
+          "ingestAuth"
+          "username"
+        ] "telemetry" cfg;
+        username = if usernameRaw == null then "telemetry" else usernameRaw;
+      in
+      require (
+        !clientEnabled || username == "telemetry"
+      ) "profiles.observability.ingestAuth.username must be 'telemetry', got '${username}'";
+  };
+
+  mainSshIsTailnetOnly = {
+    name = "main SSH stays tailnet-only";
+    check =
+      cfg:
+      let
+        violations = lib.filter (msg: msg != "") [
+          (lib.optionalString (!cfg.services.openssh.enable) "services.openssh.enable must be true")
+          (lib.optionalString cfg.services.openssh.openFirewall "services.openssh.openFirewall must be false")
+          (lib.optionalString (!cfg.services.tailscale.enable) "services.tailscale.enable must be true")
+          (lib.optionalString (
+            !cfg.services.tailscale.openFirewall
+          ) "services.tailscale.openFirewall must be true")
+        ];
+      in
+      mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
+  };
+
+  mainUsbguardIsDenyDefault = {
+    name = "main USBGuard stays deny-default";
+    check =
+      cfg:
+      let
+        rules = cfg.services.usbguard.rules or "";
+        violations = lib.filter (msg: msg != "") [
+          (lib.optionalString (!cfg.services.usbguard.enable) "services.usbguard.enable must be true")
+          (lib.optionalString (
+            !lib.hasInfix "allow id " rules
+          ) "services.usbguard.rules must whitelist at least one device")
+          (lib.optionalString (
+            !lib.hasInfix "reject" rules
+          ) "services.usbguard.rules must include a default reject rule")
+        ];
+      in
+      mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
+  };
+
+  mainLocalBackupProtectsCriticalPaths = {
+    name = "main local backup covers critical operator data";
+    check =
+      cfg:
+      let
+        backup = cfg.services.restic.backups.local or { };
+        expectedPaths = [
+          "/home/user/.ssh"
+          "/home/user/.gnupg"
+          "/home/user/nix"
+        ];
+        pathCheck = requirePaths (backup.paths or [ ]) expectedPaths;
+        violations = lib.filter (msg: msg != "") [
+          (lib.optionalString (
+            !(lib.hasPrefix "/run/secrets/" (backup.passwordFile or ""))
+          ) "services.restic.backups.local.passwordFile must come from /run/secrets/*")
+          (lib.optionalString (
+            !(backup.initialize or false)
+          ) "services.restic.backups.local.initialize must be true")
+          (lib.optionalString (
+            (backup.timerConfig.OnCalendar or null) != "daily"
+          ) "services.restic.backups.local.timerConfig.OnCalendar must be \"daily\"")
+          (lib.optionalString (!pathCheck.passed) pathCheck.message)
+        ];
+      in
+      mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
+  };
+
+  deployTargetAccessAssertions = [
+    {
+      name = "passwordless sudo enabled";
+      check =
+        cfg:
+        require (!cfg.security.sudo.wheelNeedsPassword)
+          "security.sudo.wheelNeedsPassword must be false (deploy-rs needs passwordless sudo; access is SSH-key-only over Tailscale)";
+    }
+    {
+      name = "firewall enabled";
+      check = cfg: require cfg.networking.firewall.enable "networking.firewall.enable must be true";
+    }
+    {
+      name = "sops uses SSH host key for decryption";
+      check =
+        cfg:
+        require (
+          cfg.sops.age.sshKeyPaths != [ ]
+        ) "sops.age.sshKeyPaths must contain at least one SSH host key path";
+    }
+  ];
+
+  homeserverSshAndHttpsNotGloballyOpen = {
+    name = "SSH and HTTPS are not globally open";
+    check = cfg: checkNoGlobalTCPPorts [ 22 443 ] cfg;
+  };
+
+  homeserverSshAndHttpsTailscaleOnly = {
+    name = "SSH and HTTPS stay Tailscale-only";
+    check =
+      cfg:
+      checkTCPPortsRestrictedToInterface {
+        interface = "tailscale0";
+        ports = [
+          22
+          443
+        ];
+      } cfg;
+  };
+
+  macSshNotGloballyOpen = {
+    name = "SSH is not globally open";
+    check = cfg: checkNoGlobalTCPPorts [ 22 ] cfg;
+  };
+
+  macSshTailscaleOnly = {
+    name = "SSH stays Tailscale-only";
+    check =
+      cfg:
+      checkTCPPortsRestrictedToInterface {
+        interface = "tailscale0";
+        ports = [ 22 ];
+      } cfg;
+  };
 
   checkNoGlobalTCPPorts =
     ports: cfg:

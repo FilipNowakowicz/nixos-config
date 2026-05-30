@@ -8,6 +8,7 @@
 #   SystemdUnitFailed — any unit in failed state for > 2 min
 #   ResticBackupStale — backup older than 26 h (daily + 2 h buffer)
 #   ResticCheckStale  — integrity check older than 8 d (weekly + 1 d buffer)
+#   ResticRestoreCanaryStale — restore canary older than 2 d
 #   VulnixCveFound    — any CVE finding after whitelist (add known-acceptable CVEs to vulnix-whitelist.toml)
 #   VulnixScanStale   — no successful scan in 26 h (daily + 2 h buffer)
 #   LynisScoreLow     — hardening index < 60 for 0 m
@@ -59,6 +60,16 @@
             annotations = {
               summary = "Restic integrity check stale on {{ $labels.instance }}";
               description = "Last check {{ $value | printf \"%.1f\" }}d ago (threshold: 8d).";
+            };
+          }
+          {
+            alert = "ResticRestoreCanaryStale";
+            expr = "(time() - restic_last_restore_test_timestamp_seconds) / 3600 > 50";
+            for = "30m";
+            labels.severity = "warning";
+            annotations = {
+              summary = "Restic restore canary stale on {{ $labels.instance }}";
+              description = "No successful restore canary has been recorded for more than 50 hours.";
             };
           }
           {

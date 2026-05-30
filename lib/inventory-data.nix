@@ -12,107 +12,23 @@ let
     name: cfg:
     let
       commonAssertions = [
-        {
-          name = "has stateVersion";
-          check = c: c.system.stateVersion != null;
-        }
-        {
-          name = "SSH hosts enforce hardened fail2ban";
-          check = c: if !c.services.openssh.enable then true else invariants.checkHardenedFail2ban c;
-        }
-        {
-          name = "observability client uses canonical ingest username";
-          check =
-            c:
-            let
-              clientProfile = c.profiles.observability-client or { };
-              obsProfile = c.profiles.observability or { };
-              ingestAuth = obsProfile.ingestAuth or { };
-              clientEnabled = clientProfile.enable or false;
-              username = ingestAuth.username or "telemetry";
-            in
-            !clientEnabled || username == "telemetry";
-        }
+        invariants.hasStateVersion
+        invariants.sshHostsEnforceHardenedFail2ban
+        invariants.obsClientUsesCanonicalUsername
       ];
 
       hostSpecificAssertions =
         if name == "main" then
           [
-            {
-              name = "main SSH stays tailnet-only";
-              check =
-                c:
-                c.services.openssh.enable
-                && !c.services.openssh.openFirewall
-                && c.services.tailscale.enable
-                && c.services.tailscale.openFirewall;
-            }
-            {
-              name = "main USBGuard stays deny-default";
-              check =
-                c:
-                let
-                  rules = c.services.usbguard.rules or "";
-                in
-                c.services.usbguard.enable && lib.hasInfix "allow id " rules && lib.hasInfix "reject" rules;
-            }
-            {
-              name = "main local backup covers critical paths";
-              check =
-                c:
-                let
-                  backup = c.services.restic.backups.local or null;
-                  expectedPaths = [
-                    "/home/user/.ssh"
-                    "/home/user/.gnupg"
-                    "/home/user/nix"
-                  ];
-                in
-                backup != null
-                && builtins.all (path: builtins.elem path (backup.paths or [ ])) expectedPaths
-                && (backup.passwordFile or "") != ""
-                && lib.hasPrefix "/run/secrets/" (backup.passwordFile or "")
-                && backup.initialize
-                && (backup.timerConfig.OnCalendar or null) == "daily";
-            }
+            invariants.mainSshIsTailnetOnly
+            invariants.mainUsbguardIsDenyDefault
+            invariants.mainLocalBackupProtectsCriticalPaths
           ]
         else if name == "homeserver-gcp" then
-          [
-            {
-              # deploy-rs target: wheel must be passwordless (SSH-key access over Tailscale)
-              name = "passwordless sudo enabled";
-              check = c: !c.security.sudo.wheelNeedsPassword;
-            }
-            {
-              name = "firewall enabled";
-              check = c: c.networking.firewall.enable;
-            }
-            {
-              name = "sops uses SSH host key for decryption";
-              check = c: c.sops.age.sshKeyPaths != [ ];
-            }
-            {
-              name = "SSH and HTTPS are not globally open";
-              check =
-                c:
-                !(lib.any (port: builtins.elem port (c.networking.firewall.allowedTCPPorts or [ ])) [
-                  22
-                  443
-                ]);
-            }
-            {
-              name = "SSH and HTTPS stay Tailscale-only";
-              check =
-                c:
-                let
-                  interfaces = c.networking.firewall.interfaces or { };
-                  tailscaleNetwork = interfaces.tailscale0.allowedTCPPorts or [ ];
-                in
-                builtins.all (port: builtins.elem port tailscaleNetwork) [
-                  22
-                  443
-                ];
-            }
+          invariants.deployTargetAccessAssertions
+          ++ [
+            invariants.homeserverSshAndHttpsNotGloballyOpen
+            invariants.homeserverSshAndHttpsTailscaleOnly
           ]
         else
           [ ];

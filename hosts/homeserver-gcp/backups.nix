@@ -1,61 +1,116 @@
 { config, pkgs, ... }:
 {
-  systemd.services = {
-    # ExecStartPost only runs after every ExecStart command succeeds, so
-    # reaching this script already means the backup completed cleanly — stamp
-    # the freshness metric unconditionally. ($EXIT_STATUS is only exported to
-    # ExecStop/ExecStopPost, never to ExecStartPost, so it cannot gate here.)
-    restic-backups-b2.serviceConfig.ExecStartPost = pkgs.writeShellScript "restic-backup-metrics" ''
-      tmp=/var/lib/node-exporter-textfiles/restic_backup.prom.tmp
-      {
-        echo "# HELP restic_last_backup_timestamp_seconds Unix timestamp of last successful restic backup"
-        echo "# TYPE restic_last_backup_timestamp_seconds gauge"
-        echo "restic_last_backup_timestamp_seconds $(date +%s)"
-      } > "$tmp"
-      mv "$tmp" /var/lib/node-exporter-textfiles/restic_backup.prom
-    '';
+  systemd = {
+    services = {
+      # ExecStartPost only runs after every ExecStart command succeeds, so
+      # reaching this script already means the backup completed cleanly — stamp
+      # the freshness metric unconditionally. ($EXIT_STATUS is only exported to
+      # ExecStop/ExecStopPost, never to ExecStartPost, so it cannot gate here.)
+      restic-backups-b2.serviceConfig.ExecStartPost = pkgs.writeShellScript "restic-backup-metrics" ''
+        tmp=/var/lib/node-exporter-textfiles/restic_backup.prom.tmp
+        {
+          echo "# HELP restic_last_backup_timestamp_seconds Unix timestamp of last successful restic backup"
+          echo "# TYPE restic_last_backup_timestamp_seconds gauge"
+          echo "restic_last_backup_timestamp_seconds $(date +%s)"
+        } > "$tmp"
+        mv "$tmp" /var/lib/node-exporter-textfiles/restic_backup.prom
+      '';
 
-    restic-check-b2 = {
-      description = "Restic B2 repository integrity check";
-      after = [ "network-online.target" ];
-      wants = [ "network-online.target" ];
-      environment.RESTIC_PASSWORD_FILE = config.sops.secrets.restic_password.path;
-      serviceConfig = {
-        Type = "oneshot";
-        ExecStart = "${pkgs.restic}/bin/restic check --repository-file=${config.sops.secrets.restic_repository.path} --read-data-subset=1G";
-        ExecStartPost = pkgs.writeShellScript "restic-check-metrics" ''
-          tmp=/var/lib/node-exporter-textfiles/restic_check.prom.tmp
-          {
-            echo "# HELP restic_last_check_timestamp_seconds Unix timestamp of last successful restic integrity check"
-            echo "# TYPE restic_last_check_timestamp_seconds gauge"
-            echo "restic_last_check_timestamp_seconds $(date +%s)"
-          } > "$tmp"
-          mv "$tmp" /var/lib/node-exporter-textfiles/restic_check.prom
-        '';
-        EnvironmentFile = config.sops.secrets.b2_credentials.path;
+      restic-check-b2 = {
+        description = "Restic B2 repository integrity check";
+        after = [ "network-online.target" ];
+        wants = [ "network-online.target" ];
+        environment.RESTIC_PASSWORD_FILE = config.sops.secrets.restic_password.path;
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = "${pkgs.restic}/bin/restic check --repository-file=${config.sops.secrets.restic_repository.path} --read-data-subset=1G";
+          ExecStartPost = pkgs.writeShellScript "restic-check-metrics" ''
+            tmp=/var/lib/node-exporter-textfiles/restic_check.prom.tmp
+            {
+              echo "# HELP restic_last_check_timestamp_seconds Unix timestamp of last successful restic integrity check"
+              echo "# TYPE restic_last_check_timestamp_seconds gauge"
+              echo "restic_last_check_timestamp_seconds $(date +%s)"
+            } > "$tmp"
+            mv "$tmp" /var/lib/node-exporter-textfiles/restic_check.prom
+          '';
+          EnvironmentFile = config.sops.secrets.b2_credentials.path;
+        };
+      };
+
+      restic-restore-canary-b2 = {
+        description = "Restic B2 restore canary";
+        after = [ "network-online.target" ];
+        wants = [ "network-online.target" ];
+        environment.RESTIC_PASSWORD_FILE = config.sops.secrets.restic_password.path;
+        serviceConfig = {
+          Type = "oneshot";
+          EnvironmentFile = config.sops.secrets.b2_credentials.path;
+          ExecStart = pkgs.writeShellScript "restic-restore-canary" ''
+            set -eu
+
+            canary_path=/var/lib/restic-backup-canary/homeserver-gcp.txt
+            workdir=$(${pkgs.coreutils}/bin/mktemp -d /run/restic-restore-canary.XXXXXX)
+            trap '${pkgs.coreutils}/bin/rm -rf "$workdir"' EXIT
+
+            ${pkgs.restic}/bin/restic --repository-file=${config.sops.secrets.restic_repository.path} \
+              dump latest "$canary_path" > "$workdir/canary.txt"
+            ${pkgs.gnugrep}/bin/grep -qx 'restic restore canary: homeserver-gcp' "$workdir/canary.txt"
+
+            tmp=/var/lib/node-exporter-textfiles/restic_restore_canary.prom.tmp
+            {
+              echo "# HELP restic_last_restore_test_timestamp_seconds Unix timestamp of last successful restic restore canary"
+              echo "# TYPE restic_last_restore_test_timestamp_seconds gauge"
+              echo "restic_last_restore_test_timestamp_seconds $(date +%s)"
+            } > "$tmp"
+            mv "$tmp" /var/lib/node-exporter-textfiles/restic_restore_canary.prom
+          '';
+        };
       };
     };
-  };
 
-  systemd.timers.restic-check-b2 = {
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnCalendar = "weekly";
-      RandomizedDelaySec = "2h";
-      Persistent = true;
+    timers = {
+      restic-check-b2 = {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = "weekly";
+          RandomizedDelaySec = "2h";
+          Persistent = true;
+        };
+      };
+
+      restic-restore-canary-b2 = {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = "04:30";
+          Persistent = true;
+          RandomizedDelaySec = "30m";
+        };
+      };
     };
+
+    tmpfiles.rules = [
+      "d /var/lib/restic-backup-canary 0755 root root -"
+      "d /var/lib/restic-staging 0750 root root -"
+    ];
   };
 
   services.restic.backups.b2 = {
     paths = [
       "/var/lib/vaultwarden"
       "/var/lib/grafana"
-      "/var/lib/private/AdGuardHome"
+      "/var/lib/restic-backup-canary"
+      "/var/lib/restic-staging/adguardhome"
     ];
     # Grafana keeps live SQLite state (grafana.db + WAL) at /var/lib/grafana.
     # Backing up the live file risks capturing a torn mid-write state, so emit a
     # consistent snapshot with sqlite3 .backup and exclude the live db/WAL files.
     backupPrepareCommand = ''
+      ${pkgs.coreutils}/bin/install -d -m 0755 /var/lib/restic-backup-canary
+      ${pkgs.coreutils}/bin/printf '%s\n' 'restic restore canary: homeserver-gcp' > /var/lib/restic-backup-canary/homeserver-gcp.txt
+
+      ${pkgs.coreutils}/bin/install -d -m 0750 /var/lib/restic-staging/adguardhome
+      ${pkgs.rsync}/bin/rsync -a --delete --no-owner --no-group /var/lib/AdGuardHome/ /var/lib/restic-staging/adguardhome/
+
       ${pkgs.sqlite}/bin/sqlite3 /var/lib/grafana/grafana.db ".backup '/var/lib/grafana/grafana.db.backup'"
     '';
     exclude = [

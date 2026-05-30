@@ -136,7 +136,7 @@ not on `mac`. Every reboot clears all bans.
 | Domain | Finding                                                                                                                                                                                                    |
 | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A      | [DONE] CLAUDE.md claims `boot.initrd.secrets` is enforced by an invariant — no such invariant exists anywhere in the codebase                                                                              |
-| A      | [PARTIAL] `inventory-data.nix` re-implements invariants by hand and has already drifted from the canonical ones in `flake/checks.nix` — homeserver sudo drift is fixed, but parallel definitions remain    |
+| A      | [DONE] `inventory-data.nix` re-implements invariants by hand and has already drifted from the canonical ones in `flake/checks.nix` — shared checks now live in `lib/invariants.nix` and feed both surfaces |
 | A      | [DONE] Deploy config applies fixed rollback settings with no per-host `confirmTimeout`; on `mac` (Tailscale-only, ephemeral) magic-rollback can roll back a correct deploy if `tailscale0` comes up slowly |
 | B      | [DONE] `machine-dev.nix` broad passwordless sudo + trusted Nix user is unconditional — gated only by a comment. `microvm-guest.nix` imports it transitively. Should be `mkIf`-gated                        |
 | B      | [DONE] `nix-trusted-users.nix` only warns (not asserts) on root-equivalent broad trust — a policy that can silently pass CI                                                                                |
@@ -166,10 +166,10 @@ not on `mac`. Every reboot clears all bans.
 | A      | [DONE] Dev shell missing `nh` (documented `rebuild` alias), `jq`, and `git`                                                                                                                                         |
 | B      | [DONE] Grafana dashboards provisioned from store are `editable=true; disableDeletion=false` — UI edits silently lost on redeploy                                                                                    |
 | B      | [DONE] `impermanence-base.nix` rollback-root parses btrfs output with fragile `cut -f 9 -d ' '` (field position is version-dependent)                                                                               |
-| B      | [PARTIAL] Backup `restic check` never tests an actual restore; backup invariant doesn't verify `paths != []`, so empty backup stamps fresh timestamp                                                                |
+| B      | [DONE] Backup `restic check` never tests an actual restore; backup invariant doesn't verify `paths != []`, so empty backup stamps fresh timestamp                                                                   |
 | C      | [DONE] `tailscale-bypass-routing` script exits 0 on all errors — firewall exceptions for Tailscale could silently fail to apply                                                                                     |
 | D      | [DONE] Grafana SQLite database backed up live (risk of torn-DB backup)                                                                                                                                              |
-| D      | [OPEN] AdGuard state at dynamic UID path backed up raw (UID mismatch on restore)                                                                                                                                    |
+| D      | [DONE] AdGuard state at dynamic UID path backed up raw (UID mismatch on restore)                                                                                                                                    |
 | D      | [DONE] nginx access logs not shipped to Loki — no log data for incident response                                                                                                                                    |
 | E      | [DONE] GTK theme never set — GTK apps fall back to stock Adwaita despite `gnome-themes-extra` being installed                                                                                                       |
 | E      | [DONE] `clangd` hardcoded-enabled in `lsp.lua` with no matching neovim pack; `clang-tools` only present behind `skipHeavyPackages`                                                                                  |
@@ -185,7 +185,7 @@ not on `mac`. Every reboot clears all bans.
 | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
 | A      | Add invariants: sops recipient ↔ host registry parity; impermanence host must have disko; deploy target must have tailnet IP |
 | B      | Add `systemd.oomd` configuration to the hardening profile (modern OOM handling)                                              |
-| C      | Automated restore canary (daily restic restore of a single file to a tmp path + metric)                                      |
+| C      | [DONE] Automated restore canary (daily restic restore of a single file to a tmp path + metric)                               |
 | C      | Age key escrow — back up the sops age private key to a separate secure location                                              |
 | C      | mac: declarative travel-mode specialisation (enable initrd SSH + disable Tailscale firewall restriction before travel)       |
 | D      | Disk quota isolation per service on homeserver (separate subvolumes for Grafana, AdGuard, Loki)                              |

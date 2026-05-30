@@ -14,7 +14,7 @@ Status: **active** — deployed on GCP and accessible via Tailscale.
   adds a high-priority GCP firewall deny for public TCP/22 on the default VPC.
 - **Tailscale** — auth key from sops secret `tailscale_auth_key`
 - **AdGuard Home** — DNS (TCP/UDP 53) + web UI (HTTP port 3001), tailscale0 only; state is exposed at `/var/lib/AdGuardHome` and stored by systemd at `/var/lib/private/AdGuardHome`
-- **Restic/B2** — off-site backups to Backblaze B2 (`/var/lib/vaultwarden`, `/var/lib/grafana`, `/var/lib/private/AdGuardHome`)
+- **Restic/B2** — off-site backups to Backblaze B2 (`/var/lib/vaultwarden`, `/var/lib/grafana`, staged AdGuard state, and a restore canary)
 - **GCE snapshots** — daily 7-day boot disk snapshots for fast provider-local rollback
 
 ## Architecture
@@ -127,6 +127,14 @@ deploy '.#homeserver-gcp'
   for independent off-site application recovery.
 - **Off-site backup via B2** — `services.restic.backups.b2` uses the shared
   `backup.class = "critical"` policy from `modules/nixos/profiles/backup.nix`.
+  AdGuard is backed up from `/var/lib/restic-staging/adguardhome`, a neutral
+  root-owned copy created before each restic run, instead of the raw
+  `/var/lib/private/AdGuardHome` DynamicUser tree. On restore, copy the staged
+  contents into `/var/lib/AdGuardHome` while `adguardhome.service` is stopped
+  and let systemd recreate the runtime ownership on the next start.
+- **Restore canary** — `restic-restore-canary-b2.service` restores the latest
+  `/var/lib/restic-backup-canary/homeserver-gcp.txt` from B2 and writes
+  `restic_last_restore_test_timestamp_seconds` for alerts.
 - **Alert delivery** — Alertmanager sends to the sops-backed
   `alertmanager_webhook_url`; keep it pointed at an off-host notification
   target so host or nginx failures can still reach you.
