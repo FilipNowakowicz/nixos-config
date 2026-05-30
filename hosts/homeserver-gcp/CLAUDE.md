@@ -38,7 +38,7 @@ the restore procedure alongside the partition change.
 
 ## Provisioning & First Deploy
 
-Runbook: [`hosts/homeserver-gcp/.claude/provisioning.md`](.claude/provisioning.md)
+Runbook: [`.claude/homeserver-gcp/provisioning.md`](../../.claude/homeserver-gcp/provisioning.md)
 
 ## Ongoing Updates
 

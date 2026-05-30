@@ -80,7 +80,7 @@ From `hosts/mac/impermanence.nix`:
 
 ## First Install & Sops Bootstrap
 
-Runbook: [`hosts/mac/.claude/install.md`](.claude/install.md)
+Runbook: [`.claude/mac/install.md`](../../.claude/mac/install.md)
 
 ## Ongoing Deploys
 

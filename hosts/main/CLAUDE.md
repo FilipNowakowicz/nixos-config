@@ -159,19 +159,19 @@ user-writable `/home/user/nix` checkout.
 
 ## USBGuard: Adding a New USB Device
 
-Runbook: [`hosts/main/.claude/usbguard.md`](.claude/usbguard.md)
+Runbook: [`.claude/main/usbguard.md`](../../.claude/main/usbguard.md)
 
 ## Recovery Notes
 
-Runbook: [`hosts/main/.claude/recovery.md`](.claude/recovery.md)
+Runbook: [`.claude/main/recovery.md`](../../.claude/main/recovery.md)
 
 ## Anonymous Specialisation
 
-Runbook: [`hosts/main/.claude/anonymous.md`](.claude/anonymous.md)
+Runbook: [`.claude/main/anonymous.md`](../../.claude/main/anonymous.md)
 
 ## Whonix KVM
 
-Runbook: [`hosts/main/.claude/whonix.md`](.claude/whonix.md)
+Runbook: [`.claude/main/whonix.md`](../../.claude/main/whonix.md)
 
 ## Mullvad and Tailscale Coexistence
 

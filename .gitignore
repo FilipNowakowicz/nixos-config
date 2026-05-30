@@ -5,9 +5,8 @@ result-*
 __pycache__/
 *.py[cod]
 
-# Claude Code local data (worktrees, session state) — not shared.
-/.claude/
-!/.claude/settings.json
+# Claude Code runtime data — not shared.
+/.claude/worktrees
 
 # Large VM disk images — installed to /var/lib/libvirt/images/, never committed.
 *.qcow2
