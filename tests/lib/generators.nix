@@ -106,6 +106,23 @@ let
       expected = "loki.source.journal \"systemd\" {\n  labels = {\n    job = \"systemd-journal\",\n  }\n}";
     };
 
+    testListMultipleItems = {
+      expr = gen.toAlloyHCL [
+        {
+          type = "x";
+          label = "y";
+          body = {
+            tags = [
+              "a"
+              "b"
+              "c"
+            ];
+          };
+        }
+      ];
+      expected = "x \"y\" {\n  tags = [\"a\", \"b\", \"c\",]\n}";
+    };
+
     testMultipleComponents = {
       expr = gen.toAlloyHCL [
         {

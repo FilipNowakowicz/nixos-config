@@ -81,6 +81,13 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        assertion = !cfg.grafana.enable || cfg.grafana.adminPasswordFile != null;
+        message = "profiles.observability.grafana.enable is true but grafana.adminPasswordFile is not set; Grafana will start without a configured admin credential.";
+      }
+    ];
+
     services.grafana = lib.mkIf cfg.grafana.enable {
       enable = true;
       settings = {

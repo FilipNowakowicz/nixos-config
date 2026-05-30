@@ -281,7 +281,6 @@ in
         '';
       })
 
-      hypridle
     ])
     ++ lib.optionals (!skipHeavyPackages) (
       with pkgs;
@@ -337,6 +336,7 @@ in
     direnv = {
       enable = true;
       enableZshIntegration = true;
+      nix-direnv.enable = true;
     };
 
     # ── Zsh ────────────────────────────────────────────────────────────────

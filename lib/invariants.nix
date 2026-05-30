@@ -26,7 +26,12 @@ rec {
     let
       missing = lib.filter (path: !(builtins.elem path actual)) expected;
     in
-    mkResult (missing == [ ]) "missing expected path(s): ${lib.concatStringsSep ", " missing}";
+    mkResult (missing == [ ]) (
+      if missing == [ ] then
+        "all required paths present"
+      else
+        "missing expected path(s): ${lib.concatStringsSep ", " missing}"
+    );
 
   formatList = values: lib.concatStringsSep ", " values;
 

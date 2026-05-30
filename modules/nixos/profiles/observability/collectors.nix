@@ -11,6 +11,10 @@ let
 
   shouldUseIngestAuth = cfg.ingestAuth.username != null && cfg.ingestAuth.passwordFile != null;
   shouldUseRemoteTraceAuth = shouldUseIngestAuth && cfg.collectors.traces.exportURL != null;
+
+  nodeExporterTextfileDir = "/var/lib/node-exporter-textfiles";
+  prometheusPort = 9090;
+  nodeExporterPort = 9100;
   ingestAuthGroups = lib.optionals (shouldUseIngestAuth && cfg.ingestAuth.group != null) [
     cfg.ingestAuth.group
   ];
@@ -425,6 +429,20 @@ in
   config = lib.mkIf cfg.enable {
     assertions = [
       {
+        assertion =
+          !(
+            cfg.collectors.metrics.enable
+            && shouldUseIngestAuth
+            && cfg.collectors.metrics.remoteWriteURL == null
+            && !cfg.mimir.enable
+          );
+        message = ''
+          profiles.observability.ingestAuth credentials are set but collectors.metrics.remoteWriteURL
+          is null and mimir is disabled; the auth will not be applied to any metrics remote-write
+          destination. Set remoteWriteURL or enable mimir.
+        '';
+      }
+      {
         assertion = !shouldUseRemoteTraceAuth || cfg.ingestAuth.serviceEnvironmentFile != null;
         message = ''
           profiles.observability.ingestAuth.serviceEnvironmentFile must be set when
@@ -456,7 +474,7 @@ in
         exporters.node = {
           enable = true;
           listenAddress = "127.0.0.1";
-          port = 9100;
+          port = nodeExporterPort;
           enabledCollectors = [
             "cpu"
             "filesystem"
@@ -467,17 +485,17 @@ in
             "textfile"
             "thermal_zone"
           ];
-          extraFlags = [ "--collector.textfile.directory=/var/lib/node-exporter-textfiles" ];
+          extraFlags = [ "--collector.textfile.directory=${nodeExporterTextfileDir}" ];
         };
 
         scrapeConfigs = [
           {
             job_name = "prometheus";
-            static_configs = [ { targets = [ "127.0.0.1:9090" ]; } ];
+            static_configs = [ { targets = [ "127.0.0.1:${toString prometheusPort}" ]; } ];
           }
           {
             job_name = "node";
-            static_configs = [ { targets = [ "127.0.0.1:9100" ]; } ];
+            static_configs = [ { targets = [ "127.0.0.1:${toString nodeExporterPort}" ]; } ];
           }
         ]
         ++ lib.optionals cfg.collectors.blackbox.enable blackboxScrapeConfigs;
@@ -563,7 +581,7 @@ in
     systemd = {
       tmpfiles.rules = lib.mkIf cfg.collectors.metrics.enable [
         "d /var/lib/prometheus2 0750 prometheus prometheus -"
-        "d /var/lib/node-exporter-textfiles 0755 root root -"
+        "d ${nodeExporterTextfileDir} 0755 root root -"
       ];
 
       services = {

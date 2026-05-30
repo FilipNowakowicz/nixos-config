@@ -29,3 +29,12 @@ vim.opt.tabstop = 4
 vim.opt.foldmethod = "expr"
 vim.opt.foldexpr   = "v:lua.vim.treesitter.foldexpr()"
 vim.opt.foldenable = false   -- open by default, fold manually with zc/zo
+
+if vim.fn.has('wsl') == 1 then
+  vim.g.clipboard = {
+    name = 'win32yank-wsl',
+    copy  = { ['+'] = 'win32yank.exe -i --crlf', ['*'] = 'win32yank.exe -i --crlf' },
+    paste = { ['+'] = 'win32yank.exe -o --lf',   ['*'] = 'win32yank.exe -o --lf'   },
+    cache_enabled = 0,
+  }
+end

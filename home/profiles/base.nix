@@ -38,6 +38,19 @@
         init.defaultBranch = "main";
         pull.ff = "only";
         core.editor = "nvim";
+        push.autoSetupRemote = true;
+        rebase.autosquash = true;
+        rerere.enabled = true;
+      };
+    };
+
+    # ── Delta (git diff pager) ─────────────────────────────────────────────────
+    delta = {
+      enable = true;
+      enableGitIntegration = true;
+      options = {
+        navigate = true;
+        line-numbers = true;
       };
     };
 

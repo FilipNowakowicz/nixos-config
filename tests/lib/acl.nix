@@ -158,6 +158,13 @@ let
       expr = result.tagOwners ? "tag:internal-vm";
       expected = false;
     };
+
+    testBreakGlassRulePresent = {
+      expr = lib.any (
+        rule: rule.action == "accept" && rule.src == [ "autogroup:admin" ] && rule.dst == [ "*:*" ]
+      ) result.acls;
+      expected = true;
+    };
   };
 in
 if failures == [ ] then

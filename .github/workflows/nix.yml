@@ -191,6 +191,9 @@ jobs:
       - name: Check Markdown links
         run: bash scripts/validate.sh docs
 
+      - name: Lint GitHub Actions (actionlint)
+        run: nix run nixpkgs#actionlint
+
   packages:
     needs: [push-policy, changes]
     if: needs.changes.outputs.run_packages == 'true'

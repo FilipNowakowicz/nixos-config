@@ -185,6 +185,8 @@ in
         ROCKET_ADDRESS = "127.0.0.1";
         ROCKET_PORT = 8222;
         SIGNUPS_ALLOWED = false;
+        INVITATIONS_ALLOWED = false;
+        # ADMIN_TOKEN intentionally omitted — the /admin endpoint is disabled.
         DOMAIN = "https://${tailnetFQDN}";
       };
     };

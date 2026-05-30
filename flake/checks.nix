@@ -342,7 +342,10 @@ in
         inherit system;
         config.allowUnfree = true;
       };
-      targetCveChecks = import ../lib/cve-checks.nix { pkgs = targetPkgs; };
+      targetCveChecks = import ../lib/cve-checks.nix {
+        pkgs = targetPkgs;
+        whitelist = ../cve-whitelist.toml;
+      };
     in
     {
       main = targetCveChecks.mkCveCheck "main" allNixosConfigs.main.config.system.build.toplevel;
