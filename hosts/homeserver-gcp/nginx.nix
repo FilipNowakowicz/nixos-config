@@ -62,6 +62,30 @@ in
         access_log syslog:server=unix:/dev/log,nohostname json_combined;
       '';
 
+      # AdGuard Home web UI — HTTPS on tailscale0:3001, proxied to localhost:13001.
+      # Dedicated port keeps it separate from the main vhost while sharing the cert.
+      # onlySSL = true is required to trigger ssl_certificate/key insertion by the
+      # NixOS nginx module (hasSSL = onlySSL || addSSL || forceSSL; explicit listen
+      # alone does not set hasSSL).
+      virtualHosts."adguard-ui" = {
+        onlySSL = true;
+        serverName = cfg.fqdn;
+        listen = [
+          {
+            addr = "0.0.0.0";
+            port = 3001;
+            ssl = true;
+          }
+        ];
+        sslCertificate = "${certDir}/homeserver-gcp.crt";
+        sslCertificateKey = "${certDir}/homeserver-gcp.key";
+        extraConfig = securityHeaders;
+        locations."/" = proxy {
+          target = "http://127.0.0.1:13001";
+          websockets = true;
+        };
+      };
+
       virtualHosts.${cfg.fqdn} = {
         forceSSL = true;
         sslCertificate = "${certDir}/homeserver-gcp.crt";
@@ -119,13 +143,16 @@ in
             '';
           };
 
-          "~ ^/home/src/(?<asset>.+\\.[0-9a-f]{10}\\.(?:js|css))$" = {
-            alias = "${homepageDir}/src/$asset";
-            extraConfig = ''
-              ${securityHeaders}
-              add_header Cache-Control "public, max-age=31536000, immutable" always;
-            '';
-          };
+          # {n} quantifiers break nginx location parsing (treated as block delimiters).
+          # Spell out 10 hex-char repetitions explicitly instead.
+          "~ ^/home/src/(?<asset>.+\\.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]\\.(?:js|css))$" =
+            {
+              alias = "${homepageDir}/src/$asset";
+              extraConfig = ''
+                ${securityHeaders}
+                add_header Cache-Control "public, max-age=31536000, immutable" always;
+              '';
+            };
 
           "/home/" = {
             alias = "${homepageDir}/";

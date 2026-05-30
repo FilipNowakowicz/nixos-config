@@ -4,14 +4,9 @@ Unresolved or intentionally deferred findings. Completed items have been removed
 
 ---
 
-## Easy
-
-- Verify AdGuard backup restore semantics — ensure stable export/staging paths are backed up rather than DynamicUser private paths.
-
 ## Medium
 
 - Add a periodic full restic data-check path with cost/runtime guardrails.
-- Decide declarative AdGuard scope — current state is improved but mutable runtime state can still drift.
 - Write and test a homeserver/Vaultwarden restore runbook.
 
 ## Future

@@ -13,7 +13,7 @@ Status: **active** — deployed on GCP and accessible via Tailscale.
 - **SSH** — in-guest firewall exposure limited to `tailscale0`; Terraform also
   adds a high-priority GCP firewall deny for public TCP/22 on the default VPC.
 - **Tailscale** — auth key from sops secret `tailscale_auth_key`
-- **AdGuard Home** — DNS (TCP/UDP 53) + web UI (HTTP port 3001), tailscale0 only; state is exposed at `/var/lib/AdGuardHome` and stored by systemd at `/var/lib/private/AdGuardHome`
+- **AdGuard Home** — DNS (TCP/UDP 53) + web UI (HTTPS port 3001 via nginx, internal HTTP on 127.0.0.1:13001), tailscale0 only; state is exposed at `/var/lib/AdGuardHome` and stored by systemd at `/var/lib/private/AdGuardHome`
 - **Restic/B2** — off-site backups to Backblaze B2 (`/var/lib/vaultwarden`, `/var/lib/grafana`, staged AdGuard state, and a restore canary)
 - **GCE snapshots** — daily 7-day boot disk snapshots for fast provider-local rollback
 
@@ -68,9 +68,15 @@ deploy '.#homeserver-gcp'
   `backup.class = "critical"` policy from `modules/nixos/profiles/backup.nix`.
   AdGuard is backed up from `/var/lib/restic-staging/adguardhome`, a neutral
   root-owned copy created before each restic run, instead of the raw
-  `/var/lib/private/AdGuardHome` DynamicUser tree. On restore, copy the staged
-  contents into `/var/lib/AdGuardHome` while `adguardhome.service` is stopped
-  and let systemd recreate the runtime ownership on the next start.
+  `/var/lib/private/AdGuardHome` DynamicUser tree. On restore:
+  1. `systemctl stop adguardhome`
+  2. `rsync -a --delete /restore/source/ /var/lib/AdGuardHome/` — note the
+     trailing slash: `/var/lib/AdGuardHome` is a root-owned symlink to
+     `/var/lib/private/AdGuardHome`; rsync into it, don't replace the symlink.
+  3. `systemctl start adguardhome` — systemd DynamicUser automatically chowns
+     the entire state tree to the service UID on startup; no manual chown needed.
+     `AdGuardHome.yaml` in the restore is harmless: the next NixOS activation
+     overwrites it from the Nix config anyway (`mutableSettings = false`).
 - **Restore canary** — `restic-restore-canary-b2.service` restores the latest
   `/var/lib/restic-backup-canary/homeserver-gcp.txt` from B2 and writes
   `restic_last_restore_test_timestamp_seconds` for alerts.
@@ -82,4 +88,4 @@ deploy '.#homeserver-gcp'
   temporarily remove the nameserver override to fall back to default resolver.
   The failed-unit alert fires within 2 minutes, but it only leaves the box when
   a real Alertmanager receiver is configured.
-- **AdGuard web UI** — HTTP only (port 3001 on tailscale0). No TLS needed; WireGuard encrypts tailnet traffic.
+- **AdGuard web UI** — HTTPS on port 3001 (proxied by nginx using the Tailscale cert). AdGuard itself binds to `127.0.0.1:13001`. Login: `admin` / see password in session notes or Nix config hash.

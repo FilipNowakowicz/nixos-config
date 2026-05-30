@@ -213,6 +213,20 @@ in
     };
   };
 
+  # GCP VMs have no power supply subsystem; the power_supply collector fails to
+  # initialize when /sys/class/power_supply is empty. Override the shared profile
+  # list to drop it for this host only.
+  services.prometheus.exporters.node.enabledCollectors = pkgs.lib.mkForce [
+    "cpu"
+    "filesystem"
+    "loadavg"
+    "meminfo"
+    "netdev"
+    "systemd"
+    "textfile"
+    "thermal_zone"
+  ];
+
   users.users.user = {
     home = "/home/user";
     hashedPasswordFile = config.sops.secrets.user_password.path;
