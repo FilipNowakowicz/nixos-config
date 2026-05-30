@@ -45,7 +45,6 @@ let
 
   knownHomeManagerProfiles = [
     "desktop"
-    "workstation"
   ];
 
   knownHomeManagerPacks = [

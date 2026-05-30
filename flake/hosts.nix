@@ -22,7 +22,6 @@ let
 
   homeManagerProfileModules = {
     desktop = ../home/profiles/desktop.nix;
-    workstation = ../home/profiles/workstation.nix;
   };
 
   homeManagerHostModules = {
