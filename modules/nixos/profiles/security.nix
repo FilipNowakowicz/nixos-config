@@ -59,6 +59,11 @@ in
   # ── Kernel Hardening ───────────────────────────────────────────────────
   boot.kernel.sysctl = {
     "kernel.unprivileged_bpf_disabled" = 1;
+    "kernel.kptr_restrict" = 2;
+    "kernel.dmesg_restrict" = 1;
+    "kernel.yama.ptrace_scope" = 1;
+    "net.core.bpf_jit_harden" = 2;
+    "kernel.kexec_load_disabled" = 1;
     "net.ipv4.icmp_echo_ignore_broadcasts" = 1;
     "net.ipv4.conf.all.accept_redirects" = 0;
     "net.ipv4.conf.default.accept_redirects" = 0;

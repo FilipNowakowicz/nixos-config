@@ -124,12 +124,14 @@ let
     ];
   };
 
-  # Minimal Alertmanager config — null receiver so the ruler has somewhere to
-  # send alerts without erroring. Wire a real receiver (email, PagerDuty, etc.)
-  # by replacing this in the host config via lib.mkForce or a follow-up module.
+  # Alertmanager config. When `alertWebhookUrl` is set, alerts are routed to a
+  # webhook receiver (ntfy.sh format: POST the alert JSON to the URL). Otherwise
+  # they route to a null receiver so the ruler has somewhere to send alerts
+  # without erroring. Override further in host config via lib.mkForce if needed.
+  webhookEnabled = cfg.alertWebhookUrl != "";
   alertmanagerFile = mkYaml "alertmanager.yaml" {
     route = {
-      receiver = "null";
+      receiver = if webhookEnabled then "webhook" else "null";
       group_by = [
         "alertname"
         "instance"
@@ -138,7 +140,17 @@ let
       group_interval = "5m";
       repeat_interval = "4h";
     };
-    receivers = [ { name = "null"; } ];
+    receivers =
+      [ { name = "null"; } ]
+      ++ lib.optional webhookEnabled {
+        name = "webhook";
+        webhook_configs = [
+          {
+            url = cfg.alertWebhookUrl;
+            send_resolved = true;
+          }
+        ];
+      };
   };
 in
 {

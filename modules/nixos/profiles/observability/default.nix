@@ -18,6 +18,18 @@ in
   options.profiles.observability = {
     enable = lib.mkEnableOption "LGTM observability profile";
 
+    alertWebhookUrl = lib.mkOption {
+      type = lib.types.str;
+      default = "";
+      description = ''
+        Webhook URL for Alertmanager notifications (e.g. an ntfy.sh topic URL).
+        When non-empty, a webhook receiver is configured and alerts are routed
+        to it. When empty (the default), alerts route to a null receiver so
+        deployments without a configured URL keep working.
+      '';
+      example = "https://ntfy.sh/my-alerts-topic";
+    };
+
     grafana = {
       enable = lib.mkEnableOption "Grafana";
       adminUser = lib.mkOption {
@@ -123,8 +135,11 @@ in
               orgId = 1;
               folder = "Overview";
               type = "file";
-              disableDeletion = false;
-              editable = true;
+              # Dashboards are provisioned declaratively from the Nix store.
+              # Lock down the UI so manual edits/deletions don't survive a
+              # redeploy and silently diverge from the source of truth.
+              disableDeletion = true;
+              editable = false;
               options.path = "/etc/grafana-dashboards";
             }
           ];

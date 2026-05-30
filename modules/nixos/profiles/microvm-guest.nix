@@ -8,6 +8,12 @@
     ./machine-dev.nix
   ];
 
+  # microVM guests run from an amnesic tmpfs root that is wiped on every boot,
+  # so the disposable/dev-only posture (broad passwordless sudo, open SSH,
+  # trusted Nix user) is intentional here. Enable it explicitly now that
+  # machine-dev is opt-in rather than implied by the import.
+  profiles.machineDev.enable = true;
+
   # ── Boot ──────────────────────────────────────────────────────────────────
   boot.initrd.availableKernelModules = [
     "virtio_pci"

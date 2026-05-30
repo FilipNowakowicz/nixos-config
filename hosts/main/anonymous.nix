@@ -97,10 +97,9 @@ _: {
       security.apparmor.enable = true;
 
       boot.kernel.sysctl = {
-        "kernel.dmesg_restrict" = 1;
-        "kernel.kptr_restrict" = lib.mkForce 2;
+        # kernel.dmesg_restrict, kernel.kptr_restrict, and
+        # kernel.yama.ptrace_scope are inherited from profiles/security.nix.
         "kernel.perf_event_paranoid" = 3;
-        "kernel.yama.ptrace_scope" = 1;
         "dev.tty.ldisc_autoload" = 0;
         "net.ipv4.tcp_syncookies" = 1;
       };
