@@ -100,17 +100,24 @@ let
         persistedDirs = map (d: normalize d "directory") (persistence.directories or [ ]);
         persistedFiles = map (f: normalize f "file") (persistence.files or [ ]);
 
-        # /home, /nix, and /persist are independent btrfs subvolumes that are
-        # not rolled back. Anything under them already survives reboot.
-        persistentRoots = [
-          "/home/"
-          "/nix/"
-          "/persist/"
-        ];
+        subvolOptionFor =
+          fs: lib.findFirst (option: lib.hasPrefix "subvol=" option) null (fs.options or [ ]);
+        subvolFor =
+          fs:
+          let
+            option = subvolOptionFor fs;
+          in
+          if option == null then null else lib.removePrefix "subvol=" option;
+        persistentRoots = lib.mapAttrsToList (mountPoint: _: mountPoint) (
+          lib.filterAttrs (
+            _: fs: (fs.fsType or "") == "btrfs" && subvolFor fs != null && subvolFor fs != "/@root"
+          ) cfg.fileSystems
+        );
+        isUnderRoot = root: path: path == root || (root != "/" && lib.hasPrefix "${root}/" path);
 
         isPersistent =
           path:
-          lib.any (root: lib.hasPrefix root path) persistentRoots
+          lib.any (root: isUnderRoot root path) persistentRoots
           || lib.elem path persistedDirs
           || lib.elem path persistedFiles
           || lib.any (d: lib.hasPrefix (d + "/") path) persistedDirs;
