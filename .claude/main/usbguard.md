@@ -39,10 +39,11 @@ allow id 0781:5591 serial "4C530001..." name "Ultra Flair" with-interface equals
 ```
 
 For peripherals without stable serials (e.g. wireless receivers), constrain by
-interface class instead:
+the exact interface set shown by USBGuard. A single `03:*:*` equality rule only
+matches a single HID interface; many receivers expose multiple HID interfaces:
 
 ```nix
-allow id 046d:c52b with-interface equals { 03:*:* }
+allow id 046d:c54d serial "3081376B3335" name "USB Receiver" with-interface equals { 03:01:02 03:01:01 03:00:00 }
 ```
 
 **Step 4 — rebuild and verify**

@@ -198,7 +198,7 @@ in
               max = 100;
               targets = [
                 (dash.target {
-                  expr = "100 - (avg(rate(node_cpu_seconds_total{${hostSel},mode=\"idle\"}[$__rate_interval])) * 100)";
+                  expr = "100 - (avg(rate(node_cpu_seconds_total{${hostSel},mode=\"idle\"}[5m])) * 100)";
                   legendFormat = "CPU";
                 })
               ];
@@ -298,7 +298,7 @@ in
               max = 100;
               targets = [
                 (dash.target {
-                  expr = "100 - (avg(rate(node_cpu_seconds_total{${hostSel},mode=\"idle\"}[$__rate_interval])) * 100)";
+                  expr = "100 - (avg(rate(node_cpu_seconds_total{${hostSel},mode=\"idle\"}[5m])) * 100)";
                   legendFormat = "CPU";
                 })
               ];

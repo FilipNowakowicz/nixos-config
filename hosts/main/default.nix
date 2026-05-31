@@ -478,9 +478,9 @@ in
       # Default policy: block all USB devices
       # Devices must be explicitly whitelisted below
 
-      # Allow Logitech USB Receiver (mouse) — HID interfaces only (guard against BadUSB spoofing)
+      # Allow Logitech USB Receiver (mouse) — exact HID interface set only (guard against BadUSB spoofing)
       # ID: 046d:c54d
-      allow id 046d:c54d with-interface equals { 03:*:* }
+      allow id 046d:c54d serial "3081376B3335" name "USB Receiver" with-interface equals { 03:01:02 03:01:01 03:00:00 }
 
       # Allow Huawei EarPods (USB-C headphones) — audio interfaces only
       # ID: 12d1:3a06
