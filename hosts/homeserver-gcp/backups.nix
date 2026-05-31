@@ -56,8 +56,10 @@ in
             workdir=$(${pkgs.coreutils}/bin/mktemp -d /run/restic-restore-canary.XXXXXX)
             trap '${pkgs.coreutils}/bin/rm -rf "$workdir"' EXIT
 
-            ${pkgs.restic}/bin/restic --repository-file=${config.sops.secrets.restic_repository.path} \
-              dump latest "$canary_path" > "$workdir/canary.txt"
+            ${pkgs.restic}/bin/restic \
+              --repository-file=${config.sops.secrets.restic_repository.path} \
+              --no-cache \
+              dump --path ${canaryDir} latest "$canary_path" > "$workdir/canary.txt"
             ${pkgs.gnugrep}/bin/grep -qx '${canaryContent}' "$workdir/canary.txt"
 
             ${mkPromScript {
