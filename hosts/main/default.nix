@@ -46,7 +46,6 @@ in
     inputs.nix-index-database.nixosModules.default
     ./anonymous.nix
     ./backups.nix
-    ./dashboard.nix
     ./disko.nix
     ./impermanence.nix
     ./hardware-configuration.nix
