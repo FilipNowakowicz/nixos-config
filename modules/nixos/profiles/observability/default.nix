@@ -126,6 +126,10 @@ in
               access = "proxy";
               url = "http://127.0.0.1:3100";
               uid = "loki";
+              # Loki runs no ruler here (logs only), so stop Grafana's alerting
+              # UI from trying to fetch rules from it and erroring. All alert
+              # rules live in the Mimir ruler.
+              jsonData.manageAlerts = false;
             }
             {
               name = "Tempo";
