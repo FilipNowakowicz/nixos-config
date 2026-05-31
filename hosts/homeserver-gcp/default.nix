@@ -18,6 +18,7 @@ in
     ./backups.nix
     ./status-page.nix
     ./audits.nix
+    ./hardening.nix
     ./tailscale-cert.nix
     ./grafana.nix
     ./dashboards.nix
