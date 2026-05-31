@@ -96,6 +96,7 @@ in
           http_port = 3000;
           domain = "localhost";
         };
+        dashboards.default_home_dashboard_path = "/etc/grafana-dashboards/main-machine.json";
         security = {
           admin_user = cfg.grafana.adminUser;
         }

@@ -58,6 +58,11 @@
       ds,
       targets,
       gridPos,
+      unit ? null,
+      min ? null,
+      max ? null,
+      decimals ? null,
+      legendDisplayMode ? "list",
     }:
     {
       inherit
@@ -68,6 +73,88 @@
         ;
       type = "timeseries";
       datasource = ds;
+      options = {
+        legend = {
+          displayMode = legendDisplayMode;
+          placement = "bottom";
+        };
+        tooltip.mode = "multi";
+      };
+      fieldConfig.defaults = {
+        custom = {
+          drawStyle = "line";
+          fillOpacity = 12;
+          lineInterpolation = "smooth";
+          lineWidth = 2;
+          pointSize = 4;
+          showPoints = "never";
+        };
+        thresholds.mode = "absolute";
+      }
+      // (if unit != null then { inherit unit; } else { })
+      // (if min != null then { inherit min; } else { })
+      // (if max != null then { inherit max; } else { })
+      // (if decimals != null then { inherit decimals; } else { });
+    };
+
+  # Stat panel builder for current health tiles.
+  statPanel =
+    {
+      id,
+      title,
+      ds,
+      targets,
+      gridPos,
+      unit ? null,
+      min ? null,
+      max ? null,
+      decimals ? 1,
+      colorMode ? "value",
+      graphMode ? "area",
+    }:
+    {
+      inherit
+        id
+        title
+        targets
+        gridPos
+        ;
+      type = "stat";
+      datasource = ds;
+      options = {
+        reduceOptions = {
+          values = false;
+          calcs = [ "lastNotNull" ];
+          fields = "";
+        };
+        orientation = "auto";
+        textMode = "auto";
+        inherit colorMode graphMode;
+        justifyMode = "auto";
+      };
+      fieldConfig.defaults = {
+        inherit decimals;
+        thresholds = {
+          mode = "absolute";
+          steps = [
+            {
+              color = "green";
+              value = null;
+            }
+            {
+              color = "orange";
+              value = 70;
+            }
+            {
+              color = "red";
+              value = 90;
+            }
+          ];
+        };
+      }
+      // (if unit != null then { inherit unit; } else { })
+      // (if min != null then { inherit min; } else { })
+      // (if max != null then { inherit max; } else { });
     };
 
   # Logs panel builder

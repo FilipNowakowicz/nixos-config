@@ -183,20 +183,103 @@ in
           uid = "main-machine";
           title = "Main Machine";
           panels = [
+            (dash.statPanel {
+              id = 1;
+              title = "CPU";
+              ds = dash.mimirDS;
+              gridPos = dash.gridPos {
+                x = 0;
+                y = 0;
+                w = 6;
+                h = 4;
+              };
+              unit = "percent";
+              min = 0;
+              max = 100;
+              targets = [
+                (dash.target {
+                  expr = "100 - (avg(rate(node_cpu_seconds_total{${hostSel},mode=\"idle\"}[$__rate_interval])) * 100)";
+                  legendFormat = "CPU";
+                })
+              ];
+            })
+            (dash.statPanel {
+              id = 2;
+              title = "Memory";
+              ds = dash.mimirDS;
+              gridPos = dash.gridPos {
+                x = 6;
+                y = 0;
+                w = 6;
+                h = 4;
+              };
+              unit = "percent";
+              min = 0;
+              max = 100;
+              targets = [
+                (dash.target {
+                  expr = "(1 - (node_memory_MemAvailable_bytes{${hostSel}} / node_memory_MemTotal_bytes{${hostSel}})) * 100";
+                  legendFormat = "Memory";
+                })
+              ];
+            })
+            (dash.statPanel {
+              id = 3;
+              title = "Disk";
+              ds = dash.mimirDS;
+              gridPos = dash.gridPos {
+                x = 12;
+                y = 0;
+                w = 6;
+                h = 4;
+              };
+              unit = "percent";
+              min = 0;
+              max = 100;
+              targets = [
+                (dash.target {
+                  expr = "max((node_filesystem_size_bytes{${hostSel},fstype!~\"tmpfs|efivarfs|overlay|squashfs|devtmpfs\"} - node_filesystem_avail_bytes{${hostSel},fstype!~\"tmpfs|efivarfs|overlay|squashfs|devtmpfs\"}) / node_filesystem_size_bytes{${hostSel},fstype!~\"tmpfs|efivarfs|overlay|squashfs|devtmpfs\"} * 100)";
+                  legendFormat = "Max used";
+                })
+              ];
+            })
+            (dash.statPanel {
+              id = 4;
+              title = "Battery";
+              ds = dash.mimirDS;
+              gridPos = dash.gridPos {
+                x = 18;
+                y = 0;
+                w = 6;
+                h = 4;
+              };
+              unit = "percent";
+              min = 0;
+              max = 100;
+              targets = [
+                (dash.target {
+                  expr = "node_power_supply_capacity{${hostSel},power_supply=\"BAT0\"}";
+                  legendFormat = "BAT0";
+                })
+              ];
+            })
             (dash.timeseriesPanel {
               id = 10;
               title = "Disk Usage %";
               ds = dash.mimirDS;
               gridPos = dash.gridPos {
                 x = 0;
-                y = 0;
+                y = 4;
                 w = 12;
                 h = 8;
               };
+              unit = "percent";
+              min = 0;
+              max = 100;
               targets = [
                 (dash.target {
                   expr = "(node_filesystem_size_bytes{${hostSel},fstype!~\"tmpfs|efivarfs|overlay|squashfs|devtmpfs\"} - node_filesystem_avail_bytes{${hostSel},fstype!~\"tmpfs|efivarfs|overlay|squashfs|devtmpfs\"}) / node_filesystem_size_bytes{${hostSel},fstype!~\"tmpfs|efivarfs|overlay|squashfs|devtmpfs\"} * 100";
-                  legendFormat = "{{device}}";
+                  legendFormat = "{{mountpoint}}";
                 })
               ];
             })
@@ -206,13 +289,16 @@ in
               ds = dash.mimirDS;
               gridPos = dash.gridPos {
                 x = 12;
-                y = 0;
+                y = 4;
                 w = 12;
                 h = 8;
               };
+              unit = "percent";
+              min = 0;
+              max = 100;
               targets = [
                 (dash.target {
-                  expr = "100 - (avg(rate(node_cpu_seconds_total{${hostSel},mode=\"idle\"}[5m])) * 100)";
+                  expr = "100 - (avg(rate(node_cpu_seconds_total{${hostSel},mode=\"idle\"}[$__rate_interval])) * 100)";
                   legendFormat = "CPU";
                 })
               ];
@@ -223,10 +309,13 @@ in
               ds = dash.mimirDS;
               gridPos = dash.gridPos {
                 x = 0;
-                y = 8;
+                y = 12;
                 w = 8;
                 h = 8;
               };
+              unit = "percent";
+              min = 0;
+              max = 100;
               targets = [
                 (dash.target {
                   expr = "(1 - (node_memory_MemAvailable_bytes{${hostSel}} / node_memory_MemTotal_bytes{${hostSel}})) * 100";
@@ -240,10 +329,11 @@ in
               ds = dash.mimirDS;
               gridPos = dash.gridPos {
                 x = 8;
-                y = 8;
+                y = 12;
                 w = 8;
                 h = 8;
               };
+              unit = "celsius";
               targets = [
                 (dash.target {
                   expr = "node_thermal_zone_temp{${hostSel}}";
@@ -257,13 +347,16 @@ in
               ds = dash.mimirDS;
               gridPos = dash.gridPos {
                 x = 16;
-                y = 8;
+                y = 12;
                 w = 8;
                 h = 8;
               };
+              unit = "percent";
+              min = 0;
+              max = 100;
               targets = [
                 (dash.target {
-                  expr = "node_power_supply_capacity{${hostSel}}";
+                  expr = "node_power_supply_capacity{${hostSel},power_supply=\"BAT0\"}";
                   legendFormat = "{{power_supply}}";
                 })
               ];
@@ -274,7 +367,7 @@ in
               ds = dash.mimirDS;
               gridPos = dash.gridPos {
                 x = 0;
-                y = 16;
+                y = 20;
                 w = 12;
                 h = 8;
               };
@@ -291,7 +384,7 @@ in
               ds = dash.lokiDS;
               gridPos = dash.gridPos {
                 x = 12;
-                y = 16;
+                y = 20;
                 w = 12;
                 h = 8;
               };
@@ -307,7 +400,7 @@ in
               ds = dash.lokiDS;
               gridPos = dash.gridPos {
                 x = 0;
-                y = 24;
+                y = 28;
                 w = 24;
                 h = 8;
               };
