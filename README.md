@@ -8,7 +8,7 @@ The repository separates hardware, host identity, system profiles, and user conf
 ## Overview
 
 - **Reproducible & Declarative**: NixOS defines the entire system state, services, and hardware. Home Manager manages the user environment and dotfiles.
-- **Multi-Host Ready**: Built from reusable profiles for a primary workstation (`main`), a companion MacBook Air (`mac`), a deployable GCP homeserver (`homeserver-gcp`), and standalone Home Manager profiles. The host registry defines the target architecture (`system`) per host; the current fleet is `x86_64-linux`.
+- **Multi-Host Ready**: Built from reusable profiles for a primary workstation (`main`), a companion MacBook Air (`mac`), a deployable GCP homeserver (`homeserver-gcp`), an on-demand GCP Nix remote builder (`gcp-builder`), and standalone Home Manager profiles. The host registry defines the target architecture (`system`) per host; the current fleet is `x86_64-linux`.
 - **Secrets Management**: Handled by [sops-nix](https://github.com/Mic92/sops-nix) with age encryption, with secrets decrypted at boot by the host itself.
 - **Impermanent Root**: `main` uses an ephemeral root filesystem with [impermanence](https://github.com/nix-community/impermanence). System state is reset on boot, with persistent data explicitly stored on `/persist`.
 - **Declarative Disks**: Disk layouts for real hosts are managed declaratively with [disko](https://github.com/nix-community/disko).
@@ -30,7 +30,8 @@ The repository separates hardware, host identity, system profiles, and user conf
 Host-local runbooks (gotchas, recovery, install) live next to each host's
 config: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
 [`hosts/mac/CLAUDE.md`](hosts/mac/CLAUDE.md),
-[`hosts/homeserver-gcp/CLAUDE.md`](hosts/homeserver-gcp/CLAUDE.md).
+[`hosts/homeserver-gcp/CLAUDE.md`](hosts/homeserver-gcp/CLAUDE.md),
+[`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md).
 
 ---
 
@@ -45,6 +46,7 @@ Supported contracts:
 - `main` is the active workstation target and is hardware-bound to the owner's machine.
 - `mac` is the active companion workstation target for Input Leap, Moonlight, Syncthing, and emergency SSH.
 - `homeserver-gcp` is the active GCP homeserver target.
+- `gcp-builder` is an on-demand GCP Nix remote builder: normally powered off, started by `main` for heavy builds and self-powering-off when idle.
 - Secrets are managed with sops-nix. Encrypted files are committed; private keys and live service credentials are not.
 - Destructive install/reinstall commands are operator-only and must not be run without reviewing target disks.
 
@@ -170,6 +172,11 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 │   │   ├── CLAUDE.md
 │   │   ├── default.nix
 │   │   └── secrets/
+│   ├── gcp-builder/                   # On-demand GCP Nix remote builder (start/stop)
+│   │   ├── CLAUDE.md
+│   │   ├── default.nix
+│   │   ├── disko.nix
+│   │   └── hardware-configuration.nix
 │   └── installer/                     # Minimal NixOS ISO for fresh installs
 │       └── default.nix
 ├── scripts/
@@ -245,12 +252,13 @@ Host lifecycle status for NixOS host configurations is owned by
 `lib/hosts.nix`; this table documents that registry. `installer` is a utility
 ISO outside the host registry.
 
-| Host             | Status  | Description                                                                        |
-| ---------------- | ------- | ---------------------------------------------------------------------------------- |
-| `main`           | Active  | Primary workstation, running a full desktop environment with NVIDIA PRIME support. |
-| `mac`            | Active  | 2017 MacBook Air companion workstation tightly coupled to `main`.                  |
-| `homeserver-gcp` | Active  | GCP homeserver for Vaultwarden, AdGuard, LGTM, Nginx, and Tailscale.               |
-| `installer`      | Utility | Minimal ISO configuration used to bootstrap new installations.                     |
+| Host             | Status  | Description                                                                         |
+| ---------------- | ------- | ----------------------------------------------------------------------------------- |
+| `main`           | Active  | Primary workstation, running a full desktop environment with NVIDIA PRIME support.  |
+| `mac`            | Active  | 2017 MacBook Air companion workstation tightly coupled to `main`.                   |
+| `homeserver-gcp` | Active  | GCP homeserver for Vaultwarden, AdGuard, LGTM, Nginx, and Tailscale.                |
+| `gcp-builder`    | Active  | On-demand GCP Nix remote builder; normally off, started by `main` for heavy builds. |
+| `installer`      | Utility | Minimal ISO configuration used to bootstrap new installations.                      |
 
 ### Deployment
 
@@ -259,6 +267,7 @@ ISO outside the host registry.
 | `main`           | `nh os switch --hostname main .`         | Active impermanent workstation rebuild.                              |
 | `mac`            | `deploy '.#mac'`                         | Companion workstation (2017 MacBook Air); `nh os switch` also works. |
 | `homeserver-gcp` | `deploy '.#homeserver-gcp'`              | Active GCP homeserver; see `scripts/deploy-gcp.sh`.                  |
+| `gcp-builder`    | `deploy '.#gcp-builder'`                 | On-demand remote builder; start the VM first. See its `CLAUDE.md`.   |
 | `user@wsl`       | `home-manager switch --flake .#user@wsl` | Portable Home Manager for WSL.                                       |
 
 ---

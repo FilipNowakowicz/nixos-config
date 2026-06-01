@@ -56,13 +56,11 @@ assert_contains "$desktop_output" "run_lint=true"
 assert_contains "$desktop_output" "run_light=true"
 assert_contains "$desktop_output" "hosts=true"
 assert_contains "$desktop_output" '{"name":"main-ci"}'
-assert_contains "$desktop_output" '{"name":"main-full"}'
 assert_contains "$desktop_output" "run_packages=false"
 
 main_output="$(run_plan $'hosts/main/default.nix')"
 assert_contains "$main_output" "closure_main=true"
 assert_contains "$main_output" '{"name":"main-ci"}'
-assert_contains "$main_output" '{"name":"main-full"}'
 
 server_output="$(run_plan $'modules/nixos/profiles/observability/backends.nix')"
 assert_contains "$server_output" "tests=true"
@@ -95,13 +93,11 @@ assert_contains "$wsl_output" "tests=false"
 unknown_home_output="$(run_plan $'home/files/misc/unclassified.txt')"
 assert_contains "$unknown_home_output" "run_packages=true"
 assert_contains "$unknown_home_output" '{"name":"main-ci"}'
-assert_contains "$unknown_home_output" '{"name":"main-full"}'
 
 unknown_module_output="$(run_plan $'modules/nixos/profiles/unknown.nix')"
 assert_contains "$unknown_module_output" "run_packages=true"
 assert_contains "$unknown_module_output" "tests=true"
 assert_contains "$unknown_module_output" '{"name":"main-ci"}'
-assert_contains "$unknown_module_output" '{"name":"main-full"}'
 
 closure_output="$(run_plan $'scripts/closure-diff.sh')"
 assert_contains "$closure_output" "closure=true"
@@ -112,6 +108,5 @@ flake_lock_output="$(run_plan $'flake.lock')"
 assert_contains "$flake_lock_output" "run_packages=true"
 assert_contains "$flake_lock_output" "tests=true"
 assert_contains "$flake_lock_output" '{"name":"main-ci"}'
-assert_contains "$flake_lock_output" '{"name":"main-full"}'
 
 echo "ci-plan tests passed"

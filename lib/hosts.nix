@@ -214,6 +214,21 @@ let
       deploy.sshUser = "user";
     };
 
+    # On-demand GCP Nix remote builder. Normally powered off; `main` starts it
+    # transparently for heavy builds and it shuts itself down when idle. No
+    # backup (disposable), no homeManager (headless build box). n2 family +
+    # nested virtualization so it can run the KVM-backed nixos test suite.
+    gcp-builder = {
+      system = "x86_64-linux";
+      status = "active";
+      tailnetFQDN = "gcp-builder.tail90fc7a.ts.net";
+      tailscale = {
+        tag = "server";
+        acceptFrom.workstation = [ 22 ];
+      };
+      deploy.sshUser = "user";
+    };
+
     # 2017 MacBook Air (A1466) repurposed as a companion workstation.
     # Canonical state lives on `main`; mac syncs via Syncthing, so no backup class.
     # Heaviest packs (latex, learning) are dropped to keep the 128 GB SSD usable;

@@ -231,6 +231,11 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
+      - name: Reclaim runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          docker system prune -af || true
+
       - id: setup-nix
         uses: ./.github/actions/setup-nix
         with:
@@ -386,7 +391,7 @@ jobs:
         with:
           enable-eval-cache: "true"
           enable-store-cache: "true"
-          cache-key-suffix: hosts-main-full
+          cache-key-suffix: closure-main
 
       - name: Compute closure diffs
         id: diff

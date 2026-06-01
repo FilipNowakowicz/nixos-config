@@ -191,7 +191,6 @@ sep=""
 if [[ $main_ci == "true" ]]; then
   hosts_matrix+="${sep}"'{"name":"main-ci"}'
   sep=","
-  hosts_matrix+="${sep}"'{"name":"main-full"}'
 fi
 if [[ $installer_build == "true" ]]; then
   hosts_matrix+="${sep}"'{"name":"installer"}'

@@ -50,6 +50,7 @@ in
     ./impermanence.nix
     ./hardware-configuration.nix
     ./networking.nix
+    ./nix-remote-build.nix
     ../../modules/nixos/profiles/base.nix
     ../../modules/nixos/profiles/desktop.nix
     ../../modules/nixos/profiles/observability-client.nix

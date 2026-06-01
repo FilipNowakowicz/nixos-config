@@ -8,6 +8,7 @@ gcp_project = "your-gcp-project-id"
 # zone         = "us-central1-a"
 # machine_type = "e2-medium"
 # disk_size_gb = 50
+# disk_type    = "pd-balanced"  # pd-ssd only if you actually need the IOPS
 
 # Daily GCE boot disk snapshots are provider-local fast rollback, not a restic replacement.
 # snapshot_retention_days    = 7

@@ -9,11 +9,63 @@ repo_root="$(
 
 cd "$repo_root"
 
+# ── On-demand remote builder ─────────────────────────────────────────────────
+# Heavy build commands transparently offload to the on-demand gcp-builder VM:
+# start it (idempotent), wait for SSH over Tailscale, then pass --builders for
+# the invocation. The builder powers itself off when idle. This is a no-op
+# (local build) whenever offload is disabled, gcloud is unavailable, or the
+# build key is absent — e.g. in CI or before `main` has the wiring deployed.
+builder_name="gcp-builder"
+builder_zone="${BUILDER_ZONE:-europe-west2-a}"
+builder_fqdn="${BUILDER_FQDN:-gcp-builder.tail90fc7a.ts.net}"
+builder_key="/run/secrets/gcp_builder_build_key" # root-owned; daemon reads it
+builder_maxjobs="${BUILDER_MAXJOBS:-8}"
+builder_features="kvm,nixos-test,big-parallel,benchmark"
+builder_nix_args=()
+
+builder_enabled() {
+  [[ ${USE_BUILDER:-1} != 0 ]] || return 1
+  command -v gcloud >/dev/null 2>&1 || return 1
+  [[ -e $builder_key ]] || return 1 # only present on a deployed `main`
+}
+
+ensure_builder() {
+  builder_enabled || {
+    echo "remote builder: disabled (USE_BUILDER=0, no gcloud, or no build key); building locally" >&2
+    return 0
+  }
+  echo "remote builder: starting $builder_name ..." >&2
+  if ! gcloud compute instances start "$builder_name" --zone "$builder_zone" --quiet >/dev/null 2>&1; then
+    echo "remote builder: could not start VM (check gcloud project/auth); building locally" >&2
+    return 0
+  fi
+  # Readiness probe uses the caller's own SSH key (authorized via sops-base);
+  # the build itself uses the root-only build key path under --builders.
+  local ready=0
+  for _ in $(seq 1 40); do
+    if ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new \
+      "user@$builder_fqdn" true 2>/dev/null; then
+      ready=1
+      break
+    fi
+    sleep 3
+  done
+  if [[ $ready != 1 ]]; then
+    echo "remote builder: not reachable after wait; building locally" >&2
+    return 0
+  fi
+  builder_nix_args=(
+    --builders
+    "ssh-ng://user@$builder_fqdn x86_64-linux $builder_key $builder_maxjobs 2 $builder_features"
+  )
+  echo "remote builder: $builder_name ready; offloading builds" >&2
+}
+
 build_attrs() {
   if [[ ${PRINT_PATHS:-} == "1" ]]; then
-    nix build "$@" --no-link --print-out-paths --show-trace
+    nix build "$@" ${builder_nix_args[@]+"${builder_nix_args[@]}"} --no-link --print-out-paths --show-trace
   else
-    nix build "$@" --no-link --show-trace
+    nix build "$@" ${builder_nix_args[@]+"${builder_nix_args[@]}"} --no-link --show-trace
   fi
 }
 
@@ -22,7 +74,7 @@ show_report_attrs() {
   paths_file="$(mktemp)"
   # Capture nix-build's exit status: process substitution does not propagate it
   # to the shell, so a failed build would otherwise be silently swallowed.
-  nix build "$@" --no-link --print-out-paths --show-trace >"$paths_file" || rc=$?
+  nix build "$@" ${builder_nix_args[@]+"${builder_nix_args[@]}"} --no-link --print-out-paths --show-trace >"$paths_file" || rc=$?
   while IFS= read -r output; do
     cat "$output"
     printf '\n'
@@ -158,6 +210,7 @@ light)
   ;;
 
 host)
+  ensure_builder
   build_host "${target:?Usage: $0 host <name>}"
   ;;
 
@@ -166,9 +219,11 @@ package)
   ;;
 
 hosts)
+  ensure_builder
   build_attrs \
     ".#nixosConfigurations.main-ci.config.system.build.toplevel" \
     ".#nixosConfigurations.homeserver-gcp.config.system.build.toplevel" \
+    ".#nixosConfigurations.gcp-builder.config.system.build.toplevel" \
     ".#nixosConfigurations.mac.config.system.build.toplevel" \
     ".#packages.${system}.installer-iso"
   ;;
@@ -178,14 +233,17 @@ smoke-homeserver-gcp)
     echo "KVM not available: /dev/kvm missing; skipping homeserver-gcp smoke test." >&2
     exit 0
   fi
+  ensure_builder
   build_attrs ".#legacyPackages.${system}.ciTests.homeserver-gcp-smoke"
   ;;
 
 profile-test)
+  ensure_builder
   build_profile_test "${target:?Usage: $0 profile-test <name>}"
   ;;
 
 profile-tests)
+  ensure_builder
   build_attrs \
     ".#legacyPackages.${system}.ciTests.profile-security" \
     ".#legacyPackages.${system}.ciTests.profile-observability" \
@@ -193,6 +251,7 @@ profile-tests)
   ;;
 
 heavy)
+  ensure_builder
   build_attrs \
     ".#legacyPackages.${system}.ciTests.homeserver-gcp-smoke" \
     ".#legacyPackages.${system}.ciTests.profile-security" \

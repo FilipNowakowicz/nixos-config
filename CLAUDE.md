@@ -10,7 +10,8 @@ For deeper context see [`docs/architecture.md`](docs/architecture.md),
 [`docs/security.md`](docs/security.md). Host-local runbooks live
 under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
 [`hosts/mac/CLAUDE.md`](hosts/mac/CLAUDE.md),
-[`hosts/homeserver-gcp/CLAUDE.md`](hosts/homeserver-gcp/CLAUDE.md).
+[`hosts/homeserver-gcp/CLAUDE.md`](hosts/homeserver-gcp/CLAUDE.md),
+[`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md).
 
 ---
 
@@ -31,6 +32,11 @@ under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
   `nixos-anywhere`), not an ongoing-deploy alias. Note `deploy-rs` can appear
   silent/hung in non-interactive sessions; fall back to a manual closure deploy
   (`nix build` the system, `nix copy` the closure, then `switch-to-configuration`).
+- **`gcp-builder`:** `deploy '.#gcp-builder'` for ongoing updates (start the VM
+  first; it is normally powered off). Provision once via
+  [`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md). It is an on-demand
+  Nix remote builder, not a service host — `main` starts it transparently for
+  heavy builds (see `scripts/validate.sh`) and it self-powers-off when idle.
 - **`user@wsl`:** `home-manager switch --flake .#user@wsl`.
 
 Module topology, persistence model, and the agent-maintenance sudo allowlist
@@ -101,9 +107,10 @@ See [`docs/security.md`](docs/security.md) for the full secrets/exposure model.
 ## Security Preferences
 
 - **Broad passwordless sudo is for deploy/dev exceptions only.** Current broad
-  exceptions are `hosts/mac`, `hosts/homeserver-gcp`, and
+  exceptions are `hosts/mac`, `hosts/homeserver-gcp`, `hosts/gcp-builder`, and
   `modules/nixos/profiles/machine-dev.nix`; treat SSH access to those targets as
-  root-equivalent.
+  root-equivalent. `gcp-builder` additionally grants its trusted Nix user
+  effective root via remote builds, so keep it tailnet-only and key-only.
 - **`main` keeps `wheelNeedsPassword = true`** and uses a narrow
   `agentMaintenanceCommands` NOPASSWD allowlist for repeat maintenance commands.
   Do not broaden this to `NOPASSWD: ALL`.
