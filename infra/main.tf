@@ -85,7 +85,7 @@ resource "google_compute_instance" "homeserver_gcp" {
     initialize_params {
       image = "projects/${var.bootstrap_image_project}/global/images/family/${var.bootstrap_image_family}"
       size  = var.disk_size_gb
-      type  = "pd-ssd"
+      type  = var.disk_type
     }
   }
 
@@ -131,6 +131,11 @@ resource "google_compute_instance" "homeserver_gcp" {
     ignore_changes = [
       metadata["bootstrap-ssh-public-key"],
       metadata["startup-script"],
+      # Disk type cannot be changed in place on GCE. Pin it so flipping
+      # var.disk_type (e.g. the pd-ssd -> pd-balanced default) does not force a
+      # destructive replacement of the live, stateful instance; the new default
+      # then applies only to freshly provisioned instances.
+      boot_disk[0].initialize_params[0].type,
     ]
   }
 }

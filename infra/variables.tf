@@ -27,6 +27,21 @@ variable "disk_size_gb" {
   default     = 50
 }
 
+variable "disk_type" {
+  type        = string
+  description = <<-EOT
+    Boot disk type. pd-balanced is the cost-effective default for this workload
+    (none of the services are IOPS-bound); pd-ssd is ~70% pricier for no
+    meaningful gain here.
+
+    NOTE: GCE cannot change a disk's type in place, so changing this only takes
+    effect on freshly provisioned instances. The live instance's type is pinned
+    via lifecycle.ignore_changes in main.tf so applying this does not force a
+    destructive replacement.
+  EOT
+  default     = "pd-balanced"
+}
+
 variable "snapshot_retention_days" {
   type        = number
   description = "Number of daily GCE boot disk snapshots to retain for fast provider-local rollback"
