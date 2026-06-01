@@ -86,7 +86,7 @@ Current examples:
 
 - `modules/nixos/services/hardened.nix` defines the `services.hardened` DSL.
 - `modules/nixos/services/systemd-failure-notify.nix` defines failure notification options.
-- `modules/nixos/profiles/observability/` defines the observability option surface and implementation, but remains inert unless `profiles.observability.enable = true`.
+- `modules/nixos/profiles/observability/` defines the observability option surface and implementation, but remains inert unless `profiles.observability.enable = true`. It is exposed publicly as `nixosModules.observability-stack`; remote shipping is exposed as `nixosModules.observability-client`.
 
 ### Layer 2: Profiles
 
