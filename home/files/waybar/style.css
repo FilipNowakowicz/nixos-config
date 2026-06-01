@@ -16,10 +16,13 @@ window#waybar {
 #workspaces,
 #clock,
 .modules-right {
-  background: alpha(@bg, 0.75);
+  background: alpha(@bg, 0.92);
   border-radius: 12px;
   margin: 6px 3px;
-  border: 1px solid alpha(@orange, 0.25);
+  border: 1px solid alpha(@orange, 0.3);
+  /* Overlay bar: lift the pills off whatever window sits behind them so the
+     text stays readable over any background. */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
 
 /* ── Workspaces ───────────────────────────────────────── */

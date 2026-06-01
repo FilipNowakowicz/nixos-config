@@ -69,6 +69,7 @@ def main():
     # ── Battery ────────────────────────────────────────────────────
     bat_pct = None
     bat_charging = False
+    bat_full = False
     ac_online = False
     try:
         psu_root = "/sys/class/power_supply"
@@ -95,11 +96,14 @@ def main():
             status = open(f"{p}/status").read().strip()
             # "Not charging" with AC online = charge-threshold reached / full.
             bat_charging = status in ("Charging", "Full") or ac_online
+            # Firmware often flips to "Full" a hair shy of 100% (e.g. 99%);
+            # treat that as full so the indicator hides on AC.
+            bat_full = status == "Full" or bat_pct >= 100
             break
     except (OSError, ValueError):
         pass
 
-    if bat_pct is not None and not (bat_charging and bat_pct >= 100):
+    if bat_pct is not None and not (bat_charging and bat_full):
         if bat_pct <= 20:
             bat_color = warn
             severity = max(severity, 2)

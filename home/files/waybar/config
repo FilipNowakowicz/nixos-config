@@ -1,6 +1,7 @@
 {
     "layer": "top",
     "position": "top",
+    "exclusive": false,
     "height": 48,
     "margin-top": 6,
     "margin-left": 12,
