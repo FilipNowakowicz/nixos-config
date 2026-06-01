@@ -65,13 +65,6 @@ all affected hosts.
   host builds, and selected smoke/profile tests into one required status for
   branch protection.
 
-## Review Ledger
-
-The `review/` directory is a historical config-review ledger. Treat
-`review/summary.md` as the current status index; the per-domain
-`*-fix-context.md` files preserve original prompts plus status notes for any
-remaining work.
-
 ## Agents
 
 - **Claude Code** — all `.nix` changes, deployments, secrets.
