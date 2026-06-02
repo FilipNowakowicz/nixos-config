@@ -119,7 +119,7 @@ Minimal example:
 ```json
 {
   "schemaVersion": 1,
-  "repository": "https://github.com/FilipNowakowicz/NixOS",
+  "repository": "https://github.com/FilipNowakowicz/nixos-config",
   "hosts": [
     {
       "name": "homeserver",

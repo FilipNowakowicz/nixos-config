@@ -3,7 +3,7 @@
   pkgs,
   hostRegistry,
   allNixosConfigs,
-  repoBaseUrl ? "https://github.com/FilipNowakowicz/NixOS",
+  repoBaseUrl ? "https://github.com/FilipNowakowicz/nixos-config",
   healthAssertionsFor ? null,
 }:
 let
