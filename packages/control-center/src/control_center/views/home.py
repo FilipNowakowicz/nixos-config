@@ -25,6 +25,9 @@ from ..constants import G
 
 class HomeViewMixin:
     def _build_home_view(self):
+        caps = self.state.get("caps", {})
+        brightness_available = caps.get("brightness", True)
+        night_light_available = caps.get("night_light", True)
         view = self._box(Gtk.Orientation.VERTICAL, spacing=12, css="panel-stack")
 
         # Header
@@ -73,7 +76,10 @@ class HomeViewMixin:
         view.append(sliders)
 
         self._bind_slider(vol_s, act_set_sink_volume)
-        self._bind_slider(brt_s, act_set_brightness)
+        if brightness_available:
+            self._bind_slider(brt_s, act_set_brightness)
+        else:
+            brt_s.widget.set_sensitive(False)
         self._bind_slider(mic_s, act_set_source_volume)
         def _on_mute_sink(_b):
             self._pending_set("audio.sink_muted",
@@ -110,6 +116,7 @@ class HomeViewMixin:
         chip_row = self._box(Gtk.Orientation.HORIZONTAL, spacing=6, css="chip-row")
         ka_chip = self._chip(G["coffee"], "Keep Awake")
         nl_chip = self._chip(G["moon"], "Night Light")
+        nl_chip.set_sensitive(night_light_available)
         theme_chip = self._chip(G["palette"], "Theme", css="theme-trigger")
         chip_row.append(ka_chip)
         chip_row.append(nl_chip)
@@ -308,13 +315,20 @@ class HomeViewMixin:
                 self._set_class(bt_t.widget, "on", True)
 
             # VPN tile
+            caps = s.get("caps", {})
+            ts_cap = caps.get("tailscale", True)
+            mv_cap = caps.get("mullvad", True)
             ts = s["tailscale"]
             mv = s["mullvad"]
-            active = (1 if ts["enabled"] else 0) + (1 if mv["connected"] else 0)
+            ts_on = ts_cap and ts["enabled"]
+            mv_on = mv_cap and mv["connected"]
+            active = (1 if ts_on else 0) + (1 if mv_on else 0)
             vpn_t.glyph.set_label(G["shield"])
-            if ts["enabled"] and ts["ip"]:
+            if not ts_cap and not mv_cap:
+                vpn_t.sub.set_label("Not installed")
+            elif ts_on and ts["ip"]:
                 vpn_t.sub.set_label(f"Tailscale · {ts['ip']}")
-            elif mv["connected"]:
+            elif mv_on:
                 vpn_t.sub.set_label(f"Mullvad · {mv['city'] or mv['country']}")
             else:
                 vpn_t.sub.set_label("Off")
@@ -324,7 +338,10 @@ class HomeViewMixin:
             # DND tile
             d = s["dnd"]
             dnd_t.glyph.set_label(G["bell_off"])
-            if d["enabled"]:
+            if not caps.get("dnd", True):
+                dnd_t.sub.set_label("Not installed")
+                self._set_class(dnd_t.widget, "on", False)
+            elif d["enabled"]:
                 dnd_t.sub.set_label(f"On · {d['mode']}")
                 self._set_class(dnd_t.widget, "on", True)
             else:
@@ -341,9 +358,12 @@ class HomeViewMixin:
             )
             if vol_s.aux:
                 vol_s.aux_label.set_label(f"{self._short(a['sink_name'], 11)} ›")
-            self._set_slider_polled(brt_s, s["brightness"]["percent"])
-            if brt_s.aux:
-                brt_s.aux_label.set_label("Auto")
+            if brightness_available:
+                self._set_slider_polled(brt_s, s["brightness"]["percent"])
+                if brt_s.aux:
+                    brt_s.aux_label.set_label("Auto")
+            elif brt_s.aux:
+                brt_s.aux_label.set_label("n/a")
             self._set_slider_polled(mic_s, a["source_volume_pct"])
             mic_s.glyph_btn.set_label(
                 G["mic_off"]
@@ -365,7 +385,8 @@ class HomeViewMixin:
             )
             self._set_class(
                 nl_chip, "on",
-                self.effective("night_light", s.get("night_light", False)),
+                night_light_available
+                and self.effective("night_light", s.get("night_light", False)),
             )
 
             # Theme cards (pending until rebuild completes)

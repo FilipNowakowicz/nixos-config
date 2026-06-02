@@ -175,6 +175,9 @@ The `services.hardened` DSL in `modules/nixos/services/hardened.nix` applies a
 baseline sandbox to selected services. Service-specific relaxations should be
 documented in the host module near the service they affect.
 
+The public module contract and examples live in
+`docs/modules/services-hardened.md`.
+
 Validation coverage includes:
 
 - native NixOS assertions for local module safety contracts, such as SOPS-backed initrd secret paths and hardening DSL usage;

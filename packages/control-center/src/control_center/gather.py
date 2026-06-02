@@ -10,6 +10,7 @@ from gi.repository import Gio, GLib
 
 from . import actions
 from ._proc import _run
+from .capabilities import capabilities
 
 
 def _nmcli_split(line):
@@ -607,6 +608,7 @@ def _default_state():
     return {
         "time": f"{now.tm_hour:02d}:{now.tm_min:02d}",
         "hostname": os.uname().nodename if hasattr(os, "uname") else "",
+        "caps": capabilities(),
         "wifi": {
             "enabled": False, "connected": False, "ssid": None,
             "signal_pct": 0, "band": "", "freq_mhz": 0,

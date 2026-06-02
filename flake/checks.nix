@@ -299,6 +299,86 @@ let
         touch $out
       '';
 
+  observabilityStackFixture =
+    let
+      systemConfig = lib.nixosSystem {
+        system = pkgs.stdenv.hostPlatform.system;
+        modules = [
+          ../modules/nixos/profiles/observability
+          (
+            { pkgs, ... }:
+            {
+              networking.hostName = "observability-fixture";
+              system.stateVersion = "26.05";
+
+              profiles.observability = {
+                enable = true;
+                grafana = {
+                  enable = true;
+                  adminPasswordFile = pkgs.writeText "grafana-admin-password" "test-password";
+                };
+                loki.enable = true;
+                tempo.enable = true;
+                mimir.enable = true;
+                collectors = {
+                  metrics.enable = true;
+                  logs.enable = true;
+                  traces.enable = true;
+                };
+              };
+            }
+          )
+        ];
+      };
+      evaluated = {
+        grafana = systemConfig.config.services.grafana.enable;
+        loki = systemConfig.config.services.loki.enable;
+        mimir = systemConfig.config.services.mimir.enable;
+        tempo = systemConfig.config.services.tempo.enable;
+        prometheus = systemConfig.config.services.prometheus.enable;
+      };
+    in
+    pkgs.writeText "observability-stack-fixture.json" (builtins.toJSON evaluated);
+
+  observabilityClientFixture =
+    let
+      passwordFile = pkgs.writeText "observability-ingest-password" "test-password";
+      envFile = pkgs.writeText "otel-env" "BASICAUTH_PASSWORD=test-password";
+      systemConfig = lib.nixosSystem {
+        system = pkgs.stdenv.hostPlatform.system;
+        modules = [
+          ../modules/nixos/profiles/observability
+          ../modules/nixos/profiles/observability-client.nix
+          {
+            networking.hostName = "observability-client-fixture";
+            system.stateVersion = "26.05";
+
+            profiles.observability-client = {
+              enable = true;
+              remoteEndpoint = {
+                scheme = "https";
+                host = "observability.example.ts.net";
+                metricsPath = "/ingest/metrics";
+                logsPath = "/ingest/logs";
+                tracesPath = "/ingest/traces";
+              };
+              ingestAuth = {
+                inherit passwordFile;
+                serviceEnvironmentFile = envFile;
+              };
+            };
+          }
+        ];
+      };
+      evaluated = {
+        metricsURL = (builtins.head systemConfig.config.services.prometheus.remoteWrite).url;
+        logsEnabled = systemConfig.config.services.alloy.enable;
+        traceEndpoint =
+          systemConfig.config.services.opentelemetry-collector.settings.exporters.otlphttp.endpoint;
+      };
+    in
+    pkgs.writeText "observability-client-fixture.json" (builtins.toJSON evaluated);
+
   mkSopsBootstrapCheck =
     hostName: secretsDir:
     let
@@ -367,6 +447,8 @@ in
     mac-sops-bootstrap = mkSopsBootstrapCheck "mac" ../hosts/mac/secrets;
 
     observability-alerts-lint = observabilityAlertsLint;
+    observability-stack-fixture = observabilityStackFixture;
+    observability-client-fixture = observabilityClientFixture;
   };
 
   ciTestsFor = system: {

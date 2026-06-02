@@ -166,7 +166,7 @@
       systems = [ defaultSystem ];
 
       perSystem =
-        { system, ... }:
+        { system, self', ... }:
         let
           pkgs = import nixpkgs {
             inherit system;
@@ -188,6 +188,7 @@
             nixos-anywhere
             ciDeployNodes
             invariantChecks
+            self'
             ;
           flakeInputs = inputs;
         };
@@ -217,9 +218,13 @@
 
         # ── Modules ─────────────────────────────────────────────────────────
         nixosModules = {
+          observability-stack = import ./modules/nixos/profiles/observability;
+          observability-client = import ./modules/nixos/profiles/observability-client.nix;
+          services-hardened = import ./modules/nixos/services/hardened.nix;
           profiles-base = import ./modules/nixos/profiles/base.nix;
           profiles-desktop = import ./modules/nixos/profiles/desktop.nix;
           profiles-observability = import ./modules/nixos/profiles/observability;
+          profiles-observability-client = import ./modules/nixos/profiles/observability-client.nix;
           profiles-security = import ./modules/nixos/profiles/security.nix;
         };
 
@@ -228,6 +233,7 @@
           profiles-base = import ./home/profiles/base.nix;
           profiles-desktop = import ./home/profiles/desktop.nix;
           profiles-workflow-packs = import ./home/profiles/workflow-packs;
+          runtime-theme = import ./home/theme/module.nix;
         };
       };
     };

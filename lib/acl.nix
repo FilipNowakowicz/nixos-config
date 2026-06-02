@@ -11,6 +11,30 @@ let
   collectTagNames =
     hosts: lib.unique (map (cfg: cfg.tailscale.tag) (lib.attrValues (tailscaleHosts hosts)));
 
+  # All source tags referenced by acceptFrom across every tailnet host.
+  collectSourceTags =
+    hosts:
+    lib.unique (
+      builtins.concatMap (cfg: builtins.attrNames (cfg.tailscale.acceptFrom or { })) (
+        lib.attrValues (tailscaleHosts hosts)
+      )
+    );
+
+  # Every acceptFrom source tag must be a tag that some host actually carries.
+  # Otherwise mkAcl would emit `src = [ "tag:X" ]` for a tag absent from
+  # tagOwners, which Tailscale rejects as an undefined tag — and the drift check
+  # would only surface it on the next live apply. Fail fast at eval instead.
+  assertSourceTagsDefined =
+    hostRegistry: value:
+    let
+      definedTags = collectTagNames hostRegistry;
+      undefined = lib.filter (tag: !builtins.elem tag definedTags) (collectSourceTags hostRegistry);
+    in
+    if undefined == [ ] then
+      value
+    else
+      throw "lib/acl.nix: acceptFrom references undefined tag(s) ${builtins.toJSON undefined}; every source tag must be carried by some tailnet host (defined tags: ${builtins.toJSON definedTags})";
+
   sortedUnique = values: builtins.sort builtins.lessThan (lib.unique values);
 
   mkTagOwners =
@@ -78,15 +102,18 @@ in
   # Hosts without a `tailscale` attribute are ignored.
   # Tag-to-tag:port rules are derived from acceptFrom relationships.
   # Serialize with builtins.toJSON to get acl.hujson content.
-  mkAcl = hostRegistry: {
-    tagOwners = mkTagOwners (collectTagNames hostRegistry);
-    acls = (mkTagAclRules hostRegistry) ++ [
-      {
-        # Deliberate break-glass access for tailnet admins.
-        action = "accept";
-        src = [ "autogroup:admin" ];
-        dst = [ "*:*" ];
-      }
-    ];
-  };
+  # Throws if any acceptFrom source tag is not carried by some tailnet host.
+  mkAcl =
+    hostRegistry:
+    assertSourceTagsDefined hostRegistry {
+      tagOwners = mkTagOwners (collectTagNames hostRegistry);
+      acls = (mkTagAclRules hostRegistry) ++ [
+        {
+          # Deliberate break-glass access for tailnet admins.
+          action = "accept";
+          src = [ "autogroup:admin" ];
+          dst = [ "*:*" ];
+        }
+      ];
+    };
 }

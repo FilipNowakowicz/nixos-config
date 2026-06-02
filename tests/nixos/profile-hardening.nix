@@ -14,8 +14,8 @@ in
       {
         imports = [ ../../modules/nixos/services/hardened.nix ];
 
-        services.hardened.test-sandboxed = {
-          extraConfig = {
+        services.hardened = {
+          test-sandboxed.extraConfig = {
             ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
             Type = "simple";
             DynamicUser = true;
@@ -24,28 +24,42 @@ in
             ReadWritePaths = [ ];
             UMask = "0077";
           };
-        };
 
-        services.hardened.test-relaxed = {
-          relaxBase = [
-            "PrivateDevices"
-            "ProtectHome"
-          ];
-          extraConfig = {
+          test-relaxed = {
+            relaxBase = [
+              "PrivateDevices"
+              "ProtectHome"
+            ];
+            extraConfig = {
+              ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
+              Type = "simple";
+              DynamicUser = true;
+            };
+          };
+
+          test-forced.extraConfig = {
+            PrivateDevices = false;
             ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
             Type = "simple";
             DynamicUser = true;
           };
         };
 
-        systemd.services.test-sandboxed = {
-          description = "Sandbox hardening score test service";
-          wantedBy = [ "multi-user.target" ];
-        };
+        systemd.services = {
+          test-sandboxed = {
+            description = "Sandbox hardening score test service";
+            wantedBy = [ "multi-user.target" ];
+          };
 
-        systemd.services.test-relaxed = {
-          description = "Baseline relaxation test service";
-          wantedBy = [ "multi-user.target" ];
+          test-relaxed = {
+            description = "Baseline relaxation test service";
+            wantedBy = [ "multi-user.target" ];
+          };
+
+          test-forced = {
+            description = "Forced hardening priority test service";
+            wantedBy = [ "multi-user.target" ];
+          };
         };
 
         environment.systemPackages = [
@@ -75,5 +89,9 @@ in
       machine.succeed("systemctl cat test-relaxed.service | grep -q 'ProtectSystem=strict'")
       machine.succeed("! systemctl cat test-relaxed.service | grep -q 'PrivateDevices='")
       machine.succeed("! systemctl cat test-relaxed.service | grep -q 'ProtectHome='")
+
+      machine.wait_for_unit("test-forced.service")
+      machine.succeed("test \"$(systemctl show -p PrivateDevices --value test-forced.service)\" = yes")
+      machine.succeed("test \"$(systemctl show -p KeyringMode --value test-forced.service)\" = private")
     '';
   }
