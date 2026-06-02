@@ -175,6 +175,9 @@ The `services.hardened` DSL in `modules/nixos/services/hardened.nix` applies a
 baseline sandbox to selected services. Service-specific relaxations should be
 documented in the host module near the service they affect.
 
+The public module contract and examples live in
+`docs/modules/services-hardened.md`.
+
 Validation coverage includes:
 
 - native NixOS assertions for local module safety contracts, such as SOPS-backed initrd secret paths and hardening DSL usage;
@@ -283,7 +286,10 @@ Grafana renders these through the `Security Events` dashboard on
 ## Backups
 
 Backup policy is driven by `hostMeta.backup.class` from `lib/hosts.nix` and
-implemented by `modules/nixos/profiles/backup.nix`.
+implemented by `modules/nixos/profiles/backup.nix`. For how these backups are
+_validated_ — the restore canary, freshness metrics, stale alerts, and config
+invariants that turn "backed up" into "proven restorable" — see
+[`backup-validation.md`](backup-validation.md).
 
 Current classes:
 

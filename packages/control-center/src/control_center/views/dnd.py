@@ -10,8 +10,10 @@ from ..constants import G
 
 class DndViewMixin:
     def _build_dnd_view(self):
+        available = self.state.get("caps", {}).get("dnd", True)
         view = self._box(Gtk.Orientation.VERTICAL, spacing=12, css="panel-stack")
         sw = self._switch()
+        sw.set_sensitive(available)
         view.append(self._detail_header("Do Not Disturb", right_widget=sw))
 
         def _on_dnd_toggle(_b):
@@ -24,12 +26,17 @@ class DndViewMixin:
         sw.connect("clicked", _on_dnd_toggle)
 
         wrap = self._box(Gtk.Orientation.VERTICAL, spacing=8, css="surface")
-        wrap.append(self._label("Silence notifications until…", "dnd-prompt"))
+        prompt = (
+            "Silence notifications until…" if available
+            else "Mako not installed · notification control unavailable"
+        )
+        wrap.append(self._label(prompt, "dnd-prompt"))
         seg = self._segmented([
             (G["clock"], "1 hour"),
             (G["sun"], "8 am"),
             (G["bell_off"], "Always"),
         ], click_visual=True)
+        seg.widget.set_sensitive(available)
         wrap.append(seg.widget)
         view.append(wrap)
 

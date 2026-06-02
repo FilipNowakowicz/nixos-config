@@ -83,6 +83,10 @@ in
     observability-client = {
       enable = true;
       remoteEndpoint.host = hostRegistry.homeserver-gcp.tailnetFQDN;
+      ingestAuth = {
+        passwordFile = config.sops.secrets.observability_ingest_password.path;
+        serviceEnvironmentFile = config.sops.templates."otel-env".path;
+      };
     };
     observability.collectors.metrics.scrapeInterval = "60s";
   };
@@ -530,6 +534,10 @@ in
       restic_repository = { };
       b2_credentials = { };
       initrd_ssh_host_ed25519_key = { };
+    };
+    templates."otel-env" = {
+      content = "BASICAUTH_PASSWORD=${config.sops.placeholder.observability_ingest_password}";
+      mode = "0400";
     };
   };
 

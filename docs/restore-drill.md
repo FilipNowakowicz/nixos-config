@@ -9,6 +9,11 @@ This field records the last manual quarterly restore exercise. The homeserver
 backup milestone also added the restore runbook, weekly `restic-check-b2`
 verification, and the Grafana **Backup Health** dashboard.
 
+This drill is layer 6 of the broader backup validation pattern — the human
+exercise that complements the automated restore canary, freshness metrics, and
+stale alerts. See [`backup-validation.md`](backup-validation.md) for the full
+verification contract.
+
 ---
 
 ## Prerequisites

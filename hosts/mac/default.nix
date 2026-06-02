@@ -187,6 +187,10 @@
   profiles.observability-client = {
     enable = true;
     remoteEndpoint.host = hostRegistry.homeserver-gcp.tailnetFQDN;
+    ingestAuth = {
+      passwordFile = config.sops.secrets.observability_ingest_password.path;
+      serviceEnvironmentFile = config.sops.templates."otel-env".path;
+    };
   };
 
   # NetworkManager manages networking; avoid boot blocking on online targets.
@@ -291,6 +295,14 @@
         sopsFile = ./secrets/luks-keyfile.enc;
         mode = "0400";
       };
+      observability_ingest_password = {
+        group = "telemetry-ingest";
+        mode = "0440";
+      };
+    };
+    templates."otel-env" = {
+      content = "BASICAUTH_PASSWORD=${config.sops.placeholder.observability_ingest_password}";
+      mode = "0400";
     };
   };
 

@@ -16,6 +16,9 @@ from ..constants import G
 
 class VpnViewMixin:
     def _build_vpn_view(self):
+        caps = self.state.get("caps", {})
+        ts_available = caps.get("tailscale", True)
+        mv_available = caps.get("mullvad", True)
         view = self._box(Gtk.Orientation.VERTICAL, spacing=12, css="panel-stack")
         meta = self._label("", "panel-meta", xalign=1)
         view.append(self._detail_header("VPN", right_widget=meta))
@@ -40,6 +43,7 @@ class VpnViewMixin:
         copy.append(ts_sub)
         head.append(copy)
         ts_sw = self._switch()
+        ts_sw.set_sensitive(ts_available)
         head.append(ts_sw)
         ts_section.append(head)
 
@@ -60,6 +64,7 @@ class VpnViewMixin:
         ts_strip.add_css_class("vpn-stat")
         ts_section.append(ts_strip)
         ts_exit_btn = Gtk.Button()
+        ts_exit_btn.set_sensitive(ts_available)
         ts_exit_btn.add_css_class("drawer-select")
         exit_inner = self._box(Gtk.Orientation.HORIZONTAL, spacing=6)
         ts_exit_name = self._label("None")
@@ -142,6 +147,7 @@ class VpnViewMixin:
         copy.append(mv_sub)
         head.append(copy)
         mv_sw = self._switch()
+        mv_sw.set_sensitive(mv_available)
         head.append(mv_sw)
         mv_section.append(head)
 
@@ -175,6 +181,7 @@ class VpnViewMixin:
         loc_copy.append(mv_loc_sub)
         mv_loc_row.append(loc_copy)
         mv_change_btn = self._drawer_select("Change")
+        mv_change_btn.set_sensitive(mv_available)
         mv_loc_row.append(mv_change_btn)
         mv_section.append(mv_loc_row)
 
@@ -219,88 +226,136 @@ class VpnViewMixin:
 
         def refresh(s):
             ts = s["tailscale"]; mv = s["mullvad"]
-            ts_enabled = self.effective("tailscale.enabled", ts["enabled"])
-            mv_connected = self.effective("mullvad.connected", mv["connected"])
-            active = (1 if ts_enabled else 0) + (1 if mv_connected else 0)
-            meta.set_label(f"{active} of 2 active")
-
-            self._set_class(ts_sw, "on", ts_enabled)
-            self._set_class(ts_section, "off", not ts_enabled)
-
-            name = ts["name"] or "—"
-            ip = ts["ip"] or "—"
-            ts_sub.set_label(self._short(
-                f"{name} · {ip} · WireGuard mesh"
-                if ts_enabled else "Not connected", 56,
-            ))
-
-            peer_count = ts["peer_count"]
-            online = sum(1 for p in ts["peers"] if p.get("online"))
-            self._fill_stat_grid(ts_strip, [
-                (str(peer_count), "peers"),
-                (str(online), "online"),
-                (ts["os"] or "—", "os"),
-            ])
-            ts_exit_name.set_label(self.effective(
-                "tailscale.exit_node", ts["exit_node"] or "None",
-            ))
-
-            ts_peer_count_lbl.set_label(
-                f"Tailnet · {peer_count} peer{'s' if peer_count != 1 else ''}"
+            ts_enabled = ts_available and self.effective(
+                "tailscale.enabled", ts["enabled"],
             )
-            self._clear(ts_list)
-            if not ts["peers"]:
+            mv_connected = mv_available and self.effective(
+                "mullvad.connected", mv["connected"],
+            )
+            total = (1 if ts_available else 0) + (1 if mv_available else 0)
+            active = (1 if ts_enabled else 0) + (1 if mv_connected else 0)
+            meta.set_label(f"{active} of {total} active")
+
+            if not ts_available:
+                self._set_class(ts_sw, "on", False)
+                self._set_class(ts_section, "off", True)
+                ts_sub.set_label("Not installed · tailscale not on PATH")
+                self._fill_stat_grid(ts_strip, [
+                    ("—", "peers"), ("—", "online"), ("—", "os"),
+                ])
+                ts_exit_name.set_label("None")
+                ts_peer_count_lbl.set_label("Tailnet")
+                self._clear(ts_list)
                 ts_list.append(self._drawer_item(
-                    G["server"], "No peers",
-                    "Tailscale not running or empty tailnet", "—",
+                    G["server"], "Tailscale not installed",
+                    "Install tailscale to manage your tailnet", "—",
                     subtle=True,
                 ))
             else:
-                for p in ts["peers"]:
-                    if p["os"] == "linux" and "server" in (p["name"] or ""):
-                        glyph = G["server"]
-                    elif p["os"] in ("android", "iOS", "ios"):
-                        glyph = G["phone"]
-                    elif p["os"] == "linux":
-                        glyph = G["laptop"]
-                    else:
-                        glyph = G["laptop"]
-                    if p["this"]:
-                        right = "This"; status = "this"
-                    elif p["online"]:
-                        right = "Online"; status = "online"
-                    else:
-                        right = "Offline"; status = None
-                    sub = (f"{p['ip']} · this device"
-                           if p["this"] else (p["ip"] or "—"))
-                    ts_list.append(self._drawer_item(
-                        glyph, self._short(p["name"] or "?", 22),
-                        sub, right, active=p["online"], status=status,
-                    ))
+                self._refresh_tailscale_section(
+                    ts, ts_enabled, ts_sw, ts_section, ts_sub, ts_strip,
+                    ts_exit_name, ts_peer_count_lbl, ts_list,
+                )
 
-            self._set_class(mv_sw, "on", mv_connected)
-            self._set_class(mv_section, "off", not mv_connected)
-            if mv_connected:
-                mv_sub.set_label(self._short(
-                    f"{mv['location']} · WireGuard", 56,
-                ))
-            else:
-                mv_sub.set_label("Not connected · WireGuard")
-
-            preferred_disp = self.effective(
-                "mullvad.preferred",
-                f"{mv['country']}, {mv['city']}"
-                if mv["country"] and mv["city"] else mv["preferred"],
+            self._refresh_mullvad_section(
+                mv, mv_available, mv_connected, mv_sw, mv_section, mv_sub,
+                mv_loc_icon, mv_loc_name, mv_loc_sub,
             )
-            country = mv["country"] or "—"
-            mv_loc_icon.set_label(self._country_code(country))
-            mv_loc_name.set_label(self._short(country, 28))
-            mv_loc_sub.set_label(self._short(
-                f"{mv['city']} · preferred {preferred_disp}"
-                if preferred_disp else mv["city"] or "—",
-                56,
-            ))
 
         self._refreshers.append(refresh)
         refresh(self.state)
         return view
+
+    def _refresh_tailscale_section(
+        self, ts, ts_enabled, ts_sw, ts_section, ts_sub, ts_strip,
+        ts_exit_name, ts_peer_count_lbl, ts_list,
+    ):
+        self._set_class(ts_sw, "on", ts_enabled)
+        self._set_class(ts_section, "off", not ts_enabled)
+
+        name = ts["name"] or "—"
+        ip = ts["ip"] or "—"
+        ts_sub.set_label(self._short(
+            f"{name} · {ip} · WireGuard mesh"
+            if ts_enabled else "Not connected", 56,
+        ))
+
+        peer_count = ts["peer_count"]
+        online = sum(1 for p in ts["peers"] if p.get("online"))
+        self._fill_stat_grid(ts_strip, [
+            (str(peer_count), "peers"),
+            (str(online), "online"),
+            (ts["os"] or "—", "os"),
+        ])
+        ts_exit_name.set_label(self.effective(
+            "tailscale.exit_node", ts["exit_node"] or "None",
+        ))
+
+        ts_peer_count_lbl.set_label(
+            f"Tailnet · {peer_count} peer{'s' if peer_count != 1 else ''}"
+        )
+        self._clear(ts_list)
+        if not ts["peers"]:
+            ts_list.append(self._drawer_item(
+                G["server"], "No peers",
+                "Tailscale not running or empty tailnet", "—",
+                subtle=True,
+            ))
+        else:
+            for p in ts["peers"]:
+                if p["os"] == "linux" and "server" in (p["name"] or ""):
+                    glyph = G["server"]
+                elif p["os"] in ("android", "iOS", "ios"):
+                    glyph = G["phone"]
+                elif p["os"] == "linux":
+                    glyph = G["laptop"]
+                else:
+                    glyph = G["laptop"]
+                if p["this"]:
+                    right = "This"; status = "this"
+                elif p["online"]:
+                    right = "Online"; status = "online"
+                else:
+                    right = "Offline"; status = None
+                sub = (f"{p['ip']} · this device"
+                       if p["this"] else (p["ip"] or "—"))
+                ts_list.append(self._drawer_item(
+                    glyph, self._short(p["name"] or "?", 22),
+                    sub, right, active=p["online"], status=status,
+                ))
+
+    def _refresh_mullvad_section(
+        self, mv, mv_available, mv_connected, mv_sw, mv_section, mv_sub,
+        mv_loc_icon, mv_loc_name, mv_loc_sub,
+    ):
+        if not mv_available:
+            self._set_class(mv_sw, "on", False)
+            self._set_class(mv_section, "off", True)
+            mv_sub.set_label("Not installed · mullvad not on PATH")
+            mv_loc_icon.set_label("—")
+            mv_loc_name.set_label("Mullvad not installed")
+            mv_loc_sub.set_label("Install the mullvad CLI to manage relays")
+            return
+
+        self._set_class(mv_sw, "on", mv_connected)
+        self._set_class(mv_section, "off", not mv_connected)
+        if mv_connected:
+            mv_sub.set_label(self._short(
+                f"{mv['location']} · WireGuard", 56,
+            ))
+        else:
+            mv_sub.set_label("Not connected · WireGuard")
+
+        preferred_disp = self.effective(
+            "mullvad.preferred",
+            f"{mv['country']}, {mv['city']}"
+            if mv["country"] and mv["city"] else mv["preferred"],
+        )
+        country = mv["country"] or "—"
+        mv_loc_icon.set_label(self._country_code(country))
+        mv_loc_name.set_label(self._short(country, 28))
+        mv_loc_sub.set_label(self._short(
+            f"{mv['city']} · preferred {preferred_disp}"
+            if preferred_disp else mv["city"] or "—",
+            56,
+        ))
