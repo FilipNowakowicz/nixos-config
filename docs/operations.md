@@ -239,6 +239,36 @@ Rules of thumb:
 - Docs changes: run `bash scripts/validate.sh docs`; CI runs this even for docs-only PRs.
 - NixOS test changes: run the relevant smoke/profile test if KVM is available.
 
+## On-Demand Remote Builder
+
+Build-heavy `scripts/validate.sh` subcommands (`host`, `hosts`, `heavy`,
+`profile-test(s)`, `smoke-*`) transparently offload to the on-demand
+`gcp-builder` VM. The script starts the VM (idempotent), waits for SSH over
+Tailscale, and passes `--builders` for that one invocation; the builder powers
+itself off after ~20 minutes idle. No manual start/stop is needed in the common
+path.
+
+Offload is a silent no-op — the build runs locally — whenever it cannot help:
+`USE_BUILDER=0`, `gcloud` is absent, or the build key is not present (CI, fresh
+clones, or a `main` without the wiring deployed). So a cold builder only ever
+adds a start-and-wait at the front of a heavy build; it never blocks an ordinary
+`rebuild`, which is why the builder is deliberately not registered in
+`nix.buildMachines`.
+
+```bash
+# Force a purely local build even on a deployed main:
+USE_BUILDER=0 bash scripts/validate.sh hosts
+
+# Override the builder location / parallelism:
+BUILDER_ZONE=europe-west2-a BUILDER_MAXJOBS=8 bash scripts/validate.sh heavy
+```
+
+Prerequisite: `gcloud` on `main` must be authenticated with the builder's
+project active (`gcloud config set project <id>`). The full pattern — lifecycle,
+trust boundary, and reuse scope — is in
+[`remote-builder.md`](remote-builder.md); provisioning and gotchas are in
+[`hosts/gcp-builder/CLAUDE.md`](../hosts/gcp-builder/CLAUDE.md).
+
 ## Ad Hoc Nix Commands
 
 Interactive `nix` commands resolve `nixpkgs` through this flake's pinned input

@@ -20,6 +20,7 @@ The repository separates hardware, host identity, system profiles, and user conf
 
 - [Architecture](docs/architecture.md) - layer boundaries, global imports, and host registry rules.
 - [Operations](docs/operations.md) - deployment, validation, and formatting commands.
+- [Remote Builder](docs/remote-builder.md) - on-demand cloud Nix builder: per-invocation offload, idle self-shutdown, and trust boundary.
 - [Security Model](docs/security.md) - sops recipients, initrd SSH, Tailscale exposure, USBGuard, hardening, and backups.
 - [Restore Drill](docs/restore-drill.md) - quarterly manual restore from the B2 restic repository.
 - [Neovim](docs/neovim.md) - editor architecture, module layout, and current follow-up work.
@@ -114,6 +115,7 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 - **Packaged Control Center**: The desktop control center now lives in `packages/control-center` as a first-class flake package/app instead of a loose Home Manager script, so its GTK4 code and runtime wrapper are versioned together.
 - **USB Device Control**: USBGuard enabled on `main` with a strict deny-default policy and a curated allowlist for trusted internal/peripheral devices.
 - **Companion MacBook Air**: `mac` is a deployed NixOS desktop target with Broadcom Wi-Fi support, impermanence, Tailscale-only SSH, Home Manager Syncthing, Input Leap, and Moonlight.
+- **On-Demand Remote Builder**: `gcp-builder` is a cloud Nix builder kept powered off, started transparently by `main` for heavy builds via per-invocation `--builders` (not `nix.buildMachines`), and self-powering-off when idle. Tailnet-only, key-only, and secret-free. See [docs/remote-builder.md](docs/remote-builder.md).
 - **Workstation Backups**: `main` backs up user-critical state and persisted service identity to Backblaze B2 with Restic, including Codex/Claude state, Wi-Fi profiles, Mullvad, Tailscale, Bluetooth, fingerprint, USBGuard, Secure Boot PKI, machine-id, and SSH host identity.
 - **Recovery Boundary**: local Btrfs snapshots are for short-term rollback on the same disk; Restic/B2 remains the off-site recovery path.
 - **Anonymous Specialisation**: `main` has a boot-selectable `anonymous` mode that disables Tailscale, SSH, Bluetooth, and all observability/backup services; enables AppArmor and kernel hardening; auto-connects Mullvad with lockdown mode; and starts a Tor SOCKS5 daemon with `proxychains` pre-configured to route through it. Whonix KVM VMs (Gateway + Workstation) provide an additional Tor-isolated layer for browser and application work.
@@ -137,6 +139,7 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 ├── docs/
 │   ├── architecture.md                 # Structural rules and module boundaries
 │   ├── operations.md                   # Deployment and validation runbook
+│   ├── remote-builder.md               # On-demand cloud Nix builder pattern
 │   ├── security.md                     # Secrets, exposure, and hardening model
 │   ├── restore-drill.md                # Manual backup restore verification procedure
 │   ├── neovim.md                       # Neovim module layout and generated config contract

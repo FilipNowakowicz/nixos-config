@@ -6,6 +6,10 @@ no persistent service state, no sops secrets, no backup.
 
 Status: **active** (provisioned once, then start/stop on demand).
 
+For the pattern overview (lifecycle, offload design, trust boundary, and reuse
+scope) see [`docs/remote-builder.md`](../../docs/remote-builder.md). This file is
+the host-local provisioning runbook.
+
 ## What it is / isn't
 
 - **Is:** a headless `n2-standard-4` (nested virtualization enabled) that builds
