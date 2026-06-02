@@ -149,29 +149,9 @@ let
     '';
 in
 {
+  # theme-switch is provided by the theme module (home/theme/module.nix).
   home.packages =
     (with pkgs; [
-      (writeShellApplication {
-        name = "theme-switch";
-        runtimeInputs = with pkgs; [
-          home-manager
-          hyprland
-          waybar
-          swaybg
-          kitty
-          procps
-          systemd
-          util-linux
-          libnotify
-          fzf
-        ];
-        text = ''
-          NIX_REPO="${nixRepo}"
-          MAKO_CONFIG_TEMPLATE="${../../theme/mako-config.template}"
-        ''
-        + builtins.readFile ../../files/scripts/theme-switch.sh;
-      })
-
       (writeShellApplication {
         name = "waybar-weather";
         runtimeInputs = with pkgs; [ curl ];
@@ -311,7 +291,8 @@ in
 
   userSecrets.enable = lib.mkDefault true;
 
-  themes.active = (import ../../theme/active.nix).name;
+  # The active theme defaults to home/theme/active.nix inside the theme module,
+  # so no explicit themes.active wiring is needed here.
 
   my.neovim.languages.tex = {
     enable = lib.mkDefault config.workflowPacks.latex.enable;

@@ -1,9 +1,14 @@
-{ config, lib, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   cfg = config.themes;
 
-  # Directory where themes are stored
-  themeDir = ./.;
+  # Directory where themes are stored (themes/, mako-config.template, active.nix)
+  inherit (cfg) themeDir;
   themesDir = themeDir + /themes;
   makoTemplate = builtins.readFile (themeDir + /mako-config.template);
 
@@ -33,7 +38,31 @@ let
 
   # Get the active theme
   activeTheme = validThemes.${cfg.active} or (lib.head (lib.attrValues validThemes));
-  runtimeActiveThemeFile = "${config.home.homeDirectory}/nix/home/theme/active.nix";
+  runtimeActiveThemeFile = cfg.activeFile;
+
+  # The runtime switcher. Lives with the module so the public homeModule ships
+  # both halves of the system; the build-time generation above and this script
+  # consume the same generated assets. Paths it needs are injected here rather
+  # than discovered from the environment.
+  themeSwitch = pkgs.writeShellApplication {
+    name = "theme-switch";
+    runtimeInputs = with pkgs; [
+      home-manager
+      hyprland
+      waybar
+      swaybg
+      kitty
+      procps
+      systemd
+      util-linux
+      libnotify
+      fzf
+    ];
+    text = ''
+      ACTIVE_FILE=${lib.escapeShellArg cfg.activeFile}
+    ''
+    + builtins.readFile ../files/scripts/theme-switch.sh;
+  };
 
   themeLinkTargets = [
     {
@@ -169,6 +198,17 @@ let
 
     # Wallpaper symlink
     "themes/${themeName}/wallpaper".source = theme.wallpaper;
+
+    # Shell-sourceable color vars. The runtime switcher sources this for its
+    # live-reload values instead of re-parsing the theme .nix files, so Nix
+    # stays the single source of truth for every theme's palette.
+    "themes/${themeName}/vars".text = ''
+      bg=${theme.colors.bg}
+      brown=${theme.colors.brown}
+      orange=${theme.colors.orange}
+      amber=${theme.colors.amber}
+      text=${theme.colors.text}
+    '';
   };
 
   # Generate configs for all valid themes
@@ -179,15 +219,42 @@ let
 in
 {
   options.themes = {
+    themeDir = lib.mkOption {
+      type = lib.types.path;
+      default = ./.;
+      defaultText = lib.literalExpression "./. (home/theme)";
+      description = ''
+        Directory holding the theme set: a `themes/` subdirectory of `.nix`
+        theme definitions, a `mako-config.template`, and an `active.nix`
+        pointer. Point this at your own directory to supply a different set of
+        themes without forking the module.
+      '';
+    };
     active = lib.mkOption {
       type = lib.types.str;
-      default = "mono-mesh";
+      default = (import (themeDir + /active.nix)).name;
+      defaultText = lib.literalExpression "(import \"\${themeDir}/active.nix\").name";
       description = ''
-        Name of the active theme. Must match a .nix filename under home/theme/themes/
-        (without the .nix extension). Theme assets are symlinked into XDG config
-        paths for Kitty, Hyprland, Waybar, and Mako on every rebuild.
+        Name of the active theme. Must match a .nix filename under
+        `''${themeDir}/themes/` (without the .nix extension). Defaults to the
+        theme selected in `active.nix`, which is the single source of truth that
+        the runtime `theme-switch` script rewrites. Theme assets are symlinked
+        into XDG config paths for Kitty, Hyprland, Waybar, and Mako on every
+        rebuild.
       '';
       example = "mono-mesh";
+    };
+    activeFile = lib.mkOption {
+      type = lib.types.str;
+      default = "${config.home.homeDirectory}/nix/home/theme/active.nix";
+      defaultText = lib.literalExpression ''"''${config.home.homeDirectory}/nix/home/theme/active.nix"'';
+      description = ''
+        Absolute path to the working-tree `active.nix` that records the active
+        theme as `import ./themes/<name>.nix`. `theme-switch` rewrites it and the
+        activation hook reads it, so a runtime switch persists across rebuilds
+        and feeds build-time consumers (Neovim colorscheme, GTK light/dark).
+        Point it at a file your configuration repository tracks.
+      '';
     };
     _activeThemeColors = lib.mkOption {
       type = lib.types.attrs;
@@ -207,6 +274,7 @@ in
   config = {
     themes._activeThemeColors = activeTheme.colors;
     themes._activeThemeColorscheme = activeTheme.colorscheme;
+    home.packages = [ themeSwitch ];
     xdg.configFile = themeConfigs // {
       "themes/links.sh".text = themeLinksSnippet;
     };
