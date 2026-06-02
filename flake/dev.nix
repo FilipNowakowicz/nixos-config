@@ -18,6 +18,16 @@
 let
   controlCenterPackage = pkgs.callPackage ../packages/control-center { };
 
+  tailscaleAclPackage =
+    pkgs.runCommand "tailscale-acl"
+      {
+        aclJson = builtins.toJSON (aclGen.mkAcl hostRegistry);
+        passAsFile = [ "aclJson" ];
+      }
+      ''
+        cp "$aclJsonPath" "$out"
+      '';
+
   treefmtEval = treefmt-nix.lib.evalModule pkgs ../treefmt.nix;
 
   preCommitCheck = import ../pre-commit-hooks.nix {
@@ -53,6 +63,15 @@ in
       program = "${controlCenterPackage}/bin/control-center";
       meta.description = "Open the unified Control Center widget";
     };
+    tailscale-acl = {
+      type = "app";
+      program = toString (
+        pkgs.writeShellScript "tailscale-acl" ''
+          exec ${pkgs.coreutils}/bin/cat ${tailscaleAclPackage}
+        ''
+      );
+      meta.description = "Print the generated Tailscale ACL (acl.hujson) JSON";
+    };
     inventory-json = {
       type = "app";
       program = toString (
@@ -81,15 +100,7 @@ in
       allNixosConfigs = lib.intersectAttrs hostRegistry ciNixosConfigs;
     };
 
-    tailscale-acl =
-      pkgs.runCommand "tailscale-acl"
-        {
-          aclJson = builtins.toJSON (aclGen.mkAcl hostRegistry);
-          passAsFile = [ "aclJson" ];
-        }
-        ''
-          cp "$aclJsonPath" "$out"
-        '';
+    tailscale-acl = tailscaleAclPackage;
 
     installer-iso =
       (nixpkgs.lib.nixosSystem {
