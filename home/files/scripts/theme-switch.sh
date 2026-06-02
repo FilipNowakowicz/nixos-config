@@ -3,8 +3,9 @@ set -euo pipefail
 
 THEME="${1:-}"
 THEMES_DIR="$HOME/.config/themes"
-REPO_THEMES_DIR="$NIX_REPO/home/theme/themes"
-ACTIVE_FILE="$NIX_REPO/home/theme/active.nix"
+# ACTIVE_FILE is injected by the theme module (themes.activeFile); the theme
+# definitions live next to it.
+REPO_THEMES_DIR="$(dirname "$ACTIVE_FILE")/themes"
 LINKS_FILE="$THEMES_DIR/links.sh"
 LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/theme-switch.lock"
 WAYBAR_PENDING_RELOAD="${XDG_STATE_HOME:-$HOME/.local/state}/waybar/needs-reload"

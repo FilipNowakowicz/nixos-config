@@ -11,10 +11,12 @@ guarantee.
 - `home/theme/active.nix` — a one-line pointer (`import ./themes/<name>.nix`)
   naming the active theme. **Single source of truth** for which theme is active.
 - `home/theme/module.nix` — the Home Manager module. Auto-discovers themes,
-  validates them, and renders every theme's app configs at build time.
+  validates them, renders every theme's app configs at build time, and ships the
+  `theme-switch` runtime switcher.
 - `home/theme/mako-config.template` — Mako config with `@bg@`/`@text@`/`@orange@`
   placeholders, interpolated by the module.
-- `home/files/scripts/theme-switch.sh` — the runtime switcher.
+- `home/files/scripts/theme-switch.sh` — the runtime switcher's script body,
+  wrapped by the module (which injects the paths it needs).
 
 ## Color contract
 
@@ -66,3 +68,40 @@ asserting the generated `vars` and Kitty palette match the theme definition.
 1. Add `home/theme/themes/<name>.nix` and `home/theme/wallpapers/<name>.<ext>`.
 2. Rebuild so Home Manager generates its assets.
 3. `theme-switch <name>` (or set it in `active.nix` and rebuild).
+
+## Public module (`homeModules.runtime-theme`)
+
+The module is exposed as a flake output so other Home Manager configs running
+the same desktop (Hyprland + Waybar + Kitty + Mako + Hyprlock) can reuse it. It
+is an **opinionated** module for that stack — the color contract, templates, and
+reload mechanics are fixed — not a generic theming framework.
+
+```nix
+# in a Home Manager configuration
+{ inputs, ... }:
+{
+  imports = [ inputs.nixfleet.homeModules.runtime-theme ];
+
+  themes = {
+    # Your own theme set: a directory with themes/, mako-config.template,
+    # and active.nix. Defaults to this repo's home/theme.
+    themeDir = ./theme;
+
+    # Working-tree active.nix that theme-switch rewrites and the activation
+    # hook reads, so a runtime switch persists across rebuilds. Point it at a
+    # file your config repo tracks.
+    activeFile = "/home/you/dotfiles/theme/active.nix";
+
+    # Optional: override the build-time default (otherwise read from active.nix).
+    # active = "mono-mesh";
+  };
+}
+```
+
+Importing the module activates it and adds `theme-switch` to `home.packages`
+(consistent with the repo's other `homeModules`, which activate on import). The
+neovim/GTK colorscheme intent is exposed through the internal
+`themes._activeThemeColors` / `themes._activeThemeColorscheme` options.
+
+Out of scope for now (still coupled to this exact desktop): per-app enable
+toggles and a generic, app-agnostic template interface.

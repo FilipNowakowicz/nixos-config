@@ -281,13 +281,16 @@ handled by the `home/theme/module.nix` Home Manager module, which provides a
 `themes.active` option to set the system-wide theme.
 
 Nix is the single source of truth: `home/theme/module.nix` renders every
-theme's app configs (and a shell-sourceable `vars` palette file) at build time.
-The `theme-switch` script then only relinks those pre-generated assets and
-sources `vars` for its live reloads — it never re-parses theme `.nix` files at
-runtime, so a rebuild and a runtime switch always produce identical colors. See
-[docs/theme.md](docs/theme.md) for the architecture and color contract.
+theme's app configs (and a shell-sourceable `vars` palette file) at build time
+and ships the `theme-switch` runtime switcher. The switcher only relinks those
+pre-generated assets and sources `vars` for its live reloads — it never
+re-parses theme `.nix` files at runtime, so a rebuild and a runtime switch
+always produce identical colors. The module is exposed as
+`homeModules.runtime-theme` for reuse on the same Hyprland/Waybar/Kitty/Mako
+stack. See [docs/theme.md](docs/theme.md) for the architecture, color contract,
+and public-module usage.
 
-A `theme-switch` script is available in the shell to list and apply themes. It uses the `NIX_REPO` environment variable to locate the configuration.
+A `theme-switch` script is available in the shell to list and apply themes.
 
 ### How to Switch Themes
 

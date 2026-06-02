@@ -228,6 +228,7 @@
           profiles-base = import ./home/profiles/base.nix;
           profiles-desktop = import ./home/profiles/desktop.nix;
           profiles-workflow-packs = import ./home/profiles/workflow-packs;
+          runtime-theme = import ./home/theme/module.nix;
         };
       };
     };

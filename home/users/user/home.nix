@@ -149,28 +149,9 @@ let
     '';
 in
 {
+  # theme-switch is provided by the theme module (home/theme/module.nix).
   home.packages =
     (with pkgs; [
-      (writeShellApplication {
-        name = "theme-switch";
-        runtimeInputs = with pkgs; [
-          home-manager
-          hyprland
-          waybar
-          swaybg
-          kitty
-          procps
-          systemd
-          util-linux
-          libnotify
-          fzf
-        ];
-        text = ''
-          NIX_REPO="${nixRepo}"
-        ''
-        + builtins.readFile ../../files/scripts/theme-switch.sh;
-      })
-
       (writeShellApplication {
         name = "waybar-weather";
         runtimeInputs = with pkgs; [ curl ];

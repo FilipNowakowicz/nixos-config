@@ -8,30 +8,34 @@ let
   pkgs = nixpkgs.legacyPackages.${system};
 
   themeModulePath = ../../home/theme/module.nix;
+  themeDir = ../../home/theme;
 
-  # The theme module only reads `config` and `lib`, so we can apply it directly
-  # with a minimal stub and inspect the generated xdg.configFile set without
-  # booting a full Home Manager evaluation.
+  # The theme module reads `config`, `lib`, and `pkgs`, so we can apply it
+  # directly with a minimal stub and inspect the generated outputs without
+  # booting a full Home Manager evaluation. The switcher package it puts in
+  # home.packages stays a lazy thunk we never force.
   stubConfig = active: {
-    themes.active = active;
+    themes = {
+      inherit active;
+      inherit themeDir;
+      activeFile = "/home/test/active.nix";
+    };
     home.homeDirectory = "/home/test";
     xdg.configHome = "/home/test/.config";
   };
 
-  evalThemed =
+  evalModule =
     active:
-    (import themeModulePath {
+    import themeModulePath {
       config = stubConfig active;
-      inherit lib;
-    }).config;
+      inherit lib pkgs;
+    };
 
-  evalOptions =
-    (import themeModulePath {
-      config = stubConfig "mono-mesh";
-      inherit lib;
-    }).options;
+  evalThemed = active: (evalModule active).config;
+  evalOptions = (evalModule "mono-mesh").options;
 
-  files = (evalThemed "mono-mesh").xdg.configFile;
+  themed = evalThemed "mono-mesh";
+  files = themed.xdg.configFile;
 
   monoTheme = import ../../home/theme/themes/mono-mesh.nix;
   varsText = files."themes/mono-mesh/vars".text;
@@ -68,6 +72,19 @@ let
     testActiveDefaultsFromActiveNix = {
       expr = evalOptions.themes.active.default;
       expected = (import ../../home/theme/active.nix).name;
+    };
+
+    # activeFile defaults to a working-tree path derived from the home dir.
+    testActiveFileDefault = {
+      expr = evalOptions.themes.activeFile.default;
+      expected = "/home/test/nix/home/theme/active.nix";
+    };
+
+    # The module ships the runtime switcher itself (the public homeModule must
+    # provide both halves of the system).
+    testSwitcherShipped = {
+      expr = builtins.length themed.home.packages >= 1;
+      expected = true;
     };
   };
 in
