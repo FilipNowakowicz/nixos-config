@@ -13,9 +13,20 @@
   flakeInputs,
   ciDeployNodes,
   invariantChecks,
+  self',
 }:
 let
   controlCenterPackage = pkgs.callPackage ../packages/control-center { };
+
+  tailscaleAclPackage =
+    pkgs.runCommand "tailscale-acl"
+      {
+        aclJson = builtins.toJSON (aclGen.mkAcl hostRegistry);
+        passAsFile = [ "aclJson" ];
+      }
+      ''
+        cp "$aclJsonPath" "$out"
+      '';
 
   treefmtEval = treefmt-nix.lib.evalModule pkgs ../treefmt.nix;
 
@@ -52,6 +63,24 @@ in
       program = "${controlCenterPackage}/bin/control-center";
       meta.description = "Open the unified Control Center widget";
     };
+    tailscale-acl = {
+      type = "app";
+      program = toString (
+        pkgs.writeShellScript "tailscale-acl" ''
+          exec ${pkgs.coreutils}/bin/cat ${tailscaleAclPackage}
+        ''
+      );
+      meta.description = "Print the generated Tailscale ACL (acl.hujson) JSON";
+    };
+    inventory-json = {
+      type = "app";
+      program = toString (
+        pkgs.writeShellScript "inventory-json" ''
+          exec ${pkgs.coreutils}/bin/cat ${self'.packages.inventory-data}/inventory.json
+        ''
+      );
+      meta.description = "Print generated host inventory JSON";
+    };
   };
 
   packages = {
@@ -71,15 +100,7 @@ in
       allNixosConfigs = lib.intersectAttrs hostRegistry ciNixosConfigs;
     };
 
-    tailscale-acl =
-      pkgs.runCommand "tailscale-acl"
-        {
-          aclJson = builtins.toJSON (aclGen.mkAcl hostRegistry);
-          passAsFile = [ "aclJson" ];
-        }
-        ''
-          cp "$aclJsonPath" "$out"
-        '';
+    tailscale-acl = tailscaleAclPackage;
 
     installer-iso =
       (nixpkgs.lib.nixosSystem {
@@ -183,6 +204,15 @@ in
         inherit nixpkgs system;
       };
       lib-invariants = import ../tests/lib/invariants.nix {
+        inherit nixpkgs system;
+      };
+      lib-host-registry = import ../tests/lib/host-registry.nix {
+        inherit nixpkgs system;
+      };
+      lib-inventory-data = import ../tests/lib/inventory-data.nix {
+        inherit nixpkgs system;
+      };
+      services-hardened = import ../tests/lib/services-hardened.nix {
         inherit nixpkgs system;
       };
       secrets-directory = import ../tests/lib/secrets-directory.nix {

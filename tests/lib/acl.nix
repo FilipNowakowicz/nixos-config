@@ -54,6 +54,13 @@ let
         };
       };
     };
+    # Carries tag:admin so the metrics host's acceptFrom.admin references a
+    # defined tag. Without an owner, mkAcl would (correctly) refuse to emit a
+    # rule whose src is an undefined tag.
+    controller = {
+      role = "admin-jumpbox";
+      tailscale.tag = "admin";
+    };
     internal-vm = {
       role = "internal-vm";
       # no tailscale — must be ignored by generator
@@ -75,7 +82,12 @@ let
 
     testTagOwnerCount = {
       expr = lib.length (lib.attrNames result.tagOwners);
-      expected = 3;
+      expected = 4;
+    };
+
+    testTagOwnersAdmin = {
+      expr = result.tagOwners."tag:admin";
+      expected = [ "autogroup:admin" ];
     };
 
     testNoHostsKey = {
@@ -213,6 +225,42 @@ let
       expr = lib.any (
         rule: rule.action == "accept" && rule.src == [ "autogroup:admin" ] && rule.dst == [ "*:*" ]
       ) result.acls;
+      expected = true;
+    };
+
+    # Invalid metadata: acceptFrom referencing a tag no host carries must throw,
+    # since the emitted src would reference an undefined Tailscale tag.
+    testUndefinedSourceTagThrows = {
+      expr =
+        (builtins.tryEval (
+          builtins.deepSeq (acl.mkAcl {
+            box = {
+              tailscale = {
+                tag = "server";
+                acceptFrom.ghost = [ 22 ];
+              };
+            };
+          }) "ok"
+        )).success;
+      expected = false;
+    };
+
+    # A source tag carried by another host is accepted.
+    testDefinedSourceTagAcrossHostsSucceeds = {
+      expr =
+        (builtins.tryEval (
+          builtins.deepSeq (acl.mkAcl {
+            jump = {
+              tailscale.tag = "admin";
+            };
+            server = {
+              tailscale = {
+                tag = "server";
+                acceptFrom.admin = [ 22 ];
+              };
+            };
+          }) "ok"
+        )).success;
       expected = true;
     };
   };

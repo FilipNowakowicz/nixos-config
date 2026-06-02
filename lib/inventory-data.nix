@@ -3,13 +3,15 @@
   pkgs,
   hostRegistry,
   allNixosConfigs,
+  repoBaseUrl ? "https://github.com/FilipNowakowicz/NixOS",
+  healthAssertionsFor ? null,
 }:
 let
-  repoBaseUrl = "https://github.com/FilipNowakowicz/NixOS";
+  hostRegistryLib = import ./host-registry.nix;
   invariants = import ./invariants.nix { inherit lib pkgs; };
 
-  hostHealth =
-    name: cfg:
+  defaultHealthAssertionsFor =
+    name: _cfg:
     let
       commonAssertions = [
         invariants.hasStateVersion
@@ -32,12 +34,17 @@ let
           ]
         else
           [ ];
+    in
+    commonAssertions
+    ++ hostSpecificAssertions
+    ++ invariants.mkRegistryAssertions name hostRegistry.${name};
 
-      results = invariants.evaluateAssertions (
-        commonAssertions
-        ++ hostSpecificAssertions
-        ++ invariants.mkRegistryAssertions name hostRegistry.${name}
-      ) cfg.config;
+  hostHealth =
+    name: cfg:
+    let
+      assertionsFor =
+        if healthAssertionsFor == null then defaultHealthAssertionsFor else healthAssertionsFor;
+      results = invariants.evaluateAssertions (assertionsFor name cfg) cfg.config;
       failed = lib.filter (result: !result.passed) results;
     in
     {
@@ -137,6 +144,15 @@ let
   hostsData = lib.mapAttrsToList extractHost allNixosConfigs;
 
   data = {
+    schemaVersion = 1;
+    inventoryContract = {
+      inherit (hostRegistryLib.schema) stableInventoryFields repoLocalInventoryFields;
+      closureSizeBytes = {
+        stable = true;
+        nullable = true;
+        description = "Best-effort Nix closure size in bytes for the host system closure. Null means the closure path was not available in the local Nix store when the inventory package was built.";
+      };
+    };
     hosts = hostsData;
     repository = repoBaseUrl;
   };
