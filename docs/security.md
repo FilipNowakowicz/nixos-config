@@ -283,7 +283,10 @@ Grafana renders these through the `Security Events` dashboard on
 ## Backups
 
 Backup policy is driven by `hostMeta.backup.class` from `lib/hosts.nix` and
-implemented by `modules/nixos/profiles/backup.nix`.
+implemented by `modules/nixos/profiles/backup.nix`. For how these backups are
+_validated_ — the restore canary, freshness metrics, stale alerts, and config
+invariants that turn "backed up" into "proven restorable" — see
+[`backup-validation.md`](backup-validation.md).
 
 Current classes:
 

@@ -21,6 +21,7 @@ The repository separates hardware, host identity, system profiles, and user conf
 - [Architecture](docs/architecture.md) - layer boundaries, global imports, and host registry rules.
 - [Operations](docs/operations.md) - deployment, validation, and formatting commands.
 - [Security Model](docs/security.md) - sops recipients, initrd SSH, Tailscale exposure, USBGuard, hardening, and backups.
+- [Backup Validation](docs/backup-validation.md) - the proven-restore pattern: registry-driven retention, freshness metrics, restore canary, stale alerts, and invariants.
 - [Restore Drill](docs/restore-drill.md) - quarterly manual restore from the B2 restic repository.
 - [Neovim](docs/neovim.md) - editor architecture, module layout, and current follow-up work.
 - [Homeserver Goals](docs/homeserver-goals.md) - deferred GCP/homeserver roadmap.
@@ -116,6 +117,7 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 - **Companion MacBook Air**: `mac` is a deployed NixOS desktop target with Broadcom Wi-Fi support, impermanence, Tailscale-only SSH, Home Manager Syncthing, Input Leap, and Moonlight.
 - **Workstation Backups**: `main` backs up user-critical state and persisted service identity to Backblaze B2 with Restic, including Codex/Claude state, Wi-Fi profiles, Mullvad, Tailscale, Bluetooth, fingerprint, USBGuard, Secure Boot PKI, machine-id, and SSH host identity.
 - **Recovery Boundary**: local Btrfs snapshots are for short-term rollback on the same disk; Restic/B2 remains the off-site recovery path.
+- **Proven Restores**: backups are validated, not assumed — a daily restore canary restores a known marker from B2 and emits a freshness metric, weekly integrity checks and stale alerts catch silent drift, and config invariants enforce the contract. See [docs/backup-validation.md](docs/backup-validation.md).
 - **Anonymous Specialisation**: `main` has a boot-selectable `anonymous` mode that disables Tailscale, SSH, Bluetooth, and all observability/backup services; enables AppArmor and kernel hardening; auto-connects Mullvad with lockdown mode; and starts a Tor SOCKS5 daemon with `proxychains` pre-configured to route through it. Whonix KVM VMs (Gateway + Workstation) provide an additional Tor-isolated layer for browser and application work.
 - **Scoped Agent Maintenance Sudo**: `main` keeps normal `wheel` sudo passworded, but allows a narrow set of passwordless maintenance commands for interactive agent sessions: local snapshot start/status, Restic start/status, boot cleanup, selected EFI entry deletion, and fixed-argument Nix GC.
 - **Tailscale ACLs as Nix**: Security rules and tag owners are generated declaratively from the host registry, providing a single source of truth for network access control.
@@ -138,6 +140,7 @@ The `main` host uses a secure, encrypted systemd-boot setup:
 │   ├── architecture.md                 # Structural rules and module boundaries
 │   ├── operations.md                   # Deployment and validation runbook
 │   ├── security.md                     # Secrets, exposure, and hardening model
+│   ├── backup-validation.md            # Proven-restore pattern: canary, metrics, alerts, invariants
 │   ├── restore-drill.md                # Manual backup restore verification procedure
 │   ├── neovim.md                       # Neovim module layout and generated config contract
 │   ├── homeserver-goals.md             # Homeserver roadmap (deferred provider integrations)
