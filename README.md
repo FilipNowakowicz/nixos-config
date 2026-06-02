@@ -450,6 +450,7 @@ The flake provides several `devShells` and `apps` for development and maintenanc
 | `devShell` | `security`       | Network recon, web, password, and analysis tools. In the anonymous specialisation `proxychains <tool>` routes through Tor. |
 | `app`      | `doctor`         | Clean-clone checks: `nix run '.#doctor'` or `bash scripts/doctor.sh`                                                       |
 | `app`      | `tailscale-acl`  | Print generated Tailscale ACL JSON: `nix run '.#tailscale-acl'`                                                            |
+| `app`      | `inventory-json` | Print generated host inventory JSON: `nix run '.#inventory-json'`                                                          |
 | `app`      | `deploy-gcp`     | GCP homeserver deploy wrapper: `bash scripts/deploy-gcp.sh`                                                                |
 | `package`  | `installer-iso`  | Minimal NixOS ISO: `nix build '.#installer-iso'`                                                                           |
 | `package`  | `control-center` | GTK4 desktop control center: `nix build '.#control-center'`                                                                |

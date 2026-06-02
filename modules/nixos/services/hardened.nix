@@ -20,6 +20,9 @@ let
     ProtectClock = true;
     LockPersonality = true;
     MemoryDenyWriteExecute = true;
+    CapabilityBoundingSet = "";
+    AmbientCapabilities = "";
+    KeyringMode = "private";
     RestrictSUIDSGID = true;
     RestrictRealtime = true;
     RestrictNamespaces = true;
@@ -131,8 +134,8 @@ in
         lib.mkIf serviceCfg.enable {
           ${name}.serviceConfig =
             let
-              skippedKeys = serviceCfg.relaxBase ++ lib.attrNames serviceCfg.extraConfig;
-              # Baseline keys still in play after relaxBase / extraConfig omissions.
+              skippedKeys = serviceCfg.relaxBase;
+              # Baseline keys still in play after explicit relaxBase omissions.
               activeBase = lib.filterAttrs (k: _: !(lib.elem k skippedKeys)) baseHardening;
               # Core "remove privilege" controls win over nixpkgs defaults (mkForce);
               # relaxBase remains the explicit per-service opt-out for these.
