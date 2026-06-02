@@ -201,6 +201,9 @@ in
       lib-inventory-data = import ../tests/lib/inventory-data.nix {
         inherit nixpkgs system;
       };
+      services-hardened = import ../tests/lib/services-hardened.nix {
+        inherit nixpkgs system;
+      };
       secrets-directory = import ../tests/lib/secrets-directory.nix {
         inherit nixpkgs system;
       };
