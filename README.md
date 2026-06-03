@@ -1,4 +1,7 @@
-# NixOS Fleet Flake
+<h1>
+  NixOS Fleet Flake
+  <img src="https://raw.githubusercontent.com/NixOS/nixos-artwork/master/logo/nix-snowflake-colours.svg" align="right" width="96" alt="NixOS snowflake logo">
+</h1>
 
 A single, reproducible NixOS and Home Manager flake for a secure workstation, a
 companion laptop, a cloud homeserver, and an on-demand remote builder.
@@ -8,6 +11,19 @@ infrastructure, published to a quality bar that documents the patterns, checks,
 and operational boundaries needed to keep real machines reproducible over time.
 The reusable building blocks are exposed through stable flake outputs; the host
 assemblies stay personal and hardware-bound.
+
+---
+
+## Reusable Outputs
+
+| Output                              | What it gives you                                                                            |
+| :---------------------------------- | :------------------------------------------------------------------------------------------- |
+| `nixosModules.services-hardened`    | Systemd sandboxing DSL with forced baselines, explicit relaxations, and tests.               |
+| `nixosModules.observability-stack`  | Grafana, Mimir, Loki, Tempo, blackbox probes, dashboards, and alerts as Nix.                 |
+| `nixosModules.observability-client` | Client-side collectors and authenticated remote shipping into the observability stack.       |
+| `homeModules.runtime-theme`         | Runtime theme switching for Waybar, Kitty, Mako, Hyprland, GTK, and Neovim.                  |
+| `lib/hosts.nix` + `lib/acl.nix`     | Host registry and generated Tailscale ACLs from one fleet source of truth.                   |
+| `checks` + `tests`                  | Public invariants for hardening, persistence, backups, registry drift, and module contracts. |
 
 ---
 
@@ -38,7 +54,7 @@ registry. `installer` is a utility ISO outside the host registry.
 
 ---
 
-## Why This Is Worth Reading
+## What Makes This Different
 
 - **Impermanent workstation with explicit persistence.** `main` rolls its root
   back to a blank Btrfs snapshot on every boot. Host identity, service state,
