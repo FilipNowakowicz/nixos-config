@@ -87,4 +87,4 @@ session, fall back to a manual closure deploy: `nix build` the system closure,
   temporarily remove the nameserver override to fall back to default resolver.
   The failed-unit alert fires within 2 minutes, but it only leaves the box when
   a real Alertmanager receiver is configured.
-- **AdGuard web UI** — HTTPS on port 3001 (proxied by nginx using the Tailscale cert). AdGuard itself binds to `127.0.0.1:13001`. Login: `admin` / see password in session notes or Nix config hash.
+- **AdGuard web UI** — HTTPS on port 3001 (proxied by nginx using the Tailscale cert). AdGuard itself binds to `127.0.0.1:13001`. Login: `admin`; password material is managed through the sops-backed AdGuard configuration.

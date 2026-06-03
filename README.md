@@ -322,4 +322,3 @@ drop-in NixOS distribution.
 
 - [`LICENSE`](LICENSE) — repository content is published under the MIT license.
 - [`SECURITY.md`](SECURITY.md) — private vulnerability disclosure intake.
-  </content>
