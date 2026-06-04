@@ -62,12 +62,30 @@ in
               dump --path ${canaryDir} latest "$canary_path" > "$workdir/canary.txt"
             ${pkgs.gnugrep}/bin/grep -qx '${canaryContent}' "$workdir/canary.txt"
 
+            # Crown-jewel verification: the file canary above proves the repo is
+            # restorable, but not that the Vaultwarden DB itself is intact and
+            # openable. Restore the consistent sqlite snapshot (db.sqlite3.backup,
+            # produced by backupPrepareCommand and kept in the backup; the live
+            # db.sqlite3 is excluded) and run an integrity check on it. A torn or
+            # corrupt backup fails here instead of being discovered during a real
+            # restore.
+            ${pkgs.restic}/bin/restic \
+              --repository-file=${config.sops.secrets.restic_repository.path} \
+              --no-cache \
+              dump --path /var/lib/vaultwarden latest /var/lib/vaultwarden/db.sqlite3.backup \
+              > "$workdir/vaultwarden.db"
+            integrity=$(${pkgs.sqlite}/bin/sqlite3 "$workdir/vaultwarden.db" 'PRAGMA integrity_check;')
+            [ "$integrity" = "ok" ]
+
             ${mkPromScript {
               name = "restic_restore_canary.prom";
               lines = [
                 "# HELP restic_last_restore_test_timestamp_seconds Unix timestamp of last successful restic restore canary"
                 "# TYPE restic_last_restore_test_timestamp_seconds gauge"
                 "restic_last_restore_test_timestamp_seconds $(${pkgs.coreutils}/bin/date +%s)"
+                "# HELP vaultwarden_last_restore_test_timestamp_seconds Unix timestamp of last successful Vaultwarden DB restore + integrity check"
+                "# TYPE vaultwarden_last_restore_test_timestamp_seconds gauge"
+                "vaultwarden_last_restore_test_timestamp_seconds $(${pkgs.coreutils}/bin/date +%s)"
               ];
             }}
           '';
