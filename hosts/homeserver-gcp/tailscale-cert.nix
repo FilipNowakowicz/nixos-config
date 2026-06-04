@@ -59,5 +59,12 @@ in
       "/var/lib/nginx/certs"
     ];
     RestrictAddressFamilies = [ "AF_UNIX" ];
+    # The cert script chgrps the private key to the nginx group
+    # (`install -g nginx`) so nginx can read it. chgrp needs CAP_CHOWN, which the
+    # hardened baseline otherwise strips (CapabilityBoundingSet=""). Without this
+    # the service fails at runtime ("install: cannot change ownership … Operation
+    # not permitted"), nginx's `requires=` goes unmet, and nginx will not start.
+    CapabilityBoundingSet = [ "CAP_CHOWN" ];
+    AmbientCapabilities = [ "CAP_CHOWN" ];
   };
 }
