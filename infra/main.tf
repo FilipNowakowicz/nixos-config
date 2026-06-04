@@ -94,6 +94,24 @@ resource "google_compute_instance" "homeserver_gcp" {
     access_config {}
   }
 
+  # Shielded VM: vTPM gives a hardware root of trust and integrity monitoring
+  # baselines the boot measurements so tampering shows up in the Compute Engine
+  # integrity report.
+  #
+  # Secure Boot is deliberately OFF: stock NixOS does not produce signed boot
+  # artifacts, so enabling it would leave the VM unbootable until the image
+  # adopts lanzaboote-style signing. Revisit enable_secure_boot only alongside
+  # signed-boot support.
+  #
+  # NOTE: changing shielded_instance_config on an existing instance requires the
+  # VM to be STOPPED first; `tofu apply` will report this. Apply during a
+  # maintenance window (stop VM → apply → start VM), not on the live host.
+  shielded_instance_config {
+    enable_secure_boot          = false
+    enable_vtpm                 = true
+    enable_integrity_monitoring = true
+  }
+
   metadata = {
     # Temporary bootstrap access for nixos-anywhere. The startup script installs
     # this key into a temporary sudo-capable bootstrap account.

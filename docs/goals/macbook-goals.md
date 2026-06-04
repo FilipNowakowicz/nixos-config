@@ -121,6 +121,7 @@ that should not run Tailscale themselves.
 
 1. **Subnet router:** does the home LAN have devices that benefit from a
    Tailscale-resident peer? If not, skip `useRoutingFeatures = "server"`.
-2. **Wi-Fi vs Ethernet at rest:** `broadcom_sta` is CVE-flagged. If the Mac
-   sits docked most of the time, consider running with `wl` blacklisted and
-   USB-Ethernet always present.
+2. **Wi-Fi vs Ethernet at rest:** `broadcom_sta` is CVE-flagged. Now tracked as
+   a decision item in [`../goals/roadmap.md`](roadmap.md) ("Decide `broadcom_sta`
+   (`wl`) posture") — record the outcome (blacklist `wl` + require USB-Ethernet,
+   or accept the CVE) here once decided.

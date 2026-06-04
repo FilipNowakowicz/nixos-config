@@ -1,31 +1,49 @@
 # Roadmap & Backlog
 
-Deferred and intentionally-not-yet-done work. Completed items are removed. Items
-here are tracked with a trigger that justifies revisiting them, so the repo
-avoids premature abstraction. Host-specific roadmaps live in
+Deferred and intentionally-not-yet-done work. Completed items are removed. Each
+item carries a **trigger** or **why-deferred** that justifies revisiting it, so
+the repo avoids premature abstraction. Host-specific roadmaps live in
 [`homeserver-goals.md`](homeserver-goals.md) and
 [`macbook-goals.md`](macbook-goals.md).
 
 ---
 
-## Near-Term Candidates
+## Active Candidates
 
-**Modules / hardening:** `systemd.oomd`, bootloader and console hardening parity
-across hosts, datasource/backend coupling assertions, automatic failure-notify
-attachment.
+Small, finishable work that does not need a triggering event — just not yet
+done. Each row states why it is worth doing and what "done" looks like.
 
-**Hosts:** age-key escrow, declarative `mac` travel mode, initrd/FIDO2 recovery
-for `mac`, coredump storage policy review on `main`,
-`config.specialisation`-based alternate boot entries (e.g. a gaming profile).
+| Area         | Item                                                 | Value / acceptance                                                                                                                                                                                                                 |
+| :----------- | :--------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hardening    | Bootloader + console hardening parity across hosts   | Bring `main`/`mac`/GCP to the same boot + TTY lockdown baseline; acceptance: a documented parity matrix with no unexplained gaps.                                                                                                  |
+| Hardening    | `systemd.oomd`                                       | Userspace OOM protection on interactive hosts; acceptance: enabled with sane per-slice policy on `main`.                                                                                                                           |
+| Hardening    | Coredump storage policy review on `main`             | Decide retention/size/compression for `systemd-coredump`; acceptance: explicit policy, not the default.                                                                                                                            |
+| Alerting     | Consolidated failure-notify + host-level monitoring  | One coherent path: systemd unit failures attach a notifier **and** GCP host-level health alerts fire when the VM itself is down. Overlaps homeserver #2 — design them together.                                                    |
+| Reliability  | Scheduled, _executed_ restore drill                  | `docs/restore-drill.md` documents the procedure; this makes a periodic restore actually run and verify, closing the biggest untested-backup gap. Acceptance: a timer/CI job that restores to a scratch target and asserts success. |
+| Assertions   | Datasource/backend coupling assertions               | Native assertions that catch misconfigured datasource↔backend pairings at eval time.                                                                                                                                               |
+| Home Manager | Migrate raw Neovim config into `programs.neovim`     | Declarative, HM-managed editor config; acceptance: no out-of-band lua/vimrc injection.                                                                                                                                             |
+| Home Manager | Dedupe runtime inputs (Waybar/Kitty/Swaybg/Hyprland) | Single source for shared runtime deps; acceptance: no copy-pasted package lists.                                                                                                                                                   |
+| Home Manager | HM fontconfig + bat/base16 theme provisioning        | Theme + fonts managed declaratively per user.                                                                                                                                                                                      |
+| Home Manager | `firefox-private` profile parity                     | Bring the private profile to parity with the default one.                                                                                                                                                                          |
+| Home Manager | GPG / secret-service defaults                        | Sensible HM-level agent + secret-service wiring.                                                                                                                                                                                   |
+| Mac          | Decide `broadcom_sta` (`wl`) posture                 | Promoted from an open question: `wl` is CVE-flagged. Decide blacklist-`wl`-and-require-USB-Ethernet vs. accept-the-CVE, and record it in [`macbook-goals.md`](macbook-goals.md).                                                   |
 
-**Homeserver / GCP:** service-level disk quotas, Shielded VM / vTPM / integrity
-monitoring in Terraform, metadata endpoint hardening, dedicated GCP network/VPC
-model.
+---
 
-**Home Manager:** `firefox-private` profile parity, bat/base16 theme
-provisioning, deduplicate runtime inputs for Waybar/Kitty/Swaybg/Hyprland, HM
-fontconfig, GPG or secret-service defaults, migrate raw Neovim config into
-`programs.neovim`.
+## Deferred — Waiting On A Trigger
+
+These are real but should not start until a concrete need appears.
+
+| Item                                                                 | Trigger to revisit                                                       |
+| :------------------------------------------------------------------- | :----------------------------------------------------------------------- |
+| Age-key escrow                                                       | Recovery needs a second custodian or offline escrow becomes a real risk. |
+| Declarative `mac` travel mode                                        | Travel use becomes frequent enough to justify a dedicated profile.       |
+| initrd / FIDO2 recovery for `mac`                                    | A recovery scenario actually requires it.                                |
+| `config.specialisation` alternate boot entries (e.g. gaming profile) | A second concrete boot profile is wanted.                                |
+| Service-level disk quotas (homeserver)                               | A service shows unbounded disk growth.                                   |
+| Shielded VM / vTPM / integrity monitoring in Terraform               | Integrity attestation becomes a stated requirement.                      |
+| Metadata endpoint hardening (GCP)                                    | Metadata-sourced secrets/SSRF surface becomes a concern.                 |
+| Dedicated GCP network / VPC model                                    | More than one provider service needs network separation.                 |
 
 ---
 
@@ -33,10 +51,9 @@ fontconfig, GPG or secret-service defaults, migrate raw Neovim config into
 
 Status: postponed until the first non-`x86_64-linux` host is planned or added.
 
-The active fleet is `x86_64-linux` only. The immediate structural change is
-per-host `system` metadata in `lib/hosts.nix` (already in place); broadening
-checks now would add CI and tooling complexity before there is a concrete second
-architecture to validate.
+The active fleet is `x86_64-linux` only. Per-host `system` metadata already lives
+in `lib/hosts.nix`; broadening checks now would add CI and tooling complexity
+before there is a concrete second architecture to validate.
 
 Scope when revisited:
 
@@ -44,7 +61,7 @@ Scope when revisited:
 - `aarch64-linux` evaluation readiness
 - Gating or refactoring x86-specific VM and test tooling
 
-Trigger to revisit: a real ARM host is planned or added to `lib/hosts.nix`.
+Trigger: a real ARM host is planned or added to `lib/hosts.nix`.
 
 ---
 
@@ -52,10 +69,11 @@ Trigger to revisit: a real ARM host is planned or added to `lib/hosts.nix`.
 
 ### Full Service Composition DSL
 
-Status: deferred. A DSL that emits Nginx locations, firewall rules, backup
-paths, hardening, and Alloy scrape config could be useful, but premature
-abstraction would hide important security and exposure decisions. Wait until
-there are enough real services to reveal the right shape.
+Status: deferred. **Canonical entry for this goal** — homeserver-goals.md links
+here. A DSL that emits Nginx locations, firewall rules, backup paths, hardening,
+and Alloy scrape config could be useful, but premature abstraction would hide
+important security and exposure decisions. Wait until there are enough real
+services to reveal the right shape.
 
 Trigger: two or three additional services repeat the same cross-cutting pattern
 and the manual edits become error-prone.
@@ -69,13 +87,26 @@ systemd sandboxing, service-exposure discipline, and restore verification.
 Trigger: a specific threat model or service requires confinement beyond systemd
 hardening.
 
-### Full Flake-Parts Modular Decomposition
+### Cloud KMS / Cloud DNS (GCP)
 
-Status: rejected for now. The repo already uses flake-parts where it helps.
-Splitting the flake further would mostly be aesthetic at the current size.
+Status: deferred — speculative for a tailnet-only personal homeserver. Neither
+has a near-term trigger. Default GCP-managed encryption and Tailscale DNS cover
+current needs.
 
-Trigger: flake outputs become difficult to understand, or contributors
-routinely touch unrelated output definitions by mistake.
+Trigger (KMS): a concrete compliance, key-separation, or rotation-control
+requirement. Trigger (DNS): a real public/private/split-horizon naming problem
+Tailscale DNS cannot solve cleanly.
+
+---
+
+## Settled / Won't-Do
+
+Recorded so they are not re-proposed:
+
+- **Full flake-parts modular decomposition** — rejected. The flake already uses
+  flake-parts where it helps; splitting further is aesthetic at this size.
+  Reopen only if flake outputs become hard to understand or contributors
+  routinely edit unrelated outputs by mistake.
 
 ---
 
@@ -106,4 +137,3 @@ Scope when revisited:
 - Secret inventory with owner, trigger, and command path
 - Rotation checklist through `sops` and deploy
 - Optional Grafana visibility for secret-age metadata
-  </content>

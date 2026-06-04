@@ -101,6 +101,7 @@ Commands:
   profile-tests      Build all profile NixOS tests
   heavy              Build all smoke and profile tests
   cve-reports        Run vulnix CVE scan for each host (requires vulnix in PATH)
+  tf-drift           Detect drift in infra/ against live GCP state (read-only plan)
 EOF
 }
 
@@ -276,6 +277,50 @@ cve-reports)
       echo "VULNIX_ADVISORIES=1"
     fi
   done
+  ;;
+
+tf-drift)
+  # Read-only drift guard for the manually-applied homeserver infra resources
+  # (the deny-public-ssh firewall and snapshot policy carry "apply manually"
+  # notes, so the live project can silently diverge from main).
+  # -detailed-exitcode returns 2 when a plan has changes, surfaced here as drift.
+  # Requires GCP credentials (ADC) + infra/terraform.tfvars, so it is a
+  # manual/local check, not a CI gate.
+  #
+  # Scoped with -target to the homeserver host's resources on purpose: the
+  # on-demand gcp-builder normally powers itself off, which nulls its ephemeral
+  # external IP and would otherwise show as perpetual (benign) drift. We only
+  # guard the always-on, security-relevant homeserver surface.
+  #
+  # bootstrap_ssh_public_key is required by variables.tf but only consumed at
+  # first provisioning and held under lifecycle.ignore_changes, so a placeholder
+  # produces no diff on the existing instance.
+  if ! command -v tofu >/dev/null 2>&1; then
+    echo "tf-drift: tofu not in PATH (run inside 'nix develop')" >&2
+    exit 1
+  fi
+  tofu -chdir=infra init -input=false -upgrade >/dev/null
+  set +e
+  tofu -chdir=infra plan -input=false -detailed-exitcode -lock=false \
+    -var "bootstrap_ssh_public_key=${BOOTSTRAP_PUBKEY:-tf-drift-placeholder-ignored}" \
+    -target google_compute_instance.homeserver_gcp \
+    -target google_compute_firewall.deny_public_ssh \
+    -target google_compute_firewall.tailscale \
+    -target google_compute_resource_policy.homeserver_boot_daily_snapshots \
+    -target google_compute_disk_resource_policy_attachment.homeserver_boot_daily_snapshots
+  rc=$?
+  set -e
+  case "$rc" in
+  0) echo "tf-drift: no drift — live homeserver state matches infra/" ;;
+  2)
+    echo "tf-drift: DRIFT DETECTED — review the plan above" >&2
+    exit 2
+    ;;
+  *)
+    echo "tf-drift: tofu plan failed (rc=$rc)" >&2
+    exit "$rc"
+    ;;
+  esac
   ;;
 
 "" | -h | --help | help)

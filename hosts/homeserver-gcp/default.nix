@@ -16,6 +16,7 @@ in
     ./nginx.nix
     ./adguard.nix
     ./backups.nix
+    ./heartbeat.nix
     ./status-page.nix
     ./audits.nix
     ./hardening.nix
@@ -219,6 +220,10 @@ in
       restic_password = { };
       restic_repository = { };
       b2_credentials = { };
+      # External dead-man's-switch ping URL (e.g. a healthchecks.io check URL).
+      # Read at runtime by heartbeat-ping.service via LoadCredential; populate
+      # with `sops hosts/homeserver-gcp/secrets/secrets.yaml` before deploying.
+      heartbeat_ping_url = { };
     };
   };
 

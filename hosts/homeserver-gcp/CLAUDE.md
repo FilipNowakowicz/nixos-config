@@ -77,11 +77,22 @@ session, fall back to a manual closure deploy: `nix build` the system closure,
   Vaultwarden restore runbook:
   [`.claude/homeserver-gcp/restore-vaultwarden.md`](../../.claude/homeserver-gcp/restore-vaultwarden.md).
 - **Restore canary** — `restic-restore-canary-b2.service` restores the latest
-  `/var/lib/restic-backup-canary/homeserver-gcp.txt` from B2 and writes
-  `restic_last_restore_test_timestamp_seconds` for alerts.
+  `/var/lib/restic-backup-canary/homeserver-gcp.txt` from B2 (writes
+  `restic_last_restore_test_timestamp_seconds`) **and** restores the Vaultwarden
+  `db.sqlite3.backup`, running `PRAGMA integrity_check` on it (writes
+  `vaultwarden_last_restore_test_timestamp_seconds`). A corrupt Vaultwarden
+  backup fails the daily canary instead of surfacing during a real restore.
 - **Alert delivery** — Alertmanager sends to the sops-backed
   `alertmanager_webhook_url`; keep it pointed at an off-host notification
   target so host or nginx failures can still reach you.
+- **Off-box heartbeat (dead-man's-switch)** — every alerting component runs _on_
+  this host, so a dead VM fires nothing. `heartbeat-ping.timer` pings the
+  external URL in sops secret `heartbeat_ping_url` (e.g. a healthchecks.io
+  check) every 3 min; the _external_ service alerts when pings stop, catching
+  in-guest hangs and total VM death. Defined in `heartbeat.nix`. The secret must
+  be populated via `sops` before this host will activate. A successful ping
+  stamps `heartbeat_last_ping_timestamp_seconds` so internal alerting can also
+  flag a _degraded_ (host-up, ping-failing) heartbeat.
 - **AdGuard DNS failure** — if `adguardhome.service` crashes, tailnet clients
   using it as DNS lose resolution. Recovery: in Tailscale admin → DNS,
   temporarily remove the nameserver override to fall back to default resolver.
