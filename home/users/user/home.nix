@@ -168,6 +168,15 @@ in
         text = builtins.readFile ../../files/scripts/waybar-toggle.sh;
       })
 
+      (writeShellApplication {
+        name = "hypr-display-mode";
+        runtimeInputs = with pkgs; [
+          gnugrep
+          hyprland
+        ];
+        text = builtins.readFile ../../files/scripts/hypr-display-mode.sh;
+      })
+
       waybarAnchor
 
       controlCenter
