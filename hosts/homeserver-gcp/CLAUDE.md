@@ -82,9 +82,13 @@ session, fall back to a manual closure deploy: `nix build` the system closure,
   `db.sqlite3.backup`, running `PRAGMA integrity_check` on it (writes
   `vaultwarden_last_restore_test_timestamp_seconds`). A corrupt Vaultwarden
   backup fails the daily canary instead of surfacing during a real restore.
-- **Alert delivery** — Alertmanager sends to the sops-backed
+- **Alert delivery** — Mimir/Alertmanager sends fleet alerts to the sops-backed
   `alertmanager_webhook_url`; keep it pointed at an off-host notification
-  target so host or nginx failures can still reach you.
+  target. For the alerting/reachability stack itself (`mimir`, `prometheus`,
+  `prometheus-node-exporter`, `nginx`, `tailscaled`, `heartbeat-ping`),
+  `systemd-failure-notify` also posts directly to that webhook through
+  `OnFailure=` so a delivery-path unit can report its own failure without
+  waiting for the Mimir ruler.
 - **Off-box heartbeat (dead-man's-switch)** — every alerting component runs _on_
   this host, so a dead VM fires nothing. `heartbeat-ping.timer` pings the
   external URL in sops secret `heartbeat_ping_url` (e.g. a healthchecks.io
@@ -99,8 +103,7 @@ session, fall back to a manual closure deploy: `nix build` the system closure,
   - **Service crash** — self-heals. The unit carries `Restart=always` /
     `RestartSec=10` (nixpkgs default), so a crashed `adguardhome.service` is back
     within ~10 s with no human action; the gap is seconds. The failed-unit alert
-    still fires within 2 min (but only leaves the box when a real Alertmanager
-    receiver is configured).
+    still fires within 2 min through Mimir/Alertmanager.
   - **Total VM death** — the only mode needing intervention. The off-box
     heartbeat pages you; recovery is a ~30 s step: Tailscale admin → DNS, remove
     the nameserver override so clients fall back to their default resolver.
