@@ -379,6 +379,57 @@ let
     in
     pkgs.writeText "observability-client-fixture.json" (builtins.toJSON evaluated);
 
+  observabilityDashboardBackendAssertionFixture =
+    let
+      dash = import ../lib/dashboards.nix;
+      passwordFile = pkgs.writeText "grafana-admin-password" "test-password";
+      badEvaluation = builtins.tryEval (
+        builtins.deepSeq
+          (lib.nixosSystem {
+            system = pkgs.stdenv.hostPlatform.system;
+            modules = [
+              ../modules/nixos/profiles/observability
+              {
+                networking.hostName = "observability-dashboard-backend-mismatch-fixture";
+                system.stateVersion = "26.05";
+
+                profiles.observability = {
+                  enable = true;
+                  grafana = {
+                    enable = true;
+                    adminPasswordFile = passwordFile;
+                  };
+                  mimir.enable = false;
+                  dashboards.mimir-without-backend = {
+                    enable = true;
+                    definition = dash.mkDashboard {
+                      uid = "mimir-without-backend";
+                      title = "Mimir Without Backend";
+                      panels = [
+                        (dash.statPanel {
+                          id = 1;
+                          title = "Metric";
+                          ds = dash.mimirDS;
+                          gridPos = dash.gridPos { };
+                          targets = [
+                            (dash.target { expr = "up"; })
+                          ];
+                        })
+                      ];
+                    };
+                  };
+                };
+              }
+            ];
+          }).config.system.build.toplevel.drvPath
+          true
+      );
+    in
+    if badEvaluation.success then
+      throw "observability dashboard/backend assertion fixture unexpectedly evaluated"
+    else
+      pkgs.runCommand "observability-dashboard-backend-assertion-fixture" { } "touch $out";
+
   mkSopsBootstrapCheck =
     hostName: secretsDir:
     let
@@ -449,6 +500,7 @@ in
     observability-alerts-lint = observabilityAlertsLint;
     observability-stack-fixture = observabilityStackFixture;
     observability-client-fixture = observabilityClientFixture;
+    observability-dashboard-backend-assertion-fixture = observabilityDashboardBackendAssertionFixture;
   };
 
   ciTestsFor = system: {
