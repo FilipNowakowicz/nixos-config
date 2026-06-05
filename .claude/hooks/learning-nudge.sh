@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Stop hook: a one-time, non-binding nudge to reflect on whether the session
-# produced a reusable lesson worth recording as a learning candidate (see
-# .agents/learning/ and the capture-learning-candidate skill).
+# Shared Stop hook: a one-time, non-binding nudge to reflect on whether the
+# session produced a reusable lesson worth recording as a learning candidate
+# (see .agents/learning/ and the capture-learning-candidate skill).
 #
 # It is a *nudge*, not a mandate. It never requires a candidate to be written;
 # it only asks the agent to consider it once, and to just stop if nothing in the
@@ -35,13 +35,13 @@ session_id=$(field '.session_id' 'session_id')
 transcript=$(field '.transcript_path' 'transcript_path')
 
 # One nudge per session.
-sentinel="${TMPDIR:-/tmp}/claude-learning-nudge-${session_id:-unknown}"
+sentinel="${TMPDIR:-/tmp}/agent-learning-nudge-${session_id:-unknown}"
 [ -e "$sentinel" ] && exit 0
 
 # Only nudge after real work: the transcript must show a file-editing tool.
 # A pure-conversation session has nothing to learn from, so stay silent.
 [ -n "${transcript:-}" ] && [ -f "$transcript" ] || exit 0
-if ! grep -Eq '"name"[[:space:]]*:[[:space:]]*"(Edit|Write|MultiEdit|NotebookEdit)"' "$transcript"; then
+if ! grep -Eq '"name"[[:space:]]*:[[:space:]]*"(Edit|Write|MultiEdit|NotebookEdit|apply_patch)"' "$transcript"; then
   exit 0
 fi
 
