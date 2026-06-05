@@ -7,54 +7,60 @@
 }:
 let
   isDark = (config.themes._activeThemeColorscheme or { }).background or "dark" == "dark";
+  # Theme-reloaded Wayland UI tools (kitty/waybar/swaybg); shared with
+  # theme-switch's runtimeInputs in home/theme/module.nix.
+  themedRuntime = import ./desktop-runtime.nix { inherit pkgs; };
 in
 {
   home.packages =
-    with pkgs;
-    [
-      # ── Terminal ────────────────────────────────────────────────────────────
-      kitty
+    themedRuntime
+    ++ (
+      with pkgs;
+      [
+        # ── Wayland utilities ──────────────────────────────────────────────────
+        wl-clipboard
+        grim # screenshot
+        slurp # region select (used with grim)
+        hyprlock
+        brightnessctl
+        cliphist
+        swayosd
+        wlsunset
 
-      # ── Wayland utilities ──────────────────────────────────────────────────
-      wl-clipboard
-      grim # screenshot
-      slurp # region select (used with grim)
-      waybar
-      swaybg
-      hyprlock
-      brightnessctl
-      cliphist
-      swayosd
-      wlsunset
+        # ── Desktop UX ─────────────────────────────────────────────────────────
+        pavucontrol
+        blueman
+        thunar
+        tumbler
 
-      # ── Desktop UX ─────────────────────────────────────────────────────────
-      pavucontrol
-      blueman
-      thunar
-      tumbler
+        # ── Browsers / Apps ────────────────────────────────────────────────────
+        discord
+        keepassxc
+        mpv
+        imv
+        blanket
+      ]
+      ++ (if skipHeavyPackages || !enableSpotify then [ ] else [ spotify ])
+      ++ [
+        # ── Visuals / Toys ─────────────────────────────────────────────────────
+        cava
+        fastfetch
+        pipes-rs
+        tty-clock
+        cbonsai
+        cmatrix
+      ]
+    );
 
-      # ── Browsers / Apps ────────────────────────────────────────────────────
-      discord
-      keepassxc
-      mpv
-      imv
-      blanket
-    ]
-    ++ (if skipHeavyPackages || !enableSpotify then [ ] else [ spotify ])
-    ++ [
-      # ── Visuals / Toys ─────────────────────────────────────────────────────
-      cava
-      fastfetch
-      pipes-rs
-      tty-clock
-      cbonsai
-      cmatrix
-    ];
+  programs = {
+    yazi = {
+      enable = true;
+      shellWrapperName = "y";
+      enableZshIntegration = true;
+    };
 
-  programs.yazi = {
-    enable = true;
-    shellWrapperName = "y";
-    enableZshIntegration = true;
+    # GnuPG with a graphical pinentry (see services.gpg-agent below).
+    gpg.enable = true;
   };
 
   # Firefox with VA-API hardware video decoding (Intel iGPU on Wayland)
@@ -149,6 +155,29 @@ in
       # File manager
       "inode/directory" = "thunar.desktop";
     };
+  };
+
+  # Per-user default font families. The fonts themselves are installed at the
+  # system level (modules/nixos/profiles/desktop.nix); this only sets which
+  # family resolves for each generic alias.
+  fonts.fontconfig = {
+    enable = true;
+    defaultFonts = {
+      monospace = [ "JetBrainsMono Nerd Font" ];
+      sansSerif = [ "Inter" ];
+      serif = [ "Noto Serif" ];
+      emoji = [ "Noto Color Emoji" ];
+    };
+  };
+
+  # gpg-agent with a graphical pinentry. Secret-service is provided system-wide
+  # by gnome-keyring; this covers GPG key operations only (no SSH agent).
+  services.gpg-agent = {
+    enable = true;
+    pinentry.package = pkgs.pinentry-gnome3;
+    enableSshSupport = false;
+    defaultCacheTtl = 1800;
+    maxCacheTtl = 7200;
   };
 
 }

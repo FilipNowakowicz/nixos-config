@@ -27,12 +27,13 @@ The "main ones" — each is a coherent piece of work, not a one-liner.
 Low priority, individually cheap — batch rather than track separately. Status
 reflects what already exists.
 
-| Item                                                 | Status / acceptance                                                                                                                                                                |
-| :--------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dedupe runtime inputs (Waybar/Kitty/Swaybg/Hyprland) | Single source for shared runtime deps; acceptance: no copy-pasted package lists.                                                                                                   |
-| HM fontconfig provisioning                           | bat/base16 theming is **already done** via the custom `home/theme/module.nix` (kitty/waybar/hypr palettes, `bat` `theme = "base16"`); only declarative `fonts.fontconfig` remains. |
-| `firefox-private` profile parity                     | A throwaway-profile `firefox-private` launcher already exists; "parity" means bringing the _default_ profile under managed `programs.firefox` too. Low value.                      |
-| GPG / secret-service defaults                        | `gnome-keyring` (secret-service) is wired at system level; the gap is HM-level `services.gpg-agent` / `programs.gpg` defaults.                                                     |
+| Item                             | Status / acceptance                                                                                                                                           |
+| :------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `firefox-private` profile parity | A throwaway-profile `firefox-private` launcher already exists; "parity" means bringing the _default_ profile under managed `programs.firefox` too. Low value. |
+
+The runtime-input dedup (single `home/profiles/desktop-runtime.nix` shared by
+the desktop install list and theme-switch), HM `fonts.fontconfig` defaults, and
+HM `programs.gpg`/`services.gpg-agent` (GUI pinentry, no SSH agent) shipped.
 
 The Mac `broadcom_sta` (`wl`) posture decision is a candidate too, tracked in
 [`macbook-goals.md`](macbook-goals.md).

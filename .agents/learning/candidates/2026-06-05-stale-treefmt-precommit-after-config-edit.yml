@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-06-05-stale-treefmt-precommit-after-config-edit
+date: 2026-06-05
+expires: 2026-07-05
+status: open
+route: promote-doc
+best_form: doc
+evidence: [git commit failed treefmt hook after treefmt.nix edit, nix run .#statix -- check . passed, nix fmt -- --fail-on-change passed, commit 16f5726]
+observation: the generated local pre-commit treefmt hook can lag behind a same-session treefmt.nix config edit and keep formatting files that the fresh nix fmt wrapper now excludes.
+proposed_upgrade: document that after editing treefmt.nix agents should trust fresh CI-equivalent commands over a stale installed hook, and re-enter nix develop or use --no-verify only after explicit lint and format checks pass.
+type: workflow-gotcha
+dedupe_key: precommit:stale-treefmt-wrapper-after-config-edit
+triggers: [treefmt.nix, pre-commit treefmt, nix fmt -- --fail-on-change, statix repeated keys]
+targets: [CLAUDE.md, docs/operations.md]
+risk: overusing --no-verify could hide real hook failures if the fresh CI-equivalent checks were not run first.
