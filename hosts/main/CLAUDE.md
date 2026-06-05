@@ -162,6 +162,15 @@ user-writable `/home/user/nix` checkout.
 
 Runbook: [`.claude/main/usbguard.md`](../../.claude/main/usbguard.md)
 
+## DisplayLink External Monitor (USB dock)
+
+Runbook: [`.claude/main/displaylink.md`](../../.claude/main/displaylink.md)
+
+`modules/nixos/hardware/displaylink.nix` adds the driver (gated `!profiles.ci`
+so the unfree blob stays out of `merge-gate`). Three manual prerequisites before
+a dock works: prefetch the `requireFile` driver blob, add a USBGuard allow rule
+for the dock, and connect it before logging into Hyprland.
+
 ## Recovery Notes
 
 Runbook: [`.claude/main/recovery.md`](../../.claude/main/recovery.md)

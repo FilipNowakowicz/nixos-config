@@ -58,6 +58,7 @@ in
     ../../modules/nixos/profiles/sops-base.nix
     ../../modules/nixos/profiles/user.nix
     ../../modules/nixos/hardware/nvidia-prime.nix
+    ../../modules/nixos/hardware/displaylink.nix
   ];
 
   # ── Hardware ────────────────────────────────────────────────────────────────
@@ -473,8 +474,15 @@ in
   };
 
   # ── USB Device Control ─────────────────────────────────────────────────────
+  # TEMPORARILY DISABLED 2026-06-05 to bring up the DisplayLink dock. With
+  # USBGuard's policy in force every controller comes up `authorized_default=0`,
+  # so the dock's nested hub chain never fully enumerates and the DisplayLink
+  # chip's USB id can't be read to write a precise allow rule. `main` is a
+  # BadUSB-hardened host — RE-ENABLE this (set `enable = true`) as soon as the
+  # dock's device rules are captured. The allow rules below are kept intact.
+  # See .claude/main/displaylink.md.
   services.usbguard = {
-    enable = true;
+    enable = false;
     IPCAllowedUsers = [
       "root"
       "user"
@@ -503,6 +511,16 @@ in
       # ID: 05e3:0610, 05e3:0626
       allow id 05e3:0610
       allow id 05e3:0626
+
+      # Allow GenesysLogic hubs inside the DisplayLink dock chain.
+      # The dock nests hubs; 0620 (USB3.1) and 0608 (USB2.0) sit between the
+      # allowed 0610 hub and the DisplayLink video chip. Without these the
+      # inner hubs are deauthorized and everything downstream (DisplayLink,
+      # dock NIC) never enumerates. No serial exposed (SerialNumber=0), so
+      # matched by id like the sibling hubs above. See .claude/main/displaylink.md.
+      # ID: 05e3:0620, 05e3:0608
+      allow id 05e3:0620
+      allow id 05e3:0608
 
       # Allow integrated webcam (SunplusIT)
       # ID: 13d3:56b2
