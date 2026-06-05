@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-05-precommit-config-absent-in-fresh-worktrees
 date: 2026-06-05
 expires: 2026-07-05
-status: open
+status: superseded
 route: promote-doc
 best_form: doc
 type: workflow-gotcha

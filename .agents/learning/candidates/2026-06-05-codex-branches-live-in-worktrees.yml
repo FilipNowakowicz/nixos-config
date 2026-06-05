@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-05-codex-branches-live-in-worktrees
 date: 2026-06-05
 expires: 2026-07-05
-status: open
+status: promoted
 agent: claude
 type: workflow-gotcha
 route: promote-doc

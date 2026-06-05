@@ -21,6 +21,7 @@ under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
 - **Dev shell:** `nix develop` — provides `deploy-rs`, `nixos-anywhere`, `nixd`, `statix`, `deadnix`, `sops`, `ssh-to-age`, `vulnix`, `direnv`, and the flake-managed pre-commit hook tooling.
 - **Per-project shells:** `direnv` enabled — use `use flake` in `.envrc`.
 - **Git hooks:** `nix develop` installs a `commit-msg` hook that strips `Co-authored-by:` trailers to keep history single-author.
+- **Fresh `/tmp/nix-*` linked worktrees:** a `codex/*` branch may already be checked out in another worktree (`git worktree list`), and `.pre-commit-config.yaml` is flake-generated so a worktree never entered via `nix develop` lacks it — commit there with `--no-verify`, but never use `--no-verify` to skip a real lint failure in the primary checkout.
 - **Git is for version control only, not deployment.**
 
 ## Deploy Commands
