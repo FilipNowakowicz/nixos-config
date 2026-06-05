@@ -6,23 +6,20 @@ root=${1:-.agents/learning}
 candidate_dir="$root/candidates"
 rc=0
 
+# Minimal set a reviewer needs to triage and reopen the source. Everything
+# else (agent, type, dedupe_key, triggers, targets, risk) is optional and only
+# improves routing when present — keep capture cheap.
 required_fields=(
   schema
   id
   date
   expires
   status
-  agent
-  type
   route
   best_form
-  dedupe_key
-  triggers
-  targets
   evidence
   observation
   proposed_upgrade
-  risk
 )
 
 allowed_type='^(behavior-upgrade|repo-fix|workflow-gotcha|policy-gap)$'
@@ -59,7 +56,9 @@ while IFS= read -r path; do
     rc=1
   fi
 
-  if ! sed -n 's/^type:[[:space:]]*//p' "$path" | head -1 | grep -Eq "$allowed_type"; then
+  # type is optional; validate only when present.
+  if grep -Eq '^type:[[:space:]]*.+' "$path" &&
+    ! sed -n 's/^type:[[:space:]]*//p' "$path" | head -1 | grep -Eq "$allowed_type"; then
     printf '%s: invalid type\n' "$path" >&2
     rc=1
   fi

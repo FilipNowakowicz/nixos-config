@@ -32,11 +32,16 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 cd "$repo_root"
 
-index_tmp=${TMPDIR:-/tmp}/repo-map-index-$$.tsv
 hits_tmp=${TMPDIR:-/tmp}/repo-map-hits-$$.tsv
-trap 'rm -f "$index_tmp" "$hits_tmp"' EXIT
+trap 'rm -f "$hits_tmp"' EXIT
 
-"$script_dir/index.sh" >"$index_tmp"
+# The index is derived purely from tracked paths, so it only changes when the
+# set of tracked files changes. Cache it per file-set (cksum of the file list)
+# so repeated queries within a session skip the rebuild; content edits don't
+# invalidate it because the index never reads file contents.
+ls_key=$(git ls-files | cksum | tr -d ' ')
+index_tmp=${TMPDIR:-/tmp}/repo-map-index-${ls_key}.tsv
+[ -s "$index_tmp" ] || "$script_dir/index.sh" >"$index_tmp"
 : >"$hits_tmp"
 
 for term in "$@"; do

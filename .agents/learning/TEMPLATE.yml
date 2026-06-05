@@ -4,18 +4,20 @@ date: YYYY-MM-DD
 expires: YYYY-MM-DD
 # open|promoted|rejected|superseded|expired
 status: open
-agent: claude|codex
 
 # Routing for the reviewer. Keep values short and grep-friendly.
-type: behavior-upgrade|repo-fix|workflow-gotcha|policy-gap
 route: implement-fix|promote-memory|promote-skill|promote-hook|promote-doc|reject
 best_form: invariant|test|ci-gate|hook|skill|doc|none
-dedupe_key: area:short-normalized-problem
-triggers: [path-or-command-or-task-shape]
-targets: [path-or-artifact-to-change]
 
 # Evidence must be enough for a reviewer agent to reopen the real source.
 evidence: [commit-or-pr-or-file-line-or-command-output-pointer]
 observation: terse-fact-not-story
 proposed_upgrade: terse-action-for-reviewer
-risk: terse-risk-if-promoted-wrong
+
+# Optional — fill only when they add routing signal. Omit the rest.
+# agent: claude|codex
+# type: behavior-upgrade|repo-fix|workflow-gotcha|policy-gap
+# dedupe_key: area:short-normalized-problem
+# triggers: [path-or-command-or-task-shape]
+# targets: [path-or-artifact-to-change]
+# risk: terse-risk-if-promoted-wrong

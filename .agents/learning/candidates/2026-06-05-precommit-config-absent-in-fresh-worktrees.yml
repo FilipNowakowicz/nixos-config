@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-06-05-precommit-config-absent-in-fresh-worktrees
+date: 2026-06-05
+expires: 2026-07-05
+status: open
+route: promote-doc
+best_form: doc
+type: workflow-gotcha
+triggers: [git worktree, codex/* branch, No .pre-commit-config.yaml, --no-verify, /tmp/nix-*]
+targets: [CLAUDE.md]
+evidence: [/tmp/nix-shared-agent-workflows git commit -> "No .pre-commit-config.yaml file was found", resolved with git commit --no-verify -> merge d05fd41]
+observation: .pre-commit-config.yaml is flake/dev-shell generated, not committed; a fresh linked worktree never entered via nix develop lacks it, so the installed pre-commit hook aborts every commit.
+proposed_upgrade: one line in CLAUDE.md Environment section (near nix develop / pre-commit) noting --no-verify is safe ONLY in such worktrees for no-new-content commits; never to skip a real lint failure in the primary checkout.
+risk: agent over-generalizes --no-verify to the primary checkout and skips a genuine treefmt/statix/deadnix failure.

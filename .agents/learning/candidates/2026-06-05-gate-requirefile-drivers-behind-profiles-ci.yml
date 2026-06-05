@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-06-05-gate-requirefile-drivers-behind-profiles-ci
+date: 2026-06-05
+expires: 2026-07-05
+status: open
+route: implement-fix
+best_form: invariant
+type: policy-gap
+triggers: [requireFile, unfree driver, main-ci, displaylink, CI closure]
+targets: [flake/checks.nix, hosts/main/CLAUDE.md]
+evidence: [modules/nixos/hardware/displaylink.nix enable=!config.profiles.ci, main-ci videoDrivers=[nvidia] vs main=[displaylink modesetting nvidia], flake/hosts.nix:102, modules/nixos/profiles/meta.nix:3]
+observation: unfree requireFile drivers must be gated behind !config.profiles.ci or the merge-gate-built main-ci closure becomes unfetchable.
+proposed_upgrade: add a main-ci-scoped invariant in flake/checks.nix asserting the CI closure has no requireFile/unfetchable inputs; fall back to a one-line hosts/main/CLAUDE.md note only if the assertion proves too coarse.
+risk: over-broad gating hides a driver that should be CI-tested, giving false coverage confidence.

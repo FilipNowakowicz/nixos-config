@@ -45,12 +45,16 @@ Prefer **fewer, higher-signal** candidates. Skipping is the default.
    - If it returns nothing relevant, create a new candidate.
 3. Copy `.agents/learning/TEMPLATE.yml` to
    `.agents/learning/candidates/<date>-<kebab-slug>.yml`.
-4. Fill every field with terse, grep-friendly values. Use structured routing:
-   - `type`: `behavior-upgrade`, `repo-fix`, `workflow-gotcha`, or `policy-gap`.
+4. Fill the required fields with terse, grep-friendly values:
    - `route`: `implement-fix`, `promote-memory`, `promote-skill`,
      `promote-hook`, `promote-doc`, or `reject`.
    - `best_form`: strongest viable artifact, preferring executable checks over
      hooks, hooks over skills, and skills over prose docs.
+   - `evidence`, `observation`, `proposed_upgrade`, plus `date`/`expires`/
+     `status`.
+     The optional fields (`triggers`, `targets`, `dedupe_key`, `type`, `risk`,
+     `agent`) are commented out in the template — add one only when it adds real
+     routing signal. Do not pad fields to look thorough.
 5. Mention the captured candidate's path in your work summary.
 
 ## Guardrails
