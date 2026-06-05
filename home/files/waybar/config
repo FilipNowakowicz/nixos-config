@@ -13,17 +13,19 @@
     "modules-right":  ["group/tray-group", "custom/anchor"],
 
     "hyprland/workspaces": {
-        "format": "{icon}",
+        "format": "{name}",
         "format-icons": {
             "active":  "●",
             "default": "●",
             "empty":   "○"
         },
         "persistent-workspaces": {
-            "*": 10
+            "DVI-I-1": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+            "eDP-1": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         },
+        "move-to-monitor": true,
         "on-click": "activate",
-        "sort-by-number": true
+        "sort-by": "number"
     },
 
     "clock": {
