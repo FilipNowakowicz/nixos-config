@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)\"/.claude/hooks/guard-bash.sh",
+            "statusMessage": "Checking Bash command"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)\"/.claude/hooks/guard-edits.sh",
+            "statusMessage": "Checking edit target"
+          }
+        ]
+      }
+    ]
+  }
+}
+

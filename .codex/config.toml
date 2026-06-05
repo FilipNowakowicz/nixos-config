@@ -1,0 +1,8 @@
+# Project-local Codex settings for this repository.
+#
+# The repo keeps one shared agent instruction surface in CLAUDE.md. Codex reads
+# AGENTS.md by default, so teach it to treat CLAUDE.md files as project guidance
+# here instead of maintaining a separate CODEX.md/AGENTS.md copy.
+project_doc_fallback_filenames = ["CLAUDE.md"]
+project_doc_max_bytes = 65536
+
