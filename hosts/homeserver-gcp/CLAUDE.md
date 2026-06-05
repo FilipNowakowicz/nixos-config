@@ -93,9 +93,22 @@ session, fall back to a manual closure deploy: `nix build` the system closure,
   be populated via `sops` before this host will activate. A successful ping
   stamps `heartbeat_last_ping_timestamp_seconds` so internal alerting can also
   flag a _degraded_ (host-up, ping-failing) heartbeat.
-- **AdGuard DNS failure** — if `adguardhome.service` crashes, tailnet clients
-  using it as DNS lose resolution. Recovery: in Tailscale admin → DNS,
-  temporarily remove the nameserver override to fall back to default resolver.
-  The failed-unit alert fires within 2 minutes, but it only leaves the box when
-  a real Alertmanager receiver is configured.
+- **AdGuard DNS failure** — AdGuard is the tailnet-wide DNS resolver (set via the
+  Tailscale admin DNS nameserver override), so its loss takes resolution down for
+  every client. The two failure modes are not equal:
+  - **Service crash** — self-heals. The unit carries `Restart=always` /
+    `RestartSec=10` (nixpkgs default), so a crashed `adguardhome.service` is back
+    within ~10 s with no human action; the gap is seconds. The failed-unit alert
+    still fires within 2 min (but only leaves the box when a real Alertmanager
+    receiver is configured).
+  - **Total VM death** — the only mode needing intervention. The off-box
+    heartbeat pages you; recovery is a ~30 s step: Tailscale admin → DNS, remove
+    the nameserver override so clients fall back to their default resolver.
+
+  An automatic fallback (a second global nameserver) was deliberately **not**
+  added — Tailscale load-balances global nameservers rather than treating extras
+  as cold backups, so a public secondary would leak unfiltered (or custom-rule
+  breaking) queries during normal operation. The residual single-point-of-failure
+  is an accepted, recorded decision (see `docs/goals/homeserver-goals.md`).
+
 - **AdGuard web UI** — HTTPS on port 3001 (proxied by nginx using the Tailscale cert). AdGuard itself binds to `127.0.0.1:13001`. Login: `admin`; password material is managed through the sops-backed AdGuard configuration.

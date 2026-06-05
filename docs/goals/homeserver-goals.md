@@ -34,12 +34,39 @@ now shipped (see below).
 
 ## Active Goals
 
-One remaining item, a known gap rather than new surface (the heartbeat-degraded
-alert shipped 2026-06-05).
+None. The last open item (AdGuard DNS SPOF mitigation) was resolved by a recorded
+decision on 2026-06-05 — see [Resolved by decision](#resolved-by-decision) below.
+The heartbeat-degraded alert shipped 2026-06-05.
 
-| Goal                            | Why                                                                                                                                                                                     | Acceptance                                                                                                                                                                                             |
-| :------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **AdGuard DNS SPOF mitigation** | AdGuard on this host is a fleet-wide DNS single point of failure (see Notes): if the VM dies, tailnet clients lose resolution, and recovery is currently a manual Tailscale-admin step. | A documented automatic fallback (e.g. a secondary resolver in the Tailscale DNS config) so resolution survives host death without intervention — or an explicit, recorded decision to accept the SPOF. |
+## Resolved by decision
+
+### AdGuard DNS SPOF — accepted (2026-06-05)
+
+AdGuard on this host is the tailnet-wide DNS resolver (Tailscale admin nameserver
+override), so its loss takes resolution down for every client. We evaluated an
+automatic fallback and **deliberately did not add one**; the residual
+single-point-of-failure is accepted. Rationale:
+
+- **Crash is already self-healing.** `adguardhome.service` carries
+  `Restart=always` / `RestartSec=10` (nixpkgs default), so the common failure —
+  the process dying — recovers in ~10 s with no intervention.
+- **VM death is already alerted.** The off-box heartbeat dead-man's-switch pages
+  on total host death; manual recovery is a ~30 s Tailscale-admin toggle (remove
+  the nameserver override → clients fall back to their default resolver).
+- **A second global nameserver does not give clean failover.** Tailscale
+  load-balances global nameservers and reorders by latency rather than treating
+  extras as cold backups ([tailscale#5397]). A plain public secondary would leak
+  **unfiltered** queries during normal operation; a public _filtering_ secondary
+  would instead break the host's custom `user_rules` allowlist on the share of
+  queries it answered. Neither is worth it to cover a rare, already-alerted,
+  30-second-recoverable window.
+
+Reopen only if a second always-on tailnet node exists to host a redundant
+**filtering** resolver (the only configuration that survives host death without
+either unfiltered leakage or allowlist breakage), or if Tailscale gains
+backup-only nameserver support.
+
+[tailscale#5397]: https://github.com/tailscale/tailscale/issues/5397
 
 ## Completed (now in durable docs)
 
