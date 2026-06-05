@@ -102,6 +102,20 @@ Use these repo-local skills when the task matches:
   criteria and the proving check before editing when feasible.
 - **`nix-review-ledger-batch`** — use when processing review findings, backlog
   items, or status ledgers in small validated batches.
+- **`capture-learning-candidate`** — use at the end of non-trivial work when you
+  learned something reusable. Record it as a candidate under
+  `.agents/learning/candidates/`; never self-edit `CLAUDE.md`, skills, hooks, or
+  invariants from a lesson.
+
+## Learning Candidates
+
+Agents capture reusable lessons as reviewed candidates under
+`.agents/learning/` (see its `README.md`); a human-gated reviewer promotes the
+good ones later. Capture never changes behavior on its own. Promotion prefers
+the strongest viable form — assertion/test > hook > skill > prose — because an
+executable check is self-validating via `merge-gate`, while prose is a permanent
+context tax with no safety net. Capture is active now; the reviewer is not yet
+wired, so candidates are expected to accumulate.
 
 ## Secrets (sops-nix)
 
