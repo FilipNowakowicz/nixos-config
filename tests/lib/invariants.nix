@@ -61,6 +61,12 @@ let
       deploy.sshUser = "user";
       tailscale.tag = "server";
     };
+    gcp-builder = {
+      status = "active";
+      deploy.sshUser = "user";
+      tailscale.tag = "server";
+      sops = false;
+    };
     old = {
       status = "inactive";
       tailnetFQDN = "old.tail.example";

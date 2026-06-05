@@ -45,6 +45,16 @@ rec {
       lib.attrNames (lib.filterAttrs (_: hostMeta: (hostMeta.status or null) == "active") hostRegistry)
     );
 
+  activeSopsHostNames =
+    hostRegistry:
+    uniqueSorted (
+      lib.attrNames (
+        lib.filterAttrs (
+          _: hostMeta: (hostMeta.status or null) == "active" && (hostMeta.sops or true)
+        ) hostRegistry
+      )
+    );
+
   sopsHostNamesFromYaml =
     yaml:
     let
@@ -70,7 +80,7 @@ rec {
   checkSopsRecipientParity =
     hostRegistry: sopsYaml:
     let
-      expectedHosts = activeHostNames hostRegistry;
+      expectedHosts = activeSopsHostNames hostRegistry;
       sopsHosts = sopsHostNamesFromYaml sopsYaml;
       missingRules = lib.filter (host: !(builtins.elem host sopsHosts.rules)) expectedHosts;
       staleRules = lib.filter (host: !(builtins.elem host expectedHosts)) sopsHosts.rules;

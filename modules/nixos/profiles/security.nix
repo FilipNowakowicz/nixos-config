@@ -16,6 +16,14 @@ let
   fail2banCheck = invariants.checkHardenedFail2ban config;
 in
 {
+  # ── Coredumps ──────────────────────────────────────────────────────────
+  systemd.coredump.settings.Coredump = {
+    Storage = "journal";
+    Compress = true;
+    ProcessSizeMax = "512M";
+    MaxUse = "1G";
+  };
+
   # ── Firewall ───────────────────────────────────────────────────────────
   networking.firewall.enable = true;
   networking.nftables.enable = true;

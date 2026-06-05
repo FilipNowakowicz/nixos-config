@@ -37,6 +37,13 @@ otherwise suspected compromised, rotate the personal key and re-encrypt all repo
 secrets. Also rotate the underlying credentials that were decryptable by the old
 key unless the exposure window can be ruled out.
 
+Because `&user` is the root secret, _losing_ it (not just exposing it) is its own
+single point of failure: the key is copied into the B2 backup, but reading that
+backup needs the restic password, which is itself encrypted to the key. An
+out-of-band escrow copy breaks that circular dependency. See
+[`docs/key-escrow.md`](key-escrow.md) for the escrow locations, verification, and
+the blank-machine recovery procedure.
+
 Structured SOPS files under `home/users/user/secrets/` are accepted even though
 their cleartext keys disclose provider and account shape, such as which tools
 have restorable auth state and the visible GitHub hostname/username nesting in

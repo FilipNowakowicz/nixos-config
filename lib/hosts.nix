@@ -16,6 +16,7 @@
 #   backup      — drives modules/nixos/profiles/backup.nix retention policy
 #     .class    — "critical" (14d/8w/6m/2y) | "standard" (7d/4w/3m); absent = no backup module
 #     .name     — restic backup job name; defaults to "local"
+#   sops        — whether this host should have host-secret SOPS coverage; defaults to true
 #   hardware    — host-local hardware identifiers
 #     .diskById — stable /dev/disk/by-id/* path for the primary disk (consumed by disko)
 let
@@ -89,6 +90,7 @@ let
         acceptFrom.workstation = [ 22 ];
       };
       deploy.sshUser = "user";
+      sops = false;
     };
 
     # 2017 MacBook Air (A1466) repurposed as a companion workstation.

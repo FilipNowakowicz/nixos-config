@@ -45,6 +45,14 @@
     };
   };
 
+  # Kill memory-pressure offenders in userspace before the interactive machine
+  # reaches a kernel OOM or becomes too wedged to recover.
+  systemd.oomd = {
+    enable = true;
+    enableSystemSlice = true;
+    enableUserSlices = true;
+  };
+
   # ── XDG Portals ────────────────────────────────────────────────────────
   xdg.portal = {
     enable = true;

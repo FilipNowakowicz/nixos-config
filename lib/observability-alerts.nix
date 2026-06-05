@@ -9,6 +9,7 @@
 #   ResticBackupStale — backup older than 26 h (daily + 2 h buffer)
 #   ResticCheckStale  — integrity check older than 8 d (weekly + 1 d buffer)
 #   ResticRestoreCanaryStale — restore canary older than 2 d
+#   HeartbeatPingStale — external heartbeat ping older than 15 min
 #   VulnixScanStale   — no successful scan in 26 h (daily + 2 h buffer)
 #
 # Note: there is intentionally no alert on vulnix_cve_total. On a weekly-bumped
@@ -76,6 +77,16 @@
             annotations = {
               summary = "Restic restore canary stale on {{ $labels.instance }}";
               description = "No successful restore canary has been recorded for more than 50 hours.";
+            };
+          }
+          {
+            alert = "HeartbeatPingStale";
+            expr = "(time() - heartbeat_last_ping_timestamp_seconds) / 60 > 15";
+            for = "0m";
+            labels.severity = "warning";
+            annotations = {
+              summary = "Heartbeat ping stale on {{ $labels.instance }}";
+              description = "No successful external heartbeat ping has been recorded for more than 15 minutes.";
             };
           }
           {

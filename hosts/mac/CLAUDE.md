@@ -50,7 +50,7 @@ means a fresh install followed by re-pairing Syncthing.
 
 From `modules/nixos/profiles/impermanence-base.nix` (shared baseline):
 
-- `/var/log`, `/var/lib/nixos`, `/var/lib/systemd/coredump`
+- `/var/log`, `/var/lib/nixos`
 - `/etc/machine-id`, SSH host keys
 
 From `hosts/mac/impermanence.nix`:

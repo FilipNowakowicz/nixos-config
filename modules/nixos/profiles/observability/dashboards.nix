@@ -7,6 +7,57 @@ let
   cfg = config.profiles.observability;
   dash = import ../../../../lib/dashboards.nix;
 
+  datasourceBackend =
+    datasource:
+    let
+      uid = datasource.uid or "";
+      type = datasource.type or "";
+    in
+    if uid == "mimir" || type == "prometheus" then
+      "mimir"
+    else if uid == "loki" || type == "loki" then
+      "loki"
+    else if uid == "tempo" || type == "tempo" then
+      "tempo"
+    else
+      null;
+
+  datasourceDescription =
+    datasource:
+    if datasource == null then
+      "missing datasource"
+    else
+      "${datasource.type or "unknown-type"}/${datasource.uid or "unknown-uid"}";
+
+  enabledDashboards = lib.filterAttrs (_: dashboard: dashboard.enable) cfg.dashboards;
+  panelDatasourceRefs = lib.flatten (
+    lib.mapAttrsToList (
+      dashboardName: dashboard:
+      map (panel: {
+        inherit dashboardName;
+        panelId = panel.id or null;
+        panelTitle = panel.title or "<untitled>";
+        datasource = panel.datasource or null;
+        backend = datasourceBackend (panel.datasource or { });
+      }) (dashboard.definition.panels or [ ])
+    ) enabledDashboards
+  );
+  enabledBackends = {
+    inherit (cfg)
+      loki
+      mimir
+      tempo
+      ;
+  };
+  backendEnabled = backend: enabledBackends.${backend}.enable or false;
+  formatPanelRef =
+    ref:
+    "${ref.dashboardName} panel ${builtins.toString ref.panelId} (${ref.panelTitle}) uses ${datasourceDescription ref.datasource}";
+  unknownDatasourceRefs = lib.filter (ref: ref.backend == null) panelDatasourceRefs;
+  disabledBackendRefs = lib.filter (
+    ref: ref.backend != null && !(backendEnabled ref.backend)
+  ) panelDatasourceRefs;
+
   fleetDashboard = dash.mkDashboard {
     uid = "homeserver-fleet-overview";
     title = "Homeserver Fleet Overview";
@@ -231,6 +282,23 @@ in
   };
 
   config = lib.mkIf (cfg.enable && cfg.grafana.enable) {
+    assertions = [
+      {
+        assertion = unknownDatasourceRefs == [ ];
+        message = "Grafana dashboard panel datasource(s) do not map to a known observability backend: ${
+          lib.concatMapStringsSep "; " formatPanelRef unknownDatasourceRefs
+        }";
+      }
+      {
+        assertion = disabledBackendRefs == [ ];
+        message = "Grafana dashboard panel datasource(s) reference disabled observability backend(s): ${
+          lib.concatMapStringsSep "; " (
+            ref: "${formatPanelRef ref}, but profiles.observability.${ref.backend}.enable is false"
+          ) disabledBackendRefs
+        }";
+      }
+    ];
+
     profiles.observability.dashboards.fleet = {
       enable = lib.mkDefault false;
       definition = fleetDashboard;

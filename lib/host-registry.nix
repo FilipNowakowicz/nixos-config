@@ -8,6 +8,7 @@ let
     "tailscale"
     "homeManager"
     "backup"
+    "sops"
     "hardware"
   ];
 
@@ -155,6 +156,7 @@ let
             builtins.toJSON (cfg.backup.class or null)
           }"
         )
+        (ok (!p "sops" || builtins.isBool cfg.sops) "${name}.sops: must be a bool")
         (ok (
           !p "hardware"
           || (

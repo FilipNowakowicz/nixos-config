@@ -10,22 +10,7 @@ the repo avoids premature abstraction. Host-specific roadmaps live in
 
 ## Active Candidates
 
-Small, finishable work that does not need a triggering event. Split by size so
-the quick wins can be picked off independently of the larger reliability work.
-Status notes reflect a goals review on 2026-06-04.
-
-### Quick wins
-
-Each is small and self-contained; several are gaps in existing features.
-
-| Area       | Item                                   | Value / acceptance                                                                                                                                                                                                                                                                              |
-| :--------- | :------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Hardening  | `systemd.oomd` on `main`               | Userspace OOM protection on the interactive host. Not present anywhere in the tree today. Acceptance: enabled with a sane per-slice policy on `main`.                                                                                                                                           |
-| Hardening  | Coredump hardening on `main`           | **Security, not hygiene.** With impermanence, `/var/lib/systemd/coredump` is a _persisted_ path, so a crash dump containing in-memory secrets survives reboots. Acceptance: an explicit `systemd.coredump` policy (storage target, `MaxUse`, retention/compression) instead of the default.     |
-| Assertions | Datasource/backend coupling assertions | Eval-time assertions that catch a dashboard/datasource pointing at a backend the host does not run. Partially scaffolded (`lib/dashboards.nix` datasource helpers, `observability/backends.nix`) but no assertion yet. Acceptance: a check in `flake/checks.nix` that fails eval on a mismatch. |
-
-The homeserver **heartbeat-degraded alert** is a quick win too, but it is
-host-specific and tracked in [`homeserver-goals.md`](homeserver-goals.md).
+Small, finishable work that does not need a triggering event.
 
 ### Larger reliability / security work
 
@@ -36,7 +21,6 @@ The "main ones" — each is a coherent piece of work, not a one-liner.
 | Alerting    | Consolidated systemd unit-failure **delivery**   | `SystemdUnitFailed` already fires after 2 min (`lib/observability-alerts.nix`); the gap is a single coherent, reliable _off-host delivery_ path so a failure on a degraded box still reaches you. The off-box-liveness half shipped as the homeserver dead-man's-switch; this is the remaining in-guest delivery half. |
 | Reliability | Scheduled, _executed_ full-service restore drill | The daily canary already proves a marker round-trip and a Vaultwarden `integrity_check`, so raw restorability is no longer untested. The remaining gap is _full-service_ recovery. Acceptance: a timer/CI job that restores Vaultwarden + Grafana + AdGuard to a scratch target and asserts they come up.              |
 | Security    | CVE remediation cadence                          | Scanning exists (`vulnix`, `validate.sh cve-reports`) and deliberately does not alert on `vulnix_cve_total` (whitelist noise). The missing half is the _human loop_. Acceptance: a documented triage cadence (owner + interval) so "we scan" does not become "we scan and never look."                                 |
-| Recovery    | Age-key escrow                                   | **Promoted** from trigger-deferred: the whole DR story depends on a single age key held by one custodian — itself a single point of failure for an "endgame, reproducible" setup. Acceptance: a second custodian or an offline escrow copy with a documented recovery path.                                            |
 
 ### Home Manager polish
 
@@ -67,8 +51,6 @@ These are real but should not start until a concrete need appears.
 | Service-level disk quotas (homeserver)                               | A service shows unbounded disk growth.                             |
 | Metadata endpoint hardening (GCP)                                    | Metadata-sourced secrets/SSRF surface becomes a concern.           |
 | Dedicated GCP network / VPC model                                    | More than one provider service needs network separation.           |
-
-(Age-key escrow was promoted to an Active Candidate above.)
 
 ---
 
@@ -169,5 +151,3 @@ Scope when revisited:
 - Secret inventory with owner, trigger, and command path
 - Rotation checklist through `sops` and deploy
 - Optional Grafana visibility for secret-age metadata
-  </content>
-  </invoke>

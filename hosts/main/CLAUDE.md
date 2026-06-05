@@ -61,7 +61,8 @@ Operational state:
 
 - `/var/log` — journald and friends
 - `/var/lib/nixos` — UID/GID stability across rebuilds
-- `/var/lib/systemd/coredump`
+- Crash dumps are stored in the journal by `profiles/security.nix`, not
+  persisted as flat files under `/var/lib/systemd/coredump`.
 - `/var/lib/systemd/timers` — `Persistent=true` timer catchup (e.g. `restic-check-local`)
 - `/var/cache/restic-backups-local` — restic index/pack cache; loss means re-fetching from B2
 
