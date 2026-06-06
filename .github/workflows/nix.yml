@@ -179,7 +179,7 @@ jobs:
 
       - name: Lint shell (shellcheck)
         run: |
-          mapfile -t shell_scripts < <(find . -type f -name '*.sh' -not -path './.*')
+          mapfile -t shell_scripts < <(find . -type f -name '*.sh' -not -path './.git/*')
           if [ "${#shell_scripts[@]}" -eq 0 ]; then
             exit 0
           fi

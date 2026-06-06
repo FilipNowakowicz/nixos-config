@@ -109,4 +109,23 @@ assert_contains "$flake_lock_output" "run_packages=true"
 assert_contains "$flake_lock_output" "tests=true"
 assert_contains "$flake_lock_output" '{"name":"main-ci"}'
 
+meta_output="$(run_plan $'.agents/learning/scripts/validate-candidates.sh')"
+assert_contains "$meta_output" "run_lint=true"
+assert_contains "$meta_output" "run_eval=false"
+assert_contains "$meta_output" "run_light=false"
+assert_contains "$meta_output" "run_packages=false"
+assert_contains "$meta_output" "hosts=false"
+assert_contains "$meta_output" "tests=false"
+assert_contains "$meta_output" "closure=false"
+
+meta_docs_output="$(run_plan $'.claude/hooks/guard-bash.sh\nREADME.md')"
+assert_contains "$meta_docs_output" "run_lint=true"
+assert_contains "$meta_docs_output" "run_eval=false"
+assert_contains "$meta_docs_output" "run_light=false"
+assert_contains "$meta_docs_output" "hosts=false"
+
+meta_plus_host_output="$(run_plan $'.agents/repo-map/scripts/index.sh\nhosts/main/default.nix')"
+assert_contains "$meta_plus_host_output" "run_light=true"
+assert_contains "$meta_plus_host_output" '{"name":"main-ci"}'
+
 echo "ci-plan tests passed"

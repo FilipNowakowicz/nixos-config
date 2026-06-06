@@ -14,6 +14,9 @@ flake_or_lib_change='^(flake\.nix|flake\.lock|lib/)'
 closure_script_change='^scripts/closure-diff\.sh'
 tests_change='^tests/nixos/'
 docs_change='^(README\.md|docs/|.*\.md$|.*/CLAUDE\.md$|AGENTS\.md$)'
+# Agent/editor tooling: standalone scripts and config that are never an input
+# to a Nix derivation, so they need lint but not eval/build (like docs).
+meta_change='^(\.agents/|\.claude/|\.codex/|\.gemini/)'
 package_change='^packages/'
 main_change='^hosts/main/'
 homeserver_change='^hosts/homeserver-gcp/'
@@ -78,13 +81,18 @@ if [[ -n $changed_files ]]; then
   unknown_module_changed=false
   unknown_home_changed=false
 
+  # Any change runs lint; only build-affecting paths add eval/light below.
+  run_lint=true
+
   while IFS= read -r path; do
     [[ -z $path ]] && continue
 
     if ! grep -qE "${docs_change}" <<<"$path"; then
       docs_only=false
+    fi
+
+    if ! grep -qE "${docs_change}|${meta_change}" <<<"$path"; then
       run_eval=true
-      run_lint=true
       run_light=true
     fi
 
