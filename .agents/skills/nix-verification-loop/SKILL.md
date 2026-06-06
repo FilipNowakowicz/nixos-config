@@ -30,3 +30,29 @@ packages, deploy wiring, secrets boundaries, or generated data in this repo.
 - Treat `deploy-rs` silence in non-interactive sessions as a known behavior; if
   necessary, fall back to closure build/copy/switch instructions from `CLAUDE.md`.
 - Never edit encrypted secrets directly. Use `sops`.
+
+## Operational gotchas
+
+- **A successful build is not a live switch.** In non-interactive sessions
+  `nh os switch --hostname main .` can build the generation and then fail
+  activation with `sudo: a terminal is required to read the password`, leaving
+  the new services absent from the running generation. Confirm sudo is usable
+  (`sudo -n true`) before claiming a host is switched; if it is not, report the
+  build as done and a user-authenticated switch as the remaining step.
+- **`deploy-rs` runs broad flake checks before any remote activation.** A
+  `deploy '.#homeserver-gcp'` can fail on an unrelated `main-ci` invariant or a
+  repo-wide `pre-commit` check (`checks.x86_64-linux.invariants-main-ci`,
+  `checks.x86_64-linux.pre-commit`) before the host is ever touched. Treat an
+  early "Failed to check deployment" as a full-flake validation blocker: fix the
+  named check first, then retry the host deploy.
+- **Trust closure CVE scans, not live counts.** For security triage prefer
+  `bash scripts/validate.sh cve-reports` (the current flake-built closure) over
+  `vulnix_cve_total` from a deployed generation — live counts cause whitelist
+  churn and false positives. The live homeserver timer intentionally exports
+  only scanner freshness, not raw counts.
+- **Never delete a defensive `VAR=` command prefix to silence a linter.**
+  shellcheck SC1007 fires on the bare `var= cmd` form, but dropping `CDPATH=`
+  from `script_dir=$(cd -- … && pwd)` is a regression: with `CDPATH` set in the
+  env, `cd <relative>` echoes the resolved path into the capture and corrupts
+  it. Rewrite as `CDPATH='' cd -- …` — the guard is preserved and SC1007 stops
+  firing.

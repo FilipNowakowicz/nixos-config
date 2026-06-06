@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-05-stale-treefmt-precommit-after-config-edit
 date: 2026-06-05
 expires: 2026-07-05
-status: open
+status: promoted
 route: promote-doc
 best_form: doc
 evidence: [git commit failed treefmt hook after treefmt.nix edit, nix run .#statix -- check . passed, nix fmt -- --fail-on-change passed, commit 16f5726]

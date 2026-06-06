@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-06-home-manager-master-for-unstable
 date: 2026-06-06
 expires: 2026-07-06
-status: open
+status: promoted
 
 route: promote-doc
 best_form: doc

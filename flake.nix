@@ -10,6 +10,9 @@
     };
 
     home-manager = {
+      # Pair with the nixpkgs channel: nixos-unstable tracks Home Manager
+      # `master`, a stable nixpkgs release branch tracks the matching
+      # `release-XX.YY`. Mismatching them triggers HM release-version warnings.
       url = "github:nix-community/home-manager/master";
       inputs.nixpkgs.follows = "nixpkgs";
     };

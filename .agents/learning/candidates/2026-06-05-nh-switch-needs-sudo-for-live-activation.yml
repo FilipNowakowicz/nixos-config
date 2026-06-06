@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-05-nh-switch-needs-sudo-for-live-activation
 date: 2026-06-05
 expires: 2026-07-05
-status: open
+status: promoted
 
 route: promote-skill
 best_form: skill

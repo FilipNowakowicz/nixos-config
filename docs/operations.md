@@ -349,3 +349,10 @@ deadnix .
 
 `nix develop` installs a `commit-msg` hook in the shared git hooks directory
 that removes `Co-authored-by:` trailers.
+
+After editing `treefmt.nix`, the installed pre-commit `treefmt` wrapper can lag
+the config for the rest of the session and keep formatting files the fresh
+config now excludes. Trust the CI-equivalent commands — `nix fmt --
+--fail-on-change` and `nix run .#statix -- check .` — over a stale hook. Only
+re-`nix develop` (to regenerate the wrapper) or commit with `--no-verify` once
+those fresh checks pass; never use `--no-verify` to skip a real failure.

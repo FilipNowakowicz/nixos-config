@@ -1,0 +1,18 @@
+schema: learning-candidate/v1
+id: 2026-06-06-cdpath-guard-not-deleted-for-sc1007
+date: 2026-06-06
+expires: 2026-08-06
+status: promoted
+
+route: promote-skill
+best_form: skill
+
+evidence: ["8131016 dropped `CDPATH=` from `script_dir=$(cd -- … && pwd)` in 4 agent helper scripts to silence shellcheck", "shellcheck /tmp/qc-parent.sh -> SC1007 'Remove space after = if trying to assign a value' on `CDPATH= cd`", "shellcheck of `CDPATH='' cd -- …` -> exit 0 clean", "fix in PR #95 / c027516"]
+observation: Removing the `CDPATH=` prefix to silence shellcheck SC1007 is a regression — if CDPATH is set in the env, `cd <relative>` echoes the resolved path into `$(cd … && pwd)` and corrupts the captured dir. SC1007 only fires on the bare `var= cmd` form; rewriting as `CDPATH='' cd -- …` keeps the guard and is shellcheck-clean.
+
+proposed_upgrade: Add guidance (nix-verification-loop or a shell-hygiene note) — never delete a defensive `VAR=` command-prefix to satisfy a linter; rewrite as `VAR='' cmd` so the guard is preserved.
+agent: claude
+type: workflow-gotcha
+dedupe_key: shell-hygiene:cdpath-guard-vs-sc1007
+triggers: ["shellcheck SC1007", "CDPATH= cd", "script_dir=$(cd"]
+targets: [".agents/skills/nix-verification-loop/SKILL.md", ".agents/repo-map/scripts", ".agents/learning/scripts"]
