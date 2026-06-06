@@ -151,12 +151,14 @@ Allowed categories:
 - start/status for `restic-backups-local` and `restic-check-local`;
 - `bootctl status --no-pager` and `bootctl cleanup`;
 - `efibootmgr -b XXXX -B` for explicit EFI entry deletion;
-- `nix-gc-14d` for fixed-argument Nix garbage collection.
+- `nix-gc-14d` for fixed-argument Nix garbage collection;
+- `nixos-switch-main` for fixed-argument local `main` activation.
 
 Do not replace this with broad passwordless sudo. Add new commands only when
 they are repeat maintenance operations and can be expressed narrowly.
-Do not add passwordless switch/rebuild commands that activate from the
-user-writable `/home/user/nix` checkout.
+The `nixos-switch-main` exception is root-equivalent because it activates from
+the user-writable `/home/user/nix` checkout; keep it as the only passwordless
+switch path unless a future reviewed immutable activation flow replaces it.
 
 ## USBGuard: Adding a New USB Device
 

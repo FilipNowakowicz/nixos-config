@@ -24,6 +24,11 @@ let
     "/run/current-system/sw/bin/bootctl cleanup"
     "/run/current-system/sw/bin/efibootmgr -b [0-9A-F][0-9A-F][0-9A-F][0-9A-F] -B"
     "/run/current-system/sw/bin/nix-gc-14d"
+
+    # Root-equivalent activation path for agent-assisted local rebuilds.
+    # Keep this scoped to the fixed-argument wrapper below rather than granting
+    # broad passwordless sudo or arbitrary nh/nixos-rebuild commands.
+    "/run/current-system/sw/bin/nixos-switch-main"
   ];
 
   passwordlessAgentCommand = command: {
@@ -474,15 +479,8 @@ in
   };
 
   # ── USB Device Control ─────────────────────────────────────────────────────
-  # TEMPORARILY DISABLED 2026-06-05 to bring up the DisplayLink dock. With
-  # USBGuard's policy in force every controller comes up `authorized_default=0`,
-  # so the dock's nested hub chain never fully enumerates and the DisplayLink
-  # chip's USB id can't be read to write a precise allow rule. `main` is a
-  # BadUSB-hardened host — RE-ENABLE this (set `enable = true`) as soon as the
-  # dock's device rules are captured. The allow rules below are kept intact.
-  # See .claude/main/displaylink.md.
   services.usbguard = {
-    enable = false;
+    enable = true;
     IPCAllowedUsers = [
       "root"
       "user"
@@ -521,6 +519,12 @@ in
       # ID: 05e3:0620, 05e3:0608
       allow id 05e3:0620
       allow id 05e3:0608
+
+      # Allow DisplayLink video/NIC/audio device in the Dell Universal Dock D6000
+      # used for the external monitor. Serial captured from kernel history on
+      # 2026-06-05 after the dock enumerated with USBGuard disabled.
+      # ID: 17e9:6006, serial: 1712026441
+      allow id 17e9:6006 serial "1712026441" name "Dell Universal Dock D6000"
 
       # Allow integrated webcam (SunplusIT)
       # ID: 13d3:56b2

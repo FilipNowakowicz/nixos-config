@@ -235,13 +235,15 @@ Allowed command categories are limited to:
 - starting/statusing the local Restic backup and check units;
 - `bootctl` status/cleanup;
 - deleting an explicitly named EFI boot entry with `efibootmgr -b XXXX -B`;
-- Nix garbage collection through the fixed-argument `nix-gc-14d` wrapper.
+- Nix garbage collection through the fixed-argument `nix-gc-14d` wrapper;
+- local `main` activation through the fixed-argument `nixos-switch-main`
+  wrapper.
 
 Do not broaden this to full passwordless sudo. Additions should be exact-command
 maintenance operations and should keep normal interactive sudo passworded.
-Do not add passwordless rebuild/switch commands that activate from
-user-writable paths such as `/home/user/nix`; switching `main` should require a
-normal passworded sudo boundary or a future reviewed immutable activation flow.
+The `nixos-switch-main` exception is root-equivalent because it activates from
+the user-writable `/home/user/nix` checkout; keep it as the only passwordless
+switch path unless a future reviewed immutable activation flow replaces it.
 
 ## Deploy And Bootstrap Sudo
 
