@@ -116,8 +116,9 @@ promotion itself is reviewed.
 its file leaves that queue, so triage never re-reads settled lessons:
 
 - `promoted` / `rejected` / `superseded` → `git mv` into `candidates/archive/`
-  in the same PR that resolves it. The dedupe_key and evidence stay searchable
-  for future dedup; the index scripts (`find … -maxdepth 1`) skip the subdir.
+  in the same PR that resolves it. The index scripts (`find … -maxdepth 1`)
+  skip the subdir, so the file leaves triage but stays in-tree — `rg <dedupe_key>
+.agents/learning/candidates/archive/` still finds it for manual dedup/audit.
 - `open` past its `expires` date → surfaced by `review-candidates.sh`; re-justify
   it or reject it. Capture is cheap precisely because stale lessons age out.
 
