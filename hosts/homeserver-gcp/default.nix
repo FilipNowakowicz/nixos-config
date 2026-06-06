@@ -156,6 +156,19 @@ in
       authKeyFile = config.sops.secrets.tailscale_auth_key.path;
     };
 
+    systemd-failure-notify = {
+      enable = true;
+      webhookUrlFile = config.sops.secrets.alertmanager_webhook_url.path;
+      services = [
+        "mimir"
+        "prometheus"
+        "prometheus-node-exporter"
+        "nginx"
+        "tailscaled"
+        "heartbeat-ping"
+      ];
+    };
+
     journald.extraConfig = ''
       ForwardToConsole=yes
       MaxLevelConsole=info

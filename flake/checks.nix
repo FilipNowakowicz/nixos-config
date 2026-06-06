@@ -279,6 +279,36 @@ let
     homeserverGcpB2BackupUsesCriticalPolicy
   ];
 
+  homeserverAlertDeliveryInvariants = [
+    {
+      name = "alerting stack has direct failed-unit webhook fallback";
+      check =
+        cfg:
+        let
+          notifier = cfg.services.systemd-failure-notify;
+          expectedUnits = [
+            "heartbeat-ping"
+            "mimir"
+            "nginx"
+            "prometheus"
+            "prometheus-node-exporter"
+            "tailscaled"
+          ];
+          actualUnits = lib.sort builtins.lessThan notifier.services;
+          violations = lib.filter (msg: msg != "") [
+            (lib.optionalString (!notifier.enable) "services.systemd-failure-notify.enable must be true")
+            (lib.optionalString (
+              notifier.webhookUrlFile != "/run/secrets/alertmanager_webhook_url"
+            ) "services.systemd-failure-notify.webhookUrlFile must use /run/secrets/alertmanager_webhook_url")
+            (lib.optionalString (
+              actualUnits != expectedUnits
+            ) "services.systemd-failure-notify.services must cover the alerting/reachability stack")
+          ];
+        in
+        mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
+    }
+  ];
+
   # mac is a deploy-rs target like homeserver-gcp (passwordless wheel, SSH tailnet-only)
   # but does not publish HTTPS, so only SSH ports are checked.
   macAccessInvariants = invariants.deployTargetAccessAssertions ++ [
@@ -486,6 +516,7 @@ in
       commonSystemInvariants
       ++ homeserverAccessInvariants
       ++ homeserverBackupInvariants
+      ++ homeserverAlertDeliveryInvariants
       ++ registryAssertionsFor "homeserver-gcp"
     ) ciNixosConfigs.homeserver-gcp.config;
 
