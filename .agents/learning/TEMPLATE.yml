@@ -5,6 +5,10 @@ expires: YYYY-MM-DD
 # open|promoted|rejected|superseded|expired
 status: open
 
+# Every field is single-line compact YAML: keep each value on the same line as
+# its key (use inline [..] lists, not block style). The validator's field check
+# is a same-line grep and rejects next-line block values.
+#
 # Routing for the reviewer. Keep values short and grep-friendly.
 route: implement-fix|promote-memory|promote-skill|promote-hook|promote-doc|reject
 best_form: invariant|test|ci-gate|hook|skill|doc|none
