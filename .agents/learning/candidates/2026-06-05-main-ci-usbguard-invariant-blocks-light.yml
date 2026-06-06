@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-05-main-ci-usbguard-invariant-blocks-light
 date: 2026-06-05
 expires: 2026-07-05
-status: open
+status: promoted
 
 route: implement-fix
 best_form: invariant

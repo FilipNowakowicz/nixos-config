@@ -40,10 +40,18 @@ while IFS= read -r path; do
   esac
 
   for field in "${required_fields[@]}"; do
-    if ! grep -Eq "^${field}:[[:space:]]*.+" "$path"; then
-      printf '%s: missing required field %s\n' "$path" "$field" >&2
-      rc=1
+    if grep -Eq "^${field}:[[:space:]]*.+" "$path"; then
+      continue
     fi
+    # Candidates are single-line compact YAML; the field check is a same-line
+    # grep. A key present with a block-style (next-line) value still fails, so
+    # distinguish that from a truly absent field to avoid a misleading error.
+    if grep -Eq "^${field}:[[:space:]]*$" "$path"; then
+      printf '%s: field %s must be single-line compact YAML (value on the same line as the key)\n' "$path" "$field" >&2
+    else
+      printf '%s: missing required field %s\n' "$path" "$field" >&2
+    fi
+    rc=1
   done
 
   if ! grep -Eq '^schema:[[:space:]]*learning-candidate/v1$' "$path"; then

@@ -1,0 +1,19 @@
+schema: learning-candidate/v1
+id: 2026-06-06-learning-candidate-evidence-same-line
+date: 2026-06-06
+expires: 2026-07-06
+status: promoted
+
+route: implement-fix
+best_form: test
+
+evidence: [PR #94 lint failed in bash scripts/validate.sh docs with ".agents/learning/candidates/2026-06-06-vulnix-live-counts-are-noisy.yml: missing required field evidence", commit 1765d6b fixed it by changing block-style evidence to same-line compact evidence, local bash scripts/validate.sh docs passed]
+observation: validate-candidates.sh checks required fields with a same-line grep, so valid YAML block-style values are rejected as missing.
+proposed_upgrade: Teach the validator to parse compact YAML fields intentionally or document same-line-only candidate fields in the template/README with a regression test.
+
+agent: codex
+type: repo-fix
+dedupe_key: learning-candidates:required-fields-same-line
+triggers: [validate-candidates.sh, learning candidate, evidence, missing required field, docs lint]
+targets: [.agents/learning/scripts/validate-candidates.sh, .agents/learning/TEMPLATE.yml, .agents/learning/README.md]
+risk: A parser change could accidentally accept overly verbose candidate bodies unless compactness remains enforced.
