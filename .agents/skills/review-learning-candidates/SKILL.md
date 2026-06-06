@@ -83,8 +83,8 @@ In the PR that implements a promotion, also:
 - flip the candidate `status` (`promoted` / `rejected` / `superseded`), and
 - **archive the file**: `git mv` it from `candidates/` to `candidates/archive/`.
   The index scripts only scan `candidates/` at depth 1, so archiving drops it
-  from the open queue automatically while preserving the dedupe_key, evidence,
-  and promotion target for future dedup queries.
+  from the open queue automatically while keeping the file in-tree (greppable
+  under `archive/`) for later dedup and audit.
 
 `status` values:
 

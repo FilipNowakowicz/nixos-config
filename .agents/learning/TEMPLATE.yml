@@ -14,7 +14,9 @@ route: implement-fix|promote-memory|promote-skill|promote-hook|promote-doc|rejec
 best_form: invariant|test|ci-gate|hook|skill|doc|none
 
 # Evidence must be enough for a reviewer agent to reopen the real source.
-evidence: [commit-or-pr-or-file-line-or-command-output-pointer]
+# Prefer a durable pointer — a PR number (#NNN) or a SHA already on main — over
+# a local codex/* branch name; check-candidate-liveness.sh can verify those.
+evidence: [pr-#NNN-or-sha-on-main-or-file-line-or-command-output-pointer]
 observation: terse-fact-not-story
 proposed_upgrade: terse-action-for-reviewer
 
