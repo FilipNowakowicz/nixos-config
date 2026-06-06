@@ -10,6 +10,19 @@ step.
 work  ->  candidate lesson  ->  review  ->  promote  ->  better future agents
 ```
 
+## Candidate vs. agent memory
+
+A learning candidate is a **repo-shared, reviewed** proposal that improves the
+artifacts every agent reads (checks, hooks, skills, docs). It is not the same as
+an individual agent's private memory:
+
+- Reusable lesson for **any agent working this repo** → learning candidate →
+  promote to a check / hook / skill / doc.
+- Cross-session context about **you and this project** (your preferences, who an
+  agent is, where to navigate) → that agent's own memory store, not here.
+
+If a fact would help a teammate's agent as much as your own, it is a candidate.
+
 ## Layout
 
 - `candidates/` — open candidate notes, one compact YAML file per lesson
@@ -20,9 +33,15 @@ work  ->  candidate lesson  ->  review  ->  promote  ->  better future agents
 - `scripts/query-candidates.sh` — searches the index so agents do not read the
   candidate archive during capture.
 - `scripts/review-candidates.sh` — groups open candidates for low-token reviewer
-  triage.
+  triage and lists expired ones.
+- `scripts/check-candidate-liveness.sh` — flags open candidates whose evidence
+  already landed (PR merged / commit on HEAD), so a reviewer does not
+  re-implement a done fix.
 - `scripts/validate-candidates.sh` — checks required routing fields and allowed
   categories.
+- `candidates/archive/` — `promoted`/`rejected`/`superseded` candidates land
+  here (see [Lifecycle](#lifecycle)); the index scripts ignore it so the open
+  queue stays lean.
 
 ## Capture (active now)
 
@@ -73,17 +92,36 @@ candidate queue. The reviewer starts from metadata:
 
 1. run `scripts/validate-candidates.sh`,
 2. run `scripts/review-candidates.sh`,
-3. choose one small batch by `route`, `best_form`, or related target,
-4. open only the selected candidate files, and
-5. draft or implement the promotion in the strongest viable form.
+3. run `scripts/check-candidate-liveness.sh` to drop already-landed candidates,
+4. choose one small batch by `route`, `best_form`, or related target,
+5. open only the selected candidate files, and
+6. draft or implement the promotion in the strongest viable form.
 
 The reviewer should:
 
 - dedup and cluster candidates,
 - reject stale or expired ones,
 - draft the promotion in its strongest viable form (invariant > hook >
-  skill > prose), and
+  skill > prose),
+- compact the batch into coherent PRs (executable changes in one PR, prose
+  grouped by target file) rather than one PR per candidate, and
 - leave promotion reviewable as a normal branch/PR.
 
 Review remains human-gated: a candidate never changes behavior until the
 promotion itself is reviewed.
+
+## Lifecycle
+
+`candidates/` holds only the **open** queue. The moment a candidate is resolved
+its file leaves that queue, so triage never re-reads settled lessons:
+
+- `promoted` / `rejected` / `superseded` → `git mv` into `candidates/archive/`
+  in the same PR that resolves it. The dedupe_key and evidence stay searchable
+  for future dedup; the index scripts (`find … -maxdepth 1`) skip the subdir.
+- `open` past its `expires` date → surfaced by `review-candidates.sh`; re-justify
+  it or reject it. Capture is cheap precisely because stale lessons age out.
+
+Evidence should cite a durable pointer — a **PR number** or a SHA on `main` —
+not a local `codex/*` branch name. Because this repo squash-merges, a pre-merge
+SHA stops being an ancestor of `main`, so a `#NNN` reference is what
+`check-candidate-liveness.sh` can actually verify later.
