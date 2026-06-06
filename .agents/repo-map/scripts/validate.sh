@@ -2,7 +2,7 @@
 # Validate repo-map helpers and run a small query smoke test.
 set -euo pipefail
 
-script_dir=$(cd -- "$(dirname -- "$0")" && pwd)
+script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 
 bash -n "$script_dir/index.sh" "$script_dir/query.sh"
 

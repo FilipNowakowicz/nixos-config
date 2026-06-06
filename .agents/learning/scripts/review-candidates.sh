@@ -2,7 +2,7 @@
 # Summarize learning candidates for reviewer triage without opening bodies.
 set -euo pipefail
 
-script_dir=$(cd -- "$(dirname -- "$0")" && pwd)
+script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 root=${1:-.agents/learning}
 today=${LEARNING_TODAY:-$(date +%F)}
 tmp=${TMPDIR:-/tmp}/learning-review-$$.tsv
