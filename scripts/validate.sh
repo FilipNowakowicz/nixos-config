@@ -273,7 +273,7 @@ cve-reports)
     attr="${spec#*:}"
     echo "=== CVE Scan for '$host' ==="
     closure=$(nix build --no-link --print-out-paths "$attr")
-    if vulnix -R -j --whitelist "$repo_root/cve-whitelist.toml" "$closure" 2>&1; then
+    if vulnix -R -j "$closure" 2>&1; then
       echo "VULNIX_ADVISORIES=0"
     else
       echo "VULNIX_ADVISORIES=1"

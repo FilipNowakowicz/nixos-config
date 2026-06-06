@@ -242,8 +242,10 @@ bash scripts/validate.sh cve-reports
 ```
 
 The CVE report workflow also runs weekly and on PRs that touch `flake.lock`.
-It scans both `main` and `homeserver-gcp` and uploads the report artifact; vulnix
-advisories are surfaced as workflow warnings, not as merge-gating failures.
+It scans the current flake-built `main` and `homeserver-gcp` closures and uploads
+the report artifact; vulnix advisories fail the workflow. The live homeserver
+timer exports only `vulnix_scan_timestamp_seconds`, so dashboards alert on stale
+scanner health rather than noisy raw CVE counts from deployed generations.
 
 Rules of thumb:
 

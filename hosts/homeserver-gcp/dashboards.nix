@@ -488,7 +488,7 @@ in
           })
           (dash.statPanel {
             id = 34;
-            title = "CVEs · gcp (info)";
+            title = "Vulnix Scan Age · gcp";
             ds = dash.mimirDS;
             gridPos = dash.gridPos {
               x = 20;
@@ -499,16 +499,12 @@ in
             decimals = 0;
             colorMode = "none";
             graphMode = "none";
-            thresholds = [
-              {
-                color = "blue";
-                value = null;
-              }
-            ];
+            unit = "h";
+            thresholds = invThresholds 26 48;
             targets = [
               (dash.target {
-                expr = "vulnix_cve_total";
-                legendFormat = "CVEs";
+                expr = "(time() - vulnix_scan_timestamp_seconds) / 3600";
+                legendFormat = "age";
               })
             ];
           })

@@ -214,8 +214,6 @@ in
         lynis_index="$(metric /var/lib/node-exporter-textfiles/lynis.prom lynis_hardening_index)"
         lynis_warnings="$(metric /var/lib/node-exporter-textfiles/lynis.prom lynis_warnings_total)"
         vulnix_ts="$(metric /var/lib/node-exporter-textfiles/vulnix.prom vulnix_scan_timestamp_seconds)"
-        vulnix_cves="$(metric /var/lib/node-exporter-textfiles/vulnix.prom vulnix_cve_total)"
-        vulnix_packages="$(metric /var/lib/node-exporter-textfiles/vulnix.prom vulnix_affected_packages_total)"
         homeserver_revision="$(cat /run/current-system/configuration-revision 2>/dev/null || true)"
         homeserver_activated_at="$(metric /var/lib/node-exporter-textfiles/system_metadata.prom nixos_system_activated_at_seconds)"
         main_system_revision="$(prometheus_query_label 'max by (revision) (nixos_system_revision_info{host="main"})' revision)"
@@ -282,8 +280,6 @@ in
           --argjson lynisIndex "$(number_json "$lynis_index")" \
           --argjson lynisWarnings "$(number_json "$lynis_warnings")" \
           --argjson vulnixAge "$(age_json "$vulnix_ts")" \
-          --argjson vulnixCves "$(number_json "$vulnix_cves")" \
-          --argjson vulnixPackages "$(number_json "$vulnix_packages")" \
           --arg homeserverRevision "$homeserver_revision" \
           --argjson homeserverActivatedAt "$(number_json "$homeserver_activated_at")" \
           --arg mainRevision "$main_system_revision" \
@@ -335,9 +331,7 @@ in
                   },
                   vulnix: {
                     timerState: $vulnixTimer,
-                    ageSeconds: $vulnixAge,
-                    cveTotal: $vulnixCves,
-                    affectedPackagesTotal: $vulnixPackages
+                    ageSeconds: $vulnixAge
                   }
                 }
               },

@@ -67,37 +67,33 @@ in
       };
 
       vulnix-scan = {
-        description = "Vulnix CVE scan of current system closure";
+        description = "Vulnix scan freshness check for current system closure";
         after = [ "network-online.target" ];
         wants = [ "network-online.target" ];
         serviceConfig = {
           Type = "oneshot";
           ExecStart = pkgs.writeShellScript "vulnix-scan" ''
-            whitelist=${./vulnix-whitelist.toml}
-
             # --system scans /run/current-system; -j = JSON output
             # NVD data is downloaded and cached in /var/cache/vulnix
-            # vulnix exit codes: 0 = clean, 2 = CVEs found, other = error
-            json=$(${pkgs.vulnix}/bin/vulnix -S -j \
-              --whitelist "$whitelist" \
-              --cache-dir /var/cache/vulnix 2>/dev/null) || true
+            # vulnix exit codes: 0 = clean, 2 = CVEs found, other = error.
+            # Live-host CVE counts are deliberately not exported: raw NVD/CPE
+            # matches create noisy version churn, while CI scans the flake-built
+            # closures and is the authoritative CVE gate.
+            json=$(${pkgs.vulnix}/bin/vulnix -S -j --cache-dir /var/cache/vulnix 2>/dev/null)
+            rc=$?
+            if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
+              echo "vulnix failed with exit code $rc" >&2
+              exit "$rc"
+            fi
 
             # validate JSON — if vulnix errored, output won't parse and we abort
-            pkg_count=$(printf '%s' "$json" | ${pkgs.jq}/bin/jq 'length // 0') || {
+            printf '%s' "$json" | ${pkgs.jq}/bin/jq -e 'type == "array"' >/dev/null || {
               echo "vulnix produced invalid output" >&2; exit 1;
             }
-            cve_count=$(printf '%s' "$json" | ${pkgs.jq}/bin/jq '[.[].affected_by | length] | add // 0')
-            export pkg_count cve_count
 
             ${mkPromScript {
               name = "vulnix.prom";
               lines = [
-                "# HELP vulnix_affected_packages_total Packages with known CVEs after whitelist"
-                "# TYPE vulnix_affected_packages_total gauge"
-                "vulnix_affected_packages_total $pkg_count"
-                "# HELP vulnix_cve_total CVE findings after whitelist"
-                "# TYPE vulnix_cve_total gauge"
-                "vulnix_cve_total $cve_count"
                 "# HELP vulnix_scan_timestamp_seconds Unix timestamp of last successful scan"
                 "# TYPE vulnix_scan_timestamp_seconds gauge"
                 "vulnix_scan_timestamp_seconds $(${pkgs.coreutils}/bin/date +%s)"

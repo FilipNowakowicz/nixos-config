@@ -12,12 +12,10 @@
 #   HeartbeatPingStale — external heartbeat ping older than 15 min
 #   VulnixScanStale   — no successful scan in 26 h (daily + 2 h buffer)
 #
-# Note: there is intentionally no alert on vulnix_cve_total. On a weekly-bumped
-# nixpkgs closure a "CVEs > 0" alert is almost always firing on whitelist drift
-# and build-time/name-collision noise, which trains the operator to ignore
-# alerts. The metric is kept for on-demand review (Grafana Explore /
-# vulnix_cve_total); only scan *staleness* is alerted, so a broken scanner is
-# still caught.
+# Note: the live host intentionally exports only vulnix scan freshness, not CVE
+# counts. Raw NVD/CPE matches produce version churn and name-collision noise on
+# deployed generations; the authoritative CVE signal is the CI/current-closure
+# `scripts/validate.sh cve-reports` run.
 #   LynisScoreLow     — hardening index < 60 for 0 m
 #   LynisScanStale    — no successful audit in 26 h (daily + 2 h buffer)
 #   BlackboxProbeFailed — blackbox HTTP probe failing for 5 min

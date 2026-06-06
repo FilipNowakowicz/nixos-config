@@ -1,0 +1,25 @@
+schema: learning-candidate/v1
+id: 2026-06-06-vulnix-live-counts-are-noisy
+date: 2026-06-06
+expires: 2026-07-06
+status: open
+
+route: promote-skill
+best_form: skill
+
+evidence: [ssh homeserver-gcp cat /var/lib/node-exporter-textfiles/vulnix.prom -> vulnix_cve_total 134 after whitelist, nix shell --inputs-from . nixpkgs#vulnix --command bash scripts/validate.sh cve-reports -> [] for main and homeserver-gcp, codex/cve-scan-signal-cleanup removes live vulnix CVE count metrics and both whitelist files]
+observation: Live vulnix CVE counts on deployed generations create whitelist churn and false-positive noise; current flake-built closure scans are the useful signal.
+proposed_upgrade: Teach agents to prefer CI/current-closure cve-reports for security triage and treat live vulnix metrics as scanner-freshness only.
+
+agent: codex
+type: workflow-gotcha
+dedupe_key: vulnix:live-counts-vs-current-closure-signal
+triggers:
+  - "vulnix_cve_total"
+  - "cve-reports"
+  - "CVE whitelist"
+  - "homeserver-gcp dashboard CVE count"
+targets:
+  - ".agents/skills/nix-verification-loop/SKILL.md"
+  - "docs/operations.md"
+risk: Promoting as a blanket rule could hide genuine live-only package drift unless deploy drift is checked separately.
