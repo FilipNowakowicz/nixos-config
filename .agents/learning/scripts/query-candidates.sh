@@ -7,8 +7,8 @@ if [ "$#" -eq 0 ]; then
   exit 2
 fi
 
-script_dir=$(cd -- "$(dirname -- "$0")" && pwd)
-root=$(cd -- "$script_dir/.." && pwd)
+script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+root=$(CDPATH='' cd -- "$script_dir/.." && pwd)
 query=$*
 tmp=${TMPDIR:-/tmp}/learning-index-$$.tsv
 trap 'rm -f "$tmp"' EXIT
