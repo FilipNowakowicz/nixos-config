@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-06-06-nix-develop-command-shellhook
+date: 2026-06-06
+expires: 2026-09-04
+status: open
+route: promote-doc
+best_form: doc
+evidence: [command `nix develop --command sh -c 'echo COMMAND_WORKS'` exited 0 without printing the command output; `.github/workflows/deploy-homeserver.yml` uses `nix shell nixpkgs#deploy-rs -c deploy` instead]
+observation: The default dev shell unconditionally execs zsh in shellHook, so `nix develop --command ...` is not a reliable automation wrapper in this repo.
+proposed_upgrade: Document automation-safe alternatives such as direct flake apps/packages or `nix shell nixpkgs#tool -c ...` for non-interactive commands.
+agent: codex
+type: workflow-gotcha
+dedupe_key: nix-dev-shell:nix-develop-command-exec-zsh
+triggers: [nix develop --command, deploy workflow, non-interactive automation]
+targets: [docs/operations.md, CLAUDE.md]

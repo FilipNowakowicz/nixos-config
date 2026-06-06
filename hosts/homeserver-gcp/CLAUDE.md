@@ -51,6 +51,20 @@ session, fall back to a manual closure deploy: `nix build` the system closure,
 `nix copy` it to the host (add `--derivation` if needed), then run
 `switch-to-configuration switch` over SSH.
 
+## Automated Deploy Runner
+
+This host declares `github-runner-homeserver-deploy.service` for the manual
+GitHub Actions workflow `Deploy homeserver-gcp`. It is intentionally scoped to
+phase-1 homeserver deploys only: workflow dispatch from `main`, explicit
+confirmation input, and the runner labels `nixos`, `homeserver-gcp`, and
+`homeserver-deploy`.
+
+The runner registration credential is the sops secret
+`github_runner_homeserver_deploy_token`. Populate it with a fine-grained PAT
+limited to this repo with repository `Administration` read/write before
+deploying the runner; the workflow runs validation, deploy-rs, drift, and
+failed-unit checks. It does not automate `main` rollout.
+
 ## Gotchas
 
 - **sops fails on first boot if the host key was not copied into the installed root** — Tailscale won't join, SSH won't work over Tailscale. Recover via GCE serial console or `gcloud compute ssh` (project SSH keys bypass tailnet-only firewall during recovery), then install the encrypted repo key at `/etc/ssh/ssh_host_ed25519_key` and redeploy.

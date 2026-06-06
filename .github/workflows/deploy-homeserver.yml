@@ -1,0 +1,69 @@
+name: Deploy homeserver-gcp
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_target:
+        description: Type homeserver-gcp to deploy the homeserver
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-homeserver-gcp
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: |
+      github.repository == 'FilipNowakowicz/nixos-config'
+      && github.ref == 'refs/heads/main'
+      && inputs.confirm_target == 'homeserver-gcp'
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - nixos
+      - homeserver-gcp
+      - homeserver-deploy
+    environment: homeserver-gcp-deploy
+    timeout-minutes: 180
+    env:
+      USE_BUILDER: "0"
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Flake evaluation
+        run: bash scripts/validate.sh flake-eval
+
+      - name: Lightweight checks
+        run: bash scripts/validate.sh light
+
+      - name: Build homeserver-gcp closure
+        run: bash scripts/validate.sh host homeserver-gcp
+
+      - name: Build homeserver smoke test when KVM is available
+        run: bash scripts/validate.sh smoke-homeserver-gcp
+
+      - name: Deploy homeserver-gcp
+        run: nix shell nixpkgs#deploy-rs -c deploy '.#homeserver-gcp'
+
+      - name: Check registry-backed host drift
+        run: bash scripts/check-host-drift.sh homeserver-gcp
+
+      - name: Check failed units
+        run: |
+          failed_units="$(
+            ssh \
+              -o BatchMode=yes \
+              -o ConnectTimeout=10 \
+              -o StrictHostKeyChecking=accept-new \
+              user@homeserver-gcp \
+              'systemctl --failed --no-legend --plain --no-pager'
+          )"
+          if [[ -n "$failed_units" ]]; then
+            printf '%s\n' "$failed_units"
+            exit 1
+          fi

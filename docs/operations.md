@@ -186,6 +186,60 @@ The first pass checks a narrow set of registry-backed facts:
 - Tailscale-only TCP ports derived from `networking.firewall.interfaces.tailscale0.allowedTCPPorts`
 - Selected enabled systemd units such as `tailscaled`, `sshd`, and core homeserver services
 
+## Automated Homeserver Deploy
+
+`homeserver-gcp` declares a self-hosted GitHub Actions runner for the manual
+deploy workflow in `.github/workflows/deploy-homeserver.yml`. The workflow is
+only for phase-1 homeserver deploys: it is `workflow_dispatch` only, requires
+the `confirm_target` input to be `homeserver-gcp`, runs only from `main`, and
+targets the explicit runner labels `self-hosted`, `linux`, `x64`, `nixos`,
+`homeserver-gcp`, and `homeserver-deploy`.
+
+Before the runner can come online, populate the registration credential:
+
+```bash
+sops hosts/homeserver-gcp/secrets/secrets.yaml
+# replace github_runner_homeserver_deploy_token with the fine-grained PAT
+```
+
+Use a fine-grained PAT limited to `FilipNowakowicz/nixos-config` with repository
+`Administration` set to read/write, which GitHub requires for repository
+self-hosted runner registration tokens. Do not store this token in GitHub Actions
+secrets or plaintext workflow environment. The committed encrypted value is only
+a placeholder; the runner will not register until it is replaced.
+
+Initial rollout:
+
+```bash
+bash scripts/validate.sh host homeserver-gcp
+deploy '.#homeserver-gcp'
+ssh user@homeserver-gcp 'systemctl status github-runner-homeserver-deploy.service --no-pager'
+```
+
+After the runner appears online in GitHub, trigger **Deploy homeserver-gcp** from
+the Actions UI on the `main` branch and enter `homeserver-gcp` as the
+confirmation input. The job runs:
+
+```bash
+bash scripts/validate.sh flake-eval
+bash scripts/validate.sh light
+bash scripts/validate.sh host homeserver-gcp
+bash scripts/validate.sh smoke-homeserver-gcp
+nix shell nixpkgs#deploy-rs -c deploy '.#homeserver-gcp'
+bash scripts/check-host-drift.sh homeserver-gcp
+ssh user@homeserver-gcp 'systemctl --failed --no-pager'
+```
+
+Rollback is the normal deploy-rs rollback path during activation. If a bad
+generation is confirmed after activation, use the bootloader or
+`/run/current-system/bin/switch-to-configuration` rollback path over SSH, then
+rerun the workflow from the corrected `main`.
+
+Rotate the runner credential by replacing
+`github_runner_homeserver_deploy_token` with `sops`, redeploying
+`homeserver-gcp`, and removing the old offline runner from the repository
+settings if GitHub keeps a stale registration.
+
 ## Mac Companion Workstation
 
 Deploy from `main`:

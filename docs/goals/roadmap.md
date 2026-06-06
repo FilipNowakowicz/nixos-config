@@ -126,19 +126,29 @@ Recorded so they are not re-proposed:
 
 ## Homeserver Parked Ideas
 
-Status: not active priorities; revisit if manual deploys or secret hygiene
-become real pain points.
+Status: automated deploy phase 1 is in progress for `homeserver-gcp`; secret
+rotation remains parked.
 
 ### Automated Deploy Pipeline
 
-Why parked: the manual deploy flow is currently acceptable, and the repo already
-has validation and smoke-test entrypoints without GitHub Actions automation.
+Phase 1 scope: manual, gated GitHub Actions deployment for `homeserver-gcp`.
+Automatic deploys on every `main` push and automatic `main` workstation rollout
+remain deferred.
 
-Scope when revisited:
+Shipped/wired:
 
-- Self-hosted GitHub Actions runner as a NixOS service
-- Validation and smoke-test gating before deploy
-- Ordered rollout for `homeserver-gcp` and then `main`
+- Self-hosted GitHub Actions runner as a NixOS service on `homeserver-gcp`
+- Sops-backed runner registration credential declaration
+- Manual `workflow_dispatch` deploy workflow restricted to `main` and explicit
+  homeserver runner labels
+- Existing validation, host build, smoke, deploy-rs, drift, and failed-unit
+  checks in the deploy workflow
+
+Deferred:
+
+- Automatic deploy on every `main` push
+- Automatic `main` rollout
+- Any broader `main` sudo or deploy-rs posture change
 
 ### Secret Rotation Ritual
 
