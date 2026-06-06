@@ -46,18 +46,20 @@ let
   # than discovered from the environment.
   themeSwitch = pkgs.writeShellApplication {
     name = "theme-switch";
-    runtimeInputs = with pkgs; [
-      home-manager
-      hyprland
-      waybar
-      swaybg
-      kitty
-      procps
-      systemd
-      util-linux
-      libnotify
-      fzf
-    ];
+    # The themed UI tools (kitty/waybar/swaybg) come from the single shared
+    # list so they cannot drift from the desktop install list; hyprland is
+    # added here for `hyprctl` reloads (the compositor itself is system-level).
+    runtimeInputs =
+      (import ../profiles/desktop-runtime.nix { inherit pkgs; })
+      ++ (with pkgs; [
+        home-manager
+        hyprland
+        procps
+        systemd
+        util-linux
+        libnotify
+        fzf
+      ]);
     text = ''
       ACTIVE_FILE=${lib.escapeShellArg cfg.activeFile}
     ''
