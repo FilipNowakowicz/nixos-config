@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-06-07-goals-roadmap-link-sweep
+date: 2026-06-07
+expires: 2026-12-07
+status: open
+route: promote-skill
+best_form: skill
+evidence: [docs/goals/roadmap.md:1-8, docs/goals/roadmap.md:24-37, docs/goals/homeserver-goals.md:96-101, bash-scripts-validate-sh-docs-checked-45-markdown-files]
+observation: Goals-roadmap pruning should remove shipped history and sweep inbound notes so other goals docs do not point readers at deleted shipped sections.
+proposed_upgrade: Add a goals-doc cleanup checklist to the repo workflow skill: identify durable-doc homes for completed work, keep only forward-looking items, rg cross-references, then run bash scripts/validate.sh docs.
+type: workflow-gotcha
+dedupe_key: goals-docs:roadmap-prune-cross-reference-sweep
+triggers: [docs/goals/roadmap.md, docs/goals/*-goals.md, roadmap-cleanup, delete-done-goals]
+targets: [.agents/skills/issue-driven-development/SKILL.md, .agents/skills/nix-verification-loop/SKILL.md]

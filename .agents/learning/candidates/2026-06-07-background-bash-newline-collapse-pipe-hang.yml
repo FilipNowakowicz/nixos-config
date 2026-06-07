@@ -1,0 +1,19 @@
+schema: learning-candidate/v1
+id: 2026-06-07-background-bash-newline-collapse-pipe-hang
+date: 2026-06-07
+expires: 2026-12-07
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [proc-inspection-PID-76295-outer-zsh-76297-inner-zsh-blocked-unix_stream_read_generic-76298-tail--5-blocked-anon_pipe_read; outer-zsh-cmdline-showed-"tail -5 git add hosts/main/default.nix && git commit"-with-no-&&-between-tail-and-git-confirming-newline-collapse; killed-with-kill -9-76295-76297-76298-after-5+min-hang-with-empty-.output]
+observation: a backgrounded multi-line Bash command ("nix develop -c nix fmt FILE 2>&1 | tail -5\ngit add FILE && git commit ...") had its newline collapsed into one pipeline, feeding "git add FILE" as filename args to tail and leaving "nix develop -c nix fmt" sitting in an interactive inner shell that held the pipe open; tail then blocked on anon_pipe_read forever with zero output, masking the hang for 5+ minutes until a manual kill -9 of the whole process tree
+proposed_upgrade: add a Bash-tool usage note (e.g. in nix-verification-loop or repo agent docs) that backgrounded multi-step commands must join steps explicitly with && / ; on one logical line (or a single bash -c with embedded \n inside quotes), never rely on literal newlines between top-level statements; and that piping "nix develop -c <cmd>" through tail/head in the background is risky because a non-detaching inner command leaves the pipe open and the reader blocks silently — prefer foreground execution or redirect-to-file with separate tail -f so a hang is visible and killable
+
+# agent: claude
+# type: workflow-gotcha
+# dedupe_key: bash-tool:background-multiline-newline-collapse-pipe-hang
+# triggers: [run_in_background-bash, multi-line-command-string, "nix develop -c ... | tail", "nix develop -c ... | head"]
+# targets: [.agents/skills/nix-verification-loop, docs/operations.md]
+# risk: a future agent backgrounds a similar multi-line nix-develop-piped command, gets an empty output file, and either waits indefinitely or misdiagnoses it as a slow build instead of a malformed/hung pipeline

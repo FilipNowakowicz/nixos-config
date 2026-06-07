@@ -1,33 +1,53 @@
 ---
 name: issue-driven-development
-description: Use when turning a GitHub issue, review finding, roadmap item, or bug report into a scoped implementation with acceptance criteria and tests.
+description: Use when taking a scoped GitHub issue, review finding, roadmap item, or bug report through implementation, validation, PR/CI, merge, cleanup, and optional learning capture.
 ---
 
 # Issue-Driven Development
 
 Use this workflow for non-trivial implementation work, especially when the task
-starts from an issue, review finding, CI failure, roadmap item, or vague bug.
+starts from a scoped issue, review finding, CI failure, roadmap item, or bug.
+If the source item is still vague, use `issue-tdd` first.
 
 ## Workflow
 
 1. Establish the source item:
    - GitHub issue/PR review comment, local review note, roadmap entry, CI failure,
      or user-stated bug.
-2. Restate the acceptance criteria in concrete terms:
+2. Confirm or restate the acceptance criteria in concrete terms:
    - What behavior changes?
    - What must not change?
    - What command/check will prove completion?
-3. Create or identify the failing check before editing when feasible:
+   - What decisions are already answered or explicitly out of scope?
+3. Ask only outcome-changing questions before editing:
+   - Ask about security posture, ownership, deploy risk, document ownership,
+     product behavior, or PR split boundaries.
+   - Do not ask permission to inspect, validate, or proceed through routine
+     workflow steps.
+4. Create or identify the failing check before editing when feasible:
    - Nix invariant, fixture, package check, profile test, smoke test, doc-link check,
      or a narrow command from `scripts/validate.sh`.
-4. Implement the smallest durable repo-side fix.
-5. Run the acceptance check, then any broader validation justified by the touched surface.
-6. Update the source item or local status artifact only when the task requires it.
+5. Create a targeted branch/worktree when useful for isolation.
+   - Prefer `codex/<short-scope>` or the established branch prefix.
+   - Keep one issue to one PR unless the scope clearly splits.
+6. Implement the smallest durable repo-side fix.
+7. Run the acceptance check, then any broader validation justified by the touched surface.
+8. Open or update the PR when the user wants the full loop.
+   - Link the source issue.
+   - Include validation evidence.
+   - Use `Refs #NNN` when completion needs post-merge or live proof; use
+     `Closes #NNN` only when the PR fully satisfies the issue.
+9. Watch CI and fix failures when asked to complete the loop.
+10. Merge only when the requested gate is satisfied.
+11. Cleanup merged worktrees/branches only after verifying the merge.
+12. Capture a learning candidate only for reusable, evidence-backed lessons.
 
 ## Output Expectations
 
 - Summarize the issue/source item, implementation, validation, and residual risk.
 - If no test/check can reasonably be added, say why and name the manual evidence used.
+- For full-loop work, include branch/PR state, CI status, merge result, cleanup,
+  and whether a learning candidate was warranted.
 - Keep branch and PR work targeted; avoid bundling unrelated cleanup.
 
 ## Repo-Specific Notes

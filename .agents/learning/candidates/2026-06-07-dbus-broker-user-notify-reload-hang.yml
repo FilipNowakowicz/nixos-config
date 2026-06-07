@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-06-07-dbus-broker-user-notify-reload-hang
+date: 2026-06-07
+expires: 2026-12-07
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [hosts/main/default.nix-systemd.user.services.dbus-broker-serviceConfig, "journald: 4x dbus-broker.service Reload operation timed out (90s) then activation exit 4", nixos/modules/services/system/dbus.nix-user-dbus-broker-reloadIfChanged-true]
+observation: user-scope dbus-broker-launch never completes the Type=notify-reload sd_notify handshake, so NixOS reloadIfChanged on the session bus hangs every nh os switch for the full timeout and fails activation; system-scope reloads fine
+proposed_upgrade: doc gotcha (docs/operations.md or hosts/main/CLAUDE.md) — a systemd user service shipped Type=notify-reload that NixOS marks reloadIfChanged hangs switch unless overridden to fire-and-forget (Type=notify + ExecReload=kill -HUP $MAINPID); also never trigger that reload on the live bus (busctl ReloadConfig / systemctl --user reload dbus-broker tore down user@1000)
+type: workflow-gotcha
+triggers: [nh-os-switch, systemd.user.services, dbus, notify-reload, activation-exit-4]
+targets: [docs/operations.md, hosts/main/CLAUDE.md]
