@@ -53,26 +53,36 @@ session, fall back to a manual closure deploy: `nix build` the system closure,
 
 ## Automated Deploy Runner
 
-This host declares `github-runner-homeserver-deploy.service` for the manual
-GitHub Actions workflow `Deploy homeserver-gcp`. It is intentionally scoped to
-phase-1 homeserver deploys only: workflow dispatch from `main`, explicit
-confirmation input, and the runner labels `nixos`, `homeserver-gcp`, and
-`homeserver-deploy`.
+This host declares `github-runner-homeserver-deploy.service` for the GitHub
+Actions workflow `Deploy homeserver-gcp`, scoped to this host only via the runner
+labels `nixos`, `homeserver-gcp`, and `homeserver-deploy`.
+
+**The host auto-deploys.** Every push to `main` that touches the homeserver
+closure (path-filtered: `hosts/homeserver-gcp`, `modules`, `lib`, `home`, the
+flake, and the deploy workflow/action) triggers a full validate-then-deploy run.
+`workflow_dispatch` remains as a manual escape hatch (with a `confirm_target`
+input and an optional `fast` validation scope for retries). Push runs always use
+the full validation scope. This is safe because deploy-rs runs with
+`magicRollback`/`autoRollback` and a 30s confirm timeout (`flake/deploy.nix`): a
+closure that cannot re-confirm tailnet reachability after activation auto-reverts.
+A _reachable-but-functionally-broken_ change is not caught by magic rollback —
+only the post-activation drift and failed-units checks catch some of that.
 
 The runner registration credential is the sops secret
 `github_runner_homeserver_deploy_token`. Populate it with a fine-grained PAT
 limited to this repo with repository `Administration` read/write before
 deploying the runner; the workflow runs validation, deploy-rs, drift, and
-failed-unit checks. It does not automate `main` rollout.
+failed-unit checks. It does not automate `main` workstation rollout.
 
 > **Triggering this workflow is root-equivalent on `homeserver-gcp`.** The
 > runner executes as `user`, which holds broad passwordless sudo here (see the
 > Security Preferences in the repo `CLAUDE.md`), and the deploy step runs
-> `switch-to-configuration` as root. Anyone who can dispatch the workflow — i.e.
-> push to `main` and start it — can therefore execute arbitrary root code on
-> this host. Keep dispatch gated to `main` (already enforced via the `if:`
-> guard and the `homeserver-gcp-deploy` environment) and treat write access to
-> `main` accordingly. The registration token also being a repo-Administration
+> `switch-to-configuration` as root. With auto-deploy on push, **anyone who can
+> merge to `main` can execute arbitrary root code on this host** — no separate
+> dispatch step is required. The `homeserver-gcp-deploy` environment currently
+> has no required-reviewer rule; adding reviewers there would re-introduce a
+> manual approval gate before each deploy. Keep deploys gated to `main` (enforced
+> via the `if:` guard) and treat write access to `main` as host-root access. The registration token also being a repo-Administration
 > PAT means a leak of the runner token is independently host-compromising;
 > rotate it if exposure is suspected.
 

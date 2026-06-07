@@ -1,6 +1,31 @@
 name: Deploy homeserver-gcp
 
 on:
+  # Continuous deploy: every push to main that touches the homeserver closure
+  # auto-deploys. Safe because deploy-rs runs with magicRollback + autoRollback
+  # and a 30s confirm timeout (flake/deploy.nix) — a closure that cannot
+  # re-confirm tailnet reachability after activation auto-reverts, so an
+  # auto-deploy cannot strand the host. The homeserver-gcp-deploy environment
+  # carries no required-reviewer protection rule, so the push flows without a
+  # manual gate (adding reviewers there would convert this back to gated).
+  # Residual risk: a *reachable-but-functionally-broken* change does NOT trip
+  # magic rollback; only the post-activation drift + failed-units checks below
+  # catch some of that. Every merge also exercises root on the host, reinforcing
+  # the runner/token root-equivalence documented in the host runbook.
+  push:
+    branches: [main]
+    paths:
+      - hosts/homeserver-gcp/**
+      - modules/**
+      - lib/**
+      - home/**
+      - flake.nix
+      - flake.lock
+      - flake/**
+      - scripts/validate.sh
+      - scripts/check-host-drift.sh
+      - .github/workflows/deploy-homeserver.yml
+      - .github/actions/setup-nix/**
   workflow_dispatch:
     inputs:
       confirm_target:
@@ -19,6 +44,11 @@ on:
 permissions:
   contents: read
 
+# A push to main carries no validation_scope input, so default the gate to full;
+# only manual workflow_dispatch runs can opt into the fast retry path.
+env:
+  VALIDATION_SCOPE: ${{ inputs.validation_scope || 'full' }}
+
 concurrency:
   group: deploy-homeserver-gcp
   cancel-in-progress: false
@@ -34,14 +64,14 @@ jobs:
     if: |
       github.repository == 'FilipNowakowicz/nixos-config'
       && github.ref == 'refs/heads/main'
-      && inputs.confirm_target == 'homeserver-gcp'
+      && (github.event_name == 'push' || inputs.confirm_target == 'homeserver-gcp')
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Reclaim runner disk space
-        if: ${{ inputs.validation_scope == 'full' }}
+        if: ${{ env.VALIDATION_SCOPE == 'full' }}
         run: |
           sudo rm -rf /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
@@ -59,15 +89,15 @@ jobs:
         run: bash scripts/validate.sh flake-eval
 
       - name: Lightweight checks
-        if: ${{ inputs.validation_scope == 'full' }}
+        if: ${{ env.VALIDATION_SCOPE == 'full' }}
         run: bash scripts/validate.sh light
 
       - name: Build homeserver-gcp closure
-        if: ${{ inputs.validation_scope == 'full' }}
+        if: ${{ env.VALIDATION_SCOPE == 'full' }}
         run: bash scripts/validate.sh host homeserver-gcp
 
       - name: Build homeserver smoke test when KVM is available
-        if: ${{ inputs.validation_scope == 'full' }}
+        if: ${{ env.VALIDATION_SCOPE == 'full' }}
         run: bash scripts/validate.sh smoke-homeserver-gcp
 
   # Tailnet-only work: reach the host to activate the closure and verify it.

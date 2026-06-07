@@ -130,23 +130,30 @@ rotation remains parked.
 
 ### Automated Deploy Pipeline
 
-Phase 1 scope: manual, gated GitHub Actions deployment for `homeserver-gcp`.
-Automatic deploys on every `main` push and automatic `main` workstation rollout
-remain deferred.
+Phase 1 (manual, gated) and the homeserver-gcp half of phase 2 (continuous
+deploy on `main` push) have shipped. Automatic `main` workstation rollout remains
+deferred.
 
 Shipped/wired:
 
 - Self-hosted GitHub Actions runner as a NixOS service on `homeserver-gcp`
 - Sops-backed runner registration credential declaration
-- Manual `workflow_dispatch` deploy workflow restricted to `main` and explicit
-  homeserver runner labels
+- Deploy workflow restricted to `main` and explicit homeserver runner labels
+- Auto-deploy on every `main` push that touches the homeserver closure
+  (path-filtered), with `workflow_dispatch` kept as a manual escape hatch
 - Existing validation, host build, smoke, deploy-rs, drift, and failed-unit
   checks in the deploy workflow
+- Safety net: deploy-rs `magicRollback`/`autoRollback` auto-reverts a closure
+  that cannot re-confirm tailnet reachability, so an auto-deploy cannot strand
+  the host. The `homeserver-gcp-deploy` environment carries no required-reviewer
+  rule, so pushes flow without a manual gate (adding reviewers re-gates it).
+
+Residual risk: a _reachable-but-functionally-broken_ change does not trip magic
+rollback; only the post-activation drift + failed-units checks catch some of it.
 
 Deferred:
 
-- Automatic deploy on every `main` push
-- Automatic `main` rollout
+- Automatic `main` rollout (#107)
 - Any broader `main` sudo or deploy-rs posture change
 
 ### Secret Rotation Ritual
