@@ -221,7 +221,7 @@ the Actions UI on the `main` branch, enter `homeserver-gcp` as the confirmation
 input, and leave `validation_scope` at `full` for normal deploys. Use
 `validation_scope=fast` only for small workflow or verification retries after a
 full green run on the same commit lineage; it keeps flake evaluation but skips
-the broad light/closure/smoke gates.
+runner disk cleanup and the broad light/closure/smoke gates.
 
 The full job runs:
 
