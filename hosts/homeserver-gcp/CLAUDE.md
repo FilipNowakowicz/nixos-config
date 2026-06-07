@@ -84,7 +84,8 @@ failed-unit checks. It does not automate `main` workstation rollout.
 > manual approval gate before each deploy. Keep deploys gated to `main` (enforced
 > via the `if:` guard) and treat write access to `main` as host-root access. The registration token also being a repo-Administration
 > PAT means a leak of the runner token is independently host-compromising;
-> rotate it if exposure is suspected.
+> rotate it if exposure is suspected. Rotation procedure (worked example):
+> [`docs/security.md` → Secret Rotation Ritual](../../docs/security.md#secret-rotation-ritual).
 
 ## Gotchas
 
