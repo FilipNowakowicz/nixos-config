@@ -86,7 +86,7 @@ jobs:
         run: nix shell nixpkgs#deploy-rs -c deploy --skip-checks '.#homeserver-gcp'
 
       - name: Check registry-backed host drift
-        run: nix shell nixpkgs#jq -c bash scripts/check-host-drift.sh homeserver-gcp
+        run: nix shell nixpkgs#coreutils nixpkgs#gawk nixpkgs#gnugrep nixpkgs#gnused nixpkgs#jq -c bash scripts/check-host-drift.sh homeserver-gcp
 
       - name: Check failed units
         run: |
