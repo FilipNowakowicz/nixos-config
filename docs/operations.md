@@ -225,7 +225,7 @@ bash scripts/validate.sh flake-eval
 bash scripts/validate.sh light
 bash scripts/validate.sh host homeserver-gcp
 bash scripts/validate.sh smoke-homeserver-gcp
-nix shell nixpkgs#deploy-rs -c deploy '.#homeserver-gcp'
+nix shell nixpkgs#deploy-rs -c deploy --skip-checks '.#homeserver-gcp'
 bash scripts/check-host-drift.sh homeserver-gcp
 ssh user@homeserver-gcp 'systemctl --failed --no-pager'
 ```

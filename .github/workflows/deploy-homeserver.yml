@@ -81,7 +81,9 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Deploy homeserver-gcp
-        run: nix shell nixpkgs#deploy-rs -c deploy '.#homeserver-gcp'
+        # The validate job already ran the flake checks on GitHub-hosted
+        # runners. Repeating them inside deploy-rs OOM-thrashes the 4 GB host.
+        run: nix shell nixpkgs#deploy-rs -c deploy --skip-checks '.#homeserver-gcp'
 
       - name: Check registry-backed host drift
         run: bash scripts/check-host-drift.sh homeserver-gcp
