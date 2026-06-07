@@ -125,8 +125,8 @@ Recorded so they are not re-proposed:
 
 ## Homeserver Parked Ideas
 
-Status: automated deploy phase 1 is in progress for `homeserver-gcp`; secret
-rotation remains parked.
+Status: automated deploy phase 1 and homeserver-gcp continuous deploy have
+shipped; the secret rotation ritual has shipped.
 
 ### Automated Deploy Pipeline
 
@@ -158,12 +158,12 @@ Deferred:
 
 ### Secret Rotation Ritual
 
-Why parked: rotation is useful but largely procedural and only partly
-automatable; the current setup does not justify prioritizing it over active
-service and auth work.
+Status: shipped. The secret inventory (owner, trigger, kind, command path), the
+newline-safe `sops` rotation envelope (`scripts/rotate-secret.sh`), the
+not-a-blind-swap caveats, and the worked `github_runner_homeserver_deploy_token`
+PAT rotation now live in [`docs/security.md`](../security.md#secret-rotation-ritual).
 
-Scope when revisited:
+Still optional / deferred:
 
-- Secret inventory with owner, trigger, and command path
-- Rotation checklist through `sops` and deploy
-- Optional Grafana visibility for secret-age metadata
+- Grafana visibility for secret-age metadata (`secret_*_age_seconds`-style
+  panel). No trigger yet; revisit if rotation drift becomes a real concern.
