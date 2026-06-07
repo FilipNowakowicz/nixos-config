@@ -2,11 +2,46 @@
   config,
   inputs,
   hostMeta,
+  lib,
   pkgs,
   ...
 }:
 let
   inherit (hostMeta) tailnetFQDN;
+  hostDriftInventory = {
+    schemaVersion = 1;
+    hosts = [
+      {
+        name = "homeserver-gcp";
+        deployable = true;
+        deployUser = hostMeta.deploy.sshUser or "user";
+        drift = {
+          tailscaleTag = hostMeta.tailscale.tag or null;
+          inherit tailnetFQDN;
+          tcpPorts = config.networking.firewall.interfaces.tailscale0.allowedTCPPorts or [ ];
+          expectedExtraTCPPorts = [
+            80
+            3201
+            9095
+            9096
+            22000
+          ];
+          strictTCPPortSet = true;
+          systemdUnits = lib.filter (unit: unit != "") [
+            (lib.optionalString config.services.openssh.enable "sshd.service")
+            (lib.optionalString config.services.tailscale.enable "tailscaled.service")
+            (lib.optionalString (config.services.nginx.enable or false) "nginx.service")
+            (lib.optionalString (config.services.vaultwarden.enable or false) "vaultwarden.service")
+            (lib.optionalString (config.services.adguardhome.enable or false) "adguardhome.service")
+            (lib.optionalString (config.services.grafana.enable or false) "grafana.service")
+            (lib.optionalString (config.services.loki.enable or false) "loki.service")
+            (lib.optionalString (config.services.mimir.enable or false) "mimir.service")
+            (lib.optionalString (config.services.tempo.enable or false) "tempo.service")
+          ];
+        };
+      }
+    ];
+  };
 in
 {
   imports = [
@@ -64,6 +99,8 @@ in
     pkgs.kitty.terminfo
     pkgs.wezterm.terminfo
   ];
+
+  environment.etc."host-drift-inventory.json".text = builtins.toJSON hostDriftInventory;
 
   networking = {
     hostName = "homeserver-gcp";

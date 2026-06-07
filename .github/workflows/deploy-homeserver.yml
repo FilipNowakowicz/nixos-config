@@ -98,6 +98,8 @@ jobs:
         run: nix shell nixpkgs#deploy-rs -c deploy --skip-checks '.#homeserver-gcp'
 
       - name: Check registry-backed host drift
+        env:
+          HOST_DRIFT_INVENTORY_JSON: /etc/host-drift-inventory.json
         run: bash scripts/check-host-drift.sh homeserver-gcp
 
       - name: Check failed units
