@@ -335,6 +335,34 @@ the report artifact; vulnix advisories fail the workflow. The live homeserver
 timer exports only `vulnix_scan_timestamp_seconds`, so dashboards alert on stale
 scanner health rather than noisy raw CVE counts from deployed generations.
 
+### CVE triage
+
+- **Owner:** the operator (Filip) — single-maintainer flake, no rotation needed.
+- **Trigger:** reactive, not a parallel calendar commitment. Triage happens
+  when the scheduled weekly `cve-scan` workflow run fails (an advisory exists
+  in a current `main`/`homeserver-gcp` closure), or a PR touching `flake.lock`
+  fails its `cve-scan` gate. No new periodic review is added — the existing
+  weekly schedule plus the PR gate are the only forcing functions, and GitHub's
+  failed-run notification is the alert.
+- **Triage path**, once a real advisory surfaces:
+  1. Open the uploaded `cve-report` artifact, identify the affected
+     package/derivation, and check whether it's actually reachable in the
+     host's exposure model (cross-reference `docs/security.md` if relevant).
+  2. **Patch:** bump the input (flake.lock update, override, or upstream fix)
+     and re-run `bash scripts/validate.sh cve-reports` to confirm it clears.
+  3. **Accept:** if no fix is available yet and the risk is judged acceptable,
+     open a tracking issue recording the CVE id, affected package/host, the
+     justification, and a re-check trigger (e.g. "next flake-lock bump" or a
+     concrete date). Do **not** reintroduce a vulnix whitelist file — those
+     were deliberately removed for causing false-positive churn (see
+     `.agents/learning/candidates/archive/2026-06-06-vulnix-live-counts-are-noisy.yml`).
+     The CI gate stays red/tracked until the underlying package is actually
+     fixed; the tracking issue is the durable record of the deliberate,
+     time-boxed override decision.
+  4. **Track:** for advisories that need upstream movement (e.g. nixpkgs
+     hasn't picked up a fix yet), the tracking issue from step 3 is the
+     mechanism — no separate ledger.
+
 Rules of thumb:
 
 - Shared flake, library, or global module changes: run `light` and affected host builds; use `hosts` when impact is broad.
