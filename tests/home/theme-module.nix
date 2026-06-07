@@ -37,6 +37,25 @@ let
   themed = evalThemed "mono-mesh";
   files = themed.xdg.configFile;
 
+  # Mirrors the copyable `homeModules.runtime-theme` usage example in
+  # docs/theme.md — a stranger's own `themeDir`/`activeFile` overrides,
+  # evaluated against nixpkgs only (no `hosts/`, no real paths or secrets) —
+  # proving the documented snippet evaluates standalone.
+  docExampleConfig = {
+    themes = {
+      themeDir = ../../home/theme;
+      activeFile = "/home/you/dotfiles/theme/active.nix";
+    };
+    home.homeDirectory = "/home/you";
+    xdg.configHome = "/home/you/.config";
+  };
+
+  docExampleThemed =
+    (import themeModulePath {
+      config = docExampleConfig;
+      inherit lib pkgs;
+    }).config;
+
   monoTheme = import ../../home/theme/themes/mono-mesh.nix;
   varsText = files."themes/mono-mesh/vars".text;
   kittyText = files."themes/mono-mesh/kitty-theme.conf".text;
@@ -84,6 +103,22 @@ let
     # provide both halves of the system).
     testSwitcherShipped = {
       expr = builtins.length themed.home.packages >= 1;
+      expected = true;
+    };
+
+    # The docs/theme.md `homeModules.runtime-theme` example — overriding
+    # `themeDir`/`activeFile` for a stranger's own dotfiles repo, evaluated
+    # against nixpkgs only with no `hosts/` import — must evaluate and
+    # activate the switcher, proving the copyable snippet works standalone.
+    testDocExampleActivatesSwitcher = {
+      expr = builtins.length docExampleThemed.home.packages >= 1;
+      expected = true;
+    };
+
+    # The example also generates the per-theme assets the switcher relinks,
+    # so the documented override is more than a no-op import.
+    testDocExampleGeneratesThemeAssets = {
+      expr = docExampleThemed.xdg.configFile ? "themes/mono-mesh/vars";
       expected = true;
     };
   };

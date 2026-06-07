@@ -461,6 +461,51 @@ let
     else
       pkgs.runCommand "observability-dashboard-backend-assertion-fixture" { } "touch $out";
 
+  # Evaluates the exact `services.hardened.nginx.extraConfig` snippet shown in
+  # docs/modules/services-hardened.md against nixpkgs only — no `hosts/` import,
+  # no real hostnames or secrets — proving the copyable example works standalone.
+  servicesHardenedExampleFixture =
+    let
+      systemConfig = lib.nixosSystem {
+        system = pkgs.stdenv.hostPlatform.system;
+        modules = [
+          ../modules/nixos/services/hardened.nix
+          (
+            { pkgs, ... }:
+            {
+              networking.hostName = "services-hardened-example-fixture";
+              system.stateVersion = "26.05";
+
+              systemd.services.nginx.serviceConfig = {
+                ExecStart = "${pkgs.coreutils}/bin/true";
+                Type = "oneshot";
+              };
+
+              services.hardened.nginx.extraConfig = {
+                CapabilityBoundingSet = "CAP_NET_BIND_SERVICE";
+                AmbientCapabilities = "CAP_NET_BIND_SERVICE";
+                ReadWritePaths = [
+                  "/var/cache/nginx"
+                  "/var/log/nginx"
+                  "/var/lib/nginx/certs"
+                ];
+              };
+            }
+          )
+        ];
+      };
+      serviceConfig = systemConfig.config.systemd.services.nginx.serviceConfig;
+      evaluated = {
+        capabilityBoundingSet = serviceConfig.CapabilityBoundingSet;
+        ambientCapabilities = serviceConfig.AmbientCapabilities;
+        readWritePaths = serviceConfig.ReadWritePaths;
+        # Forced baseline keys must still apply on top of the documented example.
+        privateTmp = serviceConfig.PrivateTmp;
+        protectSystem = serviceConfig.ProtectSystem;
+      };
+    in
+    pkgs.writeText "services-hardened-example-fixture.json" (builtins.toJSON evaluated);
+
   mkSopsBootstrapCheck =
     hostName: secretsDir:
     let
@@ -533,6 +578,7 @@ in
     observability-stack-fixture = observabilityStackFixture;
     observability-client-fixture = observabilityClientFixture;
     observability-dashboard-backend-assertion-fixture = observabilityDashboardBackendAssertionFixture;
+    services-hardened-example-fixture = servicesHardenedExampleFixture;
   };
 
   ciTestsFor = system: {
