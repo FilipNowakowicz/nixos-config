@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-07-tailscale-acl-apply-counterpart
 date: 2026-06-07
 expires: 2026-12-07
-status: open
+status: promoted
 route: implement-fix
 best_form: ci-gate
 evidence: [scripts/check-tailscale-acl-drift.sh uses `jq -S '{tagOwners, acls}'` on both sides; rendered .#packages.x86_64-linux.tailscale-acl contained only acls+tagOwners]
