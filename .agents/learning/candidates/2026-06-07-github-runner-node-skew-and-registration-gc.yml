@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-06-07-github-runner-node-skew-and-registration-gc
+date: 2026-06-07
+expires: 2026-09-05
+status: open
+route: implement-fix
+best_form: ci-gate
+evidence: [issue-#109; deploy run 27089620283 failed at actions/checkout with "start process .../externals/node20/bin/node ... No such file or directory"; on-host github-runner-2.334.0 lib/externals/ contains node24 only; runner also crash-looped "registration has been deleted from the server" until /var/lib/github-runner/homeserver-deploy creds were cleared]
+observation: NixOS self-hosted github-runner has two live traps - (1) github-runner >=2.334 ships only node24 in lib/externals, so node20 actions (actions/checkout@v4) fail with a misleading ENOENT; (2) the module only re-registers when its config JSON changes, so a GitHub-side registration GC leaves the service crash-looping until the persisted .runner/.credentials are manually removed.
+proposed_upgrade: For #1 bump node actions to node24-native (checkout@v5+); ACTIONS_RUNNER_FORCED_INTERNAL_NODE_VERSION is NOT present in github-runner-2.334.0 binaries so do not rely on it. For #2 prefer ephemeral runners or add a healthcheck/auto-reconfigure so registration GC self-heals. Document both in hosts/homeserver-gcp runbook.
+type: workflow-gotcha
+dedupe_key: github-runner:node-externals-skew-and-registration-gc
+triggers: [services.github-runners, actions/checkout, self-hosted runner, deploy-homeserver.yml]
+targets: [hosts/homeserver-gcp/github-runner.nix, .github/workflows/deploy-homeserver.yml]

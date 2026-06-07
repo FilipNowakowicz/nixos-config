@@ -33,7 +33,9 @@ jobs:
     env:
       USE_BUILDER: "0"
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      # node24-native: the self-hosted github-runner (>=2.334) ships only
+      # node24 in lib/externals, so a node20 action (checkout@v4) fails to exec.
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Flake evaluation
         run: bash scripts/validate.sh flake-eval
