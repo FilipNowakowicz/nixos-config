@@ -331,8 +331,8 @@ cache but only publishes on protected `main`.
 **Roadmap**
 
 - [Roadmap & Backlog](docs/goals/roadmap.md) — cross-cutting deferred work.
-- [Homeserver Goals](docs/goals/homeserver-goals.md) — homeserver roadmap.
-- [MacBook Goals](docs/goals/macbook-goals.md) — companion workstation topology and follow-ups.
+- [MacBook Goals](docs/goals/macbook-goals.md) — companion workstation topology,
+  roadmap, and follow-ups.
 
 Host-local runbooks (gotchas, recovery, install) live next to each host's
 config: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),

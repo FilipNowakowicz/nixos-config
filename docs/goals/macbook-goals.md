@@ -109,7 +109,22 @@ that should not run Tailscale themselves.
   age key at `~/.config/sops/age/keys.txt`. System secrets still decrypt
   through the persisted SSH host key. Git identity is configured manually.
 
-## Open Follow-Ups
+## Roadmap
+
+### Active Decisions
+
+| Item                          | Acceptance / next decision                                                                                                                                                                |
+| :---------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Decide `broadcom_sta` posture | The Mac needs the CVE-flagged `wl` driver for Wi-Fi. Either accept the CVE for this companion host, or blacklist `wl` and require USB-Ethernet when the machine is used for trusted work. |
+
+### Deferred Until Triggered
+
+| Item                              | Trigger to revisit                                                 |
+| :-------------------------------- | :----------------------------------------------------------------- |
+| Declarative `mac` travel mode     | Travel use becomes frequent enough to justify a dedicated profile. |
+| initrd / FIDO2 recovery for `mac` | A recovery scenario actually requires it.                          |
+
+### Open Follow-Ups
 
 - [ ] Pair Syncthing devices in the GUI and accept only the folders that should
       exist on the 128 GB Mac SSD.
@@ -117,11 +132,7 @@ that should not run Tailscale themselves.
       the Mac and `input-server` on `main`.
 - [ ] Pair Moonlight against Sunshine on `main`; use `moon-main` on the Mac.
 
-## Open Questions
+### Open Questions
 
 1. **Subnet router:** does the home LAN have devices that benefit from a
    Tailscale-resident peer? If not, skip `useRoutingFeatures = "server"`.
-2. **Wi-Fi vs Ethernet at rest:** `broadcom_sta` is CVE-flagged. Now tracked as
-   a decision item in [`../goals/roadmap.md`](roadmap.md) ("Decide `broadcom_sta`
-   (`wl`) posture") — record the outcome (blacklist `wl` + require USB-Ethernet,
-   or accept the CVE) here once decided.

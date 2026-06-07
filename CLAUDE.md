@@ -154,8 +154,8 @@ See [`docs/security.md`](docs/security.md) for the full secrets/exposure model.
 
 ## Preferences
 
-- Incremental changes — don't refactor everything at once.
-- Ask before making large structural changes.
+- Large or structural changes route through an issue + PR rather than a
+  live ask — scope each to one issue, let `merge-gate` and review be the gate.
 - Prefer Home Manager for user-level config over system-level.
 - Keep things declarative — avoid imperative workarounds.
 - Flag anything that might cause issues on rebuild.

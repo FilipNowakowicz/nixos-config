@@ -1,65 +1,49 @@
 # Roadmap & Backlog
 
-Deferred and intentionally-not-yet-done work. Completed items are removed. Each
-item carries a **trigger** or **why-deferred** that justifies revisiting it, so
-the repo avoids premature abstraction. Host-specific roadmaps live in
-[`homeserver-goals.md`](homeserver-goals.md) and
+Forward-looking work only. Completed goals are removed once their durable docs
+or code paths exist. Each remaining item should say either why it is active now
+or what trigger would justify revisiting it.
+
+Host-specific MacBook follow-ups live in
 [`macbook-goals.md`](macbook-goals.md).
 
 ---
 
 ## Active Candidates
 
-Small, finishable work that does not need a triggering event.
+Small, finishable work that does not need a new external trigger. Tracked as
+GitHub issues once ready to pick up rather than duplicated here — see
+[open issues](https://github.com/FilipNowakowicz/nixos-config/issues) for
+current work (e.g. #120, CVE remediation triage cadence).
 
-### Larger reliability / security work
-
-The "main ones" — each is a coherent piece of work, not a one-liner.
-
-| Area     | Item                    | Value / acceptance                                                                                                                                                                                                                                                                                   |
-| :------- | :---------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Security | CVE remediation cadence | Scanning exists (`vulnix`, `validate.sh cve-reports`) and live observability now tracks scan freshness only. The missing half is the _human loop_ for CI/current-closure findings. Acceptance: a documented triage cadence (owner + interval) so "we scan" does not become "we scan and never look." |
-
-### Home Manager polish
-
-Low priority, individually cheap — batch rather than track separately. Status
-reflects what already exists.
-
-| Item                             | Status / acceptance                                                                                                                                           |
-| :------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `firefox-private` profile parity | A throwaway-profile `firefox-private` launcher already exists; "parity" means bringing the _default_ profile under managed `programs.firefox` too. Low value. |
-
-The runtime-input dedup (single `home/profiles/desktop-runtime.nix` shared by
-the desktop install list and theme-switch), HM `fonts.fontconfig` defaults, and
-HM `programs.gpg`/`services.gpg-agent` (GUI pinentry, no SSH agent) shipped.
-
-The Mac `broadcom_sta` (`wl`) posture decision is a candidate too, tracked in
-[`macbook-goals.md`](macbook-goals.md).
+Settled: default Firefox profile management — won't-do, Firefox Sync already
+covers it; the throwaway `firefox-private` profile remains for isolation.
 
 ---
 
-## Deferred — Waiting On A Trigger
+## Deferred Until Triggered
 
-These are real but should not start until a concrete need appears.
+Real ideas that should stay parked until there is a concrete need.
 
-| Item                                                                 | Trigger to revisit                                                 |
-| :------------------------------------------------------------------- | :----------------------------------------------------------------- |
-| Declarative `mac` travel mode                                        | Travel use becomes frequent enough to justify a dedicated profile. |
-| initrd / FIDO2 recovery for `mac`                                    | A recovery scenario actually requires it.                          |
-| `config.specialisation` alternate boot entries (e.g. gaming profile) | A second concrete boot profile is wanted.                          |
-| Service-level disk quotas (homeserver)                               | A service shows unbounded disk growth.                             |
-| Metadata endpoint hardening (GCP)                                    | Metadata-sourced secrets/SSRF surface becomes a concern.           |
-| Dedicated GCP network / VPC model                                    | More than one provider service needs network separation.           |
+| Area       | Item                                                                | Trigger to revisit                                                                                    |
+| :--------- | :------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------- |
+| Desktop    | `config.specialisation` alternate boot entries, such as gaming mode | A second concrete boot profile is wanted.                                                             |
+| Homeserver | Service-level disk quotas                                           | A service shows unbounded disk growth.                                                                |
+| Homeserver | Grafana visibility for secret-age metadata                          | Rotation drift becomes a real concern.                                                                |
+| GCP        | Metadata endpoint hardening                                         | Metadata-sourced secrets or SSRF exposure becomes a concern.                                          |
+| GCP        | Dedicated network / VPC model                                       | More than one provider service needs network separation.                                              |
+| Deploy     | Automatic `main` workstation rollout                                | The workstation deploy path becomes safe enough to automate without broadening sudo or recovery risk. |
 
 ---
 
-## Cross-System / Multi-Arch Support
+## Deferred Strategic Work
 
-Status: postponed until the first non-`x86_64-linux` host is planned or added.
+### Cross-System / Multi-Arch Support
 
-The active fleet is `x86_64-linux` only. Per-host `system` metadata already lives
-in `lib/hosts.nix`; broadening checks now would add CI and tooling complexity
-before there is a concrete second architecture to validate.
+Postponed until the first non-`x86_64-linux` host is planned or added. Per-host
+`system` metadata already lives in `lib/hosts.nix`; broadening checks now would
+add CI and tooling complexity before there is a concrete second architecture to
+validate.
 
 Scope when revisited:
 
@@ -69,101 +53,43 @@ Scope when revisited:
 
 Trigger: a real ARM host is planned or added to `lib/hosts.nix`.
 
----
-
-## Deferred Strategic Goals
-
 ### Full Service Composition DSL
 
-Status: deferred. **Canonical entry for this goal** — homeserver-goals.md links
-here. A DSL that emits Nginx locations, firewall rules, backup paths, hardening,
-and Alloy scrape config could be useful, but premature abstraction would hide
-important security and exposure decisions. Wait until there are enough real
-services to reveal the right shape.
+A DSL that emits Nginx locations, firewall rules, backup paths, hardening, and
+Alloy scrape config could be useful, but premature abstraction would hide
+important security and exposure decisions.
 
 Trigger: two or three additional services repeat the same cross-cutting pattern
 and the manual edits become error-prone.
 
 ### AppArmor Or Broader MAC Policy
 
-Status: deferred. Mandatory access control can be valuable but has a high tuning
-and maintenance cost. The current security model gets more immediate value from
-systemd sandboxing, service-exposure discipline, and restore verification.
+Mandatory access control can be valuable but has a high tuning and maintenance
+cost. The current security model gets more immediate value from systemd
+sandboxing, service-exposure discipline, and restore verification.
 
 Trigger: a specific threat model or service requires confinement beyond systemd
 hardening.
 
-### Cloud KMS / Cloud DNS (GCP)
+### Cloud KMS / Cloud DNS
 
-Status: deferred — speculative for a tailnet-only personal homeserver. Neither
-has a near-term trigger. Default GCP-managed encryption and Tailscale DNS cover
-current needs.
+Speculative for a tailnet-only personal homeserver. Default GCP-managed
+encryption and Tailscale DNS cover current needs.
 
-Trigger (KMS): a concrete compliance, key-separation, or rotation-control
-requirement. Trigger (DNS): a real public/private/split-horizon naming problem
-Tailscale DNS cannot solve cleanly.
+Trigger for KMS: a concrete compliance, key-separation, or rotation-control
+requirement.
+
+Trigger for DNS: a real public/private/split-horizon naming problem Tailscale
+DNS cannot solve cleanly.
 
 ---
 
 ## Settled / Won't-Do
 
-Recorded so they are not re-proposed:
+Recorded so they are not re-proposed.
 
-- **Full flake-parts modular decomposition** — rejected. The flake already uses
-  flake-parts where it helps; splitting further is aesthetic at this size.
-  Reopen only if flake outputs become hard to understand or contributors
-  routinely edit unrelated outputs by mistake.
 - **Migrate Neovim to `programs.neovim`** — won't-do. The bespoke `my.neovim`
-  module (language packs, a Lua-config generator, per-language LSP/DAP wiring) is
-  more capable than `programs.neovim` would be, and already installs config
-  declaratively via `xdg.configFile."nvim"` with no out-of-band injection — the
-  original "no out-of-band lua/vimrc" acceptance is effectively already met.
-  Migrating would regress functionality. Reopen only if the custom generator
-  becomes a maintenance burden.
-
----
-
-## Homeserver Parked Ideas
-
-Status: automated deploy phase 1 and homeserver-gcp continuous deploy have
-shipped; the secret rotation ritual has shipped.
-
-### Automated Deploy Pipeline
-
-Phase 1 (manual, gated) and the homeserver-gcp half of phase 2 (continuous
-deploy on `main` push) have shipped. Automatic `main` workstation rollout remains
-deferred.
-
-Shipped/wired:
-
-- Self-hosted GitHub Actions runner as a NixOS service on `homeserver-gcp`
-- Sops-backed runner registration credential declaration
-- Deploy workflow restricted to `main` and explicit homeserver runner labels
-- Auto-deploy on every `main` push that touches the homeserver closure
-  (path-filtered), with `workflow_dispatch` kept as a manual escape hatch
-- Existing validation, host build, smoke, deploy-rs, drift, and failed-unit
-  checks in the deploy workflow
-- Safety net: deploy-rs `magicRollback`/`autoRollback` auto-reverts a closure
-  that cannot re-confirm tailnet reachability, so an auto-deploy cannot strand
-  the host. The `homeserver-gcp-deploy` environment carries no required-reviewer
-  rule, so pushes flow without a manual gate (adding reviewers re-gates it).
-
-Residual risk: a _reachable-but-functionally-broken_ change does not trip magic
-rollback; only the post-activation drift + failed-units checks catch some of it.
-
-Deferred:
-
-- Automatic `main` rollout (#107)
-- Any broader `main` sudo or deploy-rs posture change
-
-### Secret Rotation Ritual
-
-Status: shipped. The secret inventory (owner, trigger, kind, command path), the
-newline-safe `sops` rotation envelope (`scripts/rotate-secret.sh`), the
-not-a-blind-swap caveats, and the worked `github_runner_homeserver_deploy_token`
-PAT rotation now live in [`docs/security.md`](../security.md#secret-rotation-ritual).
-
-Still optional / deferred:
-
-- Grafana visibility for secret-age metadata (`secret_*_age_seconds`-style
-  panel). No trigger yet; revisit if rotation drift becomes a real concern.
+  module has language packs, a Lua-config generator, and per-language LSP/DAP
+  wiring. It already installs config declaratively via `xdg.configFile."nvim"`
+  with no out-of-band injection. Migrating would regress functionality. Reopen
+  only if the custom generator becomes a maintenance burden.

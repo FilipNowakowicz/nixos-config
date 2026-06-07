@@ -158,6 +158,6 @@ failed-unit checks. It does not automate `main` workstation rollout.
   added — Tailscale load-balances global nameservers rather than treating extras
   as cold backups, so a public secondary would leak unfiltered (or custom-rule
   breaking) queries during normal operation. The residual single-point-of-failure
-  is an accepted, recorded decision (see `docs/goals/homeserver-goals.md`).
+  is an accepted, recorded decision documented here.
 
 - **AdGuard web UI** — HTTPS on port 3001 (proxied by nginx using the Tailscale cert). AdGuard itself binds to `127.0.0.1:13001`. Login: `admin`; password material is managed through the sops-backed AdGuard configuration.
