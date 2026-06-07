@@ -266,8 +266,17 @@ cve-reports)
   # vulnix must be in PATH (dev shell provides it; CI wraps with nix shell).
   # Running vulnix inside a nix build derivation fails because the Nix daemon
   # rejects nix-store -qd connections from build processes.
+  #
+  # Scan `main-ci` rather than the real `main`: the real closure pulls in
+  # pkgs.displaylink, a `requireFile` of an unfree Synaptics blob that CI can
+  # neither fetch nor substitute (see modules/nixos/hardware/displaylink.nix),
+  # so building it here fails the step before vulnix runs. `main-ci` sets
+  # profiles.ci=true, which gates that blob out — the same CI-pure closure
+  # merge-gate builds. The only packages this drops from the scan are the
+  # ci-gated ones (displaylink, fprintd); vulnix cannot meaningfully CVE-match a
+  # proprietary blob anyway.
   for spec in \
-    "main:.#nixosConfigurations.main.config.system.build.toplevel" \
+    "main-ci:.#nixosConfigurations.main-ci.config.system.build.toplevel" \
     "homeserver-gcp:.#nixosConfigurations.homeserver-gcp.config.system.build.toplevel"; do
     host="${spec%%:*}"
     attr="${spec#*:}"

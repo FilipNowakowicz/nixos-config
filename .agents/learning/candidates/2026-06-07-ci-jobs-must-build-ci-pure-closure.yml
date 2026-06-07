@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-06-07-ci-jobs-must-build-ci-pure-closure
+date: 2026-06-07
+expires: 2026-12-07
+status: open
+
+route: implement-fix
+best_form: ci-gate
+
+evidence: [run-27098993202-cve-scan-failed-at-displaylink-620.zip.drv-requireFile-exit1-via-pipefail-before-vulnix; fix-scripts/validate.sh-cve-reports-repointed-main-to-main-ci]
+observation: cve-reports built real `main` closure which pulls pkgs.displaylink (requireFile of unfree Synaptics blob CI can't fetch/substitute); build aborts before vulnix runs; broke on every DisplayLink flake.lock version bump. profiles.ci gates the blob out (main-ci).
+proposed_upgrade: ci-gate/assertion that no CI-run closure references a requireFile/unfetchable blob; or audit all CI jobs to target *-ci variants not real hosts.
+type: workflow-gotcha
+dedupe_key: ci:closure-targets-real-host-with-requireFile-blob
+triggers: [requireFile, unfree blob, CVE scan, vulnix, nixosConfigurations.main vs main-ci, displaylink]
+targets: [scripts/validate.sh, modules/nixos/hardware/displaylink.nix, .claude/main/displaylink.md]

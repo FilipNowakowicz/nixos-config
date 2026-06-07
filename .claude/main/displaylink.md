@@ -17,7 +17,10 @@ the unfree-blob prefetch, USBGuard, and Hyprland's GPU pinning.
 `pkgs.displaylink` is a `requireFile` — Nix cannot fetch it (Synaptics
 redistribution terms). Until the blob is in the store, **`nh os switch` /
 `rebuild` for `main` will fail to build.** This is by design; CI is unaffected
-because `main-ci` sets `profiles.ci = true`, which disables the driver.
+because every job builds `main-ci` (which sets `profiles.ci = true`, disabling
+the driver), not the real `main` closure. The CVE scan used to be the exception
+— it built the real `main` and broke on every DisplayLink version bump — until
+it was repointed at `main-ci`; see `scripts/validate.sh` `cve-reports`.
 
 Current pin (from nixpkgs): **DisplayLink 6.2.0-30**, expected file
 `displaylink-620.zip`, `sha256-JQO7eEz4pdoPkhcn9tIuy5R4KyfsCniuw6eXw/rLaYE=`.
