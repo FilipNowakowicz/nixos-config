@@ -28,6 +28,7 @@ let
   scratchRoot = "/var/lib/restore-drill";
 
   vaultwardenPkg = config.services.vaultwarden.package;
+  vaultwardenWebVault = config.services.vaultwarden.webVaultPackage;
   grafanaPkg = config.services.grafana.package;
   adguardPkg = config.services.adguardhome.package;
 
@@ -51,12 +52,17 @@ let
 
   # Run one service-bring-up check in an isolated network namespace. The whole
   # check (start binary in background, probe loopback, tear down) executes as a
-  # single transient scope so PrivateNetwork applies to both the service and the
-  # probe. Returns non-zero if the service never reports healthy.
+  # transient *service* unit so PrivateNetwork applies to both the service and
+  # the probe — scope units (the `--scope` form) don't support namespacing
+  # directives like PrivateNetwork= at all ("Unknown assignment"); only service
+  # units carry the exec/sandbox context that implements them. `--wait --pipe`
+  # blocks until the unit exits and forwards its stdio and exit code, so the
+  # drill script still fails (and prints why) when a bring-up check fails.
   runIsolated = name: script: ''
     ${pkgs.systemd}/bin/systemd-run \
-      --scope \
       --quiet \
+      --pipe \
+      --wait \
       --collect \
       -p PrivateNetwork=true \
       -p RuntimeMaxSec=180 \
@@ -97,6 +103,7 @@ let
     ${runIsolated "vaultwarden" ''
       set -eu
       DATA_FOLDER="${scratchRoot}/scratch/var/lib/vaultwarden" \
+      WEB_VAULT_FOLDER="${vaultwardenWebVault}/share/vaultwarden/vault" \
       ROCKET_ADDRESS=127.0.0.1 \
       ROCKET_PORT=18222 \
       ROCKET_LOG=critical \
@@ -119,7 +126,7 @@ let
       set -eu
       data="${scratchRoot}/scratch/var/lib/grafana"
       cfg=$(${pkgs.coreutils}/bin/mktemp)
-      cat >"$cfg" <<EOF
+      ${pkgs.coreutils}/bin/cat >"$cfg" <<EOF
       [server]
       http_addr = 127.0.0.1
       http_port = 13030

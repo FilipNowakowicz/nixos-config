@@ -3,7 +3,13 @@
 Quarterly procedure for verifying that Vaultwarden, Grafana, and AdGuard Home
 data can be recovered from the B2 restic repository.
 
-**Last drill:** _(not yet performed)_
+**Last drill:** 2026-06-07 - automated `restore-drill-b2.service` run (first
+execution after deploy): Vaultwarden, Grafana, and AdGuard Home all restored
+from B2 into the scratch root and came up successfully against the recovered
+state (`restore-drill: full-service restore drill PASSED`,
+`restore_drill_last_success_timestamp_seconds = 1780824447`). The manual
+quarterly exercise below has not yet been run by a human; the automated drill
+exercises the same recovery path on its quarterly schedule in the meantime.
 
 This field records the last manual quarterly restore exercise. The homeserver
 backup milestone also added the restore runbook, weekly `restic-check-b2`
@@ -30,8 +36,10 @@ state in its own `PrivateNetwork=true` namespace**, asserting it comes up:
 - **Vaultwarden** answers `GET /alive` after opening the restored `db.sqlite3`.
 - **Grafana** reports `database: ok` on `GET /api/health` after opening the
   restored `grafana.db`.
-- **AdGuard Home** passes `--check-config` on the restored config and then
-  answers `GET /control/status` with a running DNS engine + web UI.
+- **AdGuard Home** passes `--check-config` on the restored config, then serves
+  the public `GET /login.html` route (proving the web server bound — the
+  `/control/*` API is auth-gated and would 302 unauthenticated) and answers a
+  loopback `dig` query (proving the DNS engine itself is up and processing).
 
 Only after all three come up does it stamp
 `restore_drill_last_success_timestamp_seconds` to the node-exporter textfile
