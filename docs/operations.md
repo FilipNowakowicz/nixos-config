@@ -290,6 +290,23 @@ Run it locally when changing `lib/acl.nix` or registry-owned Tailscale metadata:
 bash scripts/check-tailscale-acl-drift.sh
 ```
 
+When the check reports drift, apply the rendered artifact with
+`scripts/apply-tailscale-acl.sh` rather than pasting it into the admin console
+or POSTing it directly — the rendered artifact contains only `{tagOwners,
+acls}`, and a raw POST replaces the _entire_ live policy file, silently wiping
+sections the generator does not own (`ssh`, `autoApprovers`, `nodeAttrs`,
+`groups`, ...). The script fetches the live policy, overlays just `tagOwners`
+and `acls` from the rendered artifact, and POSTs the merged result back guarded
+by the live policy's `ETag`:
+
+```bash
+bash scripts/apply-tailscale-acl.sh --dry-run   # show the merged diff only
+bash scripts/apply-tailscale-acl.sh             # fetch, merge, and apply
+```
+
+Requires `TAILSCALE_API_KEY` (read+write ACL access) and `TAILSCALE_TAILNET` in
+the environment, same as the drift check.
+
 ## Validation
 
 Use the narrowest check that covers the files changed.
