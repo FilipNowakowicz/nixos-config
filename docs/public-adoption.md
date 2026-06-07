@@ -135,7 +135,7 @@ nix run .#inventory-json | jq -S '
 nix run .#tailscale-acl | jq -S . > docs/samples/tailscale-acl.sample.json
 ```
 
-The `jq` filter matches store-hash and tailnet-suffix *patterns*, not this
+The `jq` filter matches store-hash and tailnet-suffix _patterns_, not this
 fleet's specific values, so running it again — here or against a fork with
 different real identifiers — produces the same sanitized shape. Both commands
 are checked by `lib-scan-plaintext-secrets` (`bash scripts/validate.sh light`),

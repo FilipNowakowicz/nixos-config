@@ -18,26 +18,16 @@
         "tag:workstation:48002",
         "tag:workstation:48010"
       ],
-      "src": [
-        "tag:workstation"
-      ]
+      "src": ["tag:workstation"]
     },
     {
       "action": "accept",
-      "dst": [
-        "*:*"
-      ],
-      "src": [
-        "autogroup:admin"
-      ]
+      "dst": ["*:*"],
+      "src": ["autogroup:admin"]
     }
   ],
   "tagOwners": {
-    "tag:server": [
-      "autogroup:admin"
-    ],
-    "tag:workstation": [
-      "autogroup:admin"
-    ]
+    "tag:server": ["autogroup:admin"],
+    "tag:workstation": ["autogroup:admin"]
   }
 }

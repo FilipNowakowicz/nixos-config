@@ -7,13 +7,7 @@
       "deployUser": "user",
       "deployable": true,
       "drift": {
-        "expectedExtraTCPPorts": [
-          80,
-          3201,
-          9095,
-          9096,
-          22000
-        ],
+        "expectedExtraTCPPorts": [80, 3201, 9095, 9096, 22000],
         "strictTCPPortSet": true,
         "systemdUnits": [
           "sshd.service",
@@ -28,12 +22,7 @@
         ],
         "tailnetFQDN": "homeserver-gcp.example.ts.net",
         "tailscaleTag": "server",
-        "tcpPorts": [
-          22,
-          53,
-          443,
-          3001
-        ]
+        "tcpPorts": [22, 53, 443, 3001]
       },
       "health": {
         "invariantFailed": 0,
@@ -107,9 +96,7 @@
       "impermanence": false,
       "name": "homeserver-gcp",
       "openTCPPorts": [],
-      "openUDPPorts": [
-        41641
-      ],
+      "openUDPPorts": [41641],
       "resticBackups": [
         {
           "initialize": true,
@@ -147,16 +134,9 @@
       "stateVersion": "24.11",
       "status": "active",
       "system": "x86_64-linux",
-      "tailscaleTCPPorts": [
-        22,
-        53,
-        443,
-        3001
-      ],
+      "tailscaleTCPPorts": [22, 53, 443, 3001],
       "tailscaleTracked": true,
-      "tailscaleUDPPorts": [
-        53
-      ],
+      "tailscaleUDPPorts": [53],
       "trackedServices": [
         "adguard",
         "nginx",
