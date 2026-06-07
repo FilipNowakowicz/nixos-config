@@ -413,20 +413,37 @@ in
   };
 
   systemd = {
-    # Hyprland starts the Home Manager graphical session through this target
-    # after exporting WAYLAND_DISPLAY/AQ_DRM_DEVICES into the user systemd
-    # environment. Keep Sunshine on the same target so Wayland capture sees the
-    # live session.
-    user.services.sunshine = {
-      after = lib.mkForce [ "nixos-fake-graphical-session.target" ];
-      partOf = lib.mkForce [ "nixos-fake-graphical-session.target" ];
-      wantedBy = lib.mkForce [ "nixos-fake-graphical-session.target" ];
-      wants = lib.mkForce [ "nixos-fake-graphical-session.target" ];
-    };
+    user.services = {
+      # Hyprland starts the Home Manager graphical session through this target
+      # after exporting WAYLAND_DISPLAY/AQ_DRM_DEVICES into the user systemd
+      # environment. Keep Sunshine on the same target so Wayland capture sees
+      # the live session.
+      sunshine = {
+        after = lib.mkForce [ "nixos-fake-graphical-session.target" ];
+        partOf = lib.mkForce [ "nixos-fake-graphical-session.target" ];
+        wantedBy = lib.mkForce [ "nixos-fake-graphical-session.target" ];
+        wants = lib.mkForce [ "nixos-fake-graphical-session.target" ];
+      };
 
-    # The control center owns Bluetooth status/control now, so suppress the
-    # redundant Blueman tray icon instead of autostarting blueman-applet.
-    user.services.blueman-applet.enable = false;
+      # The control center owns Bluetooth status/control now, so suppress the
+      # redundant Blueman tray icon instead of autostarting blueman-applet.
+      blueman-applet.enable = false;
+
+      # The upstream dbus-broker unit is Type=notify-reload with no ExecReload,
+      # so a reload sends SIGHUP and then blocks on the RELOADING=1/READY=1
+      # sd_notify handshake. In user scope (dbus-broker-launch --scope user)
+      # that handshake never arrives, so the reloadIfChanged path NixOS uses
+      # for the session bus (see nixos/modules/services/system/dbus.nix) hangs
+      # for the full timeout on every `nh os switch` and fails activation. Make
+      # the reload a fire-and-forget SIGHUP instead: dbus-broker-launch
+      # re-reads its service files on SIGHUP, and plain Type=notify returns as
+      # soon as ExecReload exits rather than waiting on the reload-notification
+      # protocol the user-scope launcher does not implement.
+      dbus-broker.serviceConfig = {
+        Type = lib.mkForce "notify";
+        ExecReload = lib.mkForce "${pkgs.coreutils}/bin/kill -HUP $MAINPID";
+      };
+    };
 
     services = {
       # This Intel CNVi adapter occasionally fails firmware download if btusb
