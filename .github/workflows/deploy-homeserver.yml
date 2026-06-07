@@ -100,7 +100,7 @@ jobs:
       - name: Check registry-backed host drift
         env:
           HOST_DRIFT_INVENTORY_JSON: /etc/host-drift-inventory.json
-        run: bash scripts/check-host-drift.sh homeserver-gcp
+        run: PATH="/run/current-system/sw/bin:/etc/profiles/per-user/user/bin:$PATH" bash scripts/check-host-drift.sh homeserver-gcp
 
       - name: Check failed units
         run: |
