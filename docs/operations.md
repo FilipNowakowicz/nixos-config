@@ -290,6 +290,12 @@ Run it locally when changing `lib/acl.nix` or registry-owned Tailscale metadata:
 bash scripts/check-tailscale-acl-drift.sh
 ```
 
+Pushes to `main` that touch the ACL generator, host registry, workflow, or ACL
+scripts run the same workflow in apply mode: it applies the rendered `tagOwners`
+and `acls` to the live policy, then runs the drift check again. The daily
+scheduled run remains detect-only so out-of-band console edits fail loudly
+instead of being silently overwritten.
+
 When the check reports drift, apply the rendered artifact with
 `scripts/apply-tailscale-acl.sh` rather than pasting it into the admin console
 or POSTing it directly — the rendered artifact contains only `{tagOwners,

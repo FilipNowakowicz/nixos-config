@@ -20,6 +20,9 @@ The reusable boundary is small:
 - `scripts/check-tailscale-acl-drift.sh` (wired into the
   `tailscale-acl-drift` workflow) diffs the rendered policy against the live
   tailnet.
+- `scripts/apply-tailscale-acl.sh` fetches the full live policy, replaces only
+  rendered `tagOwners` and `acls`, and POSTs the merged policy back with the
+  live `ETag` guard.
 
 ## Required Host Metadata
 
@@ -110,18 +113,18 @@ export TAILSCALE_TAILNET=example.ts.net
 bash scripts/check-tailscale-acl-drift.sh
 ```
 
-The `tailscale-acl-drift` GitHub workflow runs this daily.
+The `tailscale-acl-drift` GitHub workflow runs this daily in detect-only mode.
+Pushes to `main` that touch ACL inputs run the workflow in apply mode first,
+then rerun the drift check.
 
 ## Apply The Generated Policy
 
-Applying is deliberately manual — review the diff first, then POST the rendered
-JSON to the policy endpoint (the API key needs `policy:write`):
+Apply with the merge-safe helper, not a raw POST of the rendered artifact. The
+rendered artifact contains only `tagOwners` and `acls`; the helper preserves
+live-only sections such as `ssh`, `autoApprovers`, `nodeAttrs`, and `groups`.
+The API key needs ACL read/write access.
 
 ```sh
-curl -sf \
-  --request POST \
-  --header "Authorization: Bearer ${TAILSCALE_API_KEY}" \
-  --header "Content-Type: application/json" \
-  --data-binary @"$(nix build '.#tailscale-acl' --no-link --print-out-paths)" \
-  "https://api.tailscale.com/api/v2/tailnet/${TAILSCALE_TAILNET}/acl"
+bash scripts/apply-tailscale-acl.sh --dry-run
+bash scripts/apply-tailscale-acl.sh
 ```

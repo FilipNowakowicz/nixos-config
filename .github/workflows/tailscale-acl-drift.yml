@@ -1,6 +1,14 @@
 name: Tailscale ACL drift
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/tailscale-acl-drift.yml"
+      - "lib/acl.nix"
+      - "lib/hosts.nix"
+      - "scripts/apply-tailscale-acl.sh"
+      - "scripts/check-tailscale-acl-drift.sh"
   schedule:
     # Daily 6 AM UTC — detects out-of-band edits to the live Tailscale policy
     - cron: "0 6 * * *"
@@ -17,12 +25,20 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  acl-drift:
+  acl-policy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - uses: ./.github/actions/setup-nix
+
+      - name: Apply ACL on main push
+        if: github.event_name == 'push'
+        # TAILSCALE_API_KEY: created 2026-05-08, expires ~2026-08-06. Rotate before then.
+        env:
+          TAILSCALE_API_KEY: ${{ secrets.TAILSCALE_API_KEY }}
+          TAILSCALE_TAILNET: ${{ secrets.TAILSCALE_TAILNET }}
+        run: bash scripts/apply-tailscale-acl.sh
 
       - name: Check ACL drift
         # TAILSCALE_API_KEY: created 2026-05-08, expires ~2026-08-06. Rotate before then.
