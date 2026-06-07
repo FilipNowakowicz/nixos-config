@@ -22,6 +22,7 @@ in
     ./audits.nix
     ./hardening.nix
     ./github-runner.nix
+    ./build-resource-limits.nix
     ./tailscale-cert.nix
     ./grafana.nix
     ./dashboards.nix
