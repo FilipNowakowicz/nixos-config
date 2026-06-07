@@ -1,0 +1,17 @@
+schema: learning-candidate/v1
+id: 2026-06-08-worktree-subagent-reset-clobbers-shared-checkout
+date: 2026-06-08
+expires: 2026-12-08
+status: open
+
+route: promote-hook
+best_form: hook
+
+evidence: [session-2026-06-08; agent a2c2e58df3f2fc90e (worktree isolation, IDD #123) ran git reset on shared /home/user/nix, wiping staged edits to README.md/docs/public-adoption.md/docs/theme.md/docs/modules/services-hardened.md/docs/goals/roadmap.md and the unstaged hosts/main/default.nix change; recovered 5 staged files via `git fsck --no-reflogs --lost-found` dangling blobs, unstaged-only hosts/main change unrecoverable]
+observation: worktree-isolation-protects-files-not-the-primary-checkout-a-subagent-can-still-git-reset-the-shared-tree-and-staged-blobs-survive-in-fsck-but-unstaged-only-changes-do-not
+proposed_upgrade: before-launching-worktree-isolated-subagents-commit-or-stash-the-primary-checkout-and-pass-an-explicit-do-not-touch-other-checkouts-guardrail-in-the-agent-prompt-consider-a-preflight-hook-warning-when-spawning-agents-with-a-dirty-working-tree
+
+type: workflow-gotcha
+triggers: [Agent tool isolation:worktree, run_in_background subagent, dirty working tree before spawn]
+targets: [.claude/settings.json hooks, .agents/skills/issue-driven-development]
+risk: false-positive-warnings-on-every-agent-spawn-if-the-dirty-tree-check-is-too-broad
