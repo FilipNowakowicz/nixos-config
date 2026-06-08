@@ -1,0 +1,10 @@
+schema: learning-candidate/v1
+id: 2026-06-08-static-golden-check-for-cli-narration-sections
+date: 2026-06-08
+expires: 2026-12-08
+status: open
+route: promote-skill
+best_form: test
+evidence: [pr-#131, tests/lib/doctor.nix, scripts/doctor.sh]
+observation: a public-contract golden check for a CLI script's narration (e.g. doctor's named, explained sections) cannot execute the real script in a sandboxed runCommand because it shells out to nix flake check / nix fmt, which need network and build access unavailable in the Nix sandbox; a static check that greps the script source for `section "<name>"` markers, asserts a keyword anchor within an -A-window of each, and compares the full ordered name list against a golden list catches renames/reorders/dropped-explanation regressions without ever running the heavy underlying checks
+proposed_upgrade: when asked to add a golden/fixture check for a CLI entrypoint whose real execution needs network or builds (doctor-style scripts), default to a static source-assertion runCommand (grep -A keyword anchors + ordered-list diff) rather than trying to execute the script in the sandbox; document this as the preferred pattern in nix-verification-loop or issue-driven-development so future agents don't waste time discovering the sandbox-network constraint first
