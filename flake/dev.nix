@@ -213,6 +213,9 @@ in
       lib-acl = import ../tests/lib/acl.nix {
         inherit nixpkgs system;
       };
+      lib-doctor = import ../tests/lib/doctor.nix {
+        inherit nixpkgs system;
+      };
       lib-invariants = import ../tests/lib/invariants.nix {
         inherit nixpkgs system;
       };

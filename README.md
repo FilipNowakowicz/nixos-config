@@ -15,6 +15,12 @@ glance, jump to the [System At A Glance](#system-at-a-glance) diagram; for what
 to take from this repo, start at [Reusable Outputs](#reusable-outputs) and
 [What To Copy First](#what-to-copy-first) below.
 
+First time here? Clone the repo and run `nix run .#doctor` — it walks a clean
+checkout through the same documentation, evaluation, and formatting checks
+`merge-gate` runs, explaining each one in plain terms (missing Nix, an
+unsupported platform, dirty formatting, a broken doc link, an evaluation
+error) so you can tell a real problem from noise before going further.
+
 ---
 
 ## Reusable Outputs
