@@ -232,15 +232,15 @@ waybar-weather.sh,hypr-display-mode.sh,waybar-toggle.sh,clipboard-pick.sh}`**
 6. **`modules/nixos/profiles/{backup,security,sops-base,machine-common,
 impermanence-base,user}.nix`** — the shared host baseline profiles
    (restic backup-class scheduling, firewall/coredump/fail2ban hardening,
-   sops bootstrap + SSH-key authorized_keys, SSH defaults, btrfs
+   sops bootstrap + SSH-key `authorizedKeys`, SSH defaults, btrfs
    rollback-on-boot, primary-user account). What they do: form the
    `services-hardened`-adjacent baseline every host imports. Coupling: real —
    `backup.nix` keys off `hostMeta.backup` from the private host registry,
    `sops-base.nix` imports `lib/pubkeys.nix` (a real public key) and assumes
    sops/age bootstrap, `user.nix`/`impermanence-base.nix` assume this fleet's
    specific account, btrfs subvolume layout (`@root`/`@root-blank`), and
-   persistence directories. Recommendation: **keep as reference** — the
-   _patterns_ (class-based backup pruning, sops bootstrap shape, impermanence
+   persistence directories. Recommendation: **keep as reference** — these
+   patterns (class-based backup pruning, sops bootstrap shape, impermanence
    rollback) are exactly the kind of thing `docs/architecture.md` already
    explains conceptually; turning them into standalone outputs would require
    inventing a generic identity/disk/backup-target option surface, which is
