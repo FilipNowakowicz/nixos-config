@@ -1,0 +1,33 @@
+{
+  "acls": [
+    {
+      "action": "accept",
+      "dst": [
+        "tag:server:22",
+        "tag:server:53",
+        "tag:server:443",
+        "tag:server:3001",
+        "tag:workstation:22",
+        "tag:workstation:22000",
+        "tag:workstation:24800",
+        "tag:workstation:47984",
+        "tag:workstation:47989",
+        "tag:workstation:47998",
+        "tag:workstation:47999",
+        "tag:workstation:48000",
+        "tag:workstation:48002",
+        "tag:workstation:48010"
+      ],
+      "src": ["tag:workstation"]
+    },
+    {
+      "action": "accept",
+      "dst": ["*:*"],
+      "src": ["autogroup:admin"]
+    }
+  ],
+  "tagOwners": {
+    "tag:server": ["autogroup:admin"],
+    "tag:workstation": ["autogroup:admin"]
+  }
+}

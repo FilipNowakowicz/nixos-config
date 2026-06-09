@@ -4,6 +4,45 @@
 repo. It keeps the existing `profiles.observability` option tree so hosts that
 already import the profile do not need a migration.
 
+## Importing from your own flake
+
+Add this flake as an input and import the module(s) you need:
+
+```nix
+# flake.nix
+{
+  inputs.nixos-fleet.url = "github:FilipNowakowicz/nixos-config";
+
+  outputs =
+    {
+      nixpkgs,
+      nixos-fleet,
+      ...
+    }:
+    {
+      nixosConfigurations.example = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          nixos-fleet.nixosModules.observability-stack
+          nixos-fleet.nixosModules.observability-client
+          ./configuration.nix
+        ];
+      };
+    };
+}
+```
+
+Or, inside a module that already receives `inputs`:
+
+```nix
+{
+  imports = [
+    inputs.nixos-fleet.nixosModules.observability-stack
+    inputs.nixos-fleet.nixosModules.observability-client
+  ];
+}
+```
+
 ## Local single-node stack
 
 Use this mode when Grafana, Loki, Mimir, Tempo, Prometheus, Alloy, and the
@@ -12,7 +51,7 @@ OpenTelemetry collector all run on one host.
 ```nix
 {
   imports = [
-    inputs.self.nixosModules.observability-stack
+    inputs.nixos-fleet.nixosModules.observability-stack
   ];
 
   profiles.observability = {
@@ -47,8 +86,8 @@ backend are explicit options.
 ```nix
 {
   imports = [
-    inputs.self.nixosModules.observability-stack
-    inputs.self.nixosModules.observability-client
+    inputs.nixos-fleet.nixosModules.observability-stack
+    inputs.nixos-fleet.nixosModules.observability-client
   ];
 
   profiles.observability-client = {

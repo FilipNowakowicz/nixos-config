@@ -461,6 +461,100 @@ let
     else
       pkgs.runCommand "observability-dashboard-backend-assertion-fixture" { } "touch $out";
 
+  # Evaluates the exact `services.hardened.nginx.extraConfig` snippet shown in
+  # docs/modules/services-hardened.md against nixpkgs only — no `hosts/` import,
+  # no real hostnames or secrets — proving the copyable example works standalone.
+  servicesHardenedExampleFixture =
+    let
+      systemConfig = lib.nixosSystem {
+        system = pkgs.stdenv.hostPlatform.system;
+        modules = [
+          ../modules/nixos/services/hardened.nix
+          (
+            { pkgs, ... }:
+            {
+              networking.hostName = "services-hardened-example-fixture";
+              system.stateVersion = "26.05";
+
+              systemd.services.nginx.serviceConfig = {
+                ExecStart = "${pkgs.coreutils}/bin/true";
+                Type = "oneshot";
+              };
+
+              services.hardened.nginx.extraConfig = {
+                CapabilityBoundingSet = "CAP_NET_BIND_SERVICE";
+                AmbientCapabilities = "CAP_NET_BIND_SERVICE";
+                ReadWritePaths = [
+                  "/var/cache/nginx"
+                  "/var/log/nginx"
+                  "/var/lib/nginx/certs"
+                ];
+              };
+            }
+          )
+        ];
+      };
+      serviceConfig = systemConfig.config.systemd.services.nginx.serviceConfig;
+      evaluated = {
+        capabilityBoundingSet = serviceConfig.CapabilityBoundingSet;
+        ambientCapabilities = serviceConfig.AmbientCapabilities;
+        readWritePaths = serviceConfig.ReadWritePaths;
+        # Forced baseline keys must still apply on top of the documented example.
+        privateTmp = serviceConfig.PrivateTmp;
+        protectSystem = serviceConfig.ProtectSystem;
+      };
+    in
+    pkgs.writeText "services-hardened-example-fixture.json" (builtins.toJSON evaluated);
+
+  # Evaluates both `examples/mini-fleet` hosts against nixpkgs only — the same
+  # `nixosModules.*` paths the example's own `flake.nix` imports as public
+  # flake outputs, never `hosts/`. Mirrors the `servicesHardenedExampleFixture`
+  # / `observability-*-fixture` pattern: prove the copyable example evaluates
+  # standalone so it cannot silently rot when a layered module changes.
+  miniFleetExampleFixture =
+    let
+      workstation = lib.nixosSystem {
+        system = pkgs.stdenv.hostPlatform.system;
+        modules = [
+          ../examples/mini-fleet/hosts/workstation-example
+          ../modules/nixos/profiles/desktop.nix
+          ../modules/nixos/profiles/security.nix
+          inputs.home-manager.nixosModules.home-manager
+          {
+            home-manager = {
+              useGlobalPkgs = true;
+              useUserPackages = true;
+              users.demo = {
+                home.stateVersion = "26.05";
+                imports = [ ../home/profiles/base.nix ];
+              };
+            };
+          }
+        ];
+      };
+      server = lib.nixosSystem {
+        system = pkgs.stdenv.hostPlatform.system;
+        modules = [
+          ../examples/mini-fleet/hosts/server-example
+          ../modules/nixos/services/hardened.nix
+          ../modules/nixos/profiles/security.nix
+          ../modules/nixos/profiles/observability
+          ../modules/nixos/profiles/observability-client.nix
+        ];
+      };
+      evaluated = {
+        workstationHostName = workstation.config.networking.hostName;
+        workstationHasDesktop = workstation.config.programs.hyprland.enable;
+        workstationFirewallEnabled = workstation.config.networking.firewall.enable;
+        workstationHomeHasBasePackages = workstation.config.home-manager.users.demo.home.packages != [ ];
+        serverHostName = server.config.networking.hostName;
+        serverServiceCapabilityBoundingSet =
+          server.config.systemd.services.demo-app.serviceConfig.CapabilityBoundingSet;
+        serverMetricsURL = (builtins.head server.config.services.prometheus.remoteWrite).url;
+      };
+    in
+    pkgs.writeText "mini-fleet-example-fixture.json" (builtins.toJSON evaluated);
+
   mkSopsBootstrapCheck =
     hostName: secretsDir:
     let
@@ -533,6 +627,8 @@ in
     observability-stack-fixture = observabilityStackFixture;
     observability-client-fixture = observabilityClientFixture;
     observability-dashboard-backend-assertion-fixture = observabilityDashboardBackendAssertionFixture;
+    services-hardened-example-fixture = servicesHardenedExampleFixture;
+    mini-fleet-example-fixture = miniFleetExampleFixture;
   };
 
   ciTestsFor = system: {

@@ -77,10 +77,17 @@ is an **opinionated** module for that stack — the color contract, templates, a
 reload mechanics are fixed — not a generic theming framework.
 
 ```nix
-# in a Home Manager configuration
+# flake.nix
+{
+  inputs.nixos-fleet.url = "github:FilipNowakowicz/nixos-config";
+}
+```
+
+```nix
+# in a Home Manager module
 { inputs, ... }:
 {
-  imports = [ inputs.nixfleet.homeModules.runtime-theme ];
+  imports = [ inputs.nixos-fleet.homeModules.runtime-theme ];
 
   themes = {
     # Your own theme set: a directory with themes/, mako-config.template,

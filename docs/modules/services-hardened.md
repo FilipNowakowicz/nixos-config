@@ -5,12 +5,37 @@ NixOS services. It is meant for services that already have a normal NixOS unit
 and need a consistent hardening layer without copying the same `serviceConfig`
 block around host files.
 
-Import it from this flake with:
+Import it from this flake from another NixOS configuration with:
+
+```nix
+# flake.nix
+{
+  inputs.nixos-fleet.url = "github:FilipNowakowicz/nixos-config";
+
+  outputs =
+    {
+      nixpkgs,
+      nixos-fleet,
+      ...
+    }:
+    {
+      nixosConfigurations.example = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          nixos-fleet.nixosModules.services-hardened
+          ./configuration.nix
+        ];
+      };
+    };
+}
+```
+
+Or, inside a module that already receives `inputs`:
 
 ```nix
 {
   imports = [
-    inputs.nix-config.nixosModules.services-hardened
+    inputs.nixos-fleet.nixosModules.services-hardened
   ];
 }
 ```

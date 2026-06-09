@@ -143,3 +143,10 @@ Minimal example:
   ]
 }
 ```
+
+A larger, sanitized snippet of real generated output — one full host entry with
+`drift` and `health` populated, store-path hashes and the tailnet suffix
+replaced with placeholders — is committed at
+[`docs/samples/inventory.sample.json`](samples/inventory.sample.json). See
+[`docs/public-adoption.md`](public-adoption.md#sample-artifacts) for how it is
+generated and kept reproducible.

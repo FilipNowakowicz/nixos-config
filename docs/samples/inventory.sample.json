@@ -1,0 +1,186 @@
+{
+  "hosts": [
+    {
+      "backupClass": "critical",
+      "closurePath": "/nix/store/00000000000000000000000000000000-nixos-system-homeserver-gcp-26.11.20260531.331800d",
+      "closureSizeBytes": null,
+      "deployUser": "user",
+      "deployable": true,
+      "drift": {
+        "expectedExtraTCPPorts": [80, 3201, 9095, 9096, 22000],
+        "strictTCPPortSet": true,
+        "systemdUnits": [
+          "sshd.service",
+          "tailscaled.service",
+          "nginx.service",
+          "vaultwarden.service",
+          "adguardhome.service",
+          "grafana.service",
+          "loki.service",
+          "mimir.service",
+          "tempo.service"
+        ],
+        "tailnetFQDN": "homeserver-gcp.example.ts.net",
+        "tailscaleTag": "server",
+        "tcpPorts": [22, 53, 443, 3001]
+      },
+      "health": {
+        "invariantFailed": 0,
+        "invariantPassed": 12,
+        "invariantResults": [
+          {
+            "message": "system.stateVersion must be set",
+            "name": "has stateVersion",
+            "passed": true
+          },
+          {
+            "message": "fail2ban is hardened",
+            "name": "SSH hosts enforce hardened fail2ban",
+            "passed": true
+          },
+          {
+            "message": "profiles.observability.ingestAuth.username must be 'telemetry', got 'telemetry'",
+            "name": "observability client uses canonical ingest username",
+            "passed": true
+          },
+          {
+            "message": "security.sudo.wheelNeedsPassword must be false (deploy-rs needs passwordless sudo; access is SSH-key-only over Tailscale)",
+            "name": "passwordless sudo enabled",
+            "passed": true
+          },
+          {
+            "message": "networking.firewall.enable must be true",
+            "name": "firewall enabled",
+            "passed": true
+          },
+          {
+            "message": "sops.age.sshKeyPaths must contain at least one SSH host key path",
+            "name": "sops uses SSH host key for decryption",
+            "passed": true
+          },
+          {
+            "message": "ports are not globally open",
+            "name": "SSH and HTTPS are not globally open",
+            "passed": true
+          },
+          {
+            "message": "ports are restricted to tailscale0",
+            "name": "SSH and HTTPS stay Tailscale-only",
+            "passed": true
+          },
+          {
+            "message": "networking.hostName matches registry key",
+            "name": "networking.hostName matches registry key",
+            "passed": true
+          },
+          {
+            "message": "deployable hosts enable OpenSSH",
+            "name": "deployable hosts enable OpenSSH",
+            "passed": true
+          },
+          {
+            "message": "backup metadata configures Restic backup target",
+            "name": "backup metadata configures Restic backup target",
+            "passed": true
+          },
+          {
+            "message": "tailnet metadata enables Tailscale",
+            "name": "tailnet metadata enables Tailscale",
+            "passed": true
+          }
+        ],
+        "invariantStatus": "pass"
+      },
+      "homeManagerProfiles": [],
+      "homeManagerRole": "server",
+      "impermanence": false,
+      "name": "homeserver-gcp",
+      "openTCPPorts": [],
+      "openUDPPorts": [41641],
+      "resticBackups": [
+        {
+          "initialize": true,
+          "name": "b2",
+          "paths": [
+            "/var/lib/vaultwarden",
+            "/var/lib/grafana",
+            "/var/lib/restic-backup-canary",
+            "/var/lib/restic-staging/adguardhome"
+          ],
+          "repository": null,
+          "timer": "daily"
+        }
+      ],
+      "services": {
+        "adguard": true,
+        "fail2ban": true,
+        "firewall": true,
+        "grafana": true,
+        "hyprland": false,
+        "lanzaboote": false,
+        "loki": true,
+        "mimir": true,
+        "nginx": true,
+        "observabilityClient": false,
+        "observabilityStack": true,
+        "openssh": true,
+        "restic": true,
+        "syncthing": false,
+        "tailscale": true,
+        "tempo": true,
+        "usbguard": false,
+        "vaultwarden": true
+      },
+      "stateVersion": "24.11",
+      "status": "active",
+      "system": "x86_64-linux",
+      "tailscaleTCPPorts": [22, 53, 443, 3001],
+      "tailscaleTracked": true,
+      "tailscaleUDPPorts": [53],
+      "trackedServices": [
+        "adguard",
+        "nginx",
+        "vaultwarden",
+        "grafana",
+        "loki",
+        "mimir",
+        "tempo"
+      ]
+    }
+  ],
+  "inventoryContract": {
+    "closureSizeBytes": {
+      "description": "Best-effort Nix closure size in bytes for the host system closure. Null means the closure path was not available in the local Nix store when the inventory package was built.",
+      "nullable": true,
+      "stable": true
+    },
+    "repoLocalInventoryFields": [
+      "closurePath",
+      "closureSizeBytes",
+      "health",
+      "impermanence",
+      "openTCPPorts",
+      "openUDPPorts",
+      "resticBackups",
+      "services",
+      "stateVersion",
+      "tailscaleTCPPorts",
+      "tailscaleUDPPorts",
+      "trackedServices"
+    ],
+    "stableInventoryFields": [
+      "name",
+      "system",
+      "status",
+      "deployable",
+      "deployUser",
+      "backupClass",
+      "homeManagerRole",
+      "homeManagerProfiles",
+      "tailscaleTracked",
+      "drift"
+    ]
+  },
+  "repository": "https://github.com/FilipNowakowicz/nixos-config",
+  "schemaVersion": 1
+}

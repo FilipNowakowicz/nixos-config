@@ -1,0 +1,12 @@
+schema: learning-candidate/v1
+id: 2026-06-09-golden-check-derive-membership-lists-from-source
+date: 2026-06-09
+expires: 2026-12-09
+status: open
+route: promote-skill
+best_form: skill
+type: behavior-upgrade
+dedupe_key: golden-checks:hardcoded-membership-lists
+evidence: [tests/lib/doctor.nix, tests/lib/mini-fleet-flake.nix, "epic/public-adoption-122: lib-doctor + lib-mini-fleet-flake build green after change"]
+observation: a static/golden check (pkgs.runCommand + grep against $src) should be static about the *contract* but derive *membership lists* from the single source of truth, not hardcode them; tests/lib/doctor.nix asserted doctor.sh "must not name private hosts" with a hardcoded regex hosts/(main|mac|homeserver-gcp|gcp-builder) — a hardcoded denylist silently fails to cover a host added later to lib/hosts.nix (the negative invariant rots open); fixed via `lib.concatStringsSep "|" (builtins.attrNames (import ../../lib/hosts.nix))`; subtlety: use registry attrNames NOT readDir hosts/ because hosts/ also holds a non-host installer dir; same principle collapsed a parallel duplicated module list in tests/lib/mini-fleet-flake.nix into one loop deriving the bare attr and kind per entry
+proposed_upgrade: when adding/reviewing a golden or static grep check that encodes a list (esp. a negative/denylist) which already exists in a canonical Nix source (lib/hosts.nix, flake outputs), derive it from that source so new entries are covered automatically; note in nix-verification-loop alongside the static-golden-check pattern (relates to 2026-06-08-static-golden-check-for-cli-narration-sections)

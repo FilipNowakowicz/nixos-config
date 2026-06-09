@@ -11,7 +11,9 @@ Host-specific MacBook follow-ups live in
 
 ## Active Candidates
 
-No active candidates.
+| Area   | Item                      | Why active now                                                                                                                  |
+| :----- | :------------------------ | :------------------------------------------------------------------------------------------------------------------------------ |
+| Public | Public adoption packaging | The repo is being positioned as reusable public NixOS infrastructure, tracked in [`public-adoption.md`](../public-adoption.md). |
 
 ---
 

@@ -202,10 +202,12 @@ light)
     ".#checks.${system}.invariants-main" \
     ".#checks.${system}.invariants-main-ci" \
     ".#checks.${system}.invariants-mac" \
+    ".#checks.${system}.lib-doctor" \
     ".#checks.${system}.lib-generators" \
     ".#checks.${system}.lib-generators-structured" \
     ".#checks.${system}.lib-acl" \
     ".#checks.${system}.lib-invariants" \
+    ".#checks.${system}.lib-mini-fleet-flake" \
     ".#checks.${system}.mac-sops-bootstrap" \
     ".#checks.${system}.observability-alerts-lint" \
     ".#checks.${system}.secrets-directory" \
