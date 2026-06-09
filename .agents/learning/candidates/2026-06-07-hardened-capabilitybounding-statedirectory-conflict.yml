@@ -1,0 +1,10 @@
+schema: learning-candidate/v1
+id: 2026-06-07-hardened-capabilitybounding-statedirectory-conflict
+date: 2026-06-07
+expires: 2026-12-07
+status: open
+route: promote-doc
+best_form: doc
+evidence: [hosts/main/default.nix:377-403, modules/nixos/services/hardened.nix:23 (CapabilityBoundingSet = ""), journalctl: "Failed to create '/var/lib/fwupd/pki': Permission denied" + "Can't open /var/lib/fwupd/pending.db: unable to open database file", ls -la /var/lib/fwupd showing owner fwupd-refresh:fwupd-refresh mode 0755, nixpkgs nixos/modules/services/hardware/fwupd.nix:205-213 (fwupd-refresh runs as dedicated user with StateDirectory=fwupd)]
+observation: services.hardened's baseline empty CapabilityBoundingSet (mkDefault) silently strips CAP_DAC_OVERRIDE from root daemons; fwupd.service on main broke after fwupd 2.1.4 added fwupd-refresh.service (runs as dedicated fwupd-refresh user with StateDirectory=fwupd, so systemd chowns /var/lib/fwupd to fwupd-refresh:fwupd-refresh 0755) leaving root fwupd.service unable to create pki/ or open pending.db in a dir it no longer owns; fixed via extraConfig.CapabilityBoundingSet = ["CAP_DAC_OVERRIDE"] rather than relaxing the whole key
+proposed_upgrade: add a doc note near services.hardened (modules/nixos/services/hardened.nix option docs and/or hosts/main/CLAUDE.md fwupd section) that an empty CapabilityBoundingSet is a recurring silent-breakage point whenever an upstream package update adds a companion unit with its own dedicated user + StateDirectory sharing a path with an existing root-run hardened unit — diagnostic signature is SystemdUnitFailed + "Permission denied"/"unable to open database file" on a /var/lib/<svc> path owned by a different uid; fix by granting the minimal capability back (CAP_DAC_OVERRIDE/CAP_CHOWN/CAP_FOWNER) via extraConfig.CapabilityBoundingSet, not by relaxing the whole key

@@ -36,8 +36,23 @@ let
     options = [ "NOPASSWD" ];
   };
 
+  # nh >= 4.3 added a hard "don't run nh as root" guard, which broke this
+  # NOPASSWD wrapper: it is invoked as root via `sudo nixos-switch-main`, and nh
+  # then refuses. Build and activate the closure directly instead — the same
+  # manual pattern used for homeserver-gcp (nix build toplevel +
+  # switch-to-configuration), so the passwordless agent-rebuild path keeps
+  # working without granting broad NOPASSWD or running nh as root.
   nixosSwitchMain = pkgs.writeShellScriptBin "nixos-switch-main" ''
-    exec ${lib.getExe pkgs.nh} os switch --hostname main /home/user/nix
+    set -euo pipefail
+    flake=/home/user/nix
+    # Root building a user-owned checkout otherwise trips git's dubious-ownership
+    # guard; scope the exception to this flake path only.
+    export HOME=/root
+    ${pkgs.git}/bin/git config --global --add safe.directory "$flake" || true
+    toplevel=$(${pkgs.nix}/bin/nix build --no-link --print-out-paths \
+      "$flake#nixosConfigurations.main.config.system.build.toplevel")
+    ${pkgs.nix}/bin/nix-env -p /nix/var/nix/profiles/system --set "$toplevel"
+    exec "$toplevel/bin/switch-to-configuration" switch
   '';
 
   nixGc14d = pkgs.writeShellScriptBin "nix-gc-14d" ''
@@ -391,6 +406,19 @@ in
           "AF_INET"
           "AF_INET6"
           "AF_NETLINK"
+        ];
+        # fwupd 2.1.4 added fwupd-refresh.service, which runs as a dedicated
+        # fwupd-refresh user with StateDirectory=fwupd. systemd therefore chowns
+        # /var/lib/fwupd to fwupd-refresh:fwupd-refresh (0755). The root-run
+        # fwupd.service daemon then needs CAP_DAC_OVERRIDE to write into a
+        # directory it no longer owns, plus CAP_CHOWN/CAP_FOWNER to set
+        # ownership/permissions on the keyring/pki files it creates there. The
+        # hardening baseline strips all capabilities by default, so re-grant
+        # exactly these three (otherwise fwupd.service fails -> SystemdUnitFailed).
+        CapabilityBoundingSet = [
+          "CAP_DAC_OVERRIDE"
+          "CAP_CHOWN"
+          "CAP_FOWNER"
         ];
       };
     };
