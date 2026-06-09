@@ -98,6 +98,7 @@ the inventory into three kinds:
 | :------------------------------------------------------------------- | :------------------------------ | :------- | :----------------------------------------------------------------------------- |
 | `user_password` / `root_password`                                    | all / `mac`                     | self     | `rotate-secret.sh password <file> <key>`                                       |
 | `observability_ingest_password` (+`_htpasswd`)                       | `main`,`mac` / `homeserver-gcp` | self     | `rotate-secret.sh observability` (rotates the pair across all three)           |
+| `adguard_admin_password`                                             | `homeserver-gcp`                | self     | `rotate-secret.sh random`                                                      |
 | `grafana_admin_password`                                             | `homeserver-gcp`                | self     | `rotate-secret.sh random` — **but** set it in Grafana too; see caveats         |
 | `grafana_secret_key`                                                 | `homeserver-gcp`                | self     | `rotate-secret.sh random` — **caveat:** re-encrypts datasource secrets         |
 | `restic_password`                                                    | `main`,`homeserver-gcp`         | self     | `restic key add/remove` first, _then_ `rotate-secret.sh set`; see caveats      |
