@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-06-09-fixtures-must-force-toplevel-to-check-assertions
+date: 2026-06-09
+expires: 2026-12-09
+status: open
+
+route: implement-fix
+best_form: ci-gate
+
+evidence: [architecture-review-2026-06-09.md, "flake/checks.nix:514-556 samples config values; flake/checks.nix:417-456 deepSeqs toplevel.drvPath", "nix eval of mini-fleet workstation + profiles-desktop fails: users.users.user isNormalUser/group assertions (desktop.nix:15) while mini-fleet-example-fixture stays green"]
+observation: eval fixtures that read individual config attrs never force NixOS assertions, so a green fixture can certify an example/module that fails every real build; the shipped mini-fleet example is broken this way today
+proposed_upgrade: make adopter-facing fixtures (miniFleetExampleFixture, servicesHardenedExampleFixture, plus a new profiles-base fixture) force toplevel.drvPath via deepSeq/tryEval like observabilityDashboardBackendAssertionFixture; fix the underlying leaks (desktop.nix users.users.user, base.nix mkPromScript coupling) in the same pass
+
+type: repo-fix
+dedupe_key: fixtures:assertions-not-forced-without-toplevel
+targets: [flake/checks.nix, modules/nixos/profiles/desktop.nix, modules/nixos/profiles/base.nix, examples/mini-fleet]
