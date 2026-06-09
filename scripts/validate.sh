@@ -119,6 +119,9 @@ build_host() {
   homeserver-gcp)
     build_attrs ".#nixosConfigurations.homeserver-gcp.config.system.build.toplevel"
     ;;
+  gcp-builder)
+    build_attrs ".#nixosConfigurations.gcp-builder.config.system.build.toplevel"
+    ;;
   mac)
     build_attrs ".#nixosConfigurations.mac.config.system.build.toplevel"
     ;;

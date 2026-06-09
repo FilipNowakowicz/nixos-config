@@ -119,6 +119,47 @@
   };
 
   # ── Idle auto-shutdown ──────────────────────────────────────────────────────
+  systemd.services.tailscale-authkey-cleanup =
+    let
+      authKeyPath = "/var/lib/tailscale-authkey";
+      script = pkgs.writeShellScript "tailscale-authkey-cleanup" ''
+        set -eu
+
+        auth_key=${authKeyPath}
+
+        for _ in $(${pkgs.coreutils}/bin/seq 1 60); do
+          if ${pkgs.tailscale}/bin/tailscale status --json --peers=false 2>/dev/null \
+            | ${pkgs.jq}/bin/jq -e '(.Self.ID? // "") != ""' >/dev/null; then
+            ${pkgs.coreutils}/bin/shred --remove "$auth_key"
+            exit 0
+          fi
+
+          ${pkgs.coreutils}/bin/sleep 1
+        done
+
+        echo "tailscale-authkey-cleanup: tailscale node identity was not established" >&2
+        exit 1
+      '';
+    in
+    {
+      description = "Remove the gcp-builder Tailscale auth key after first join";
+      wantedBy = [ "multi-user.target" ];
+      wants = [ "tailscaled-autoconnect.service" ];
+      after = [
+        "tailscaled.service"
+        "tailscaled-autoconnect.service"
+      ];
+      unitConfig.ConditionPathExists = authKeyPath;
+      startLimitIntervalSec = 0;
+      startLimitBurst = 1000000;
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = script;
+        Restart = "on-failure";
+        RestartSec = "30s";
+      };
+    };
+
   # The builder is started on demand by `main` and powers itself off once it has
   # been idle (no established SSH/build connections) for idleSeconds. The stamp
   # lives in /run (tmpfs), so a fresh boot starts the idle clock from now and
