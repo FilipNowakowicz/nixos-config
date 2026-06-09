@@ -146,9 +146,6 @@ let
           if name == "homeserver-gcp" then
             [
               80 # nginx HTTP->HTTPS redirect vhost (binds 0.0.0.0; tailnet-firewalled)
-              3201 # tempo internal listener (LGTM stack)
-              9095 # mimir gRPC
-              9096 # loki gRPC
               22000 # syncthing transport (user home-manager server role; GUI stays on loopback)
             ]
           else
