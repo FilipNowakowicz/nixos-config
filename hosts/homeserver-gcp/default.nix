@@ -21,9 +21,6 @@ let
           tcpPorts = config.networking.firewall.interfaces.tailscale0.allowedTCPPorts or [ ];
           expectedExtraTCPPorts = [
             80
-            3201
-            9095
-            9096
             22000
           ];
           strictTCPPortSet = true;
