@@ -254,6 +254,89 @@ or untrusted local services are added later, move the nginx-to-Grafana boundary
 to a Unix socket or equivalent nginx-only channel before relying on Grafana
 roles as a local security boundary.
 
+## Binary Cache Trust
+
+Two hosts (`main`, `mac`) trust an R2-hosted binary cache as an
+`extra-substituters` entry, and a separate pair (`homeserver-gcp`,
+`gcp-builder`) trust a `main.local` cache served by `main`. Both are real trust
+edges in addition to `cache.nixos.org`, and they have different blast radii.
+
+### R2-hosted CI cache (`main`, `mac`)
+
+`hosts/main/default.nix` and `hosts/mac/default.nix` both add
+`https://pub-706604c9179043ac98604d6de4c65c2c.r2.dev` as an `extra-substituters`
+entry and trust the public key
+`nix-cache-1:eEcFiWPHQpJmlcnNeGoPg6xxOp3itNZiWwFaE+NebIk=`. Anything
+`nix-store`-signed with the matching private key and served from that R2 bucket
+will be substituted and trusted by both workstations without rebuilding from
+source — i.e. it can supply build outputs that land in `/nix/store` and get
+activated.
+
+**Who can sign for this cache.** The private signing key is the
+`CACHE_SIGNING_KEY` GitHub Actions secret, consumed by `scripts/push-to-r2.sh`
+and wired into `.github/workflows/nix.yml` (the `light`, `package`, `hosts`,
+and `tests` jobs all push their build outputs to R2 on `push` to `main`,
+gated by `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `CACHE_SIGNING_KEY`
+secrets at the repo level). Repo admins control these secrets and the workflow
+file, so this is the same shape of edge as the documented
+`homeserver-gcp` runner root-equivalence: **a GitHub repo admin (or anyone who
+can land a workflow change on `main`) effectively controls what `main` and
+`mac` substitute as trusted store paths.** Unlike the `homeserver-gcp` runner
+edge, this does not grant interactive shell access — it grants the ability to
+have a signed artifact accepted as a build output.
+
+**Scope of what can be pushed.** `scripts/push-to-r2.sh` only signs and pushes
+paths that:
+
+- come from `PRINT_PATHS=1 bash scripts/validate.sh ...` (i.e. the outputs of
+  this repo's own `nix build` invocations for checks/packages/host closures), or
+  an explicit `PATHS_FILE` set by the workflow to one of those generated lists;
+- match `/nix/store/*` (the script refuses anything else); and
+- pass `nix path-info <path>` (the script refuses paths the local Nix store
+  doesn't recognize as real, already-realised store paths).
+
+In practice this means the cache is scoped to **store paths the CI runner
+itself just built** from this repo's flake — it is not an arbitrary
+"sign any path string" oracle. However, because the signing key is held by CI
+and CI executes whatever is on `main` (including the flake inputs and any
+derivation that runs arbitrary code at build time), the practical scope is
+"anything CI can be made to build from a `main`-mergeable change" — which is
+broad. This is documentation of an existing, accepted trust edge; no
+substituter configuration change is made by this issue. A possible follow-up
+to scope this further (e.g. binding pushed paths to a specific derivation
+allowlist or restricting which workflow jobs hold the signing secret) is
+tracked separately — see the linked follow-up issue, if filed.
+
+**Rotation procedure.** To rotate the R2 cache signing keypair:
+
+1. Generate a new Ed25519 signing keypair:
+   `nix-store --generate-binary-cache-key nix-cache-1 /tmp/cache-priv.key /tmp/cache-pub.key`
+   (keep the same `nix-cache-1` name so existing trust comments stay accurate,
+   or pick a new name and update both files below consistently).
+2. Update the `CACHE_SIGNING_KEY` GitHub Actions repo secret with the contents
+   of the new private key file (Settings → Secrets and variables → Actions).
+3. Update `extra-trusted-public-keys` in both `hosts/main/default.nix` and
+   `hosts/mac/default.nix` to the new public key, keeping the
+   "Keep this in sync with the CI signing key used for the R2 binary cache"
+   comment.
+4. Update the matching trusted key in `.github/actions/setup-nix/action.yml`
+   (checked against `hosts/main/default.nix` by
+   `scripts/check-cache-config.sh`).
+5. Deploy `main` and `mac` so the new public key is trusted before CI starts
+   signing with the new private key, then merge the workflow/host changes.
+6. Old store paths signed with the retired key remain on R2 but will no longer
+   be trusted by either host once the new key is live; this is expected and
+   does not require purging the bucket.
+
+### `main.local` cache (`homeserver-gcp`, `gcp-builder`)
+
+`hosts/homeserver-gcp/default.nix` and `hosts/gcp-builder/default.nix` trust
+`main.local:fSo1pk+WU1RU7vpv+GTbzldKn4MMtBS46vQasXJ2oeQ=` for a cache served by
+`main` itself. This is a much smaller trust delta: `main` (the user's own dev
+workstation) is already the deploy and admin source of truth for both of those
+hosts, so trusting its cache does not add a new principal — it just lets them
+substitute from a host they already implicitly trust.
+
 ## Shielded VM
 
 `homeserver-gcp` runs as a GCE Shielded VM. `infra/main.tf` sets
