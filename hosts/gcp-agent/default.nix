@@ -103,46 +103,121 @@
     '';
   };
 
-  systemd.services.tailscale-authkey-cleanup =
-    let
-      authKeyPath = "/var/lib/tailscale-authkey";
-      script = pkgs.writeShellScript "tailscale-authkey-cleanup" ''
-        set -eu
+  systemd.services = {
+    tailscale-authkey-cleanup =
+      let
+        authKeyPath = "/var/lib/tailscale-authkey";
+        script = pkgs.writeShellScript "tailscale-authkey-cleanup" ''
+          set -eu
 
-        auth_key=${authKeyPath}
+          auth_key=${authKeyPath}
 
-        for _ in $(${pkgs.coreutils}/bin/seq 1 60); do
-          if ${pkgs.tailscale}/bin/tailscale status --json --peers=false 2>/dev/null \
-            | ${pkgs.jq}/bin/jq -e '(.Self.ID? // "") != ""' >/dev/null; then
-            ${pkgs.coreutils}/bin/shred --remove "$auth_key"
+          for _ in $(${pkgs.coreutils}/bin/seq 1 60); do
+            if ${pkgs.tailscale}/bin/tailscale status --json --peers=false 2>/dev/null \
+              | ${pkgs.jq}/bin/jq -e '(.Self.ID? // "") != ""' >/dev/null; then
+              ${pkgs.coreutils}/bin/shred --remove "$auth_key"
+              exit 0
+            fi
+
+            ${pkgs.coreutils}/bin/sleep 1
+          done
+
+          echo "tailscale-authkey-cleanup: tailscale node identity was not established" >&2
+          exit 1
+        '';
+      in
+      {
+        description = "Remove the gcp-agent Tailscale auth key after first join";
+        wantedBy = [ "multi-user.target" ];
+        wants = [ "tailscaled-autoconnect.service" ];
+        after = [
+          "tailscaled.service"
+          "tailscaled-autoconnect.service"
+        ];
+        unitConfig.ConditionPathExists = authKeyPath;
+        startLimitIntervalSec = 0;
+        startLimitBurst = 1000000;
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = script;
+          Restart = "on-failure";
+          RestartSec = "30s";
+        };
+      };
+
+    # The agent is started on demand for a session and powers itself off once it
+    # has been idle for idleSeconds. "Idle" here is deliberately MORE
+    # conservative than the builder's "no SSH connection": a Claude Code session
+    # may run detached (no SSH) for a long time, or hold an SSH connection open
+    # while doing nothing. So the box counts as ACTIVE while EITHER an SSH
+    # session is established OR a `claude` process is running OR an orchestration
+    # run has dropped the session lock (the #169 entrypoint touches
+    # /run/agent-session.lock around a run). Only when none of those hold for a
+    # full idleSeconds window does it power off. The window is 60 min (vs the
+    # builder's 20) because sessions are long-running and bursty by design.
+    agent-idle-shutdown =
+      let
+        idleSeconds = 3600; # 60 minutes
+        sessionLock = "/run/agent-session.lock";
+        script = pkgs.writeShellScript "agent-idle-shutdown" ''
+          set -eu
+          stamp=/run/agent-last-active
+          now=$(${pkgs.coreutils}/bin/date +%s)
+
+          # Seed the stamp on the first run after boot so a freshly-started box
+          # gets a full idle window before the first shutdown check can fire.
+          [ -f "$stamp" ] || ${pkgs.coreutils}/bin/printf '%s\n' "$now" > "$stamp"
+
+          active=0
+
+          # 1. Any established connection on port 22 = an interactive session.
+          if ${pkgs.iproute2}/bin/ss -Htn state established '( sport = :22 )' \
+              | ${pkgs.gnugrep}/bin/grep -q .; then
+            active=1
+          fi
+
+          # 2. A running Claude Code process = a session in progress, even if
+          #    detached/tmux with no SSH attached. Matches the `claude` wrapper
+          #    and the underlying claude-code node process.
+          if ${pkgs.procps}/bin/pgrep -f 'claude-code|@anthropic-ai/claude' >/dev/null \
+              || ${pkgs.procps}/bin/pgrep -x claude >/dev/null; then
+            active=1
+          fi
+
+          # 3. An orchestration run asserting activity around non-claude work
+          #    (e.g. an offloaded build) via the session lock.
+          [ -e ${sessionLock} ] && active=1
+
+          if [ "$active" -eq 1 ]; then
+            ${pkgs.coreutils}/bin/printf '%s\n' "$now" > "$stamp"
             exit 0
           fi
 
-          ${pkgs.coreutils}/bin/sleep 1
-        done
-
-        echo "tailscale-authkey-cleanup: tailscale node identity was not established" >&2
-        exit 1
-      '';
-    in
-    {
-      description = "Remove the gcp-agent Tailscale auth key after first join";
-      wantedBy = [ "multi-user.target" ];
-      wants = [ "tailscaled-autoconnect.service" ];
-      after = [
-        "tailscaled.service"
-        "tailscaled-autoconnect.service"
-      ];
-      unitConfig.ConditionPathExists = authKeyPath;
-      startLimitIntervalSec = 0;
-      startLimitBurst = 1000000;
-      serviceConfig = {
-        Type = "oneshot";
-        ExecStart = script;
-        Restart = "on-failure";
-        RestartSec = "30s";
+          last=$(${pkgs.coreutils}/bin/cat "$stamp" 2>/dev/null || ${pkgs.coreutils}/bin/printf '%s' "$now")
+          if [ "$(( now - last ))" -ge ${toString idleSeconds} ]; then
+            ${pkgs.systemd}/bin/systemctl poweroff
+          fi
+        '';
+      in
+      {
+        description = "Power off the agent box after it has been idle";
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = script;
+        };
       };
+  };
+
+  systemd.timers.agent-idle-shutdown = {
+    description = "Periodic idle check for the agent box";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      # Longer first-check delay than the builder: a cold-started session needs
+      # time to clone + start `claude` before the first idle sample.
+      OnBootSec = "15min";
+      OnUnitActiveSec = "5min";
     };
+  };
 
   # Host-scoped secrets. This host deliberately does NOT carry the personal
   # `&user` age key (that would give a disposable, autonomously-running box
