@@ -103,13 +103,13 @@
     # `nixos-anywhere --extra-files` (see CLAUDE.md), not sops: a revocable,
     # tag-scoped auth key kept only on the builder's own disk. Mint it reusable,
     # NON-ephemeral (the box is usually powered off; an ephemeral node would be
-    # deregistered while down and lose its stable name), pre-tagged tag:server.
+    # deregistered while down and lose its stable name), pre-tagged tag:builder.
     # After first join the node identity persists on disk, so the key is used once.
     tailscale = {
       enable = true;
       openFirewall = true;
       authKeyFile = "/var/lib/tailscale-authkey";
-      extraUpFlags = [ "--advertise-tags=tag:server" ];
+      extraUpFlags = [ "--advertise-tags=tag:builder" ];
     };
 
     journald.extraConfig = ''

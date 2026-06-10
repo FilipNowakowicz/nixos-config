@@ -86,7 +86,7 @@ let
       status = "active";
       tailnetFQDN = "gcp-builder.tail90fc7a.ts.net";
       tailscale = {
-        tag = "server";
+        tag = "builder";
         acceptFrom.workstation = [ 22 ];
       };
       deploy.sshUser = "user";

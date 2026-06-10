@@ -53,11 +53,11 @@ Terraform state.
    `bootstrap_ssh_public_key` (shared with the homeserver flow).
 
 2. **Mint a Tailscale auth key** — Tailscale admin → Settings → Keys → Generate:
-   **reusable**, **non-ephemeral**, **pre-approved**, and **tagged `tag:server`**.
+   **reusable**, **non-ephemeral**, **pre-approved**, and **tagged `tag:builder`**.
    Non-ephemeral matters: the builder is powered off most of the time, and an
    ephemeral node would be deregistered while down and lose its stable
-   `gcp-builder.<tailnet>.ts.net` name. The `tag:server` tag means the existing
-   `tag:workstation → tag:server:22` ACL rule already grants `main` SSH — no ACL
+   `gcp-builder.<tailnet>.ts.net` name. The `tag:builder` tag means the existing
+   `tag:workstation → tag:builder:22` ACL rule already grants `main` SSH — no ACL
    change needed. Stage it for `--extra-files`:
 
    ```bash
@@ -94,7 +94,7 @@ Terraform state.
    ```
 
    On reboot the builder reads `/var/lib/tailscale-authkey` and joins the tailnet
-   as `tag:server` automatically — no manual `tailscale up`.
+   as `tag:builder` automatically — no manual `tailscale up`.
 
 6. **Verify + lock down** — confirm it joined, scrub the staged key, remove the
    temporary hole:
