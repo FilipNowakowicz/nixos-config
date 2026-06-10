@@ -370,6 +370,11 @@ let
     invariants.macSshTailscaleOnly
   ];
 
+  gcpBuilderAccessInvariants = invariants.deployTargetBaseAccessAssertions ++ [
+    invariants.gcpBuilderSshTailscaleOnly
+    invariants.gcpBuilderUsersAreKeyOnly
+  ];
+
   # Lint the Mimir ruler alert rules with promtool. Renders the exact same
   # shared data the observability module deploys (lib/observability-alerts.nix)
   # so a typo in a metric name, label, or expr fails the light lane instead of
@@ -667,6 +672,10 @@ in
       ++ homeserverAlertDeliveryInvariants
       ++ registryAssertionsFor "homeserver-gcp"
     ) ciNixosConfigs.homeserver-gcp.config;
+
+    invariants-gcp-builder = invariants.mkInvariantCheck "gcp-builder" (
+      commonSystemInvariants ++ gcpBuilderAccessInvariants ++ registryAssertionsFor "gcp-builder"
+    ) allNixosConfigs.gcp-builder.config;
 
     invariants-mac = invariants.mkInvariantCheck "mac" (
       commonSystemInvariants ++ macAccessInvariants ++ registryAssertionsFor "mac"

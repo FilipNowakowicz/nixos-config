@@ -464,7 +464,7 @@ rec {
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
 
-  deployTargetAccessAssertions = [
+  deployTargetBaseAccessAssertions = [
     {
       name = "passwordless sudo enabled";
       check =
@@ -476,6 +476,9 @@ rec {
       name = "firewall enabled";
       check = cfg: require cfg.networking.firewall.enable "networking.firewall.enable must be true";
     }
+  ];
+
+  deployTargetSopsAssertions = [
     {
       name = "sops uses SSH host key for decryption";
       check =
@@ -485,6 +488,8 @@ rec {
         ) "sops.age.sshKeyPaths must contain at least one SSH host key path";
     }
   ];
+
+  deployTargetAccessAssertions = deployTargetBaseAccessAssertions ++ deployTargetSopsAssertions;
 
   homeserverSshAndHttpsNotGloballyOpen = {
     name = "SSH and HTTPS are not globally open";
@@ -517,6 +522,47 @@ rec {
         interface = "tailscale0";
         ports = [ 22 ];
       } cfg;
+  };
+
+  gcpBuilderSshTailscaleOnly = {
+    name = "gcp-builder SSH stays Tailscale-only";
+    check =
+      cfg:
+      let
+        violations =
+          lib.filter (msg: msg != "") [
+            (lib.optionalString (!cfg.services.openssh.enable) "services.openssh.enable must be true")
+            (lib.optionalString cfg.services.openssh.openFirewall "services.openssh.openFirewall must be false")
+          ]
+          ++ interfaceTCPExposureViolations {
+            interface = "tailscale0";
+            ports = [ 22 ];
+          } cfg;
+      in
+      mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
+  };
+
+  gcpBuilderUsersAreKeyOnly = {
+    name = "gcp-builder users stay key-only";
+    check =
+      cfg:
+      let
+        passwordFields = [
+          "hashedPassword"
+          "hashedPasswordFile"
+          "initialHashedPassword"
+          "initialPassword"
+          "passwordFile"
+        ];
+        hasPassword = user: lib.any (field: (user.${field} or null) != null) passwordFields;
+        loginUsers = lib.filterAttrs (
+          _: user: user.isNormalUser or false || !(user.isSystemUser or false)
+        ) (cfg.users.users or { });
+        offenders = lib.attrNames (lib.filterAttrs (_: hasPassword) loginUsers);
+      in
+      mkResult (
+        offenders == [ ]
+      ) "password material configured for login user(s): ${formatList offenders}";
   };
 
   checkNoGlobalTCPPorts =
