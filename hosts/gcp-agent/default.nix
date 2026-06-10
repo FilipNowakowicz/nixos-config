@@ -227,9 +227,26 @@
     # entrypoint runs unprivileged as `user`, so it cannot write a bare /run path;
     # this directory lets it drop /run/agent/session.lock that the root-run
     # idle-shutdown check reads.
+    #
+    # The next three rules pre-create the parent directories of the host sops
+    # secrets below as `user:users` *before* sops-install-secrets runs. Without
+    # this, sops-install-secrets (running as root) `mkdir -p`s these paths itself
+    # the first time, leaving them root-owned — which then breaks both
+    # `home-manager-user.service` (can't create `~/.config/bat` etc.) and `gh`
+    # (can't write `~/.config/gh/config.yml` next to the sops-managed
+    # `hosts.yml`). `d` only sets ownership on creation, so this is a no-op once
+    # the directories exist with the right owner.
     tmpfiles.rules = [
       "d /run/agent 0755 user users -"
+      "d /home/user/.claude 0755 user users -"
+      "d /home/user/.config 0755 user users -"
+      "d /home/user/.config/gh 0755 user users -"
     ];
+
+    # Order tmpfiles before sops-install-secrets so the `d` rules above win the
+    # race to create these directories (sops-install-secrets also wants
+    # sysinit.target with no inherent ordering against tmpfiles-setup).
+    services.sops-install-secrets.after = [ "systemd-tmpfiles-setup.service" ];
   };
 
   # Host-scoped secrets. This host deliberately does NOT carry the personal
