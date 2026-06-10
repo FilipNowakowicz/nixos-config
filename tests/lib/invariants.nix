@@ -79,12 +79,12 @@ let
       - &main_host age1main
       - &homeserver_gcp_host age1homeserver
     creation_rules:
-      - path_regex: hosts/main/secrets/.*
+      - path_regex: ^hosts/main/secrets/.*
         key_groups:
           - age:
               - *user
               - *main_host
-      - path_regex: hosts/homeserver-gcp/secrets/.*
+      - path_regex: ^hosts/homeserver-gcp/secrets/.*
         key_groups:
           - age:
               - *user
@@ -260,8 +260,8 @@ let
             - &main_host age1main
             - &old_host age1old
           creation_rules:
-            - path_regex: hosts/main/secrets/.*
-            - path_regex: hosts/old/secrets/.*
+            - path_regex: ^hosts/main/secrets/.*
+            - path_regex: ^hosts/old/secrets/.*
         '').message;
       expected = ".sops.yaml missing host secret rule(s): homeserver-gcp; .sops.yaml has stale host secret rule(s): old; .sops.yaml missing host recipient key(s): homeserver-gcp; .sops.yaml has stale host recipient key(s): old";
     };

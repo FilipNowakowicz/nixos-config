@@ -14,21 +14,21 @@ keys:
   - &mac_host age18sl0mheda2g4atmwsn60sds0026p62cd5xr2he2pad3lmrkr24qsvs0sx2
 
 creation_rules:
-  - path_regex: home/users/user/secrets/.*\.(json|yaml|yml)$
+  - path_regex: ^home/users/user/secrets/.*\.(json|yaml|yml)$
     key_groups:
       - age:
           - *user
-  - path_regex: hosts/main/secrets/.*
+  - path_regex: ^hosts/main/secrets/.*
     key_groups:
       - age:
           - *user
           - *main_host
-  - path_regex: hosts/homeserver-gcp/secrets/.*
+  - path_regex: ^hosts/homeserver-gcp/secrets/.*
     key_groups:
       - age:
           - *user
           - *homeserver_gcp_host
-  - path_regex: hosts/mac/secrets/.*
+  - path_regex: ^hosts/mac/secrets/.*
     key_groups:
       - age:
           - *user

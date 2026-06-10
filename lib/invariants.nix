@@ -62,7 +62,7 @@ rec {
       hostRuleForLine =
         line:
         let
-          match = builtins.match ".*path_regex: hosts/([^/]+)/secrets/.*" line;
+          match = builtins.match ".*path_regex: \\^?hosts/([^/]+)/secrets/.*" line;
         in
         if match == null then [ ] else match;
       hostKeyForLine =
