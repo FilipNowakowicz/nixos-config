@@ -198,6 +198,7 @@ light)
     ".#checks.${system}.deploy-activate" \
     ".#checks.${system}.deploy-schema" \
     ".#checks.${system}.homeserver-gcp-sops-bootstrap" \
+    ".#checks.${system}.invariants-gcp-builder" \
     ".#checks.${system}.invariants-homeserver-gcp" \
     ".#checks.${system}.invariants-main" \
     ".#checks.${system}.invariants-main-ci" \
