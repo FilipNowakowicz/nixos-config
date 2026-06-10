@@ -36,6 +36,7 @@
       # request to the driver failed" on the campus WPA-EAP APs (FT handshake).
       unmanaged = [ "interface-name:wlp3s0" ];
       settings = {
+        # Broadcom `wl`/wext cannot associate reliably with randomized Wi-Fi MACs.
         connection."wifi.cloned-mac-address" = "permanent";
         device."wifi.scan-rand-mac-address" = "no";
       };

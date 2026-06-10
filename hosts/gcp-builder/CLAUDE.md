@@ -96,11 +96,35 @@ Terraform state.
    On reboot the builder reads `/var/lib/tailscale-authkey` and joins the tailnet
    as `tag:server` automatically — no manual `tailscale up`.
 
-6. **Verify + lock down** — confirm it joined, scrub the staged key, remove the
-   temporary hole:
+6. **Verify + lock down** — confirm it joined, remove bootstrap metadata, scrub
+   the staged key, remove the temporary hole:
 
    ```bash
+   BUILDER=$(cd infra && tofu output -raw builder_name)
+   ZONE=$(cd infra && tofu output -raw instance_zone)
+   BOOTSTRAP_METADATA_KEYS=(
+     "bootstrap-ssh-public-key"
+     "startup-script"
+   )
+
    tailscale status | grep gcp-builder
+   for metadata_key in "${BOOTSTRAP_METADATA_KEYS[@]}"; do
+     gcloud compute instances remove-metadata "$BUILDER" \
+       --zone "$ZONE" \
+       --keys "$metadata_key" >/dev/null || true
+   done
+   remaining_metadata_keys="$(
+     gcloud compute instances describe "$BUILDER" \
+       --zone "$ZONE" \
+       --flatten='metadata.items[]' \
+       --format='value(metadata.items.key)'
+   )"
+   for metadata_key in "${BOOTSTRAP_METADATA_KEYS[@]}"; do
+     if grep -Fxq "$metadata_key" <<<"$remaining_metadata_keys"; then
+       echo "bootstrap metadata key still present: ${metadata_key}" >&2
+       exit 1
+     fi
+   done
    shred -u /tmp/builder-extra/var/lib/tailscale-authkey
    gcloud compute firewall-rules delete gcp-builder-provision-ssh --quiet
    ```
