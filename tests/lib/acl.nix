@@ -38,6 +38,14 @@ let
       };
       backup.class = "critical";
     };
+    gcp-builder = {
+      role = "builder";
+      tailnetFQDN = "gcp-builder.example.ts.net";
+      tailscale = {
+        tag = "builder";
+        acceptFrom.workstation = [ 22 ];
+      };
+    };
     metrics = {
       role = "service";
       tailscale = {
@@ -82,11 +90,16 @@ let
 
     testTagOwnerCount = {
       expr = lib.length (lib.attrNames result.tagOwners);
-      expected = 4;
+      expected = 5;
     };
 
     testTagOwnersAdmin = {
       expr = result.tagOwners."tag:admin";
+      expected = [ "autogroup:admin" ];
+    };
+
+    testTagOwnersBuilder = {
+      expr = result.tagOwners."tag:builder";
       expected = [ "autogroup:admin" ];
     };
 
@@ -130,6 +143,7 @@ let
     testSecondAclDst = {
       expr = (lib.elemAt result.acls 1).dst;
       expected = [
+        "tag:builder:22"
         "tag:metrics:8080"
         "tag:metrics:8443"
         "tag:server:22"
@@ -182,6 +196,11 @@ let
         && builtins.elem "tag:server:443" rule.dst
       ) result.acls;
       expected = true;
+    };
+
+    testBuilderDestinationOnlyHasSsh = {
+      expr = lib.filter (dst: lib.hasPrefix "tag:builder:" dst) (lib.elemAt result.acls 1).dst;
+      expected = [ "tag:builder:22" ];
     };
 
     testHasUnusualPortConfigDestinations = {
