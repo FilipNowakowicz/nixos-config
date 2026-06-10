@@ -11,17 +11,18 @@ let
   # in one place; non-NixOS personal devices (phones/tablets) can't live in
   # the registry (no `system`, no nixosConfiguration) and are listed
   # separately below.
-  registryClients = map
-    (name: {
-      inherit name;
-      ids = [ hostRegistry.${name}.tailscale.ip4 ];
-      use_global_settings = true;
-    })
-    [
-      "main"
-      "mac"
-      "homeserver-gcp"
-    ];
+  registryClients =
+    map
+      (name: {
+        inherit name;
+        ids = [ hostRegistry.${name}.tailscale.ip4 ];
+        use_global_settings = true;
+      })
+      [
+        "main"
+        "mac"
+        "homeserver-gcp"
+      ];
 
   # Personal phones/tablets: not NixOS hosts, so not in lib/hosts.nix. Tailscale
   # IPs are stable per node-key but must be updated here manually if the device
