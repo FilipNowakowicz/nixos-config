@@ -21,6 +21,17 @@ let
     nixosConfigs:
     lib.mapAttrs (name: cfg: {
       hostname = cfg.tailnetFQDN;
+      # tailnetFQDN (e.g. "homeserver-gcp.tail90fc7a.ts.net") is a different
+      # known_hosts key than the bare registry name used before #142, so
+      # existing known_hosts entries (keyed by the short MagicDNS name) don't
+      # match it. TOFU-accept the FQDN's host key on first connect — same
+      # tailnet-only, key-only trust model already used for the
+      # gcp-builder build link and the homeserver-gcp self-deploy
+      # "Check failed units" step.
+      sshOpts = [
+        "-o"
+        "StrictHostKeyChecking=accept-new"
+      ];
       inherit (cfg.deploy) sshUser;
       magicRollback = true;
       autoRollback = true;
