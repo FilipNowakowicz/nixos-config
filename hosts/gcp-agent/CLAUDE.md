@@ -166,6 +166,47 @@ capture** in steps 7–8.
    `gh auth status` succeeds, and a throwaway branch can be pushed and a PR
    opened + closed.
 
+## Lifecycle (on-demand: start + idle auto-shutdown)
+
+Like `gcp-builder`, `gcp-agent` is normally **powered off**; it is started for a
+session and powers itself back off when idle.
+
+### How you start a session
+
+`scripts/agent-session.sh` is the start side (the agent analog of
+`validate.sh`'s build-focused `ensure_builder`, kept separate because its job is
+to open a session, not offload a build):
+
+```bash
+scripts/agent-session.sh              # start, wait for SSH over Tailscale, open a shell
+scripts/agent-session.sh --wait-only  # start + confirm reachability, then return
+scripts/agent-session.sh -- <cmd...>  # start, wait, run <cmd...> on the host (used by #169)
+```
+
+It `gcloud`-starts the VM (no-op if already running), waits for SSH at
+`gcp-agent.tail90fc7a.ts.net`, then opens an interactive shell or runs the
+passed command. Knobs: `AGENT_NAME`, `AGENT_ZONE`, `AGENT_FQDN`, `SSH_USER`.
+**Prerequisite:** `gcloud` authenticated with the agent's project active, and
+tailnet access as `tag:workstation`.
+
+### Idle auto-shutdown
+
+`agent-idle-shutdown.timer` (in `default.nix`) checks every 5 min (first check
+15 min after boot) and powers the box off after **60 min** of idle. "Idle" is
+deliberately more conservative than the builder's "no SSH connection", because a
+Claude Code session may run **detached** (no SSH) for a long time or hold an SSH
+connection open while doing nothing. The box counts as **active** while ANY of:
+
+- an established inbound SSH connection (`ss` on port 22), or
+- a running Claude Code process (`pgrep` for the `claude` wrapper /
+  `claude-code` node process), or
+- the orchestration session lock `/run/agent-session.lock` exists (the #169
+  entrypoint touches it around non-`claude` work such as an offloaded build).
+
+The 60-min window (vs the builder's 20) reflects long-running, bursty sessions.
+The stamp lives in `/run`, so a fresh boot gets a full grace window before the
+first check.
+
 ## Validation
 
 ```bash
