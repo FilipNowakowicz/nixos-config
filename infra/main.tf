@@ -41,6 +41,33 @@ resource "google_compute_firewall" "deny_public_ssh" {
   source_ranges = ["0.0.0.0/0"]
 }
 
+# The "default" network auto-creates default-allow-internal at priority 65534,
+# permitting ALL protocols/ports between instances on 10.128.0.0/9. That makes
+# the homeserver and builder mutually reachable on every port at the cloud
+# layer, with only the in-guest nftables interface allowlist as a boundary.
+#
+# This rule denies all internal-IP traffic between the homeserver and builder
+# at a higher precedence (lower priority number) than default-allow-internal,
+# scoped to just these two instances via target_tags. Tailscale connectivity
+# is unaffected: if direct internal-IP WireGuard traffic between these GCE
+# instances is blocked, Tailscale falls back to DERP relay over the internet,
+# so both hosts continue to communicate over the tailnet normally.
+#
+# NOTE: apply manually (NOT via terraform apply in this change):
+#   cd infra && tofu plan && tofu apply
+resource "google_compute_firewall" "deny_internal_between_hosts" {
+  name     = "deny-internal-between-hosts"
+  network  = "default"
+  priority = 1000
+
+  deny {
+    protocol = "all"
+  }
+
+  source_ranges = ["10.128.0.0/9"]
+  target_tags   = [local.name, local.builder_name]
+}
+
 # ── Disk snapshots ───────────────────────────────────────────────────────────
 
 resource "google_compute_resource_policy" "homeserver_boot_daily_snapshots" {
