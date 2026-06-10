@@ -8,6 +8,8 @@ set -euo pipefail
 : "${R2_SECRET_ACCESS_KEY:?}"
 : "${CACHE_SIGNING_KEY:?}"
 
+system="${SYSTEM:-x86_64-linux}"
+
 KEY_FILE="$(mktemp)"
 trap 'rm -f "$KEY_FILE"' EXIT
 printf '%s' "$CACHE_SIGNING_KEY" >"$KEY_FILE"
@@ -34,6 +36,38 @@ if [[ ${#paths[@]} -eq 0 ]]; then
   exit 0
 fi
 
+# Allowlist of expected derivation names: narrows "anything `nix path-info`
+# recognizes" (any store path reachable from a `main`-mergeable build) down to
+# this flake's own host closures, packages, and CI checks/tests. Derived live
+# from the flake's own outputs (not hand-maintained), so it can't drift from
+# `scripts/validate.sh`'s `light`/`host`/`package`/`tests` attribute sets.
+flake_dir="$(cd "$script_dir/.." && pwd)"
+
+collect_drv_names() {
+  nix eval --json "$flake_dir#$1" \
+    --apply 'attrs: builtins.attrValues (builtins.mapAttrs (_: v: v.name) attrs)' 2>/dev/null |
+    jq -r '.[]'
+}
+
+mapfile -t allowed_names < <(
+  {
+    collect_drv_names "checks.${system}"
+    collect_drv_names "packages.${system}"
+    collect_drv_names "legacyPackages.${system}.ciTests"
+    nix eval --json "$flake_dir#nixosConfigurations" \
+      --apply 'attrs: builtins.attrValues (builtins.mapAttrs (_: v: v.config.system.build.toplevel.name) attrs)' 2>/dev/null |
+      jq -r '.[]'
+  } | sort -u
+)
+
+is_allowed_name() {
+  local name="$1" candidate
+  for candidate in "${allowed_names[@]}"; do
+    [[ $name == "$candidate" ]] && return 0
+  done
+  return 1
+}
+
 validated_paths=()
 for path in "${paths[@]}"; do
   if [[ $path != /nix/store/* ]]; then
@@ -43,6 +77,12 @@ for path in "${paths[@]}"; do
 
   if ! nix path-info "$path" >/dev/null; then
     echo "Refusing to push unknown store path: $path" >&2
+    exit 1
+  fi
+
+  drv_name="${path#/nix/store/*-}"
+  if ! is_allowed_name "$drv_name"; then
+    echo "Refusing to push path with unexpected derivation name: $path" >&2
     exit 1
   fi
 
