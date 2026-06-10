@@ -15,6 +15,7 @@ let
   knownHomeManagerRoles = [
     "desktop"
     "server"
+    "agent"
   ];
 
   knownStatuses = [

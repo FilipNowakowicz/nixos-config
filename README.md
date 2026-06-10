@@ -77,6 +77,7 @@ flowchart LR
   main("main<br/>workstation / impermanent root")
   mac("mac<br/>companion laptop")
   builder("gcp-builder<br/>on-demand builds")
+  agent("gcp-agent<br/>on-demand Claude Code sessions")
   homeserver("homeserver-gcp<br/>Vaultwarden / AdGuard / LGTM")
   tailnet(("Tailscale"))
   b2("Backblaze B2<br/>restic backups")
@@ -84,8 +85,11 @@ flowchart LR
 
   main <--> mac
   main --> builder
+  main --> agent
+  agent --> builder
   main --> tailnet
   mac --> tailnet
+  agent --> tailnet
   homeserver --> tailnet
   main --> b2
   homeserver --> b2
@@ -96,18 +100,19 @@ flowchart LR
   classDef storage fill:#2a261b,stroke:#d2ae63,color:#fff7df
   classDef network fill:#102f35,stroke:#58d0c9,color:#f0ffff,stroke-width:2px
   class main,homeserver primary
-  class mac,builder secondary
+  class mac,builder,agent secondary
   class b2,snapshots storage
   class tailnet network
 ```
 
-| Host             | Role                | Highlights                                                                                   |
-| :--------------- | :------------------ | :------------------------------------------------------------------------------------------- |
-| `main`           | Primary workstation | Secure Boot, LUKS, impermanent root, Hyprland, USBGuard, Restic/B2, anonymous specialisation |
-| `mac`            | Companion laptop    | NixOS on a 2017 MacBook Air, Broadcom Wi-Fi, impermanence, Syncthing, Input Leap, Moonlight  |
-| `homeserver-gcp` | Cloud homeserver    | Vaultwarden, AdGuard, Nginx, Grafana/Loki/Mimir/Tempo, restore canary, Tailscale ingress     |
-| `gcp-builder`    | Remote builder      | Normally off, started for heavy builds, self-powers-off when idle, deploy-rs managed         |
-| `user@wsl`       | Portable HM profile | Home Manager profile for Windows/WSL environments                                            |
+| Host             | Role                | Highlights                                                                                       |
+| :--------------- | :------------------ | :----------------------------------------------------------------------------------------------- |
+| `main`           | Primary workstation | Secure Boot, LUKS, impermanent root, Hyprland, USBGuard, Restic/B2, anonymous specialisation     |
+| `mac`            | Companion laptop    | NixOS on a 2017 MacBook Air, Broadcom Wi-Fi, impermanence, Syncthing, Input Leap, Moonlight      |
+| `homeserver-gcp` | Cloud homeserver    | Vaultwarden, AdGuard, Nginx, Grafana/Loki/Mimir/Tempo, restore canary, Tailscale ingress         |
+| `gcp-builder`    | Remote builder      | Normally off, started for heavy builds, self-powers-off when idle, deploy-rs managed             |
+| `gcp-agent`      | Claude Code agent   | Normally off, started for issue-loop sessions, narrow sudo, own claude login + scoped GitHub PAT |
+| `user@wsl`       | Portable HM profile | Home Manager profile for Windows/WSL environments                                                |
 
 Host lifecycle status is owned by `lib/hosts.nix`; this table documents that
 registry. `installer` is a utility ISO outside the host registry.
@@ -291,13 +296,14 @@ header, and add the host's sops recipient and secrets. See
 
 ## Deployment
 
-| Host             | Command                                  | Notes                                                                |
-| ---------------- | ---------------------------------------- | -------------------------------------------------------------------- |
-| `main`           | `nh os switch --hostname main .`         | Active impermanent workstation rebuild.                              |
-| `mac`            | `deploy '.#mac'`                         | Companion workstation; `nh os switch --hostname mac .` also works.   |
-| `homeserver-gcp` | `deploy '.#homeserver-gcp'`              | Active GCP homeserver; see `scripts/deploy-gcp.sh` for provisioning. |
-| `gcp-builder`    | `deploy '.#gcp-builder'`                 | On-demand remote builder; start the VM first. See its `CLAUDE.md`.   |
-| `user@wsl`       | `home-manager switch --flake .#user@wsl` | Portable Home Manager for WSL.                                       |
+| Host             | Command                                  | Notes                                                                                           |
+| ---------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `main`           | `nh os switch --hostname main .`         | Active impermanent workstation rebuild.                                                         |
+| `mac`            | `deploy '.#mac'`                         | Companion workstation; `nh os switch --hostname mac .` also works.                              |
+| `homeserver-gcp` | `deploy '.#homeserver-gcp'`              | Active GCP homeserver; see `scripts/deploy-gcp.sh` for provisioning.                            |
+| `gcp-builder`    | `deploy '.#gcp-builder'`                 | On-demand remote builder; start the VM first. See its `CLAUDE.md`.                              |
+| `gcp-agent`      | reprovision / manual activation          | On-demand Claude Code agent; narrow sudo, so no deploy-rs auto-activation. See its `CLAUDE.md`. |
+| `user@wsl`       | `home-manager switch --flake .#user@wsl` | Portable Home Manager for WSL.                                                                  |
 
 `scripts/deploy-gcp.sh` is for provisioning/reinstall only (Terraform apply +
 `nixos-anywhere`), not an ongoing-deploy alias. See
@@ -381,7 +387,8 @@ Host-local runbooks (gotchas, recovery, install) live next to each host's
 config: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
 [`hosts/mac/CLAUDE.md`](hosts/mac/CLAUDE.md),
 [`hosts/homeserver-gcp/CLAUDE.md`](hosts/homeserver-gcp/CLAUDE.md),
-[`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md).
+[`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md),
+[`hosts/gcp-agent/CLAUDE.md`](hosts/gcp-agent/CLAUDE.md).
 
 ---
 

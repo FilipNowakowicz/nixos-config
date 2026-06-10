@@ -375,6 +375,23 @@ let
     invariants.gcpBuilderUsersAreKeyOnly
   ];
 
+  # gcp-agent shares gcp-builder's SSH posture (tailnet-only, key-only login)
+  # but, unlike every other GCP target, keeps NARROW sudo: it runs autonomous
+  # Claude Code sessions, so it must not grant deploy-rs-style broad NOPASSWD —
+  # a session compromise must not be trivially root. The two SSH checks are
+  # host-agnostic; reuse them. Heavy builds offload to gcp-builder, so this box
+  # never needs activation sudo.
+  gcpAgentAccessInvariants = [
+    invariants.gcpBuilderSshTailscaleOnly
+    invariants.gcpBuilderUsersAreKeyOnly
+    {
+      name = "gcp-agent keeps wheelNeedsPassword (narrow sudo)";
+      check =
+        cfg:
+        invariants.require cfg.security.sudo.wheelNeedsPassword "security.sudo.wheelNeedsPassword must stay true on gcp-agent (narrow sudo; it runs autonomous sessions and does not deploy)";
+    }
+  ];
+
   # Lint the Mimir ruler alert rules with promtool. Renders the exact same
   # shared data the observability module deploys (lib/observability-alerts.nix)
   # so a typo in a metric name, label, or expr fails the light lane instead of
@@ -677,6 +694,10 @@ in
       commonSystemInvariants ++ gcpBuilderAccessInvariants ++ registryAssertionsFor "gcp-builder"
     ) allNixosConfigs.gcp-builder.config;
 
+    invariants-gcp-agent = invariants.mkInvariantCheck "gcp-agent" (
+      commonSystemInvariants ++ gcpAgentAccessInvariants ++ registryAssertionsFor "gcp-agent"
+    ) allNixosConfigs.gcp-agent.config;
+
     invariants-mac = invariants.mkInvariantCheck "mac" (
       commonSystemInvariants ++ macAccessInvariants ++ registryAssertionsFor "mac"
     ) allNixosConfigs.mac.config;
@@ -684,6 +705,8 @@ in
     homeserver-gcp-sops-bootstrap = mkSopsBootstrapCheck "homeserver-gcp" ../hosts/homeserver-gcp/secrets;
 
     mac-sops-bootstrap = mkSopsBootstrapCheck "mac" ../hosts/mac/secrets;
+
+    gcp-agent-sops-bootstrap = mkSopsBootstrapCheck "gcp-agent" ../hosts/gcp-agent/secrets;
 
     observability-alerts-lint = observabilityAlertsLint;
     observability-stack-fixture = observabilityStackFixture;

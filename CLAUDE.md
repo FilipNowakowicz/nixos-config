@@ -11,7 +11,8 @@ For deeper context see [`docs/architecture.md`](docs/architecture.md),
 under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
 [`hosts/mac/CLAUDE.md`](hosts/mac/CLAUDE.md),
 [`hosts/homeserver-gcp/CLAUDE.md`](hosts/homeserver-gcp/CLAUDE.md),
-[`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md).
+[`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md),
+[`hosts/gcp-agent/CLAUDE.md`](hosts/gcp-agent/CLAUDE.md).
 
 ---
 
@@ -38,6 +39,10 @@ under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
   [`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md). It is an on-demand
   Nix remote builder, not a service host — `main` starts it transparently for
   heavy builds (see `scripts/validate.sh`) and it self-powers-off when idle.
+- **`gcp-agent`:** on-demand Claude Code agent host (issue-loop sessions, not a
+  service host). Keeps **narrow sudo**, so there is **no deploy-rs
+  auto-activation** — apply config changes by reprovisioning or manual
+  activation. Provision once via [`hosts/gcp-agent/CLAUDE.md`](hosts/gcp-agent/CLAUDE.md).
 - **`user@wsl`:** `home-manager switch --flake .#user@wsl`.
 
 Module topology, persistence model, and the agent-maintenance sudo allowlist

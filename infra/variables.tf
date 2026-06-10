@@ -59,6 +59,22 @@ variable "builder_disk_size_gb" {
   default     = 100
 }
 
+variable "agent_machine_type" {
+  type        = string
+  description = <<-EOT
+    Machine type for the on-demand Claude Code agent host. No nested-virt
+    requirement (heavy builds/tests offload to gcp-builder), so the cheaper e2
+    family is fine. Default e2-standard-4 = 4 vCPU / 16 GB.
+  EOT
+  default     = "e2-standard-4"
+}
+
+variable "agent_disk_size_gb" {
+  type        = number
+  description = "Boot disk size in GB for the agent host. Sized for repo clone(s) + nix store + worktrees."
+  default     = 100
+}
+
 variable "snapshot_retention_days" {
   type        = number
   description = "Number of daily GCE boot disk snapshots to retain for fast provider-local rollback"

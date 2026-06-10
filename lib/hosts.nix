@@ -98,6 +98,26 @@ let
       sops = false;
     };
 
+    # On-demand GCP host for running Claude Code sessions (issue-loop
+    # orchestration), not Nix builds. Normally powered off; started for a
+    # session and self-powers-off when idle (see hosts/gcp-agent). Unlike
+    # gcp-builder it carries secrets (sops = default true): its own claude
+    # login and a scoped GitHub PAT for branch push + PR creation. Disposable:
+    # state is a repo clone + nix store, recoverable by reprovisioning, so no
+    # backup. Heavy builds/tests offload to gcp-builder, so no nested virt
+    # requirement — e2 family is fine.
+    gcp-agent = {
+      system = "x86_64-linux";
+      status = "active";
+      homeManager.role = "agent";
+      tailnetFQDN = "gcp-agent.tail90fc7a.ts.net";
+      tailscale = {
+        tag = "agent";
+        acceptFrom.workstation = [ 22 ];
+      };
+      deploy.sshUser = "user";
+    };
+
     # 2017 MacBook Air (A1466) repurposed as a companion workstation.
     # Canonical state lives on `main`; mac syncs via Syncthing, so no backup class.
     # Heaviest packs (latex, learning) are dropped to keep the 128 GB SSD usable;
