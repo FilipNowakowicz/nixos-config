@@ -8,6 +8,9 @@ __pycache__/
 # Claude Code runtime data — not shared.
 /.claude/worktrees
 
+# Agent workflow runtime telemetry — operator-local state, not repo policy.
+/.agents/state/outcomes
+
 # Large VM disk images — installed to /var/lib/libvirt/images/, never committed.
 *.qcow2
 *.qcow2.xz

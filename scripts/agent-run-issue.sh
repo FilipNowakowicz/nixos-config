@@ -18,6 +18,9 @@
 #   BASE_BRANCH     branch to sync to before each issue (default: main)
 #   REPO_URL        HTTPS clone URL used to bootstrap AGENT_REPO_DIR when it
 #                    does not exist yet (default: this repo, via gh's PAT)
+#   AGENT_OUTCOME_DIR
+#                   directory for per-issue outcome records
+#                   (default: .agents/state/outcomes)
 #
 # v1 is attended: it opens PRs but never merges. You review and merge yourself.
 set -euo pipefail
@@ -25,6 +28,7 @@ set -euo pipefail
 AGENT_REPO_DIR="${AGENT_REPO_DIR:-$HOME/nix}"
 BASE_BRANCH="${BASE_BRANCH:-main}"
 REPO_URL="${REPO_URL:-https://github.com/FilipNowakowicz/nixos-config.git}"
+AGENT_OUTCOME_DIR="${AGENT_OUTCOME_DIR:-.agents/state/outcomes}"
 SESSION_LOCK="/run/agent/session.lock"
 
 label=""
@@ -89,11 +93,68 @@ fi
 
 cd "$AGENT_REPO_DIR"
 
+utc_now() {
+  date -u '+%Y-%m-%dT%H:%M:%SZ'
+}
+
 sync_base() {
   echo "agent-run-issue: syncing $BASE_BRANCH with origin ..." >&2
   git fetch origin --prune
   git checkout "$BASE_BRANCH"
   git reset --hard "origin/$BASE_BRANCH"
+}
+
+snapshot_learning_candidates() {
+  local output="$1"
+  if [[ -d .agents/learning/candidates ]]; then
+    find .agents/learning/candidates -maxdepth 1 -type f \
+      ! -name '.gitkeep' -printf '%p\n' | sort >"$output"
+  else
+    : >"$output"
+  fi
+}
+
+new_learning_candidates() {
+  local before="$1"
+  local output="$2"
+  local after
+  after=$(mktemp)
+  snapshot_learning_candidates "$after"
+  comm -13 "$before" "$after" >"$output" || true
+  rm -f "$after"
+}
+
+record_issue_outcome() {
+  local issue="$1"
+  local status="$2"
+  local started_at="$3"
+  local finished_at="$4"
+  local exit_code="$5"
+  local blocker="$6"
+  local candidates_file="$7"
+
+  if [[ ! -x .agents/scripts/agent-record-outcome ]]; then
+    echo "agent-run-issue: outcome recorder missing; skipped outcome record for issue #$issue" >&2
+    return 0
+  fi
+
+  if outcome_path=$(
+    .agents/scripts/agent-record-outcome \
+      --issue "$issue" \
+      --status "$status" \
+      --base-branch "$BASE_BRANCH" \
+      --repo-dir "$AGENT_REPO_DIR" \
+      --started-at "$started_at" \
+      --finished-at "$finished_at" \
+      --exit-code "$exit_code" \
+      --blocker "$blocker" \
+      --learning-candidates-file "$candidates_file" \
+      --output-dir "$AGENT_OUTCOME_DIR"
+  ); then
+    echo "agent-run-issue: recorded outcome: $outcome_path" >&2
+  else
+    echo "agent-run-issue: failed to record outcome for issue #$issue" >&2
+  fi
 }
 
 # Resolve the target issue list.
@@ -107,7 +168,23 @@ fi
 run_one() {
   local issue="$1"
   echo "agent-run-issue: ===== issue #$issue =====" >&2
-  sync_base
+  local started_at finished_at status exit_code blocker before_candidates new_candidates
+  started_at=$(utc_now)
+  before_candidates=$(mktemp)
+  new_candidates=$(mktemp)
+  trap 'rm -f "$before_candidates" "$new_candidates"' RETURN
+
+  if ! sync_base; then
+    status=failure
+    exit_code=1
+    blocker="failed to sync ${BASE_BRANCH} from origin before issue session"
+    : >"$new_candidates"
+    finished_at=$(utc_now)
+    record_issue_outcome "$issue" "$status" "$started_at" "$finished_at" "$exit_code" "$blocker" "$new_candidates"
+    return "$exit_code"
+  fi
+
+  snapshot_learning_candidates "$before_candidates"
 
   # Hand the issue to Claude Code in headless mode, instructing it to follow the
   # repo's issue-driven-development skill end to end. Claude picks the branch,
@@ -123,11 +200,22 @@ what you changed), then push the branch and open a pull request that links the i
 Do NOT merge the PR and do NOT push to ${BASE_BRANCH}. If you cannot complete it, stop \
 and explain what is blocked."
 
+  status=success
+  exit_code=0
+  blocker=""
   if claude -p "$prompt"; then
     echo "agent-run-issue: issue #$issue session finished" >&2
   else
+    exit_code=$?
+    status=failure
+    blocker="claude session exited non-zero; inspect session output and linked PRs"
     echo "agent-run-issue: issue #$issue session exited non-zero — see output above; check 'gh pr list'" >&2
   fi
+
+  finished_at=$(utc_now)
+  new_learning_candidates "$before_candidates" "$new_candidates"
+  record_issue_outcome "$issue" "$status" "$started_at" "$finished_at" "$exit_code" "$blocker" "$new_candidates"
+  return "$exit_code"
 }
 
 rc=0

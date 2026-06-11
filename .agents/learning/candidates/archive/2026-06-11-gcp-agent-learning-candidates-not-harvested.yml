@@ -1,0 +1,17 @@
+schema: learning-candidate/v1
+id: 2026-06-11-gcp-agent-learning-candidates-not-harvested
+date: 2026-06-11
+expires: 2026-09-11
+status: promoted
+
+route: implement-fix
+best_form: none
+
+evidence: [issue-#208, PR-#204-issue-#202-session-captured-.agents/learning/candidates/2026-06-11-ar-issue-fix-section-name-transposed.yml-not-in-PR-204-diff, PR-#205-issue-#198-session-captured-.agents/learning/candidates/2026-06-11-lazyactions-hash-mismatch-blocks-light-deploy-checks.yml-not-in-PR-205-diff, "issue #190 session log: '3 pre-existing untracked learning-candidate files in the repo were left alone (unrelated to this change, not committed)'", manually-rescued-via-ssh-cat-after-architecture-review-batch-run]
+observation: capture-learning-candidate writes new files under .agents/learning/candidates/, but agent-run-issue.sh's per-issue PR only commits files relevant to that issue's fix; candidates captured for unrelated observations during a session stay untracked in the disposable gcp-agent clone, survive `git reset --hard origin/main` between issues (untracked files are unaffected), but never reach `main` or the review queue unless a human manually rescues them via SSH before the VM is reprovisioned
+proposed_upgrade: record per-issue outcome files that list newly captured learning candidates, then have agent-session.sh collect remote outcome records and missing .agents/learning/candidates/*.yml files back to the workstation after each --issues run so candidate capture is visible before a disposable worker is reprovisioned
+type: policy-gap
+dedupe_key: gcp-agent:learning-candidates-not-harvested
+triggers: [gcp-agent issue-loop session, capture-learning-candidate fires during agent-run-issue.sh for an issue other than the candidate's own subject]
+targets: [scripts/agent-run-issue.sh, scripts/agent-session.sh, .agents/scripts/agent-record-outcome]
+risk: if unaddressed, learning candidates captured by autonomous gcp-agent sessions are lost on reprovisioning and never reviewed

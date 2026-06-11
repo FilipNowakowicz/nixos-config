@@ -22,6 +22,7 @@
 # Env knobs (defaults match lib/hosts.nix + infra/variables.tf):
 #   AGENT_NAME (gcp-agent)  AGENT_ZONE (europe-west2-a)
 #   AGENT_FQDN (gcp-agent.tail90fc7a.ts.net)  SSH_USER (user)
+#   REMOTE_AGENT_REPO_DIR (nix)  relative or absolute repo path on gcp-agent
 #
 # Prerequisite: gcloud authenticated with the agent's project active
 #   (gcloud config set project <id>), and tailnet access as tag:workstation.
@@ -31,6 +32,7 @@ AGENT_NAME="${AGENT_NAME:-gcp-agent}"
 AGENT_ZONE="${AGENT_ZONE:-europe-west2-a}"
 AGENT_FQDN="${AGENT_FQDN:-gcp-agent.tail90fc7a.ts.net}"
 SSH_USER="${SSH_USER:-user}"
+REMOTE_AGENT_REPO_DIR="${REMOTE_AGENT_REPO_DIR:-nix}"
 
 wait_only=0
 remote_cmd=()
@@ -71,6 +73,55 @@ command -v gcloud >/dev/null 2>&1 || {
 command -v ssh >/dev/null 2>&1 || {
   echo "agent-session: ssh not found" >&2
   exit 1
+}
+command -v scp >/dev/null 2>&1 || {
+  echo "agent-session: scp not found" >&2
+  exit 1
+}
+
+collect_remote_dir_files() {
+  local remote_dir="$1"
+  local local_dir="$2"
+  local name_glob="$3"
+  local skip_existing="$4"
+  local remote_dir_q
+  remote_dir_q=$(printf '%q' "$remote_dir")
+
+  mapfile -t remote_files < <(
+    ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new \
+      "$SSH_USER@$AGENT_FQDN" \
+      "find $remote_dir_q -maxdepth 1 -type f -name '$name_glob' -printf '%f\n' 2>/dev/null" ||
+      true
+  )
+
+  [[ ${#remote_files[@]} -gt 0 ]] || return 0
+  mkdir -p "$local_dir"
+
+  local base remote_path
+  for base in "${remote_files[@]}"; do
+    [[ -n $base ]] || continue
+    if [[ $skip_existing == 1 && -e $local_dir/$base ]]; then
+      continue
+    fi
+    remote_path="${remote_dir%/}/$base"
+    scp -q -o StrictHostKeyChecking=accept-new \
+      "$SSH_USER@$AGENT_FQDN:$remote_path" "$local_dir/$base" ||
+      echo "agent-session: failed to collect $remote_path" >&2
+  done
+}
+
+collect_issue_artifacts() {
+  echo "agent-session: collecting remote outcome records and learning candidates ..." >&2
+  collect_remote_dir_files \
+    "$REMOTE_AGENT_REPO_DIR/.agents/state/outcomes" \
+    ".agents/state/outcomes" \
+    '*.json' \
+    0
+  collect_remote_dir_files \
+    "$REMOTE_AGENT_REPO_DIR/.agents/learning/candidates" \
+    ".agents/learning/candidates" \
+    '*.yml' \
+    1
 }
 
 echo "agent-session: starting $AGENT_NAME (no-op if already running) ..." >&2
@@ -116,9 +167,12 @@ if [[ $run_issues == 1 ]]; then
   # timer's `pgrep -f agent-run-issue` activity check.
   script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
   printf -v issue_args_q ' %q' "${issue_args[@]}"
-  exec ssh -o StrictHostKeyChecking=accept-new "$SSH_USER@$AGENT_FQDN" -- \
+  ssh -o StrictHostKeyChecking=accept-new "$SSH_USER@$AGENT_FQDN" -- \
     "tmp=\$(mktemp /tmp/agent-run-issue.XXXXXX) && cat >\"\$tmp\" && trap 'rm -f \"\$tmp\"' EXIT && bash \"\$tmp\"$issue_args_q" \
     <"$script_dir/agent-run-issue.sh"
+  rc=$?
+  collect_issue_artifacts
+  exit "$rc"
 fi
 
 if [[ ${#remote_cmd[@]} -gt 0 ]]; then

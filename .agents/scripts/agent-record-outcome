@@ -1,0 +1,270 @@
+#!/usr/bin/env bash
+# Record a compact, machine-readable outcome for one agent issue-run session.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: agent-record-outcome --issue <n> --status <success|failure|blocked> [options]
+
+Options:
+  --base-branch <name>              Base branch used for the run.
+  --repo-dir <path>                 Repository directory to inspect (default: cwd).
+  --started-at <timestamp>          UTC timestamp captured before the run.
+  --finished-at <timestamp>         UTC timestamp captured after the run.
+  --exit-code <n>                   Worker exit code (default: 0).
+  --blocker <text>                  Failure/blocker summary.
+  --learning-candidates-file <path> Newline-separated candidate paths to record.
+  --output-dir <path>               Output directory (default: .agents/state/outcomes).
+  --dry-run                         Print JSON instead of writing a file.
+  --self-test                       Run a local smoke test and exit.
+EOF
+}
+
+die() {
+  printf 'agent-record-outcome: %s\n' "$*" >&2
+  exit 1
+}
+
+utc_now() {
+  date -u '+%Y-%m-%dT%H:%M:%SZ'
+}
+
+json_array_from_lines() {
+  jq -Rsc 'split("\n") | map(select(length > 0))'
+}
+
+discover_prs() {
+  local issue="$1"
+  if ! command -v gh >/dev/null 2>&1; then
+    printf '[]\n'
+    return 0
+  fi
+  gh pr list --state all --search "#${issue} in:body" \
+    --json number,title,state,headRefName,url,reviewDecision,mergeStateStatus \
+    2>/dev/null || printf '[]\n'
+}
+
+collect_learning_candidates() {
+  local file="${1:-}"
+  if [[ -n $file ]]; then
+    [[ -f $file ]] || die "learning-candidates file not found: $file"
+    sed '/^[[:space:]]*$/d' "$file" | sort -u
+    return 0
+  fi
+
+  [[ -d .agents/learning/candidates ]] || return 0
+  find .agents/learning/candidates -maxdepth 1 -type f \
+    ! -name '.gitkeep' -printf '%p\n' | sort
+}
+
+write_outcome() {
+  local issue="$1"
+  local status="$2"
+  local base_branch="$3"
+  local repo_dir="$4"
+  local started_at="$5"
+  local finished_at="$6"
+  local exit_code="$7"
+  local blocker="$8"
+  local candidates_file="$9"
+  local output_dir="${10}"
+  local dry_run="${11}"
+
+  [[ $issue =~ ^[0-9]+$ ]] || die "--issue must be a positive integer"
+  [[ $issue -gt 0 ]] || die "--issue must be a positive integer"
+  case "$status" in
+  success | failure | blocked) ;;
+  *) die "--status must be success, failure, or blocked" ;;
+  esac
+  [[ $exit_code =~ ^[0-9]+$ ]] || die "--exit-code must be a non-negative integer"
+
+  cd "$repo_dir"
+
+  local resolved_repo head_branch head_sha id safe_finished
+  resolved_repo=$(pwd -P)
+  head_branch=$(git symbolic-ref --short HEAD 2>/dev/null || printf 'DETACHED')
+  head_sha=$(git rev-parse HEAD 2>/dev/null || printf '')
+  safe_finished=$(printf '%s' "$finished_at" | tr -c '0-9TZ:-' '-')
+  id="${safe_finished}-issue-${issue}-${status}"
+
+  local prs_json candidates_json dirty_json
+  prs_json=$(discover_prs "$issue" | jq -c 'if type == "array" then . else [] end')
+  candidates_json=$(collect_learning_candidates "$candidates_file" | json_array_from_lines)
+  dirty_json=$(git status --short | json_array_from_lines)
+
+  local outcome
+  outcome=$(
+    jq -cn \
+      --arg schema 'agent-outcome/v1' \
+      --arg id "$id" \
+      --argjson issue "$issue" \
+      --arg status "$status" \
+      --argjson exit_code "$exit_code" \
+      --arg started_at "$started_at" \
+      --arg finished_at "$finished_at" \
+      --arg base_branch "$base_branch" \
+      --arg repo_dir "$resolved_repo" \
+      --arg head_branch "$head_branch" \
+      --arg head_sha "$head_sha" \
+      --argjson prs "$prs_json" \
+      --argjson learning_candidates "$candidates_json" \
+      --argjson git_dirty "$dirty_json" \
+      --arg blocker "$blocker" \
+      '{
+        schema: $schema,
+        id: $id,
+        issue: $issue,
+        status: $status,
+        exit_code: $exit_code,
+        started_at: $started_at,
+        finished_at: $finished_at,
+        base_branch: $base_branch,
+        repo_dir: $repo_dir,
+        head_branch: $head_branch,
+        head_sha: $head_sha,
+        prs: $prs,
+        learning_candidates: $learning_candidates,
+        git_dirty: $git_dirty,
+        blocker: $blocker
+      }'
+  )
+
+  printf '%s\n' "$outcome" | jq -e \
+    '(.schema == "agent-outcome/v1")
+     and (.issue > 0)
+     and ((.status == "success") or (.status == "failure") or (.status == "blocked"))
+     and (.started_at | length > 0)
+     and (.finished_at | length > 0)
+     and (.prs | type == "array")
+     and (.learning_candidates | type == "array")
+     and (.git_dirty | type == "array")' >/dev/null
+
+  if [[ $dry_run == 1 ]]; then
+    printf '%s\n' "$outcome" | jq -S .
+    return 0
+  fi
+
+  mkdir -p "$output_dir"
+  local path tmp
+  path="$output_dir/${id}.json"
+  tmp="${path}.tmp"
+  printf '%s\n' "$outcome" | jq -S . >"$tmp"
+  mv "$tmp" "$path"
+  printf '%s\n' "$path"
+}
+
+self_test() {
+  local tmp repo candidates out
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' RETURN
+  repo="$tmp/repo"
+  out="$tmp/out"
+  candidates="$tmp/candidates.txt"
+
+  mkdir -p "$repo/.agents/learning/candidates"
+  git -C "$repo" init -q
+  git -C "$repo" config user.email test@example.invalid
+  git -C "$repo" config user.name 'Agent Outcome Test'
+  printf 'seed\n' >"$repo/README.md"
+  git -C "$repo" add README.md
+  git -C "$repo" commit -q -m seed
+  printf '.agents/learning/candidates/example.yml\n' >"$candidates"
+
+  local json
+  json=$(
+    write_outcome \
+      1 success main "$repo" \
+      '2026-01-01T00:00:00Z' '2026-01-01T00:01:00Z' \
+      0 '' "$candidates" "$out" 1
+  )
+
+  printf '%s\n' "$json" | jq -e \
+    '.schema == "agent-outcome/v1"
+     and .issue == 1
+     and .status == "success"
+     and (.learning_candidates == [".agents/learning/candidates/example.yml"])' >/dev/null
+  printf 'agent-record-outcome self-test passed\n'
+}
+
+issue=""
+status=""
+base_branch="${BASE_BRANCH:-main}"
+repo_dir="."
+started_at=""
+finished_at=""
+exit_code=0
+blocker=""
+candidates_file=""
+output_dir="${AGENT_OUTCOME_DIR:-.agents/state/outcomes}"
+dry_run=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --issue)
+    issue="${2:?--issue needs a value}"
+    shift 2
+    ;;
+  --status)
+    status="${2:?--status needs a value}"
+    shift 2
+    ;;
+  --base-branch)
+    base_branch="${2:?--base-branch needs a value}"
+    shift 2
+    ;;
+  --repo-dir)
+    repo_dir="${2:?--repo-dir needs a value}"
+    shift 2
+    ;;
+  --started-at)
+    started_at="${2:?--started-at needs a value}"
+    shift 2
+    ;;
+  --finished-at)
+    finished_at="${2:?--finished-at needs a value}"
+    shift 2
+    ;;
+  --exit-code)
+    exit_code="${2:?--exit-code needs a value}"
+    shift 2
+    ;;
+  --blocker)
+    blocker="${2:?--blocker needs a value}"
+    shift 2
+    ;;
+  --learning-candidates-file)
+    candidates_file="${2:?--learning-candidates-file needs a value}"
+    shift 2
+    ;;
+  --output-dir)
+    output_dir="${2:?--output-dir needs a value}"
+    shift 2
+    ;;
+  --dry-run)
+    dry_run=1
+    shift
+    ;;
+  --self-test)
+    self_test
+    exit 0
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    die "unknown argument: $1"
+    ;;
+  esac
+done
+
+command -v jq >/dev/null 2>&1 || die "jq not found"
+command -v git >/dev/null 2>&1 || die "git not found"
+
+[[ -n $issue ]] || die "--issue is required"
+[[ -n $status ]] || die "--status is required"
+started_at="${started_at:-$(utc_now)}"
+finished_at="${finished_at:-$(utc_now)}"
+
+write_outcome "$issue" "$status" "$base_branch" "$repo_dir" "$started_at" \
+  "$finished_at" "$exit_code" "$blocker" "$candidates_file" "$output_dir" "$dry_run"

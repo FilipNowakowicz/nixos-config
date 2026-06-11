@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/FilipNowakowicz/nixos-config/.agents/schemas/outcome.schema.json",
+  "title": "Agent issue-run outcome",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "issue",
+    "status",
+    "started_at",
+    "finished_at",
+    "base_branch",
+    "repo_dir",
+    "head_branch",
+    "head_sha",
+    "prs",
+    "learning_candidates",
+    "git_dirty",
+    "blocker"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "agent-outcome/v1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9TZ:-]+-issue-[0-9]+-[a-z]+$"
+    },
+    "issue": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "enum": ["success", "failure", "blocked"]
+    },
+    "exit_code": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "finished_at": {
+      "type": "string"
+    },
+    "base_branch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repo_dir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "head_branch": {
+      "type": "string"
+    },
+    "head_sha": {
+      "type": "string"
+    },
+    "prs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["number", "title", "state", "headRefName", "url"],
+        "additionalProperties": true,
+        "properties": {
+          "number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "headRefName": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "learning_candidates": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "git_dirty": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "blocker": {
+      "type": "string"
+    }
+  }
+}
