@@ -10,7 +10,7 @@
 # delivered as *host* sops secrets (decrypted by the host SSH key) — see
 # hosts/gcp-agent/default.nix. Git identity is therefore set directly here
 # rather than rendered from the `&user` sops template.
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 let
   codexLatest = pkgs.writeShellApplication {
     name = "codex";
@@ -30,6 +30,13 @@ let
 in
 {
   imports = [ ./common.nix ];
+
+  # common.nix signs commits with the personal SSH key, which this host never
+  # receives (no `&user` key material on an autonomous box — see header).
+  # Unsigned is deliberate, not a fallback: a dedicated signing key registered
+  # to the GitHub account would render autonomous commits "Verified" as the
+  # user, adding impersonation surface. Unsigned keeps them distinguishable.
+  programs.git.signing.signByDefault = lib.mkForce false;
 
   programs.git.settings = {
     # The desktop-only userSecrets module is not imported here, so the sops
