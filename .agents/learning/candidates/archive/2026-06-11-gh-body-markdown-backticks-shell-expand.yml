@@ -1,0 +1,17 @@
+schema: learning-candidate/v1
+id: 2026-06-11-gh-body-markdown-backticks-shell-expand
+date: 2026-06-11
+expires: 2026-12-11
+status: promoted
+
+route: promote-skill
+best_form: skill
+
+evidence: [issue-#208-session, PR-#209, "first gh issue create body attempt expanded markdown backticks and ran repo commands, emitting agent-run-issue/no target, zsh no such file .agents/schemas, and command not found shellcheck before issue #208 was created", "first gh pr create body attempt likewise expanded backtick paths and commands before PR #209 was created; PR body was repaired with gh pr edit using a single-quoted literal body"]
+observation: passing multi-line Markdown with backtick code spans to gh issue/pr create via a double-quoted shell argument lets the interactive shell perform command substitution before gh receives the body, which can execute repo scripts or corrupt the issue/PR text
+proposed_upgrade: update the issue-driven-development or GitHub publishing guidance to write rich gh issue/pr bodies through a quoted temp file or single-quoted literal body; avoid backtick code spans inside double-quoted shell arguments
+type: workflow-gotcha
+dedupe_key: gh-cli:markdown-body-backticks-shell-expand
+triggers: [gh issue create --body, gh pr create --body, markdown backticks, zsh command substitution, PR body repair]
+targets: [.agents/skills/issue-driven-development/SKILL.md]
+risk: without this, future agents can accidentally execute commands or publish mangled issue/PR bodies when using gh with Markdown text

@@ -35,6 +35,11 @@ If the source item is still vague, use `issue-tdd` first.
 8. Open or update the PR when the user wants the full loop.
    - Link the source issue.
    - Include validation evidence.
+   - For Markdown-rich issue or PR bodies, prefer `gh ... --body-file -`
+     with a single-quoted heredoc, or an equivalently quoted body file. Do not
+     pass Markdown containing backticks through a double-quoted `--body`
+     argument; the shell can evaluate those backticks before `gh` receives the
+     text.
    - Use `Refs #NNN` when completion needs post-merge or live proof; use
      `Closes #NNN` only when the PR fully satisfies the issue.
 9. Watch CI and fix failures when asked to complete the loop.
