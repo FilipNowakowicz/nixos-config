@@ -65,6 +65,13 @@
     };
   };
 
+  # The `claude` wrapper (home/users/user/agent.nix) runs `npx -y
+  # @anthropic-ai/claude-code@latest`, which fetches a dynamically linked
+  # generic-Linux binary at runtime — not a Nix-built/patched derivation. NixOS
+  # has no FHS dynamic linker by default, so it fails with "Could not start
+  # dynamically linked executable". Same fix as `main` (hosts/main/default.nix).
+  programs.nix-ld.enable = true;
+
   environment.systemPackages = [
     # Keep common client terminal definitions available over SSH without pulling
     # every terminfo package into the server closure. The agent toolchain
