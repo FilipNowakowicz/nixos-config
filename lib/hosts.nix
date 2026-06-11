@@ -78,6 +78,10 @@ let
           53 # AdGuard DNS
           3001 # AdGuard web UI
         ];
+        # gcp-agent has no other resolver: AdGuard is the tailnet-wide global
+        # nameserver, so without this `gh`/`claude` on gcp-agent cannot
+        # resolve any external hostname (DNS queries time out).
+        acceptFrom.agent = [ 53 ];
       };
       deploy.sshUser = "user";
     };
