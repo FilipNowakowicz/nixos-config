@@ -21,9 +21,8 @@ package_change='^packages/'
 main_change='^hosts/main/'
 homeserver_change='^hosts/homeserver-gcp/'
 installer_change='^hosts/installer/'
-module_all_hosts='^modules/nixos/(default\.nix|services/|profiles/(base|backup|security|sops-base|user)\.nix)'
+module_all_hosts='^modules/nixos/(default\.nix|services/|profiles/(base|backup|security|sops-base|user)\.nix|profiles/observability/)'
 module_desktop_hosts='^modules/nixos/(profiles/(desktop|observability-client)\.nix|hardware/nvidia-prime\.nix)'
-module_server_hosts='^modules/nixos/profiles/observability/'
 module_machine_hosts='^modules/nixos/profiles/(impermanence-base|machine-common)\.nix'
 module_microvm_guest='^modules/nixos/profiles/microvm-guest\.nix'
 home_all_hosts='^home/(profiles/base\.nix|users/user/common\.nix)'
@@ -98,7 +97,7 @@ if [[ -n $changed_files ]]; then
 
     if
       [[ $path =~ ^modules/nixos/ ]] &&
-        ! grep -qE "${module_all_hosts}|${module_desktop_hosts}|${module_server_hosts}|${module_machine_hosts}|${module_microvm_guest}" <<<"$path"
+        ! grep -qE "${module_all_hosts}|${module_desktop_hosts}|${module_machine_hosts}|${module_microvm_guest}" <<<"$path"
     then
       unknown_module_changed=true
     fi
@@ -150,11 +149,6 @@ if [[ -n $changed_files ]]; then
   if grep -qE "${module_desktop_hosts}" <<<"$changed_files"; then
     select_desktop_hosts
     profile_tests=true
-  fi
-
-  if grep -qE "${module_server_hosts}" <<<"$changed_files"; then
-    profile_tests=true
-    homeserver_gcp_smoke=true
   fi
 
   if grep -qE "${module_machine_hosts}" <<<"$changed_files"; then

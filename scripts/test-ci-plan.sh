@@ -66,6 +66,9 @@ server_output="$(run_plan $'modules/nixos/profiles/observability/backends.nix')"
 assert_contains "$server_output" "tests=true"
 assert_contains "$server_output" '{"name":"profile-security","command":"profile-test","target":"profile-security"}'
 assert_contains "$server_output" '{"name":"homeserver-gcp-smoke","command":"smoke-homeserver-gcp","target":""}'
+assert_contains "$server_output" "hosts=true"
+assert_contains "$server_output" '{"name":"main-ci"}'
+assert_contains "$server_output" "closure_main=true"
 
 homeserver_output="$(run_plan $'hosts/homeserver-gcp/default.nix')"
 assert_contains "$homeserver_output" "tests=true"
