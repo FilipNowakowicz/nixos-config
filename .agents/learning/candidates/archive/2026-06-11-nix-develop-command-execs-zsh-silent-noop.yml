@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-06-11-nix-develop-command-execs-zsh-silent-noop
+date: 2026-06-11
+expires: 2026-12-11
+status: promoted
+
+route: promote-doc
+best_form: doc
+
+evidence: [PR-#184-issue-181-validation; flake/dev.nix:150-157 default devShell shellHook ends with "exec ${pkgs.zsh}/bin/zsh"; "nix develop --command bash -c 'echo inner; pwd'" produced 0 bytes stdout and exit 0; "nix develop -c pre-commit run --files scripts/agent-run-issue.sh hosts/gcp-agent/CLAUDE.md" likewise produced no output and exit 0]
+observation: nix develop -c/--command on this repo's default devShell silently no-ops (empty stdout, exit 0) because the shellHook unconditionally execs zsh, replacing the process before the --command payload runs; non-interactive zsh then reads empty stdin and exits. Looks like success but no command ran.
+proposed_upgrade: Document in nix-verification-loop (and hosts/gcp-agent/CLAUDE.md issue-loop notes) that non-interactive tool invocations must avoid `nix develop -c <tool>`; use `nix fmt -- <files>` for treefmt/shellcheck-via-formatter and `nix run nixpkgs#<tool> -- <args>` for ad-hoc tools (shellcheck, shfmt) instead.
+
+type: workflow-gotcha
+triggers: [nix develop -c, nix develop --command, pre-commit run via nix develop, headless validation on gcp-agent]
+targets: [.agents/skills/nix-verification-loop/SKILL.md, hosts/gcp-agent/CLAUDE.md]

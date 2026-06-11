@@ -30,6 +30,12 @@ packages, deploy wiring, secrets boundaries, or generated data in this repo.
 - Treat `deploy-rs` silence in non-interactive sessions as a known behavior; if
   necessary, fall back to closure build/copy/switch instructions from `CLAUDE.md`.
 - Never edit encrypted secrets directly. Use `sops`.
+- Do not use `nix develop -c <tool>` or `nix develop --command <tool>` as proof
+  that a non-interactive validation command ran in this repo. The default
+  devShell shell hook execs zsh, which can replace the requested command and
+  exit successfully with no output. Run tools already available in the current
+  shell directly, use `nix fmt -- <files>` for formatter-backed checks when
+  appropriate, or run ad-hoc tools explicitly with `nix run`.
 
 ## Operational gotchas
 
