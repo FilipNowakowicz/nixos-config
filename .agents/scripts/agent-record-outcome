@@ -225,19 +225,31 @@ exit 1
 EOF
   chmod +x "$bin/gh"
 
-  local json
+  local json script_path
+  script_path="${BASH_SOURCE[0]}"
   json=$(
     PATH="$bin:$PATH" \
-    write_outcome \
-      1 success main "$repo" \
-      '2026-01-01T00:00:00Z' '2026-01-01T00:01:00Z' \
-      0 '' "$candidates" "$out" 1 'codex/test-outcome-pr' "$pr_numbers"
+      "$script_path" \
+      --issue 1 \
+      --status success \
+      --base-branch main \
+      --repo-dir "$repo" \
+      --started-at '2026-01-01T00:00:00Z' \
+      --finished-at '2026-01-01T00:01:00Z' \
+      --exit-code 0 \
+      --blocker '' \
+      --learning-candidates-file "$candidates" \
+      --output-dir "$out" \
+      --head-branch 'codex/test-outcome-pr' \
+      --pr-number 42 \
+      --dry-run
   )
 
   printf '%s\n' "$json" | jq -e \
     '.schema == "agent-outcome/v1"
      and .issue == 1
      and .status == "success"
+     and .blocker == ""
      and (.prs | length == 1)
      and .prs[0].number == 42
      and (.learning_candidates == [".agents/learning/candidates/example.yml"])' >/dev/null
@@ -291,7 +303,8 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --blocker)
-    blocker="${2:?--blocker needs a value}"
+    [[ $# -ge 2 ]] || die "--blocker needs a value"
+    blocker="$2"
     shift 2
     ;;
   --learning-candidates-file)
