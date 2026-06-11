@@ -24,7 +24,7 @@ let
     name = "claude";
     runtimeInputs = [ pkgs.nodejs ];
     text = ''
-      exec npx -y @anthropic-ai/claude-code@latest --dangerously-skip-permissions "$@"
+      exec npm exec --yes --package @anthropic-ai/claude-code@latest -- claude --dangerously-skip-permissions "$@"
     '';
   };
 in
