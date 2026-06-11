@@ -14,6 +14,12 @@ If the source item is still vague, use `issue-tdd` first.
 1. Establish the source item:
    - GitHub issue/PR review comment, local review note, roadmap entry, CI failure,
      or user-stated bug.
+   - For a GitHub issue, especially before dispatching a batch via
+     `scripts/agent-run-issue.sh`, run
+     `.agents/scripts/agent-issue-readiness --issue <n>` to check it has the
+     sections an implementation agent needs (problem/desired outcome or
+     summary, acceptance criteria, non-goals, validation, risk/rollback). If it
+     reports missing sections, use `issue-tdd` to fill them in before editing.
 2. Confirm or restate the acceptance criteria in concrete terms:
    - What behavior changes?
    - What must not change?

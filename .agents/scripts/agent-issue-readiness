@@ -1,0 +1,223 @@
+#!/usr/bin/env bash
+# Deterministic readiness lint for issues fed to scripts/agent-run-issue.sh.
+#
+# Checks an issue body for the sections an implementation agent needs before
+# starting: a problem statement (or summary), acceptance criteria, non-goals,
+# a validation/proving check, and risk/rollback notes. A heading only counts
+# if it is followed by at least one non-empty line before the next heading.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: agent-issue-readiness --issue <n>
+       agent-issue-readiness --body-file <path>
+       agent-issue-readiness < body.md
+       agent-issue-readiness --self-test
+
+Options:
+  --issue <n>     Fetch the body of issue <n> via `gh issue view` (cwd repo).
+  --body-file <path>
+                  Read the issue body from a file instead of GitHub.
+  --self-test     Run a local smoke test (ready + unready bodies) and exit.
+EOF
+}
+
+die() {
+  printf 'agent-issue-readiness: %s\n' "$*" >&2
+  exit 1
+}
+
+# Required section groups, in the order called out by the issue. A group is
+# "ready" if at least one of its heading prefixes appears with content.
+group_order=(problem acceptance non_goals validation risk)
+
+declare -A group_prefixes=(
+  [problem]="problem|desired outcome|summary"
+  [acceptance]="acceptance criteria"
+  [non_goals]="non-goal|non goal|out of scope"
+  [validation]="validation|proving check|test plan|how to verify"
+  [risk]="risk|rollback"
+)
+
+declare -A group_labels=(
+  [problem]="Problem / desired outcome (or summary)"
+  [acceptance]="Acceptance criteria"
+  [non_goals]="Non-goals"
+  [validation]="Validation / proving check"
+  [risk]="Risk / rollback notes"
+)
+
+declare -A group_hints=(
+  [problem]="## Problem, ## Desired outcome, or ## Summary"
+  [acceptance]="## Acceptance criteria"
+  [non_goals]="## Non-goals"
+  [validation]="## Validation"
+  [risk]="## Risk or ## Rollback"
+)
+
+# Print the group name whose prefixes match the (already-lowercased,
+# trimmed) heading text, or nothing if no group matches.
+classify_heading() {
+  local heading_lc="$1"
+  local group prefixes_str prefix
+  for group in "${group_order[@]}"; do
+    prefixes_str="${group_prefixes[$group]}"
+    IFS='|' read -ra prefixes <<<"$prefixes_str"
+    for prefix in "${prefixes[@]}"; do
+      if [[ $heading_lc == "$prefix"* ]]; then
+        printf '%s\n' "$group"
+        return 0
+      fi
+    done
+  done
+  return 1
+}
+
+# Check an issue body for the required section groups. Prints a summary and
+# returns 0 if all groups are present with content, 1 otherwise.
+check_body() {
+  local body="$1"
+  local -A ready=()
+  local current_group="" has_content=0 line heading
+
+  while IFS= read -r line || [[ -n $line ]]; do
+    if [[ $line =~ ^#+[[:space:]]+(.*)$ ]]; then
+      if [[ -n $current_group && $has_content == 1 ]]; then
+        ready[$current_group]=1
+      fi
+      read -r heading <<<"${BASH_REMATCH[1]}"
+      heading="$(tr '[:upper:]' '[:lower:]' <<<"$heading")"
+      current_group="$(classify_heading "$heading" || true)"
+      has_content=0
+    else
+      read -r line <<<"$line"
+      if [[ -n $line && -n $current_group ]]; then
+        has_content=1
+      fi
+    fi
+  done <<<"$body"
+  if [[ -n $current_group && $has_content == 1 ]]; then
+    ready[$current_group]=1
+  fi
+
+  local missing=() group
+  for group in "${group_order[@]}"; do
+    [[ -n ${ready[$group]:-} ]] || missing+=("$group")
+  done
+
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    echo "agent-issue-readiness: ready (all required sections present)"
+    return 0
+  fi
+
+  echo "agent-issue-readiness: NOT READY - missing or empty required sections:" >&2
+  for group in "${missing[@]}"; do
+    printf '  - %s (expected a heading like: %s)\n' "${group_labels[$group]}" "${group_hints[$group]}" >&2
+  done
+  return 1
+}
+
+self_test() {
+  local ready unready out
+
+  ready=$(
+    cat <<'EOF'
+## Problem
+
+Issue bodies are not always ready for the agent loop.
+
+## Desired outcome
+
+A linter blocks issues that lack the required sections.
+
+## Acceptance criteria
+
+- The linter exits non-zero on missing or empty sections.
+- The linter exits zero on a ready issue body.
+
+## Non-goals
+
+- No model-based issue rewriting.
+
+## Validation
+
+- `agent-issue-readiness --self-test`
+
+## Risk / Rollback
+
+- Low risk: opt-in lint, no behavior change unless enabled.
+EOF
+  )
+
+  unready=$(
+    cat <<'EOF'
+## Problem
+
+Something is broken.
+
+## Acceptance criteria
+
+## Validation
+
+- `bash scripts/validate.sh docs`
+EOF
+  )
+
+  check_body "$ready" >/dev/null || die "self-test: expected a ready issue body to pass"
+
+  if out=$(check_body "$unready" 2>&1 1>/dev/null); then
+    die "self-test: expected an unready issue body to fail"
+  fi
+  local needle
+  for needle in "Acceptance criteria" "Non-goals" "Risk / rollback"; do
+    [[ $out == *"$needle"* ]] || die "self-test: expected missing-section message to mention '$needle' (got: $out)"
+  done
+  [[ $out != *"Problem"* ]] || die "self-test: did not expect 'Problem' to be reported missing (got: $out)"
+
+  echo "agent-issue-readiness self-test passed"
+}
+
+main() {
+  local issue="" body_file="" body=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --issue)
+      issue="${2:?--issue needs a value}"
+      shift 2
+      ;;
+    --body-file)
+      body_file="${2:?--body-file needs a value}"
+      shift 2
+      ;;
+    --self-test)
+      self_test
+      exit 0
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+    esac
+  done
+
+  if [[ -n $body_file ]]; then
+    [[ -f $body_file ]] || die "body file not found: $body_file"
+    body=$(<"$body_file")
+  elif [[ -n $issue ]]; then
+    [[ $issue =~ ^[0-9]+$ ]] || die "--issue must be a positive integer"
+    command -v gh >/dev/null 2>&1 || die "gh not found"
+    body=$(gh issue view "$issue" --json body --jq .body) || die "failed to fetch issue #$issue body via gh"
+  elif [[ ! -t 0 ]]; then
+    body=$(cat)
+  else
+    die "one of --issue, --body-file, or piped stdin is required (see --help)"
+  fi
+
+  check_body "$body"
+}
+
+main "$@"

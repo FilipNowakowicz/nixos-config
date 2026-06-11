@@ -21,6 +21,12 @@
 #   AGENT_OUTCOME_DIR
 #                   directory for per-issue outcome records
 #                   (default: .agents/state/outcomes)
+#   AGENT_REQUIRE_READY
+#                   when set to 1 (or pass --require-ready), run
+#                   .agents/scripts/agent-issue-readiness on each issue first
+#                   and skip the claude session (recording a "blocked"
+#                   outcome) if it is not ready. Default is 0 (off): issues
+#                   are dispatched as before.
 #
 # v1 is attended: it opens PRs but never merges. You review and merge yourself.
 set -euo pipefail
@@ -29,6 +35,7 @@ AGENT_REPO_DIR="${AGENT_REPO_DIR:-$HOME/nix}"
 BASE_BRANCH="${BASE_BRANCH:-main}"
 REPO_URL="${REPO_URL:-https://github.com/FilipNowakowicz/nixos-config.git}"
 AGENT_OUTCOME_DIR="${AGENT_OUTCOME_DIR:-.agents/state/outcomes}"
+AGENT_REQUIRE_READY="${AGENT_REQUIRE_READY:-0}"
 SESSION_LOCK="/run/agent/session.lock"
 
 label=""
@@ -38,6 +45,10 @@ while [[ $# -gt 0 ]]; do
   --label)
     label="${2:?--label needs a value}"
     shift 2
+    ;;
+  --require-ready)
+    AGENT_REQUIRE_READY=1
+    shift
     ;;
   -h | --help)
     grep '^#' "$0" | sed 's/^# \{0,1\}//'
@@ -184,6 +195,20 @@ run_one() {
     finished_at=$(utc_now)
     record_issue_outcome "$issue" "$status" "$started_at" "$finished_at" "$exit_code" "$blocker" "$new_candidates" "$BASE_BRANCH"
     return "$exit_code"
+  fi
+
+  if [[ $AGENT_REQUIRE_READY == 1 ]]; then
+    local readiness_output
+    if ! readiness_output=$(.agents/scripts/agent-issue-readiness --issue "$issue" 2>&1); then
+      status=blocked
+      exit_code=1
+      blocker="issue readiness lint failed: ${readiness_output}"
+      : >"$new_candidates"
+      finished_at=$(utc_now)
+      record_issue_outcome "$issue" "$status" "$started_at" "$finished_at" "$exit_code" "$blocker" "$new_candidates" "$BASE_BRANCH"
+      echo "agent-run-issue: issue #$issue is not ready; skipping (see outcome record)" >&2
+      return "$exit_code"
+    fi
   fi
 
   snapshot_learning_candidates "$before_candidates"
