@@ -178,9 +178,11 @@ session and powers itself back off when idle.
 to open a session, not offload a build):
 
 ```bash
-scripts/agent-session.sh              # start, wait for SSH over Tailscale, open a shell
-scripts/agent-session.sh --wait-only  # start + confirm reachability, then return
-scripts/agent-session.sh -- <cmd...>  # start, wait, run <cmd...> on the host (used by #169)
+scripts/agent-session.sh                  # start, wait for SSH over Tailscale, open a shell
+scripts/agent-session.sh --wait-only      # start + confirm reachability, then return
+scripts/agent-session.sh --issues <n|--label x>...
+                                          # start, wait, run the issue loop (works on a fresh host)
+scripts/agent-session.sh -- <cmd...>      # start, wait, run <cmd...> on the host
 ```
 
 It `gcloud`-starts the VM (no-op if already running), waits for SSH at
@@ -221,13 +223,18 @@ From your workstation (cold start → run → leave idle):
 
 ```bash
 # one issue
-scripts/agent-session.sh -- nix/scripts/agent-run-issue.sh 169
+scripts/agent-session.sh --issues 169
 # every open issue with a label (sequential, one PR each)
-scripts/agent-session.sh -- nix/scripts/agent-run-issue.sh --label architecture-review
+scripts/agent-session.sh --issues --label architecture-review
 ```
 
-Or directly on the host after `scripts/agent-session.sh` opens a shell:
-`scripts/agent-run-issue.sh 169 170`.
+`--issues` ships the **workstation's** copy of `agent-run-issue.sh` to the host
+(temp file + exec; the temp name keeps the idle timer's
+`pgrep -f agent-run-issue` activity check matching), so it works on a fresh
+host where no repo clone exists yet — the on-host
+`nix/scripts/agent-run-issue.sh` path only exists once a clone does. Directly
+on the host after `scripts/agent-session.sh` opens a shell, an existing clone's
+copy works too: `scripts/agent-run-issue.sh 169 170`.
 
 On a fresh or just-reprovisioned host `$AGENT_REPO_DIR` does not exist yet —
 the entrypoint bootstraps it itself (`git clone` over HTTPS, authenticated via

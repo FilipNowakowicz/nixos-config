@@ -10,6 +10,13 @@
 # Usage:
 #   scripts/agent-session.sh                 # start, wait, open interactive SSH
 #   scripts/agent-session.sh --wait-only     # start + confirm SSH, then exit 0
+#   scripts/agent-session.sh --issues <n|--label x>...
+#                                            # start, wait, run the issue loop:
+#                                            # ships the workstation's copy of
+#                                            # agent-run-issue.sh to the host, so
+#                                            # it works on a fresh host with no
+#                                            # repo clone yet (the script then
+#                                            # bootstraps the clone itself)
 #   scripts/agent-session.sh -- <cmd...>     # start, wait, run <cmd...> on host
 #
 # Env knobs (defaults match lib/hosts.nix + infra/variables.tf):
@@ -27,11 +34,19 @@ SSH_USER="${SSH_USER:-user}"
 
 wait_only=0
 remote_cmd=()
+issue_args=()
+run_issues=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --wait-only)
     wait_only=1
     shift
+    ;;
+  --issues)
+    run_issues=1
+    shift
+    issue_args=("$@")
+    break
     ;;
   --)
     shift
@@ -85,6 +100,25 @@ echo "agent-session: $AGENT_NAME ready" >&2
 
 if [[ $wait_only == 1 ]]; then
   exit 0
+fi
+
+if [[ $run_issues == 1 ]]; then
+  [[ ${#issue_args[@]} -gt 0 ]] || {
+    echo "agent-session: --issues needs at least one issue number or --label <name>" >&2
+    exit 2
+  }
+  # Ship the workstation's copy of the entrypoint instead of invoking
+  # nix/scripts/agent-run-issue.sh on the host: on a fresh/reprovisioned host
+  # the clone does not exist yet, so the on-host path would fail before the
+  # entrypoint's own clone bootstrap could run. `cat > tmpfile` (rather than
+  # `bash -s`) so nothing in the script can swallow its own source from stdin;
+  # the mktemp template keeps the remote cmdline matching the idle-shutdown
+  # timer's `pgrep -f agent-run-issue` activity check.
+  script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+  printf -v issue_args_q ' %q' "${issue_args[@]}"
+  exec ssh -o StrictHostKeyChecking=accept-new "$SSH_USER@$AGENT_FQDN" -- \
+    "tmp=\$(mktemp /tmp/agent-run-issue.XXXXXX) && cat >\"\$tmp\" && trap 'rm -f \"\$tmp\"' EXIT && bash \"\$tmp\"$issue_args_q" \
+    <"$script_dir/agent-run-issue.sh"
 fi
 
 if [[ ${#remote_cmd[@]} -gt 0 ]]; then
