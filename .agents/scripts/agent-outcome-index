@@ -1,0 +1,229 @@
+#!/usr/bin/env bash
+# Summarize agent issue-run outcome records into a compact index.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: agent-outcome-index [options]
+
+Scan a directory of agent-outcome/v1 records (see
+.agents/schemas/outcome.schema.json) and summarize, per record: issue,
+status, exit code, PR count/numbers/urls, started/finished timestamps, and
+blocker — without opening each JSON file.
+
+Options:
+  --dir <path>   Outcome directory to scan (default: .agents/state/outcomes,
+                  or $AGENT_OUTCOME_DIR if set).
+  --json         Emit a JSON array instead of a TSV table.
+  --permissive   Report malformed records on stderr but exit 0.
+  --self-test    Run a deterministic self-test and exit.
+  -h, --help     Show this help.
+EOF
+}
+
+die() {
+  printf 'agent-outcome-index: %s\n' "$*" >&2
+  exit 1
+}
+
+is_valid_record() {
+  jq -e '
+    (.schema == "agent-outcome/v1")
+    and (.id | type == "string")
+    and (.issue | type == "number" and . > 0)
+    and ((.status == "success") or (.status == "failure") or (.status == "blocked"))
+    and (.started_at | type == "string")
+    and (.finished_at | type == "string")
+    and (.prs | type == "array")
+    and (.blocker | type == "string")
+  ' >/dev/null 2>&1
+}
+
+summarize_record() {
+  jq -c '
+    {
+      id: .id,
+      issue: .issue,
+      status: .status,
+      exit_code: (.exit_code // null),
+      started_at: .started_at,
+      finished_at: .finished_at,
+      pr_count: (.prs | length),
+      prs: [.prs[] | {number, url}],
+      blocker: .blocker
+    }
+  '
+}
+
+print_table() {
+  local summaries="$1"
+  printf 'id\tissue\tstatus\texit_code\tpr_count\tpr_numbers\tpr_urls\tstarted_at\tfinished_at\tblocker\n'
+  if [[ -s $summaries ]]; then
+    jq -rs '
+      .[] | [
+        .id,
+        .issue,
+        .status,
+        (.exit_code // ""),
+        .pr_count,
+        ([.prs[] | "#" + (.number|tostring)] | join(",")),
+        ([.prs[] | .url] | join(",")),
+        .started_at,
+        .finished_at,
+        .blocker
+      ] | @tsv
+    ' "$summaries"
+  fi
+}
+
+print_json() {
+  local summaries="$1"
+  if [[ -s $summaries ]]; then
+    jq -s '.' "$summaries"
+  else
+    printf '[]\n'
+  fi
+}
+
+# Scan $1 for *.json outcome records, append valid summaries to $4 (one per
+# line), and report malformed/invalid records on stderr. Returns non-zero if
+# any record was malformed/invalid, unless $3 (permissive) is 1.
+build_index() {
+  local dir="$1" out_json="$2" permissive="$3" summaries="$4"
+  local rc=0 file json
+
+  if [[ -d $dir ]]; then
+    while IFS= read -r -d '' file; do
+      if ! json=$(jq -c . "$file" 2>/dev/null); then
+        printf 'agent-outcome-index: malformed JSON: %s\n' "$file" >&2
+        rc=1
+        continue
+      fi
+      if ! printf '%s\n' "$json" | is_valid_record; then
+        printf 'agent-outcome-index: invalid outcome record (schema mismatch): %s\n' "$file" >&2
+        rc=1
+        continue
+      fi
+      printf '%s\n' "$json" | summarize_record >>"$summaries"
+    done < <(find "$dir" -maxdepth 1 -type f -name '*.json' -print0 | sort -z)
+  elif [[ -e $dir ]]; then
+    die "not a directory: $dir"
+  fi
+
+  if [[ $out_json == 1 ]]; then
+    print_json "$summaries"
+  else
+    print_table "$summaries"
+  fi
+
+  if [[ $permissive == 1 ]]; then
+    return 0
+  fi
+  return "$rc"
+}
+
+self_test() {
+  local tmp dir summaries out rc
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' RETURN
+  dir="$tmp/outcomes"
+  summaries="$tmp/summaries.ndjson"
+  mkdir -p "$dir"
+
+  jq -n '{
+    schema: "agent-outcome/v1", id: "2026-01-01T00:01:00Z-issue-1-success",
+    issue: 1, status: "success", exit_code: 0,
+    started_at: "2026-01-01T00:00:00Z", finished_at: "2026-01-01T00:01:00Z",
+    base_branch: "main", repo_dir: "/repo", head_branch: "codex/test",
+    head_sha: "abc123",
+    prs: [{number: 42, title: "t", state: "OPEN", headRefName: "codex/test", url: "https://example.invalid/pr/42"}],
+    learning_candidates: [], git_dirty: [], blocker: ""
+  }' >"$dir/2026-01-01T00:01:00Z-issue-1-success.json"
+
+  jq -n '{
+    schema: "agent-outcome/v1", id: "2026-01-02T00:01:00Z-issue-2-failure",
+    issue: 2, status: "failure", exit_code: 1,
+    started_at: "2026-01-02T00:00:00Z", finished_at: "2026-01-02T00:01:00Z",
+    base_branch: "main", repo_dir: "/repo", head_branch: "codex/test2",
+    head_sha: "def456",
+    prs: [], learning_candidates: [], git_dirty: ["M file.nix"], blocker: "build failed"
+  }' >"$dir/2026-01-02T00:01:00Z-issue-2-failure.json"
+
+  printf 'not json\n' >"$dir/2026-01-03T00:01:00Z-issue-3-blocked.json"
+
+  jq -n '{
+    schema: "agent-outcome/v1", id: "2026-01-04T00:01:00Z-issue-4-blocked",
+    issue: 4, status: "blocked",
+    started_at: "2026-01-04T00:00:00Z", finished_at: "2026-01-04T00:01:00Z",
+    base_branch: "main", repo_dir: "/repo", head_branch: "codex/test4",
+    head_sha: "ghi789",
+    prs: [], learning_candidates: [], git_dirty: []
+  }' >"$dir/2026-01-04T00:01:00Z-issue-4-blocked.json"
+
+  : >"$summaries"
+  out=$(build_index "$dir" 0 0 "$summaries" 2>/dev/null) && rc=0 || rc=$?
+  [[ $rc -eq 1 ]] || die "self-test: expected non-zero exit with malformed records present"
+  printf '%s\n' "$out" | grep -qF $'\t1\tsuccess\t' || die "self-test: missing success row"
+  printf '%s\n' "$out" | grep -qF $'\t2\tfailure\t' || die "self-test: missing failure row"
+  printf '%s\n' "$out" | grep -qF '#42' || die "self-test: missing PR number in table"
+
+  : >"$summaries"
+  out=$(build_index "$dir" 0 1 "$summaries" 2>/dev/null) && rc=0 || rc=$?
+  [[ $rc -eq 0 ]] || die "self-test: --permissive should exit 0 despite malformed records"
+
+  : >"$summaries"
+  out=$(build_index "$dir" 1 1 "$summaries" 2>/dev/null) && rc=0 || rc=$?
+  printf '%s\n' "$out" | jq -e '
+    length == 2
+    and (map(.issue) | sort == [1, 2])
+    and (.[] | select(.issue == 1) | .pr_count == 1)
+    and (.[] | select(.issue == 1) | .prs[0].number == 42)
+    and (.[] | select(.issue == 2) | .blocker == "build failed")
+  ' >/dev/null || die "self-test: --json summary mismatch"
+
+  : >"$summaries"
+  out=$(build_index "$tmp/missing" 0 0 "$summaries") && rc=0 || rc=$?
+  [[ $rc -eq 0 ]] || die "self-test: missing directory should exit 0"
+  printf '%s\n' "$out" | head -1 | grep -q '^id	' || die "self-test: missing directory should print header only"
+
+  printf 'agent-outcome-index self-test passed\n'
+}
+
+dir="${AGENT_OUTCOME_DIR:-.agents/state/outcomes}"
+out_json=0
+permissive=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --dir)
+    dir="${2:?--dir needs a value}"
+    shift 2
+    ;;
+  --json)
+    out_json=1
+    shift
+    ;;
+  --permissive)
+    permissive=1
+    shift
+    ;;
+  --self-test)
+    self_test
+    exit 0
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    die "unknown argument: $1"
+    ;;
+  esac
+done
+
+command -v jq >/dev/null 2>&1 || die "jq not found"
+
+summaries=$(mktemp)
+trap 'rm -f "$summaries"' EXIT
+
+build_index "$dir" "$out_json" "$permissive" "$summaries"

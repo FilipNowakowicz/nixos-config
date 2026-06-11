@@ -30,6 +30,19 @@ jq -r '[.issue, .status, (.prs | map("#" + (.number|tostring)) | join(",")), (.l
 jq '.git_dirty, .learning_candidates, .blocker' .agents/state/outcomes/<record>.json
 ```
 
+To summarize many records at once — issue, status, exit code, PR
+count/numbers/urls, started/finished timestamps, and blocker — without opening
+each JSON file, use `.agents/scripts/agent-outcome-index`:
+
+```sh
+.agents/scripts/agent-outcome-index               # TSV table from .agents/state/outcomes
+.agents/scripts/agent-outcome-index --json        # JSON array, e.g. for dashboards
+.agents/scripts/agent-outcome-index --dir <path>  # scan a different outcome directory
+```
+
+Malformed or schema-invalid records are reported on stderr and cause a
+non-zero exit; pass `--permissive` to report them without failing.
+
 Outcome records are separate from learning candidates:
 
 - outcome records describe what happened in one run;
