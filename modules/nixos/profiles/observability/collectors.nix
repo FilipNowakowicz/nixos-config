@@ -491,7 +491,7 @@ in
       prometheus = lib.mkIf cfg.collectors.metrics.enable {
         enable = true;
         listenAddress = "127.0.0.1";
-        port = 9090;
+        port = prometheusPort;
         retentionTime = "24h";
         globalConfig = {
           scrape_interval = cfg.collectors.metrics.scrapeInterval;

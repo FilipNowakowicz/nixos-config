@@ -245,8 +245,6 @@
           services-hardened = import ./modules/nixos/services/hardened.nix;
           profiles-base = import ./modules/nixos/profiles/base.nix;
           profiles-desktop = import ./modules/nixos/profiles/desktop.nix;
-          profiles-observability = import ./modules/nixos/profiles/observability;
-          profiles-observability-client = import ./modules/nixos/profiles/observability-client.nix;
           profiles-security = import ./modules/nixos/profiles/security.nix;
         };
 

@@ -12,7 +12,7 @@ let
     schemaVersion = 1;
     hosts = [
       {
-        name = "homeserver-gcp";
+        inherit (hostMeta) name;
         deployable = true;
         deployUser = hostMeta.deploy.sshUser or "user";
         drift = {
