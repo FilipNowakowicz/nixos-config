@@ -18,6 +18,9 @@
 #   BASE_BRANCH     branch to sync to before each issue (default: main)
 #   REPO_URL        HTTPS clone URL used to bootstrap AGENT_REPO_DIR when it
 #                    does not exist yet (default: this repo, via gh's PAT)
+#                    Standard GitHub HTTPS origins are converted to SSH
+#                    push URLs after clone setup so PR publication can push
+#                    non-interactively.
 #   AGENT_OUTCOME_DIR
 #                   directory for per-issue outcome records
 #                   (default: .agents/state/outcomes)
@@ -104,6 +107,29 @@ validate_supervision_config() {
   validate_non_negative_integer AGENT_INNER_TIMEOUT_SECONDS "$AGENT_INNER_TIMEOUT_SECONDS"
   validate_non_negative_integer AGENT_HEARTBEAT_SECONDS "$AGENT_HEARTBEAT_SECONDS"
   validate_non_negative_integer AGENT_INNER_KILL_GRACE_SECONDS "$AGENT_INNER_KILL_GRACE_SECONDS"
+}
+
+github_https_to_ssh_url() {
+  local url="$1"
+  if [[ $url =~ ^https://github\.com/([^/]+)/([^/]+)(\.git)?$ ]]; then
+    printf 'git@github.com:%s/%s.git\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]%.git}"
+    return 0
+  fi
+  return 1
+}
+
+ensure_push_safe_origin() {
+  local repo_dir="$1"
+  local push_url ssh_url
+  push_url=$(git -C "$repo_dir" remote get-url --push origin 2>/dev/null || true)
+  [[ -n $push_url ]] || return 0
+
+  if ssh_url=$(github_https_to_ssh_url "$push_url"); then
+    if [[ $push_url != "$ssh_url" ]]; then
+      git -C "$repo_dir" remote set-url --push origin "$ssh_url"
+      echo "agent-run-issue: configured origin push URL for SSH publication" >&2
+    fi
+  fi
 }
 
 heartbeat_worktree_summary() {
@@ -196,6 +222,22 @@ self_test() {
   printf 'seed\n' >"$repo/README.md"
   git -C "$repo" add README.md
   git -C "$repo" commit -q -m seed
+  git -C "$repo" remote add origin https://github.com/example-owner/example-repo.git
+  ensure_push_safe_origin "$repo"
+  [[ $(git -C "$repo" remote get-url --push origin) == git@github.com:example-owner/example-repo.git ]] ||
+    die "self-test: expected GitHub HTTPS origin push URL to convert to SSH"
+
+  git -C "$repo" remote set-url origin git@github.com:example-owner/example-repo.git
+  git -C "$repo" remote set-url --push origin git@github.com:example-owner/example-repo.git
+  ensure_push_safe_origin "$repo"
+  [[ $(git -C "$repo" remote get-url --push origin) == git@github.com:example-owner/example-repo.git ]] ||
+    die "self-test: expected existing SSH push URL to be preserved"
+
+  git -C "$repo" remote set-url origin https://example.invalid/example-owner/example-repo.git
+  git -C "$repo" remote set-url --push origin https://example.invalid/example-owner/example-repo.git
+  ensure_push_safe_origin "$repo"
+  [[ $(git -C "$repo" remote get-url --push origin) == https://example.invalid/example-owner/example-repo.git ]] ||
+    die "self-test: expected non-GitHub HTTPS push URL to be preserved"
 
   cat >"$bin/success-worker" <<'EOF'
 #!/usr/bin/env bash
@@ -268,6 +310,7 @@ else
   git clone "$REPO_URL" "$AGENT_REPO_DIR" ||
     die "clone of $REPO_URL failed (check the scoped PAT — hosts/gcp-agent/CLAUDE.md)"
 fi
+ensure_push_safe_origin "$AGENT_REPO_DIR"
 
 # Hold the session lock for the WHOLE run so the idle-shutdown timer never powers
 # the box off mid-session during claude-free gaps (offloaded builds, git ops).

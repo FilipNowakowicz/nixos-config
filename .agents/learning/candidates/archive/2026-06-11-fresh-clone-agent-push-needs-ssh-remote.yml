@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-06-11-fresh-clone-agent-push-needs-ssh-remote
+date: 2026-06-11
+expires: 2026-12-11
+status: promoted
+route: implement-fix
+best_form: test
+evidence: [pr-#225, issue-#224, PR-#237, "agent-run rescue push failed: fatal: could not read Username for 'https://github.com': No such device or address"]
+observation: fresh agent-run clones can complete implementation but fail PR publication when origin push uses HTTPS without an interactive credential helper
+proposed_upgrade: make agent-run clone setup use a push-safe SSH remote or preflight git push authentication in the liveness gate before dispatch
+agent: codex
+type: workflow-gotcha
+dedupe_key: agent-run:fresh-clone-https-push-no-credentials
+triggers: [scripts/agent-run-issue.sh, git push, fresh clone, gh pr create]
+targets: [scripts/agent-run-issue.sh, .agents/scripts/agent-liveness-gate]
+risk: wrong fix could mask missing GitHub credentials instead of failing before dispatch
