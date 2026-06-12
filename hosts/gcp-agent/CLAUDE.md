@@ -150,6 +150,12 @@ capture** in steps 7–8.
      > hosts/gcp-agent/secrets/claude-credentials.enc
    ```
 
+   If `claude -p 'say ok' --model sonnet --dangerously-skip-permissions` fails
+   with `401 Invalid authentication credentials`, refresh this secret from a
+   currently working login and reprovision or manually activate the host. The
+   OAuth access token in `.credentials.json` is time-bound, and a stale encrypted
+   secret can decrypt cleanly while still failing at runtime.
+
 8. **Provision the scoped GitHub PAT** — mint a fine-grained PAT limited to this
    repo with **Contents, Issues, Pull requests: read/write**. Put it in the
    `gh` hosts file via sops (`sops hosts/gcp-agent/secrets/gh-hosts.yaml`),
