@@ -7,11 +7,17 @@
 #
 # Typical invocation from a workstation (starts the VM, then runs this on it):
 #   scripts/agent-session.sh -- nix/scripts/agent-run-issue.sh 169
-#   scripts/agent-session.sh -- nix/scripts/agent-run-issue.sh --label agent-ready
+#   scripts/agent-session.sh -- nix/scripts/agent-run-issue.sh --label agent:ready
 #
 # Or directly, once SSH'd into gcp-agent:
 #   scripts/agent-run-issue.sh 169 170
 #   scripts/agent-run-issue.sh --label architecture-review
+#
+# `agent:ready` is the maintainer-owned default queue label for automated
+# dispatch (see ".agents/README.md" "Dispatch Eligibility" and
+# ".agents/scripts/agent-dispatchable-issues"). --label takes any label
+# verbatim, so other queues (e.g. architecture-review) remain usable for
+# attended runs.
 #
 # Env knobs:
 #   AGENT_REPO_DIR  repo clone to operate in (default: $HOME/nix)

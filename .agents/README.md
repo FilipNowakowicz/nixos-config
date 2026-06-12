@@ -271,3 +271,36 @@ This metadata is not wired into `scripts/agent-run-issue.sh` yet and does not
 select models, grant merge authority, or change branch protection. It exists so
 the later dispatcher integration has a reviewed, deterministic policy surface
 instead of implicit routing conventions.
+
+## Dispatch Eligibility
+
+This repository is public with GitHub Issues enabled, so anyone can file an
+issue. Filing an issue, choosing its title/body/author, or applying ordinary
+labels grants **no** automated-dispatch authority. The only label that does is
+`agent:ready`, and only a maintainer applies it.
+
+`agent:ready` is the default queue label for `scripts/agent-run-issue.sh
+--label <label>` and any future dispatcher. An issue is dispatch-eligible only
+if it carries `agent:ready` AND does not also carry `agent:not-ready` or
+`agent:blocked` — either of those excludes it even if `agent:ready` is also
+present, since a maintainer may add either to an in-flight issue without
+remembering to remove `agent:ready`.
+
+`.agents/scripts/agent-dispatchable-issues` computes this set deterministically
+from `gh issue list`:
+
+```sh
+.agents/scripts/agent-dispatchable-issues             # eligible issue numbers, one per line
+.agents/scripts/agent-dispatchable-issues --json      # full {number,title,labels} objects
+.agents/scripts/agent-dispatchable-issues --label custom-label
+.agents/scripts/agent-dispatchable-issues --self-test # run via scripts/validate.sh docs
+```
+
+Feed its output to `scripts/agent-run-issue.sh` for batch dispatch, e.g.:
+
+```sh
+.agents/scripts/agent-dispatchable-issues | xargs -r scripts/agent-run-issue.sh
+```
+
+This is a read-only filter, not the dispatcher itself: it does not invoke
+Claude, open PRs, or change labels.
