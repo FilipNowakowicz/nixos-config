@@ -24,7 +24,10 @@ let
     name = "claude";
     runtimeInputs = [ pkgs.nodejs ];
     text = ''
-      exec npm exec --yes --package @anthropic-ai/claude-code@latest -- claude --dangerously-skip-permissions "$@"
+      # Pin to Sonnet explicitly: @latest means the CLI's default model is
+      # whatever upstream currently ships, which can silently change (and may
+      # not be Sonnet) without any visible config change here.
+      exec npm exec --yes --package @anthropic-ai/claude-code@latest -- claude --dangerously-skip-permissions --model sonnet "$@"
     '';
   };
 in
