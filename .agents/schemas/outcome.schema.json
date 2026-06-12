@@ -99,6 +99,31 @@
     },
     "blocker": {
       "type": "string"
+    },
+    "route": {
+      "type": "object",
+      "description": "Advisory route decision from .agents/scripts/agent-route for the paths changed in this run. Absent when no route decision was computed.",
+      "required": ["schema", "path_classes", "risk", "route"],
+      "properties": {
+        "schema": {
+          "const": "agent-route/v1"
+        },
+        "path_classes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "risk": {
+          "enum": ["low", "medium", "high"]
+        },
+        "default_profile": {
+          "type": ["string", "null"]
+        },
+        "route": {
+          "enum": ["auto", "human-review"]
+        }
+      }
     }
   }
 }

@@ -16,6 +16,9 @@ Options:
   --learning-candidates-file <path> Newline-separated candidate paths to record.
   --head-branch <name>              Branch to use as a PR discovery fallback.
   --pr-number <n>                   Explicit PR number to record (repeatable).
+  --route-file <path>               agent-route --json output to embed under "route".
+                                     Ignored if the file's "schema" is not
+                                     "agent-route/v1".
   --output-dir <path>               Output directory (default: .agents/state/outcomes).
   --dry-run                         Print JSON instead of writing a file.
   --self-test                       Run a local smoke test and exit.
@@ -95,6 +98,7 @@ write_outcome() {
   local dry_run="${11}"
   local pr_head_branch="${12}"
   local pr_numbers_file="${13}"
+  local route_file="${14}"
 
   [[ $issue =~ ^[0-9]+$ ]] || die "--issue must be a positive integer"
   [[ $issue -gt 0 ]] || die "--issue must be a positive integer"
@@ -113,11 +117,18 @@ write_outcome() {
   safe_finished=$(printf '%s' "$finished_at" | tr -c '0-9TZ:-' '-')
   id="${safe_finished}-issue-${issue}-${status}"
 
-  local prs_json candidates_json dirty_json discovery_head_branch
+  local prs_json candidates_json dirty_json discovery_head_branch route_json
   discovery_head_branch="${pr_head_branch:-$head_branch}"
   prs_json=$(discover_prs "$issue" "$discovery_head_branch" "$pr_numbers_file" | jq -c 'if type == "array" then . else [] end')
   candidates_json=$(collect_learning_candidates "$candidates_file" | json_array_from_lines)
   dirty_json=$(git status --short | json_array_from_lines)
+
+  route_json='null'
+  if [[ -n $route_file ]]; then
+    [[ -f $route_file ]] || die "route file not found: $route_file"
+    route_json=$(jq -c 'if .schema == "agent-route/v1" then . else null end' "$route_file") ||
+      die "route file is not valid JSON: $route_file"
+  fi
 
   local outcome
   outcome=$(
@@ -137,6 +148,7 @@ write_outcome() {
       --argjson learning_candidates "$candidates_json" \
       --argjson git_dirty "$dirty_json" \
       --arg blocker "$blocker" \
+      --argjson route "$route_json" \
       '{
         schema: $schema,
         id: $id,
@@ -153,7 +165,7 @@ write_outcome() {
         learning_candidates: $learning_candidates,
         git_dirty: $git_dirty,
         blocker: $blocker
-      }'
+      } + (if $route == null then {} else {route: $route} end)'
   )
 
   printf '%s\n' "$outcome" | jq -e \
@@ -252,7 +264,58 @@ EOF
      and .blocker == ""
      and (.prs | length == 1)
      and .prs[0].number == 42
-     and (.learning_candidates == [".agents/learning/candidates/example.yml"])' >/dev/null
+     and (.learning_candidates == [".agents/learning/candidates/example.yml"])
+     and (has("route") | not)' >/dev/null
+
+  # --route-file embeds a valid agent-route/v1 decision under "route".
+  local route_file="$tmp/route.json"
+  printf '%s\n' '{"schema":"agent-route/v1","paths":["flake.nix"],"path_classes":["nix-modules"],"risk":"medium","default_profile":"nix-engineer","capability_profile":{"id":"nix-engineer","agent":"claude-code","max_risk":"high","escalation":"x"},"required_checks":["bash scripts/validate.sh flake-eval"],"route":"auto","per_path":[]}' >"$route_file"
+  json=$(
+    PATH="$bin:$PATH" \
+      "$script_path" \
+      --issue 1 \
+      --status success \
+      --base-branch main \
+      --repo-dir "$repo" \
+      --started-at '2026-01-01T00:00:00Z' \
+      --finished-at '2026-01-01T00:01:00Z' \
+      --exit-code 0 \
+      --blocker '' \
+      --learning-candidates-file "$candidates" \
+      --output-dir "$out" \
+      --head-branch 'codex/test-outcome-pr' \
+      --pr-number 42 \
+      --route-file "$route_file" \
+      --dry-run
+  )
+  printf '%s\n' "$json" | jq -e \
+    '.route.schema == "agent-route/v1"
+     and .route.risk == "medium"
+     and .route.route == "auto"' >/dev/null
+
+  # A route file with the wrong schema is ignored, not embedded.
+  local bad_route_file="$tmp/bad-route.json"
+  printf '%s\n' '{"schema":"something-else/v1"}' >"$bad_route_file"
+  json=$(
+    PATH="$bin:$PATH" \
+      "$script_path" \
+      --issue 1 \
+      --status success \
+      --base-branch main \
+      --repo-dir "$repo" \
+      --started-at '2026-01-01T00:00:00Z' \
+      --finished-at '2026-01-01T00:01:00Z' \
+      --exit-code 0 \
+      --blocker '' \
+      --learning-candidates-file "$candidates" \
+      --output-dir "$out" \
+      --head-branch 'codex/test-outcome-pr' \
+      --pr-number 42 \
+      --route-file "$bad_route_file" \
+      --dry-run
+  )
+  printf '%s\n' "$json" | jq -e '(has("route") | not)' >/dev/null
+
   printf 'agent-record-outcome self-test passed\n'
 }
 
@@ -267,6 +330,7 @@ blocker=""
 candidates_file=""
 pr_head_branch=""
 pr_numbers_file=""
+route_file=""
 output_dir="${AGENT_OUTCOME_DIR:-.agents/state/outcomes}"
 dry_run=0
 tmp_pr_numbers=""
@@ -321,6 +385,10 @@ while [[ $# -gt 0 ]]; do
     printf '%s\n' "$2" >>"$tmp_pr_numbers"
     shift 2
     ;;
+  --route-file)
+    route_file="${2:?--route-file needs a value}"
+    shift 2
+    ;;
   --output-dir)
     output_dir="${2:?--output-dir needs a value}"
     shift 2
@@ -353,4 +421,4 @@ finished_at="${finished_at:-$(utc_now)}"
 
 write_outcome "$issue" "$status" "$base_branch" "$repo_dir" "$started_at" \
   "$finished_at" "$exit_code" "$blocker" "$candidates_file" "$output_dir" "$dry_run" \
-  "$pr_head_branch" "${tmp_pr_numbers:-/dev/null}"
+  "$pr_head_branch" "${tmp_pr_numbers:-/dev/null}" "$route_file"

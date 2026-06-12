@@ -1,0 +1,544 @@
+#!/usr/bin/env bash
+# Deterministic, advisory route-decision command for changed repository paths.
+#
+# Maps a set of repo-relative paths to the path classes, risk tier, default
+# capability profile, and required checks declared in
+# .agents/model-routing.yaml and .agents/capability-profiles.yaml. This is a
+# building block for later dispatcher integration: it does not select models,
+# grant merge authority, or change branch protection (see those files'
+# headers for scope and non-goals).
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: agent-route [--files-from <path>] [--git-diff [<ref>]]
+                    [--routing <path>] [--profiles <path>] [--json]
+       agent-route < paths.txt
+       agent-route --self-test
+
+Classify changed repository paths against the advisory routing metadata
+(.agents/model-routing.yaml and .agents/capability-profiles.yaml by default)
+and emit a route decision: matched path classes, an overall risk tier, a
+default capability profile, and the union of required checks.
+
+Changed-path source (pick at most one; default is stdin):
+  --files-from <path>  Read newline-separated paths from <path> ("-" for
+                        stdin).
+  --git-diff [<ref>]   Use paths changed relative to <ref> (default: HEAD):
+                        "git diff --name-only <ref>" plus untracked files.
+  (none)               Read newline-separated paths from stdin.
+
+Options:
+  --routing <path>   Path-class metadata file (default: .agents/model-routing.yaml).
+  --profiles <path>  Capability-profile metadata file (default: .agents/capability-profiles.yaml).
+  --json             Emit the full route-decision JSON object instead of a table.
+  --self-test        Run a deterministic self-test and exit.
+  -h, --help         Show this help.
+
+A path matching no declared path class is treated as "unclassified": high
+risk, route "human-review", no default profile. Any path class whose
+required checks include "human review" (security-secrets, ci-workflows) also
+routes to "human-review" with no default profile, regardless of that class's
+declared default_profile — a human-review route never selects an
+auto-executable profile.
+
+Route decisions are advisory: this command does not perform dispatch, grant
+auto-merge authority, or weaken protected-path policy. Exit status is 0 for
+any successful classification (including "human-review" routes); only usage
+or metadata errors exit non-zero.
+EOF
+}
+
+die() {
+  printf 'agent-route: %s\n' "$*" >&2
+  exit 2
+}
+
+script_dir() {
+  CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd
+}
+
+agent_root() {
+  CDPATH='' cd -- "$(script_dir)/.." && pwd
+}
+
+trim() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
+
+# Extract the quoted elements of an inline YAML flow array like
+# ["a", "b\\.c"] as one unescaped value per line ("a", "b\.c").
+parse_inline_array() {
+  local value="$1"
+  [[ $value =~ ^\[.*\]$ ]] || die "expected inline array, got: $value"
+  printf '%s\n' "$value" | grep -o '"[^"]*"' | sed -E 's/^"(.*)"$/\1/; s/\\\\/\\/g'
+}
+
+# Populate parallel arrays describing .agents/model-routing.yaml's
+# path_classes: rt_id, rt_risk, rt_profile, rt_patterns (raw inline array),
+# rt_checks (raw inline array).
+parse_routing() {
+  local file="$1"
+  [[ -f $file ]] || die "routing metadata not found: $file"
+
+  rt_id=() rt_risk=() rt_profile=() rt_patterns=() rt_checks=()
+  local in_section=0 idx=-1 line key value
+  local pending_key="" pending_idx=-1
+
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ $line =~ ^[[:space:]]*(#.*)?$ ]] && continue
+
+    if [[ -n $pending_key ]]; then
+      value="$(trim "$line")"
+      if [[ $pending_key == patterns ]]; then
+        rt_patterns[pending_idx]+="$value"
+      else
+        rt_checks[pending_idx]+="$value"
+      fi
+      [[ $value == *"]" ]] && pending_key=""
+      continue
+    fi
+
+    if [[ $line =~ ^path_classes:[[:space:]]*$ ]]; then
+      in_section=1
+      continue
+    fi
+
+    if [[ $in_section == 1 && $line =~ ^[[:space:]]*-[[:space:]]*id:[[:space:]]*(.*)$ ]]; then
+      idx=$((idx + 1))
+      rt_id[idx]="$(trim "${BASH_REMATCH[1]}")"
+      rt_patterns[idx]=""
+      rt_checks[idx]=""
+      continue
+    fi
+
+    if [[ $in_section == 1 && $idx -ge 0 && $line =~ ^[[:space:]]+([a-z_]+):[[:space:]]*(.*)$ ]]; then
+      key="${BASH_REMATCH[1]}"
+      value="$(trim "${BASH_REMATCH[2]}")"
+      case "$key" in
+      risk) rt_risk[idx]="$value" ;;
+      default_profile) rt_profile[idx]="$value" ;;
+      patterns | required_checks)
+        if [[ $key == patterns ]]; then rt_patterns[idx]="$value"; else rt_checks[idx]="$value"; fi
+        if [[ -z $value || $value != *"]" ]]; then
+          pending_key="$key"
+          pending_idx=$idx
+        fi
+        ;;
+      esac
+    fi
+  done <"$file"
+
+  [[ $idx -ge 0 ]] || die "$file: no path_classes entries found"
+}
+
+# Populate parallel arrays describing .agents/capability-profiles.yaml's
+# profiles: pf_id, pf_agent, pf_max_risk, pf_escalation, pf_checks (raw
+# inline array).
+parse_profiles() {
+  local file="$1"
+  [[ -f $file ]] || die "capability-profile metadata not found: $file"
+
+  pf_id=() pf_agent=() pf_max_risk=() pf_escalation=() pf_checks=()
+  local in_section=0 idx=-1 line key value
+  local pending_idx=-1 pending=0
+
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ $line =~ ^[[:space:]]*(#.*)?$ ]] && continue
+
+    if [[ $pending == 1 ]]; then
+      value="$(trim "$line")"
+      pf_checks[pending_idx]+="$value"
+      [[ $value == *"]" ]] && pending=0
+      continue
+    fi
+
+    if [[ $line =~ ^profiles:[[:space:]]*$ ]]; then
+      in_section=1
+      continue
+    fi
+
+    if [[ $in_section == 1 && $line =~ ^[[:space:]]*-[[:space:]]*id:[[:space:]]*(.*)$ ]]; then
+      idx=$((idx + 1))
+      pf_id[idx]="$(trim "${BASH_REMATCH[1]}")"
+      pf_checks[idx]=""
+      continue
+    fi
+
+    if [[ $in_section == 1 && $idx -ge 0 && $line =~ ^[[:space:]]+([a-z_]+):[[:space:]]*(.*)$ ]]; then
+      key="${BASH_REMATCH[1]}"
+      value="$(trim "${BASH_REMATCH[2]}")"
+      case "$key" in
+      agent) pf_agent[idx]="$value" ;;
+      max_risk) pf_max_risk[idx]="$value" ;;
+      escalation) pf_escalation[idx]="$(printf '%s' "$value" | sed -E 's/^"(.*)"$/\1/')" ;;
+      required_checks)
+        pf_checks[idx]="$value"
+        if [[ -z $value || $value != *"]" ]]; then
+          pending=1
+          pending_idx=$idx
+        fi
+        ;;
+      esac
+    fi
+  done <"$file"
+
+  [[ $idx -ge 0 ]] || die "$file: no profiles entries found"
+}
+
+find_profile_index() {
+  local id="$1" i
+  for ((i = 0; i < ${#pf_id[@]}; i++)); do
+    if [[ ${pf_id[i]} == "$id" ]]; then
+      printf '%d\n' "$i"
+      return 0
+    fi
+  done
+  return 1
+}
+
+risk_rank() {
+  case "$1" in
+  low) printf '0\n' ;;
+  medium) printf '1\n' ;;
+  high) printf '2\n' ;;
+  *) die "unknown risk tier: $1" ;;
+  esac
+}
+
+# Print one route-decision JSON object (without risk_rank) for $1, using the
+# parsed rt_*/pf_* arrays.
+classify_path() {
+  local path="$1"
+  local path_class risk profile_id checks_raw matched=0
+  local i j pattern
+
+  for ((i = 0; i < ${#rt_id[@]}; i++)); do
+    while IFS= read -r pattern; do
+      [[ -n $pattern ]] || continue
+      if [[ $path =~ $pattern ]]; then
+        path_class="${rt_id[i]}"
+        risk="${rt_risk[i]}"
+        profile_id="${rt_profile[i]}"
+        checks_raw="${rt_checks[i]:-[]}"
+        matched=1
+        break 2
+      fi
+    done < <(parse_inline_array "${rt_patterns[i]}")
+  done
+
+  local -a required_checks=()
+  if [[ $matched == 1 ]]; then
+    while IFS= read -r line; do
+      [[ -n $line ]] && required_checks+=("$line")
+    done < <(parse_inline_array "$checks_raw")
+  else
+    path_class="unclassified"
+    risk="high"
+    profile_id=""
+    required_checks=("human review")
+  fi
+
+  local route="auto"
+  for j in "${required_checks[@]}"; do
+    [[ $j == "human review" ]] && route="human-review"
+  done
+
+  local capability_profile="null"
+  if [[ $route == auto && -n $profile_id ]]; then
+    local pidx
+    if pidx=$(find_profile_index "$profile_id"); then
+      while IFS= read -r line; do
+        [[ -n $line ]] && required_checks+=("$line")
+      done < <(parse_inline_array "${pf_checks[pidx]:-[]}")
+      capability_profile=$(
+        jq -nc \
+          --arg id "${pf_id[pidx]}" \
+          --arg agent "${pf_agent[pidx]}" \
+          --arg max_risk "${pf_max_risk[pidx]}" \
+          --arg escalation "${pf_escalation[pidx]}" \
+          '{id: $id, agent: $agent, max_risk: $max_risk, escalation: $escalation}'
+      )
+    else
+      profile_id=""
+    fi
+  else
+    # A human-review route never selects an auto-executable profile.
+    profile_id=""
+  fi
+
+  local checks_json
+  checks_json=$(printf '%s\n' "${required_checks[@]}" | jq -Rsc '[splits("\n")] | map(select(length > 0)) | unique')
+
+  jq -nc \
+    --arg path "$path" \
+    --arg path_class "$path_class" \
+    --arg risk "$risk" \
+    --argjson risk_rank "$(risk_rank "$risk")" \
+    --arg default_profile "$profile_id" \
+    --argjson capability_profile "$capability_profile" \
+    --argjson required_checks "$checks_json" \
+    --arg route "$route" \
+    '{
+      path: $path,
+      path_class: $path_class,
+      risk: $risk,
+      risk_rank: $risk_rank,
+      default_profile: (if $default_profile == "" then null else $default_profile end),
+      capability_profile: $capability_profile,
+      required_checks: $required_checks,
+      route: $route
+    }'
+}
+
+read_paths_from_file() {
+  local file="$1"
+  if [[ $file == "-" ]]; then
+    cat
+  else
+    [[ -f $file ]] || die "files-from path not found: $file"
+    cat "$file"
+  fi | sed '/^[[:space:]]*$/d'
+}
+
+# Paths changed relative to <ref>: tracked-file diffs plus untracked files,
+# deduplicated. Requires no network access.
+git_changed_paths() {
+  local ref="$1"
+  command -v git >/dev/null 2>&1 || die "git not found"
+  git rev-parse --verify --quiet "${ref}^{commit}" >/dev/null ||
+    die "unknown git ref: $ref"
+  {
+    git diff --name-only "$ref" --
+    git ls-files --others --exclude-standard
+  } | sort -u
+}
+
+build_decision() {
+  local -a items=("$@")
+  local items_json
+  if [[ ${#items[@]} -eq 0 ]]; then
+    items_json='[]'
+  else
+    items_json=$(printf '%s\n' "${items[@]}" | jq -sc '.')
+  fi
+
+  jq -c '
+    . as $items
+    | (if ($items | length) == 0 then 0 else ($items | map(.risk_rank) | max) end) as $maxrank
+    | (if ($items | length) == 0 then null else ($items | map(select(.risk_rank == $maxrank)) | .[0]) end) as $top
+    | {
+        schema: "agent-route/v1",
+        paths: ($items | map(.path)),
+        path_classes: ($items | map(.path_class) | unique),
+        risk: (if $top == null then "low" else $top.risk end),
+        default_profile: (if $top == null then null else $top.default_profile end),
+        capability_profile: (if $top == null then null else $top.capability_profile end),
+        required_checks: ($items | map(.required_checks) | add // [] | unique),
+        route: (if ($items | any(.route == "human-review")) then "human-review" else "auto" end),
+        per_path: ($items | map(del(.risk_rank)))
+      }
+  ' <<<"$items_json"
+}
+
+print_table() {
+  local decision="$1"
+  printf 'path\tpath_class\trisk\troute\n'
+  jq -r '.per_path[] | [.path, .path_class, .risk, .route] | @tsv' <<<"$decision"
+  jq -r '"OVERALL\t" + .risk + "\t" + (.default_profile // "-") + "\t" + .route' <<<"$decision"
+}
+
+self_test() {
+  local script_path
+  script_path="$(CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+  local out
+
+  # docs: low risk, auto route, doc-editor profile.
+  out=$(printf 'docs/architecture.md\n' | "$script_path" --json)
+  printf '%s' "$out" | jq -e '
+    .risk == "low"
+    and .route == "auto"
+    and .default_profile == "doc-editor"
+    and .path_classes == ["docs"]
+    and (.capability_profile.agent == "gemini-cli")
+  ' >/dev/null || die "self-test: unexpected docs decision: $out"
+
+  # agent workflow scripts: medium risk, auto route, agent-workflow-engineer.
+  out=$(printf '.agents/scripts/agent-route\n' | "$script_path" --json)
+  printf '%s' "$out" | jq -e '
+    .risk == "medium"
+    and .route == "auto"
+    and .default_profile == "agent-workflow-engineer"
+    and .path_classes == ["agent-workflow-scripts"]
+  ' >/dev/null || die "self-test: unexpected agent-workflow decision: $out"
+
+  # nix modules: medium risk, auto route, nix-engineer.
+  out=$(printf 'flake.nix\n' | "$script_path" --json)
+  printf '%s' "$out" | jq -e '
+    .risk == "medium"
+    and .route == "auto"
+    and .default_profile == "nix-engineer"
+    and .path_classes == ["nix-modules"]
+  ' >/dev/null || die "self-test: unexpected nix-modules decision: $out"
+
+  # security/secrets: high risk, human-review route, no auto profile.
+  out=$(printf '.sops.yaml\n' | "$script_path" --json)
+  printf '%s' "$out" | jq -e '
+    .risk == "high"
+    and .route == "human-review"
+    and .default_profile == null
+    and .capability_profile == null
+    and .path_classes == ["security-secrets"]
+    and (.required_checks | index("human review") != null)
+  ' >/dev/null || die "self-test: unexpected security-secrets decision: $out"
+
+  # CI workflows: high risk, human-review route, no auto profile.
+  out=$(printf '.github/workflows/nix.yml\n' | "$script_path" --json)
+  printf '%s' "$out" | jq -e '
+    .risk == "high"
+    and .route == "human-review"
+    and .default_profile == null
+    and .path_classes == ["ci-workflows"]
+  ' >/dev/null || die "self-test: unexpected ci-workflows decision: $out"
+
+  # Unknown path: unclassified, high risk, human-review, no auto profile.
+  out=$(printf 'random/unmatched/file.txt\n' | "$script_path" --json)
+  printf '%s' "$out" | jq -e '
+    .path_classes == ["unclassified"]
+    and .risk == "high"
+    and .route == "human-review"
+    and .default_profile == null
+    and .required_checks == ["human review"]
+  ' >/dev/null || die "self-test: unexpected unclassified decision: $out"
+
+  # Mixed input: overall risk/route escalate to the riskiest path.
+  out=$(printf 'docs/architecture.md\n.sops.yaml\n' | "$script_path" --json)
+  printf '%s' "$out" | jq -e '
+    .risk == "high"
+    and .route == "human-review"
+    and .default_profile == null
+    and (.path_classes | sort) == ["docs", "security-secrets"]
+    and (.per_path | length) == 2
+  ' >/dev/null || die "self-test: unexpected mixed decision: $out"
+
+  # Empty input: nothing to route.
+  out=$(printf '' | "$script_path" --json)
+  printf '%s' "$out" | jq -e '
+    .paths == []
+    and .path_classes == []
+    and .risk == "low"
+    and .route == "auto"
+    and .default_profile == null
+    and .required_checks == []
+  ' >/dev/null || die "self-test: unexpected empty decision: $out"
+
+  # Text table mode includes an OVERALL summary row.
+  out=$(printf 'docs/architecture.md\n' | "$script_path")
+  [[ $out == *$'\n'"OVERALL"$'\t'"low"$'\t'"doc-editor"$'\t'"auto" ]] ||
+    die "self-test: unexpected table output: $out"
+
+  # --git-diff finds both a modified tracked file and a new untracked file.
+  local tmp repo
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' RETURN
+  repo="$tmp/repo"
+  mkdir -p "$repo"
+  git -C "$repo" init -q
+  git -C "$repo" config user.email test@example.invalid
+  git -C "$repo" config user.name 'Agent Route Test'
+  printf 'seed\n' >"$repo/README.md"
+  git -C "$repo" add README.md
+  git -C "$repo" commit -q -m seed
+  printf 'changed\n' >"$repo/README.md"
+  printf 'secret\n' >"$repo/.sops.yaml"
+  local real_routing real_profiles
+  real_routing="$(agent_root)/model-routing.yaml"
+  real_profiles="$(agent_root)/capability-profiles.yaml"
+  out=$(cd "$repo" && "$script_path" --routing "$real_routing" \
+    --profiles "$real_profiles" --git-diff --json)
+  printf '%s' "$out" | jq -e '
+    (.paths | sort) == [".sops.yaml", "README.md"]
+    and .route == "human-review"
+  ' >/dev/null || die "self-test: unexpected --git-diff decision: $out"
+
+  printf 'agent-route self-test passed\n'
+}
+
+routing_path="$(agent_root)/model-routing.yaml"
+profiles_path="$(agent_root)/capability-profiles.yaml"
+files_from="" git_ref="" use_git=0 json=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --files-from)
+    files_from="${2:?--files-from needs a value}"
+    shift 2
+    ;;
+  --git-diff)
+    use_git=1
+    if [[ $# -ge 2 && $2 != -* ]]; then
+      git_ref="$2"
+      shift 2
+    else
+      git_ref="HEAD"
+      shift
+    fi
+    ;;
+  --routing)
+    routing_path="${2:?--routing needs a value}"
+    shift 2
+    ;;
+  --profiles)
+    profiles_path="${2:?--profiles needs a value}"
+    shift 2
+    ;;
+  --json)
+    json=1
+    shift
+    ;;
+  --self-test)
+    self_test
+    exit 0
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    die "unknown argument: $1"
+    ;;
+  esac
+done
+
+command -v jq >/dev/null 2>&1 || die "jq not found"
+
+declare -a paths=()
+if [[ -n $files_from ]]; then
+  mapfile -t paths < <(read_paths_from_file "$files_from")
+elif [[ $use_git == 1 ]]; then
+  mapfile -t paths < <(git_changed_paths "${git_ref:-HEAD}")
+elif [[ ! -t 0 ]]; then
+  mapfile -t paths < <(read_paths_from_file -)
+else
+  die "one of --files-from, --git-diff, or piped stdin is required (see --help)"
+fi
+
+parse_routing "$routing_path"
+parse_profiles "$profiles_path"
+
+declare -a items=()
+for p in "${paths[@]}"; do
+  [[ -n $p ]] || continue
+  items+=("$(classify_path "$p")")
+done
+
+decision=$(build_decision "${items[@]}")
+
+if [[ $json == 1 ]]; then
+  printf '%s\n' "$decision"
+else
+  print_table "$decision"
+fi

@@ -267,10 +267,28 @@ Validate the metadata locally:
 .agents/scripts/agent-routing-check --self-test # run via scripts/validate.sh docs
 ```
 
-This metadata is not wired into `scripts/agent-run-issue.sh` yet and does not
-select models, grant merge authority, or change branch protection. It exists so
-the later dispatcher integration has a reviewed, deterministic policy surface
-instead of implicit routing conventions.
+`.agents/scripts/agent-route` classifies a set of changed paths against this
+metadata and emits a route decision: matched path classes, an overall risk
+tier, a default capability profile, and the union of required checks. A path
+matching no declared class, or any path class whose required checks include
+"human review" (security-secrets, ci-workflows), routes to `human-review` with
+no default profile — a human-review route never selects an auto-executable
+profile.
+
+```sh
+.agents/scripts/agent-route --git-diff main          # table for paths changed vs. main
+.agents/scripts/agent-route --git-diff main --json   # full route-decision JSON
+.agents/scripts/agent-route --self-test              # run via scripts/validate.sh docs
+```
+
+`scripts/agent-run-issue.sh` computes a route decision for the paths changed
+during each issue session (relative to `$BASE_BRANCH`) and embeds it under
+`route` in that session's outcome record via
+`.agents/scripts/agent-record-outcome --route-file`. This is **advisory
+execution metadata only**: it does not select models, grant merge authority, or
+change branch protection. It exists so outcome records carry a reviewed,
+deterministic risk/profile classification of what an agent touched, for later
+dispatcher integration and human review.
 
 ## Dispatch Eligibility
 

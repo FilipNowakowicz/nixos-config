@@ -369,10 +369,16 @@ record_issue_outcome() {
   local blocker="$6"
   local candidates_file="$7"
   local head_branch="$8"
+  local route_file="${9:-}"
 
   if [[ ! -x .agents/scripts/agent-record-outcome ]]; then
     echo "agent-run-issue: outcome recorder missing; skipped outcome record for issue #$issue" >&2
     return 0
+  fi
+
+  local route_args=()
+  if [[ -n $route_file && -s $route_file ]]; then
+    route_args=(--route-file "$route_file")
   fi
 
   if outcome_path=$(
@@ -387,11 +393,23 @@ record_issue_outcome() {
       --blocker "$blocker" \
       --learning-candidates-file "$candidates_file" \
       --head-branch "$head_branch" \
-      --output-dir "$AGENT_OUTCOME_DIR"
+      --output-dir "$AGENT_OUTCOME_DIR" \
+      "${route_args[@]}"
   ); then
     echo "agent-run-issue: recorded outcome: $outcome_path" >&2
   else
     echo "agent-run-issue: failed to record outcome for issue #$issue" >&2
+  fi
+}
+
+# Compute an advisory route decision for paths changed relative to
+# $BASE_BRANCH and write it as JSON to $output (best-effort; never fails the
+# caller). Leaves $output empty if agent-route is missing or errors.
+compute_route_decision() {
+  local output="$1"
+  : >"$output"
+  if [[ -x .agents/scripts/agent-route ]]; then
+    .agents/scripts/agent-route --git-diff "$BASE_BRANCH" --json >"$output" 2>/dev/null || : >"$output"
   fi
 }
 
@@ -406,11 +424,12 @@ fi
 run_one() {
   local issue="$1"
   echo "agent-run-issue: ===== issue #$issue =====" >&2
-  local started_at finished_at status exit_code blocker before_candidates new_candidates outcome_head_branch
+  local started_at finished_at status exit_code blocker before_candidates new_candidates outcome_head_branch route_file
   started_at=$(utc_now)
   before_candidates=$(mktemp)
   new_candidates=$(mktemp)
-  trap 'rm -f "$before_candidates" "$new_candidates"' RETURN
+  route_file=$(mktemp)
+  trap 'rm -f "$before_candidates" "$new_candidates" "$route_file"' RETURN
 
   if ! sync_base; then
     status=failure
@@ -474,7 +493,8 @@ explain what is blocked."
   finished_at=$(utc_now)
   outcome_head_branch=$(git symbolic-ref --short HEAD 2>/dev/null || printf 'DETACHED')
   new_learning_candidates "$before_candidates" "$new_candidates"
-  record_issue_outcome "$issue" "$status" "$started_at" "$finished_at" "$exit_code" "$blocker" "$new_candidates" "$outcome_head_branch"
+  compute_route_decision "$route_file"
+  record_issue_outcome "$issue" "$status" "$started_at" "$finished_at" "$exit_code" "$blocker" "$new_candidates" "$outcome_head_branch" "$route_file"
   return "$exit_code"
 }
 
