@@ -1,0 +1,412 @@
+#!/usr/bin/env bash
+# Structured reviewer-stage skeleton for the agent issue-to-PR loop.
+#
+# "init" scaffolds a reviewer-evidence JSON for an issue/PR pair from the
+# issue's "## Acceptance criteria" bullets, written under the ignored runtime
+# state path .agents/state/review/. "check" validates an evidence file via
+# .agents/scripts/agent-review-evidence-check, cross-checks it against the
+# issue's acceptance criteria, and — if given the PR's changed paths — checks
+# that protected paths are not recommended "approved".
+#
+# This stage produces a RECOMMENDATION only. It does not merge PRs, override
+# .agents/governance.yaml or .agents/scripts/agent-policy-eval, or decide
+# autonomy policy.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: agent-review-stage init --issue <n> --pr <m> [--body-file <path>] [--out <path>]
+       agent-review-stage check <evidence.json> [--issue <n>] [--body-file <path>]
+                           [--git-diff <ref> | --paths-from <path>]
+       agent-review-stage --self-test
+
+Modes:
+  init   Scaffold a reviewer-evidence JSON (schema agent-reviewer-evidence/v1)
+         for --issue/--pr under .agents/state/review/ (default path; an
+         ignored runtime state directory, not repo policy). Each
+         "## Acceptance criteria" bullet from the issue body becomes one
+         acceptance_criteria entry with a "TODO: ..." evidence placeholder.
+         result defaults to "blocked" until evidence is filled in.
+
+  check  Validate an evidence file via
+         .agents/scripts/agent-review-evidence-check (schema + required
+         fields). If --issue/--body-file is given, every "## Acceptance
+         criteria" bullet from the issue body must have a matching
+         acceptance_criteria[].criterion entry in the evidence, unless the
+         evidence's overall result is "blocked" or "changes_requested" (an
+         explicit blocker). If --git-diff/--paths-from is given, changed
+         paths are checked with .agents/scripts/agent-policy-eval; if any
+         path requires human review, the evidence result must not be
+         "approved".
+
+         Exits non-zero (treated as "blocked") on schema failure, missing
+         acceptance-criteria coverage for an "approved" result, or an
+         "approved" result on protected paths.
+
+Options:
+  --issue <n>        Issue number. For "check", fetches the body via
+                     `gh issue view` unless --body-file is given.
+  --pr <m>           PR number (init only).
+  --body-file <path> Read the issue body from a file instead of GitHub.
+  --out <path>       init: output path (default:
+                     .agents/state/review/issue-<n>-pr-<m>.json).
+  --git-diff <ref>   check: changed paths relative to <ref> (git diff
+                     --name-only <ref>, plus untracked files).
+  --paths-from <path>
+                     check: newline-separated changed paths from a file
+                     ("-" for stdin).
+  --self-test        Run a local smoke test (no GitHub or model calls) and
+                     exit.
+  -h, --help         Show this help.
+
+Reviewer recommendations are advisory: they do not override
+.agents/governance.yaml, .agents/scripts/agent-policy-eval, branch
+protection, or autonomy policy, and do not grant merge authority.
+EOF
+}
+
+die() {
+  printf 'agent-review-stage: %s\n' "$*" >&2
+  exit 1
+}
+
+script_dir() {
+  CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd
+}
+
+agent_root() {
+  CDPATH='' cd -- "$(script_dir)/.." && pwd
+}
+
+# Extract bullet-list items under the first "## Acceptance criteria"-style
+# heading (matched the same way agent-issue-readiness does), one per line.
+extract_acceptance_criteria() {
+  local body="$1"
+  awk '
+    BEGIN { in_section = 0 }
+    /^[[:space:]]*#+[[:space:]]+/ {
+      line = $0
+      sub(/^[[:space:]]*#+[[:space:]]+/, "", line)
+      heading = tolower(line)
+      in_section = (heading ~ /^acceptance criteria/) ? 1 : 0
+      next
+    }
+    in_section && /^[[:space:]]*[-*][[:space:]]+/ {
+      line = $0
+      sub(/^[[:space:]]*[-*][[:space:]]+/, "", line)
+      gsub(/[[:space:]]+$/, "", line)
+      if (length(line) > 0) print line
+    }
+  ' <<<"$body"
+}
+
+read_issue_body() {
+  local issue="$1"
+  local body_file="$2"
+  if [[ -n $body_file ]]; then
+    [[ -f $body_file ]] || die "body file not found: $body_file"
+    cat "$body_file"
+    return 0
+  fi
+  [[ -n $issue ]] || die "one of --body-file or --issue is required"
+  [[ $issue =~ ^[0-9]+$ ]] || die "--issue must be a positive integer"
+  command -v gh >/dev/null 2>&1 || die "gh not found"
+  gh issue view "$issue" --json body --jq .body || die "failed to fetch issue #$issue body via gh"
+}
+
+read_changed_paths() {
+  local git_diff_ref="$1"
+  local paths_from="$2"
+  if [[ -n $git_diff_ref ]]; then
+    {
+      git diff --name-only "$git_diff_ref" --
+      git ls-files --others --exclude-standard
+    } | sort -u
+  elif [[ -n $paths_from ]]; then
+    if [[ $paths_from == "-" ]]; then
+      cat
+    else
+      [[ -f $paths_from ]] || die "paths file not found: $paths_from"
+      cat "$paths_from"
+    fi
+  fi
+}
+
+cmd_init() {
+  local issue="" pr="" body_file="" out=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --issue)
+      issue="${2:?--issue needs a value}"
+      shift 2
+      ;;
+    --pr)
+      pr="${2:?--pr needs a value}"
+      shift 2
+      ;;
+    --body-file)
+      body_file="${2:?--body-file needs a value}"
+      shift 2
+      ;;
+    --out)
+      out="${2:?--out needs a value}"
+      shift 2
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+    esac
+  done
+
+  [[ $issue =~ ^[0-9]+$ ]] || die "init: --issue is required and must be a positive integer"
+  [[ $pr =~ ^[0-9]+$ ]] || die "init: --pr is required and must be a positive integer"
+  out="${out:-.agents/state/review/issue-${issue}-pr-${pr}.json}"
+
+  local body criteria criteria_json
+  body=$(read_issue_body "$issue" "$body_file")
+  criteria=$(extract_acceptance_criteria "$body")
+  [[ -n $criteria ]] || die "no '## Acceptance criteria' bullets found in issue #$issue body"
+
+  criteria_json=$(jq -R -s '
+    split("\n") | map(select(length > 0)) | map({criterion: ., evidence: ("TODO: provide evidence for: " + .)})
+  ' <<<"$criteria")
+
+  mkdir -p "$(dirname "$out")"
+  jq -n \
+    --argjson issue "$issue" \
+    --argjson pr "$pr" \
+    --argjson acceptance_criteria "$criteria_json" \
+    '{
+      schema: "agent-reviewer-evidence/v1",
+      issue: $issue,
+      pr: $pr,
+      result: "blocked",
+      acceptance_criteria: $acceptance_criteria,
+      validation_commands: [
+        {command: "TODO: record the validation command(s) you ran", result: "skipped"}
+      ],
+      residual_risk: "TODO: describe residual risk before changing result from blocked"
+    }' >"$out"
+
+  printf '%s\n' "$out"
+}
+
+cmd_check() {
+  local evidence="" issue="" body_file="" git_diff_ref="" paths_from=""
+  evidence="${1:?check: evidence file path is required}"
+  shift
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --issue)
+      issue="${2:?--issue needs a value}"
+      shift 2
+      ;;
+    --body-file)
+      body_file="${2:?--body-file needs a value}"
+      shift 2
+      ;;
+    --git-diff)
+      if [[ $# -ge 2 && $2 != -* ]]; then
+        git_diff_ref="$2"
+        shift 2
+      else
+        git_diff_ref="HEAD"
+        shift
+      fi
+      ;;
+    --paths-from)
+      paths_from="${2:?--paths-from needs a value}"
+      shift 2
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+    esac
+  done
+
+  [[ -f $evidence ]] || die "evidence file not found: $evidence"
+
+  local evidence_check
+  evidence_check="$(agent_root)/scripts/agent-review-evidence-check"
+  [[ -x $evidence_check ]] || die "agent-review-evidence-check not found or not executable: $evidence_check"
+  "$evidence_check" "$evidence" || die "blocked: $evidence failed schema validation (see agent-review-evidence-check output above)"
+
+  local result
+  result=$(jq -r '.result' "$evidence")
+
+  if [[ -n $issue || -n $body_file ]]; then
+    local body criteria
+    body=$(read_issue_body "$issue" "$body_file")
+    criteria=$(extract_acceptance_criteria "$body")
+    if [[ -n $criteria ]]; then
+      local missing=()
+      while IFS= read -r line; do
+        [[ -n $line ]] || continue
+        if ! jq -e --arg c "$line" '.acceptance_criteria | any(.criterion == $c)' "$evidence" >/dev/null; then
+          missing+=("$line")
+        fi
+      done <<<"$criteria"
+
+      if [[ ${#missing[@]} -gt 0 ]]; then
+        if [[ $result == approved ]]; then
+          printf 'agent-review-stage: blocked: %s acceptance criterion/criteria from the issue have no matching evidence and result is "approved":\n' "${#missing[@]}" >&2
+          local m
+          for m in "${missing[@]}"; do
+            printf '  - %s\n' "$m" >&2
+          done
+          return 1
+        fi
+        printf 'agent-review-stage: note: %s acceptance criterion/criteria have no matching evidence; treated as covered by result=%s (explicit blocker)\n' "${#missing[@]}" "$result" >&2
+      fi
+    fi
+  fi
+
+  if [[ -n $git_diff_ref || -n $paths_from ]]; then
+    local policy_eval
+    policy_eval="$(agent_root)/scripts/agent-policy-eval"
+    [[ -x $policy_eval ]] || die "agent-policy-eval not found or not executable: $policy_eval"
+    local paths
+    paths=$(read_changed_paths "$git_diff_ref" "$paths_from")
+    if [[ -n $paths ]]; then
+      if ! printf '%s\n' "$paths" | "$policy_eval" >/dev/null; then
+        if [[ $result == approved ]]; then
+          echo 'agent-review-stage: blocked: changed paths require human review per agent-policy-eval; result must not be "approved"' >&2
+          return 1
+        fi
+        printf 'agent-review-stage: note: changed paths require human review per agent-policy-eval; result=%s is consistent with that\n' "$result" >&2
+      fi
+    fi
+  fi
+
+  printf 'agent-review-stage: %s: %s (schema + acceptance-criteria + path checks passed)\n' "$evidence" "$result"
+}
+
+self_test() {
+  local tmp repo bin out rc
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' RETURN
+  repo="$tmp/repo"
+  bin="$tmp/bin"
+  mkdir -p "$repo/.agents/scripts" "$bin"
+
+  git -C "$repo" init -q
+  git -C "$repo" config user.email test@example.invalid
+  git -C "$repo" config user.name 'Agent Review Stage Test'
+  printf 'seed\n' >"$repo/README.md"
+  git -C "$repo" add README.md
+  git -C "$repo" commit -q -m seed
+
+  cp "$(agent_root)/scripts/agent-review-evidence-check" "$repo/.agents/scripts/"
+  cp "$(agent_root)/scripts/agent-policy-eval" "$repo/.agents/scripts/"
+
+  local body="$tmp/body.md"
+  cat >"$body" <<'EOF'
+## Problem
+
+Example issue for the reviewer-stage self-test.
+
+## Acceptance criteria
+
+- First criterion is covered.
+- Second criterion is covered.
+
+## Validation
+
+- `agent-review-stage --self-test`
+EOF
+
+  local script_path
+  script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+
+  # init: scaffolds one acceptance_criteria entry per bullet, result=blocked.
+  local init_out
+  init_out=$(cd "$repo" && "$script_path" init --issue 901 --pr 9001 --body-file "$body")
+  [[ -f "$repo/$init_out" ]] || die "self-test: init did not write $init_out"
+  jq -e '
+    .schema == "agent-reviewer-evidence/v1"
+    and .issue == 901 and .pr == 9001
+    and .result == "blocked"
+    and (.acceptance_criteria | length == 2)
+    and (.acceptance_criteria[0].criterion == "First criterion is covered.")
+    and (.acceptance_criteria[1].criterion == "Second criterion is covered.")
+  ' "$repo/$init_out" >/dev/null || die "self-test: init scaffold missing expected fields"
+
+  # check: approved evidence covering both criteria on a non-protected path passes.
+  local approved="$tmp/approved.json"
+  jq '.result = "approved"
+      | .acceptance_criteria[0].evidence = "covered"
+      | .acceptance_criteria[1].evidence = "covered"
+      | .residual_risk = "none"
+      | .validation_commands = [{command: "true", result: "passed"}]' \
+    "$repo/$init_out" >"$approved"
+  printf 'README.md\n' >"$tmp/paths-readme.txt"
+  out=$(cd "$repo" && "$script_path" check "$approved" --body-file "$body" --paths-from "$tmp/paths-readme.txt")
+  [[ $out == *"approved"* ]] || die "self-test: expected approved check to pass (got: $out)"
+
+  # check: approved evidence missing one criterion's coverage fails.
+  local missing_criterion="$tmp/missing-criterion.json"
+  jq '.result = "approved"
+      | .acceptance_criteria = [.acceptance_criteria[0]]
+      | .acceptance_criteria[0].evidence = "covered"
+      | .residual_risk = "none"
+      | .validation_commands = [{command: "true", result: "passed"}]' \
+    "$repo/$init_out" >"$missing_criterion"
+  set +e
+  out=$(cd "$repo" && "$script_path" check "$missing_criterion" --body-file "$body" 2>&1)
+  rc=$?
+  set -e
+  [[ $rc -ne 0 ]] || die "self-test: expected missing-criterion evidence with result=approved to fail"
+  [[ $out == *"no matching evidence"* ]] || die "self-test: expected missing-criterion message (got: $out)"
+
+  # check: result=blocked is an explicit blocker even with missing criteria.
+  out=$(cd "$repo" && "$script_path" check "$repo/$init_out" --body-file "$body")
+  [[ $out == *"blocked"* ]] || die "self-test: expected blocked scaffold to pass as an explicit blocker (got: $out)"
+
+  # check: approved evidence on a protected path (.sops.yaml) fails the
+  # human-review recommendation, even though acceptance criteria match.
+  printf 'seed\n' >"$repo/.sops.yaml"
+  printf '.sops.yaml\n' >"$tmp/paths-protected.txt"
+  set +e
+  out=$(cd "$repo" && "$script_path" check "$approved" --body-file "$body" --paths-from "$tmp/paths-protected.txt" 2>&1)
+  rc=$?
+  set -e
+  [[ $rc -ne 0 ]] || die "self-test: expected approved evidence on a protected path to fail"
+  [[ $out == *"human review"* ]] || die "self-test: expected protected-path human-review message (got: $out)"
+
+  # check: invalid (schema-failing) evidence is blocked.
+  local invalid="$tmp/invalid.json"
+  printf '{"schema": "agent-reviewer-evidence/v1"}\n' >"$invalid"
+  set +e
+  out=$(cd "$repo" && "$script_path" check "$invalid" 2>&1)
+  rc=$?
+  set -e
+  [[ $rc -ne 0 ]] || die "self-test: expected schema-invalid evidence to fail"
+
+  printf 'agent-review-stage self-test passed\n'
+}
+
+main() {
+  local mode="${1:-}"
+  case "$mode" in
+  init)
+    shift
+    cmd_init "$@"
+    ;;
+  check)
+    shift
+    cmd_check "$@"
+    ;;
+  --self-test)
+    self_test
+    exit 0
+    ;;
+  -h | --help | "")
+    usage
+    ;;
+  *)
+    die "unknown mode: $mode (expected init, check, --self-test, or --help)"
+    ;;
+  esac
+}
+
+main "$@"

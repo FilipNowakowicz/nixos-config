@@ -194,6 +194,7 @@ docs)
   bash .agents/scripts/agent-liveness-gate --self-test
   bash .agents/scripts/agent-policy-eval --self-test
   bash .agents/scripts/agent-review-evidence-check --self-test
+  bash .agents/scripts/agent-review-stage --self-test
   bash .agents/scripts/agent-routing-check --self-test
   bash .agents/learning/scripts/validate-candidates.sh
   bash .agents/repo-map/scripts/validate.sh

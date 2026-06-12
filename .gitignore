@@ -10,6 +10,7 @@ __pycache__/
 
 # Agent workflow runtime telemetry — operator-local state, not repo policy.
 /.agents/state/outcomes
+/.agents/state/review
 
 # Large VM disk images — installed to /var/lib/libvirt/images/, never committed.
 *.qcow2

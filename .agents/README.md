@@ -181,6 +181,37 @@ This evidence sits between implementation and merge review in the issue-to-PR
 loop. It gives future automation deterministic fields to inspect, but it does
 not grant merge authority or replace human review.
 
+### Reviewer Stage
+
+`.agents/scripts/agent-review-stage` is a structured reviewer-stage skeleton
+built on top of `agent-review-evidence-check`. It has two modes:
+
+```sh
+# Scaffold reviewer evidence for an issue/PR pair from the issue's
+# "## Acceptance criteria" bullets. Written under .agents/state/review/, an
+# ignored runtime state path (not repo policy).
+.agents/scripts/agent-review-stage init --issue 227 --pr 999
+
+# Validate a (possibly hand-edited) evidence file: schema + required fields
+# via agent-review-evidence-check, every acceptance-criteria bullet from the
+# issue has matching evidence (unless the overall result is "blocked" or
+# "changes_requested" — an explicit blocker), and — if given the PR's changed
+# paths — an "approved" result is rejected when agent-policy-eval says any
+# changed path requires human review.
+.agents/scripts/agent-review-stage check .agents/state/review/issue-227-pr-999.json \
+  --issue 227 --git-diff main
+
+.agents/scripts/agent-review-stage --self-test  # local fixtures only (run via scripts/validate.sh docs)
+```
+
+`agent-review-stage` produces a **recommendation only**. A non-zero exit
+means "blocked" — invalid evidence, missing acceptance-criteria coverage for
+an "approved" result, or an "approved" result on paths
+`.agents/scripts/agent-policy-eval` says require human review. It does not
+call a real model, auto-merge PRs, override `.agents/governance.yaml` or
+`agent-policy-eval`, or otherwise decide autonomy policy — those remain
+separate, human-reviewed gates.
+
 ## Routing Metadata
 
 `.agents/model-routing.yaml` and `.agents/capability-profiles.yaml` define the
