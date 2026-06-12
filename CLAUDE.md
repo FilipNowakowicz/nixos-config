@@ -144,10 +144,10 @@ See [`docs/security.md`](docs/security.md) for the full secrets/exposure model.
 ## Security Preferences
 
 - **Broad passwordless sudo is for deploy/dev exceptions only.** Current broad
-  exceptions are `hosts/mac`, `hosts/homeserver-gcp`, `hosts/gcp-builder`, and
-  `modules/nixos/profiles/machine-dev.nix`; treat SSH access to those targets as
-  root-equivalent. `gcp-builder` additionally grants its trusted Nix user
-  effective root via remote builds, so keep it tailnet-only and key-only.
+  exceptions are `hosts/mac`, `hosts/homeserver-gcp`, and `hosts/gcp-builder`;
+  treat SSH access to those targets as root-equivalent. `gcp-builder`
+  additionally grants its trusted Nix user effective root via remote builds, so
+  keep it tailnet-only and key-only.
 - **`main` keeps `wheelNeedsPassword = true`** and uses a narrow
   `agentMaintenanceCommands` NOPASSWD allowlist for repeat maintenance commands.
   Do not broaden this to `NOPASSWD: ALL`.
