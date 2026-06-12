@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# Deterministic dispatch-eligibility filter for the agent issue runner.
+#
+# This repository is public with GitHub Issues enabled, so anyone can file an
+# issue. Dispatch eligibility is gated solely on a maintainer-applied
+# "agent:ready" label: issue body text, title, author, or any other label
+# carries no dispatch authority. Issues that also carry "agent:not-ready" or
+# "agent:blocked" are excluded even if "agent:ready" is also present, since a
+# maintainer may add either label to an in-flight issue without remembering to
+# remove "agent:ready".
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: agent-dispatchable-issues [--label <name>] [--json]
+       agent-dispatchable-issues --self-test
+
+List open GitHub issues eligible for automated dispatch via
+scripts/agent-run-issue.sh --label <name>.
+
+Options:
+  --label <name>  Ready label to query (default: agent:ready).
+  --json          Emit a JSON array of {number,title,labels} for eligible
+                   issues instead of one issue number per line.
+  --self-test     Run a deterministic self-test (mocked gh) and exit.
+  -h, --help      Show this help.
+
+Output (text mode): one issue number per line, ascending, for issues that
+carry the ready label and do NOT also carry "agent:not-ready" or
+"agent:blocked".
+EOF
+}
+
+die() {
+  printf 'agent-dispatchable-issues: %s\n' "$*" >&2
+  exit 1
+}
+
+# Filter a JSON array of {number,title,labels:[{name}]} issues, excluding any
+# whose labels include "agent:not-ready" or "agent:blocked".
+filter_eligible() {
+  jq -c '[.[] | select(
+    (.labels | map(.name) | any(. == "agent:not-ready" or . == "agent:blocked")) | not
+  )]'
+}
+
+self_test() {
+  local tmp bin out
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' RETURN
+  bin="$tmp/bin"
+  mkdir -p "$bin"
+
+  cat >"$bin/gh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $1 == issue && $2 == list && $* == *"--label agent:ready"* ]]; then
+  cat <<'JSON'
+[
+  {"number":1,"title":"Ready and eligible","labels":[{"name":"agent:ready"},{"name":"codex"}]},
+  {"number":2,"title":"Ready but blocked","labels":[{"name":"agent:ready"},{"name":"agent:blocked"}]},
+  {"number":3,"title":"Ready but flagged not-ready","labels":[{"name":"agent:ready"},{"name":"agent:not-ready"}]}
+]
+JSON
+  exit 0
+fi
+
+if [[ $1 == issue && $2 == list && $* == *"--label custom-label"* ]]; then
+  cat <<'JSON'
+[
+  {"number":7,"title":"Custom queue","labels":[{"name":"custom-label"}]}
+]
+JSON
+  exit 0
+fi
+
+printf 'unexpected gh invocation: %s\n' "$*" >&2
+exit 1
+EOF
+  chmod +x "$bin/gh"
+
+  local script_path
+  script_path="$(CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+
+  # Default --label agent:ready: #2 (agent:blocked) and #3 (agent:not-ready)
+  # are dropped even though both also carry agent:ready.
+  out=$(PATH="$bin:$PATH" "$script_path") || die "self-test: default invocation failed"
+  [[ $out == "1" ]] || die "self-test: expected only issue 1 to be eligible (got: $out)"
+
+  # --json emits the full eligible-issue objects, not just numbers.
+  out=$(PATH="$bin:$PATH" "$script_path" --json) || die "self-test: --json invocation failed"
+  printf '%s' "$out" | jq -e '(length == 1) and .[0].number == 1' >/dev/null ||
+    die "self-test: unexpected --json output: $out"
+
+  # --label is passed through to gh, selecting a different ready label.
+  out=$(PATH="$bin:$PATH" "$script_path" --label custom-label) || die "self-test: --label invocation failed"
+  [[ $out == "7" ]] || die "self-test: expected issue 7 from custom-label queue (got: $out)"
+
+  # An unrecognized argument is a usage error.
+  if PATH="$bin:$PATH" "$script_path" --bogus >/dev/null 2>&1; then
+    die "self-test: expected --bogus to fail"
+  fi
+
+  printf 'agent-dispatchable-issues self-test passed\n'
+}
+
+main() {
+  local ready_label="agent:ready" json=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --label)
+      ready_label="${2:?--label needs a value}"
+      shift 2
+      ;;
+    --json)
+      json=1
+      shift
+      ;;
+    --self-test)
+      self_test
+      exit 0
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+    esac
+  done
+
+  command -v gh >/dev/null 2>&1 || die "gh not found"
+  command -v jq >/dev/null 2>&1 || die "jq not found"
+
+  local raw eligible
+  raw=$(gh issue list --state open --label "$ready_label" --json number,title,labels) ||
+    die "gh issue list --label $ready_label failed"
+  eligible=$(printf '%s' "$raw" | filter_eligible)
+
+  if [[ $json == 1 ]]; then
+    printf '%s\n' "$eligible"
+  else
+    printf '%s' "$eligible" | jq -r '.[].number'
+  fi
+}
+
+main "$@"
