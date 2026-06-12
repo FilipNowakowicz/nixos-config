@@ -49,6 +49,24 @@ Outcome records are separate from learning candidates:
 - learning candidates propose durable repo improvements;
 - only reviewed PRs promote candidates into behavior-changing artifacts.
 
+For a human-readable rollup of a time window — PRs referenced by outcomes,
+blocked issues, failed validations, learning candidates captured, run
+durations, and a "human decisions needed" summary — use
+`.agents/scripts/agent-weekly-digest`:
+
+```sh
+.agents/scripts/agent-weekly-digest                          # all recorded outcomes
+.agents/scripts/agent-weekly-digest --since 2026-06-01        # only records since this date
+.agents/scripts/agent-weekly-digest --dir <path>               # scan a different outcome directory
+.agents/scripts/agent-weekly-digest --candidates-dir <path>    # scan a different candidates directory
+```
+
+It reads the same `agent-outcome/v1` schema assumptions as
+`agent-outcome-index` directly (so PR state/title and learning-candidate paths
+remain available) and is read-only: it does not file issues, post comments,
+merge PRs, or estimate cost/token totals beyond fields already present in
+outcome records.
+
 ## Validation And CI Tiers
 
 Agent workflow changes use a fast inner loop and a slower integration gate.

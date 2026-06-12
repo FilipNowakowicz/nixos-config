@@ -190,6 +190,7 @@ docs)
   bash scripts/agent-run-issue.sh --self-test
   bash .agents/scripts/agent-record-outcome --self-test
   bash .agents/scripts/agent-outcome-index --self-test
+  bash .agents/scripts/agent-weekly-digest --self-test
   bash .agents/scripts/agent-issue-readiness --self-test
   bash .agents/scripts/agent-liveness-gate --self-test
   bash .agents/scripts/agent-policy-eval --self-test

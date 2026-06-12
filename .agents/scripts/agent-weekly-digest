@@ -1,0 +1,358 @@
+#!/usr/bin/env bash
+# Read-only weekly digest of agent issue-run outcomes and learning candidates.
+#
+# Summarizes .agents/state/outcomes (agent-outcome/v1 records, see
+# .agents/schemas/outcome.schema.json) and .agents/learning/candidates into a
+# short Markdown report: PRs referenced by outcomes, blocked issues, failed
+# validations, newly captured learning candidates, run durations, and a
+# "human decisions needed" list. Read-only; files no comments or issues.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: agent-weekly-digest [--dir <path>] [--since <date>] [--candidates-dir <path>]
+       agent-weekly-digest --self-test
+
+Reads agent-outcome/v1 records from --dir (default: .agents/state/outcomes,
+or $AGENT_OUTCOME_DIR) using the same schema assumptions as
+.agents/scripts/agent-outcome-index, and learning-candidate files from
+--candidates-dir (default: .agents/learning/candidates), and prints a
+Markdown digest covering:
+
+  - PRs referenced by outcomes (number, state, title, url)
+  - blocked issues with their recorded blocker reasons
+  - failed runs (status=failure) with exit code and blocker
+  - learning candidates captured by in-window runs
+  - run durations (finished_at - started_at)
+  - a "human decisions needed" rollup (open PRs, blocked issues, failures)
+  - a reserved cost/token section (only populated if outcome records ever
+    carry those fields; never fabricated)
+
+Options:
+  --dir <path>            Outcome directory to scan (default:
+                           .agents/state/outcomes, or $AGENT_OUTCOME_DIR).
+  --since <date>          Only include records with started_at >= <date>
+                           (ISO 8601, e.g. 2026-06-01 or
+                           2026-06-01T00:00:00Z). Default: no lower bound.
+  --candidates-dir <path> Learning-candidate directory to scan (default:
+                           .agents/learning/candidates).
+  --self-test             Run a deterministic self-test against local
+                           fixtures (no GitHub or model calls) and exit.
+  -h, --help              Show this help.
+
+This digest is read-only: it does not file issues, post comments, merge PRs,
+or compute cost/token totals beyond fields already present in outcome
+records.
+EOF
+}
+
+die() {
+  printf 'agent-weekly-digest: %s\n' "$*" >&2
+  exit 1
+}
+
+# Read valid agent-outcome/v1 records from $1, optionally filtered to
+# started_at >= $2 (empty = no filter), and emit one compact JSON object per
+# line. Mirrors agent-outcome-index's validity check (same schema
+# assumptions), but keeps the full record so PR state/title and
+# learning_candidates remain available.
+read_records() {
+  local dir="$1" since="$2" file json
+  [[ -d $dir ]] || return 0
+  while IFS= read -r -d '' file; do
+    json=$(jq -c . "$file" 2>/dev/null) || continue
+    printf '%s\n' "$json" | jq -e '
+      (.schema == "agent-outcome/v1")
+      and (.issue | type == "number" and . > 0)
+      and ((.status == "success") or (.status == "failure") or (.status == "blocked"))
+      and (.started_at | type == "string")
+      and (.finished_at | type == "string")
+      and (.prs | type == "array")
+      and (.blocker | type == "string")
+    ' >/dev/null 2>&1 || continue
+    if [[ -n $since ]]; then
+      printf '%s\n' "$json" | jq -e --arg since "$since" '.started_at >= $since' >/dev/null 2>&1 || continue
+    fi
+    printf '%s\n' "$json"
+  done < <(find "$dir" -maxdepth 1 -type f -name '*.json' -print0 | sort -z)
+}
+
+list_candidates() {
+  local dir="$1"
+  [[ -d $dir ]] || return 0
+  find "$dir" -maxdepth 1 -type f -name '*.yml' ! -name '.gitkeep' -printf '%f\n' | sort
+}
+
+render_digest() {
+  local records_file="$1"
+  local candidates_dir="$2"
+  local since="$3"
+  local count
+  count=$(wc -l <"$records_file" | tr -d ' ')
+
+  echo "# Agent Weekly Digest"
+  echo
+  if [[ -n $since ]]; then
+    echo "Window: started_at >= ${since} (${count} outcome record(s))"
+  else
+    echo "Window: all recorded outcomes (${count} outcome record(s))"
+  fi
+  echo
+
+  echo "## PRs referenced by outcomes"
+  echo
+  if [[ $count -gt 0 ]] && jq -se '[.[] | .prs[]] | length > 0' "$records_file" >/dev/null 2>&1 &&
+    [[ $(jq -se '[.[] | .prs[]] | length' "$records_file") -gt 0 ]]; then
+    jq -rs '
+      [.[] | .prs[] | {number, state, title, url}]
+      | unique_by(.number)
+      | sort_by(.number)
+      | .[] | "- #\(.number) \(.state) — \(.title) (\(.url))"
+    ' "$records_file"
+  else
+    echo "- (none)"
+  fi
+  echo
+
+  echo "## Blocked issues"
+  echo
+  if jq -se '[.[] | select(.status == "blocked")] | length > 0' "$records_file" >/dev/null 2>&1; then
+    jq -rs '
+      [.[] | select(.status == "blocked")]
+      | sort_by(.issue)
+      | .[] | "- #\(.issue): \(.blocker)"
+    ' "$records_file"
+  else
+    echo "- (none)"
+  fi
+  echo
+
+  echo "## Failed validations"
+  echo
+  if jq -se '[.[] | select(.status == "failure")] | length > 0' "$records_file" >/dev/null 2>&1; then
+    jq -rs '
+      [.[] | select(.status == "failure")]
+      | sort_by(.issue)
+      | .[] | "- #\(.issue) (exit \(.exit_code // "?")): \(.blocker)"
+    ' "$records_file"
+  else
+    echo "- (none)"
+  fi
+  echo
+
+  echo "## Learning candidates captured this window"
+  echo
+  if jq -se '[.[] | .learning_candidates[]?] | length > 0' "$records_file" >/dev/null 2>&1; then
+    jq -rs '
+      [.[] | .issue as $issue | .learning_candidates[]? | {path: ., issue: $issue}]
+      | group_by(.path)
+      | map({path: .[0].path, issues: (map(.issue) | unique)})
+      | sort_by(.path)
+      | .[] | "- \(.path) (issue(s): \(.issues | map("#" + (tostring)) | join(", ")))"
+    ' "$records_file"
+  else
+    echo "- (none)"
+  fi
+  echo
+
+  echo "## Currently open learning candidates"
+  echo
+  local cand
+  local found=0
+  while IFS= read -r cand; do
+    [[ -n $cand ]] || continue
+    found=1
+    echo "- ${cand}"
+  done < <(list_candidates "$candidates_dir")
+  [[ $found == 1 ]] || echo "- (none)"
+  echo
+
+  echo "## Run durations"
+  echo
+  echo "| issue | status | duration |"
+  echo "| --- | --- | --- |"
+  if [[ $count -gt 0 ]]; then
+    jq -rs '
+      sort_by(.issue)
+      | .[] | (
+          ((.finished_at | fromdateiso8601) - (.started_at | fromdateiso8601)) as $secs
+          | "| #\(.issue) | \(.status) | \($secs)s |"
+        )
+    ' "$records_file"
+  else
+    echo "| (none) | | |"
+  fi
+  echo
+
+  echo "## Human decisions needed"
+  echo
+  local any=0
+  if jq -se '[.[] | .prs[] | select(.state == "OPEN")] | length > 0' "$records_file" >/dev/null 2>&1; then
+    any=1
+    jq -rs '
+      [.[] | .prs[] | select(.state == "OPEN")]
+      | unique_by(.number)
+      | sort_by(.number)
+      | .[] | "- PR #\(.number) is OPEN and awaiting review/merge: \(.title) (\(.url))"
+    ' "$records_file"
+  fi
+  if jq -se '[.[] | select(.status == "blocked")] | length > 0' "$records_file" >/dev/null 2>&1; then
+    any=1
+    jq -rs '
+      [.[] | select(.status == "blocked")]
+      | sort_by(.issue)
+      | .[] | "- Issue #\(.issue) is blocked: \(.blocker)"
+    ' "$records_file"
+  fi
+  if jq -se '[.[] | select(.status == "failure")] | length > 0' "$records_file" >/dev/null 2>&1; then
+    any=1
+    jq -rs '
+      [.[] | select(.status == "failure")]
+      | sort_by(.issue)
+      | .[] | "- Issue #\(.issue) run failed and needs investigation: \(.blocker)"
+    ' "$records_file"
+  fi
+  [[ $any == 1 ]] || echo "- (none)"
+  echo
+
+  echo "## Cost / token usage"
+  echo
+  if jq -se '[.[] | select(has("cost") or has("tokens"))] | length > 0' "$records_file" >/dev/null 2>&1; then
+    jq -rs '
+      sort_by(.issue)
+      | .[] | select(has("cost") or has("tokens"))
+      | "- #\(.issue): cost=\(.cost // "n/a"), tokens=\(.tokens // "n/a")"
+    ' "$records_file"
+  else
+    echo "- Not recorded in any outcome record yet (reserved for future telemetry; not estimated here)."
+  fi
+}
+
+self_test() {
+  local tmp dir cand_dir out
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' RETURN
+  dir="$tmp/outcomes"
+  cand_dir="$tmp/candidates"
+  mkdir -p "$dir" "$cand_dir"
+
+  jq -n '{
+    schema: "agent-outcome/v1", id: "2026-06-01T00:05:00Z-issue-101-success",
+    issue: 101, status: "success", exit_code: 0,
+    started_at: "2026-06-01T00:00:00Z", finished_at: "2026-06-01T00:05:00Z",
+    base_branch: "main", repo_dir: "/repo", head_branch: "codex/issue-101-foo",
+    head_sha: "aaa111",
+    prs: [{number: 301, title: "feat: foo", state: "MERGED", headRefName: "codex/issue-101-foo", url: "https://example.invalid/pr/301"}],
+    learning_candidates: [".agents/learning/candidates/2026-06-01-foo.yml"],
+    git_dirty: [], blocker: ""
+  }' >"$dir/2026-06-01T00:05:00Z-issue-101-success.json"
+
+  jq -n '{
+    schema: "agent-outcome/v1", id: "2026-06-03T00:10:00Z-issue-102-failure",
+    issue: 102, status: "failure", exit_code: 1,
+    started_at: "2026-06-03T00:00:00Z", finished_at: "2026-06-03T00:10:00Z",
+    base_branch: "main", repo_dir: "/repo", head_branch: "codex/issue-102-bar",
+    head_sha: "bbb222",
+    prs: [{number: 302, title: "feat: bar", state: "OPEN", headRefName: "codex/issue-102-bar", url: "https://example.invalid/pr/302"}],
+    learning_candidates: [], git_dirty: ["M flake.nix"], blocker: "build failed: nix flake check"
+  }' >"$dir/2026-06-03T00:10:00Z-issue-102-failure.json"
+
+  jq -n '{
+    schema: "agent-outcome/v1", id: "2026-06-04T00:01:00Z-issue-103-blocked",
+    issue: 103, status: "blocked", exit_code: 1,
+    started_at: "2026-06-04T00:00:00Z", finished_at: "2026-06-04T00:01:00Z",
+    base_branch: "main", repo_dir: "/repo", head_branch: "main",
+    head_sha: "ccc333",
+    prs: [], learning_candidates: [], git_dirty: [],
+    blocker: "agent-dispatch: pre-dispatch agent-issue-readiness check failed; issue not dispatched"
+  }' >"$dir/2026-06-04T00:01:00Z-issue-103-blocked.json"
+
+  # Out-of-window record (before --since): must be excluded when filtered.
+  jq -n '{
+    schema: "agent-outcome/v1", id: "2026-05-01T00:05:00Z-issue-50-success",
+    issue: 50, status: "success", exit_code: 0,
+    started_at: "2026-05-01T00:00:00Z", finished_at: "2026-05-01T00:05:00Z",
+    base_branch: "main", repo_dir: "/repo", head_branch: "codex/issue-50-old",
+    head_sha: "ddd444",
+    prs: [{number: 200, title: "old pr", state: "MERGED", headRefName: "codex/issue-50-old", url: "https://example.invalid/pr/200"}],
+    learning_candidates: [], git_dirty: [], blocker: ""
+  }' >"$dir/2026-05-01T00:05:00Z-issue-50-success.json"
+
+  printf 'malformed\n' >"$dir/2026-06-05T00:00:00Z-issue-104-failure.json"
+
+  printf 'name: example\n' >"$cand_dir/2026-06-01-foo.yml"
+
+  local records="$tmp/records.ndjson"
+
+  # Unfiltered: all 4 valid records included, malformed one skipped.
+  read_records "$dir" "" >"$records"
+  [[ $(wc -l <"$records" | tr -d ' ') -eq 4 ]] || die "self-test: expected 4 valid records (got $(wc -l <"$records"))"
+
+  out=$(render_digest "$records" "$cand_dir" "")
+  [[ $out == *"#301 MERGED"* ]] || die "self-test: expected merged PR #301 in digest"
+  [[ $out == *"#302 OPEN"* ]] || die "self-test: expected open PR #302 in digest"
+  [[ $out == *"#103: agent-dispatch: pre-dispatch"* ]] || die "self-test: expected blocked issue #103 in digest"
+  [[ $out == *"#102 (exit 1): build failed: nix flake check"* ]] || die "self-test: expected failed validation #102 in digest"
+  [[ $out == *".agents/learning/candidates/2026-06-01-foo.yml (issue(s): #101)"* ]] ||
+    die "self-test: expected learning candidate from issue #101 in digest"
+  [[ $out == *"2026-06-01-foo.yml"* ]] || die "self-test: expected currently-open candidate listed"
+  [[ $out == *"| #101 | success | 300s |"* ]] || die "self-test: expected 300s duration for issue #101 (got: $out)"
+  [[ $out == *"PR #302 is OPEN and awaiting review/merge"* ]] || die "self-test: expected open PR in human-decisions section"
+  [[ $out == *"Issue #103 is blocked"* ]] || die "self-test: expected blocked issue in human-decisions section"
+  [[ $out == *"Issue #102 run failed and needs investigation"* ]] || die "self-test: expected failed issue in human-decisions section"
+  [[ $out == *"Not recorded in any outcome record yet"* ]] || die "self-test: expected reserved cost/token note"
+  [[ $out != *"#200"* ]] && die "self-test: expected unfiltered digest to include out-of-range PR #200" || true
+
+  # --since excludes the older record (issue #50 / PR #200).
+  read_records "$dir" "2026-06-01T00:00:00Z" >"$records"
+  [[ $(wc -l <"$records" | tr -d ' ') -eq 3 ]] || die "self-test: expected 3 records with --since filter (got $(wc -l <"$records"))"
+  out=$(render_digest "$records" "$cand_dir" "2026-06-01T00:00:00Z")
+  [[ $out != *"#200"* ]] || die "self-test: expected --since to exclude PR #200 (issue #50)"
+  [[ $out == *"#301 MERGED"* ]] || die "self-test: expected --since to keep PR #301 (issue #101)"
+
+  printf 'agent-weekly-digest self-test passed\n'
+}
+
+main() {
+  local dir="${AGENT_OUTCOME_DIR:-.agents/state/outcomes}"
+  local since=""
+  local candidates_dir=".agents/learning/candidates"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --dir)
+      dir="${2:?--dir needs a value}"
+      shift 2
+      ;;
+    --since)
+      since="${2:?--since needs a value}"
+      shift 2
+      ;;
+    --candidates-dir)
+      candidates_dir="${2:?--candidates-dir needs a value}"
+      shift 2
+      ;;
+    --self-test)
+      self_test
+      exit 0
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+    esac
+  done
+
+  command -v jq >/dev/null 2>&1 || die "jq not found"
+
+  local records
+  records=$(mktemp)
+  trap 'rm -f "$records"' EXIT
+  read_records "$dir" "$since" >"$records"
+  render_digest "$records" "$candidates_dir" "$since"
+}
+
+main "$@"
