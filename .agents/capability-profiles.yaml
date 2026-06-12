@@ -1,0 +1,49 @@
+# Advisory capability profiles. Not consumed by dispatch yet.
+schema: agent-capability-profiles/v1
+version: 1
+
+profiles:
+  - id: doc-editor
+    agent: gemini-cli
+    allowed_path_classes: ["docs"]
+    max_risk: low
+    required_checks: ["bash scripts/validate.sh docs", "git diff --check"]
+    escalation: "Escalate if docs imply behavior, security, deploy, or host-state changes."
+  - id: agent-workflow-engineer
+    agent: codex-cli
+    allowed_path_classes: ["docs", "agent-workflow-scripts", "ci-workflows"]
+    max_risk: high
+    required_checks:
+      [
+        "bash scripts/validate.sh docs",
+        "git diff --check",
+        "targeted shellcheck",
+      ]
+    escalation: "Escalate before granting merge authority, changing hooks, or weakening policy."
+  - id: nix-engineer
+    agent: claude-code
+    allowed_path_classes: ["nix-modules", "ci-workflows"]
+    max_risk: high
+    required_checks:
+      [
+        "bash scripts/validate.sh flake-eval",
+        "surface-specific validate.sh target",
+      ]
+    escalation: "Escalate before deployment, broad sudo changes, secrets changes, or host activation."
+  - id: security-review
+    agent: claude-code
+    allowed_path_classes: ["security-secrets", "ci-workflows"]
+    max_risk: high
+    required_checks: ["bash scripts/validate.sh light", "human review"]
+    escalation: "Always require human review before merge or live action."
+  - id: ci-workflow-engineer
+    agent: codex-cli
+    allowed_path_classes: ["ci-workflows", "agent-workflow-scripts"]
+    max_risk: high
+    required_checks:
+      [
+        "bash scripts/validate.sh docs",
+        "workflow-specific local proof",
+        "human review",
+      ]
+    escalation: "Escalate before changing required checks, runners, tokens, or merge gates."
