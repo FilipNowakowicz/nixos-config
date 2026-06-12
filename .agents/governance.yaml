@@ -1,0 +1,45 @@
+# Agent governance policy (advisory, opt-in).
+#
+# Classifies changed repository paths by risk and whether they require human
+# review before any future autonomous merge path may proceed. Evaluated by
+# .agents/scripts/agent-policy-eval (see that script's --self-test and
+# scripts/validate.sh docs for the deterministic self-check).
+#
+# Patterns are POSIX ERE, matched with bash [[ =~ ]] against repo-relative
+# paths, in the same anchoring style as the path classes in
+# scripts/ci-plan.sh. The first matching rule wins; a path that matches no
+# rule falls back to `default`.
+#
+# This file does not itself enforce anything: nothing currently blocks a
+# merge based on its verdicts, and branch protection is unaffected. It exists
+# so future workflow code has a single, versioned, deterministic place to ask
+# "does this changed path need a human?" Models must not edit this file (or
+# the evaluator below) to grant themselves additional autonomy.
+version: 1
+
+default:
+  risk: low
+  requires_human_review: false
+  reason: "No protected-path rule matched."
+
+rules:
+  - pattern: (^|/)secrets/
+    risk: high
+    requires_human_review: true
+    reason: "Encrypted secrets material."
+  - pattern: \.sops\.yaml$
+    risk: high
+    requires_human_review: true
+    reason: "sops key/recipient policy controls who can decrypt secrets."
+  - pattern: ^\.github/workflows/
+    risk: high
+    requires_human_review: true
+    reason: "CI/CD workflow definitions control automation trust boundaries."
+  - pattern: ^(\.agents/governance\.yaml|\.agents/scripts/|scripts/agent-run-issue\.sh|\.claude/hooks/|\.claude/settings\.json|\.codex/hooks\.json|\.codex/config\.toml)$
+    risk: high
+    requires_human_review: true
+    reason: "Agent workflow policy, hooks, scripts, or config; models must not grant themselves authority here."
+  - pattern: \.age$
+    risk: high
+    requires_human_review: true
+    reason: "Age key material."

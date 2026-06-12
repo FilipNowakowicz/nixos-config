@@ -69,3 +69,23 @@ pass:
 It is opt-in and read-only: it does not perform live agent dispatch and
 requires no secrets, sudo, or remote host access beyond what `gh auth status`
 itself needs.
+
+## Governance Policy
+
+`.agents/governance.yaml` is a versioned, advisory policy that classifies
+changed repository paths by risk and whether they require human review.
+`.agents/scripts/agent-policy-eval` evaluates a set of changed paths against
+it:
+
+```sh
+git diff --name-only main... | .agents/scripts/agent-policy-eval
+.agents/scripts/agent-policy-eval --git-diff main          # read changed paths from git
+.agents/scripts/agent-policy-eval --json --git-diff main   # JSON output
+.agents/scripts/agent-policy-eval --self-test              # self-test (run via scripts/validate.sh docs)
+```
+
+It exits non-zero if any changed path requires human review (e.g. secrets,
+`.sops.yaml`, `.github/workflows/**`, or the governance policy/evaluator
+itself). This is a deterministic foundation for later autonomy policy, not an
+auto-merge system: nothing currently acts on its exit code, and it is not
+wired into branch protection.

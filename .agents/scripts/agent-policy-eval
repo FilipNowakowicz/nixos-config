@@ -1,0 +1,391 @@
+#!/usr/bin/env bash
+# Deterministic, advisory governance policy evaluator for changed repo paths.
+#
+# Classifies a set of changed repository paths against
+# .agents/governance.yaml and reports, per path, the matched rule's risk
+# level and whether it requires human review. This is a building block for
+# later autonomy policy: it does not itself block or merge anything (see
+# .agents/governance.yaml for the policy's scope and non-goals).
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: agent-policy-eval [--files-from <path>] [--git-diff [<ref>]]
+                          [--policy <path>] [--json]
+       agent-policy-eval < paths.txt
+       agent-policy-eval --self-test
+
+Classify changed repository paths against the governance policy
+(.agents/governance.yaml by default) and report, per path, the matched
+rule's risk level and whether it requires human review before any future
+autonomous merge path may proceed.
+
+Changed-path source (pick at most one; default is stdin):
+  --files-from <path>  Read newline-separated paths from <path> ("-" for
+                        stdin).
+  --git-diff [<ref>]   Use paths changed relative to <ref> (default: HEAD):
+                        "git diff --name-only <ref>" plus untracked files.
+  (none)               Read newline-separated paths from stdin.
+
+Options:
+  --policy <path>  Policy file to evaluate against (default:
+                    .agents/governance.yaml next to this script).
+  --json           Emit a JSON array instead of a text table.
+  --self-test      Run a deterministic self-test and exit.
+  -h, --help       Show this help.
+
+Output columns (text mode): path, risk, requires_human_review, reason.
+
+Exit status:
+  0  no changed path requires human review
+  1  at least one changed path requires human review
+  2  usage or policy-file error
+EOF
+}
+
+die() {
+  printf 'agent-policy-eval: %s\n' "$*" >&2
+  exit 2
+}
+
+script_dir() {
+  CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd
+}
+
+default_policy_path() {
+  printf '%s/governance.yaml\n' "$(CDPATH='' cd -- "$(script_dir)/.." && pwd)"
+}
+
+trim() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
+
+# Populate default_risk, default_review, default_reason, and the parallel
+# rule_patterns/rule_risks/rule_reviews/rule_reasons arrays from a policy
+# file in the restricted YAML dialect documented in
+# .agents/governance.yaml: a top-level "default:" mapping with risk,
+# requires_human_review, and a double-quoted reason, and a top-level
+# "rules:" list of mappings with pattern (a bare POSIX ERE), risk,
+# requires_human_review, and a double-quoted reason.
+parse_policy() {
+  local file="$1"
+  [[ -f $file ]] || die "policy file not found: $file"
+
+  default_risk="" default_review="" default_reason=""
+  rule_patterns=() rule_risks=() rule_reviews=() rule_reasons=()
+
+  local section="" line value
+  local cur_pattern="" cur_risk="" cur_review="" cur_reason="" have_rule=0
+
+  flush_rule() {
+    if [[ $have_rule == 1 ]]; then
+      rule_patterns+=("$cur_pattern")
+      rule_risks+=("$cur_risk")
+      rule_reviews+=("$cur_review")
+      rule_reasons+=("$cur_reason")
+    fi
+    cur_pattern="" cur_risk="" cur_review="" cur_reason="" have_rule=0
+  }
+
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ $line =~ ^[[:space:]]*(#.*)?$ ]] && continue
+
+    if [[ $line =~ ^default:[[:space:]]*$ ]]; then
+      section=default
+      continue
+    fi
+    if [[ $line =~ ^rules:[[:space:]]*$ ]]; then
+      flush_rule
+      section=rules
+      continue
+    fi
+    if [[ $line =~ ^[a-z_]+:[[:space:]] ]]; then
+      flush_rule
+      section=""
+      continue
+    fi
+
+    if [[ $section == rules && $line =~ ^[[:space:]]*-[[:space:]]*pattern:[[:space:]]*(.*)$ ]]; then
+      flush_rule
+      cur_pattern="$(trim "${BASH_REMATCH[1]}")"
+      have_rule=1
+      continue
+    fi
+
+    if [[ $line =~ ^[[:space:]]+risk:[[:space:]]*(.*)$ ]]; then
+      value="$(trim "${BASH_REMATCH[1]}")"
+      if [[ $section == default ]]; then default_risk="$value"; else cur_risk="$value"; fi
+      continue
+    fi
+
+    if [[ $line =~ ^[[:space:]]+requires_human_review:[[:space:]]*(.*)$ ]]; then
+      value="$(trim "${BASH_REMATCH[1]}")"
+      if [[ $section == default ]]; then default_review="$value"; else cur_review="$value"; fi
+      continue
+    fi
+
+    if [[ $line =~ ^[[:space:]]+reason:[[:space:]]*\"(.*)\"[[:space:]]*$ ]]; then
+      value="${BASH_REMATCH[1]}"
+      if [[ $section == default ]]; then default_reason="$value"; else cur_reason="$value"; fi
+      continue
+    fi
+
+    die "$file: unrecognized policy line: $line"
+  done <"$file"
+  flush_rule
+
+  [[ -n $default_risk && -n $default_review ]] ||
+    die "$file: missing default risk / requires_human_review"
+  [[ $default_risk == low || $default_risk == medium || $default_risk == high ]] ||
+    die "$file: default risk must be low, medium, or high (got: $default_risk)"
+  [[ $default_review == true || $default_review == false ]] ||
+    die "$file: default requires_human_review must be true or false (got: $default_review)"
+
+  local i
+  for ((i = 0; i < ${#rule_reviews[@]}; i++)); do
+    [[ ${rule_risks[i]} == low || ${rule_risks[i]} == medium || ${rule_risks[i]} == high ]] ||
+      die "$file: rule for pattern '${rule_patterns[i]}' has invalid risk: ${rule_risks[i]}"
+    [[ ${rule_reviews[i]} == true || ${rule_reviews[i]} == false ]] ||
+      die "$file: rule for pattern '${rule_patterns[i]}' has invalid requires_human_review: ${rule_reviews[i]}"
+  done
+}
+
+# Print "<path>\t<risk>\t<requires_human_review>\t<reason>" for the first
+# matching rule, or the policy default if no rule matches.
+classify_path() {
+  local path="$1"
+  local i
+  for ((i = 0; i < ${#rule_patterns[@]}; i++)); do
+    if [[ $path =~ ${rule_patterns[i]} ]]; then
+      printf '%s\t%s\t%s\t%s\n' "$path" "${rule_risks[i]}" "${rule_reviews[i]}" "${rule_reasons[i]}"
+      return 0
+    fi
+  done
+  printf '%s\t%s\t%s\t%s\n' "$path" "$default_risk" "$default_review" "$default_reason"
+}
+
+read_paths_from_file() {
+  local file="$1"
+  if [[ $file == "-" ]]; then
+    cat
+  else
+    [[ -f $file ]] || die "files-from path not found: $file"
+    cat "$file"
+  fi | sed '/^[[:space:]]*$/d'
+}
+
+# Paths changed relative to <ref>: tracked-file diffs plus untracked files,
+# deduplicated. Requires no network access.
+git_changed_paths() {
+  local ref="$1"
+  command -v git >/dev/null 2>&1 || die "git not found"
+  git rev-parse --verify --quiet "${ref}^{commit}" >/dev/null ||
+    die "unknown git ref: $ref"
+  {
+    git diff --name-only "$ref" --
+    git ls-files --others --exclude-standard
+  } | sort -u
+}
+
+print_table() {
+  printf 'path\trisk\trequires_human_review\treason\n'
+  local row
+  for row in "$@"; do
+    printf '%s\n' "$row"
+  done
+}
+
+print_json() {
+  local row path risk review reason
+  {
+    for row in "$@"; do
+      IFS=$'\t' read -r path risk review reason <<<"$row"
+      jq -nc \
+        --arg path "$path" \
+        --arg risk "$risk" \
+        --argjson requires_human_review "$review" \
+        --arg reason "$reason" \
+        '{path: $path, risk: $risk, requires_human_review: $requires_human_review, reason: $reason}'
+    done
+  } | jq -sc '.'
+}
+
+self_test() {
+  local tmp
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' RETURN
+
+  local script_path
+  script_path="$(CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+  local out rc
+
+  # Protected paths (secrets, sops policy, workflow files, agent policy
+  # files) require human review against the real default policy.
+  local protected=(
+    "hosts/main/secrets/foo.yaml"
+    "home/users/user/secrets/db.json"
+    ".sops.yaml"
+    ".github/workflows/nix.yml"
+    ".agents/governance.yaml"
+    ".agents/scripts/agent-policy-eval"
+    ".agents/scripts/agent-record-outcome"
+    ".claude/hooks/guard-edits.sh"
+    ".codex/hooks.json"
+    "scripts/agent-run-issue.sh"
+    "hosts/main/secrets/host.age"
+  )
+  out=$(printf '%s\n' "${protected[@]}" | "$script_path" --files-from - 2>&1) && rc=0 || rc=$?
+  [[ $rc -eq 1 ]] || die "self-test: expected protected paths to exit 1 (got $rc; output: $out)"
+  local p
+  for p in "${protected[@]}"; do
+    [[ $out == *$'\n'"$p"$'\t'*$'\t'true$'\t'* ]] ||
+      die "self-test: expected '$p' to require human review (got: $out)"
+  done
+
+  # Ordinary docs and non-policy agent docs pass with low risk and exit 0.
+  local ordinary=(
+    "docs/architecture.md"
+    "README.md"
+    ".agents/README.md"
+    ".agents/learning/candidates/example.yml"
+  )
+  out=$(printf '%s\n' "${ordinary[@]}" | "$script_path" --files-from - 2>&1) && rc=0 || rc=$?
+  [[ $rc -eq 0 ]] || die "self-test: expected ordinary paths to exit 0 (got $rc; output: $out)"
+  for p in "${ordinary[@]}"; do
+    [[ $out == *$'\n'"$p"$'\t'low$'\t'false$'\t'* ]] ||
+      die "self-test: expected '$p' to be low risk and not require review (got: $out)"
+  done
+
+  # A custom policy file is honored, including its default fallback.
+  local custom_policy="$tmp/governance.yaml"
+  cat >"$custom_policy" <<'EOF'
+version: 1
+
+default:
+  risk: medium
+  requires_human_review: false
+  reason: "custom default"
+
+rules:
+  - pattern: ^custom/protected/
+    risk: high
+    requires_human_review: true
+    reason: "custom protected area"
+EOF
+  out=$(printf 'custom/protected/file\nsomewhere/else.txt\n' |
+    "$script_path" --policy "$custom_policy" --files-from - 2>&1) && rc=0 || rc=$?
+  [[ $rc -eq 1 ]] ||
+    die "self-test: expected custom policy protected path to exit 1 (got $rc; output: $out)"
+  [[ $out == *$'\n'"custom/protected/file"$'\t'high$'\t'true$'\t'"custom protected area"* ]] ||
+    die "self-test: expected custom-policy rule match (got: $out)"
+  [[ $out == *$'\n'"somewhere/else.txt"$'\t'medium$'\t'false$'\t'"custom default"* ]] ||
+    die "self-test: expected custom-policy default fallback (got: $out)"
+
+  # --git-diff finds both a modified tracked file and a new untracked file.
+  local repo="$tmp/repo"
+  mkdir -p "$repo/.agents"
+  git -C "$repo" init -q
+  git -C "$repo" config user.email test@example.invalid
+  git -C "$repo" config user.name 'Agent Policy Test'
+  printf 'seed\n' >"$repo/README.md"
+  git -C "$repo" add README.md
+  git -C "$repo" commit -q -m seed
+  printf 'changed\n' >"$repo/README.md"
+  printf 'secret\n' >"$repo/.sops.yaml"
+  out=$(cd "$repo" && "$script_path" --git-diff 2>&1) && rc=0 || rc=$?
+  [[ $rc -eq 1 ]] ||
+    die "self-test: expected --git-diff to find the protected .sops.yaml (got $rc; output: $out)"
+  [[ $out == *$'\n'"README.md"$'\t'* ]] ||
+    die "self-test: expected --git-diff to report the modified README.md (got: $out)"
+  [[ $out == *$'\n'".sops.yaml"$'\t'*$'\t'true$'\t'* ]] ||
+    die "self-test: expected --git-diff to report .sops.yaml as requiring review (got: $out)"
+
+  # --json emits a parseable array with the expected fields.
+  out=$(printf '%s\n' "${protected[0]}" | "$script_path" --json --files-from - 2>&1) && rc=0 || rc=$?
+  [[ $rc -eq 1 ]] || die "self-test: expected --json protected path to exit 1 (got $rc; output: $out)"
+  printf '%s' "$out" | jq -e \
+    '(length == 1) and .[0].risk == "high" and .[0].requires_human_review == true' >/dev/null ||
+    die "self-test: unexpected --json output: $out"
+
+  printf 'agent-policy-eval self-test passed\n'
+}
+
+main() {
+  local policy_path="" files_from="" git_ref="" use_git=0 json=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --files-from)
+      files_from="${2:?--files-from needs a value}"
+      shift 2
+      ;;
+    --git-diff)
+      use_git=1
+      if [[ $# -ge 2 && $2 != -* ]]; then
+        git_ref="$2"
+        shift 2
+      else
+        git_ref="HEAD"
+        shift
+      fi
+      ;;
+    --policy)
+      policy_path="${2:?--policy needs a value}"
+      shift 2
+      ;;
+    --json)
+      json=1
+      shift
+      ;;
+    --self-test)
+      self_test
+      exit 0
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+    esac
+  done
+
+  [[ -n $policy_path ]] || policy_path="$(default_policy_path)"
+
+  local paths=()
+  if [[ -n $files_from ]]; then
+    mapfile -t paths < <(read_paths_from_file "$files_from")
+  elif [[ $use_git == 1 ]]; then
+    mapfile -t paths < <(git_changed_paths "$git_ref")
+  elif [[ ! -t 0 ]]; then
+    mapfile -t paths < <(read_paths_from_file -)
+  else
+    die "one of --files-from, --git-diff, or piped stdin is required (see --help)"
+  fi
+
+  parse_policy "$policy_path"
+
+  local overall=0 p row review
+  local results=()
+  for p in "${paths[@]}"; do
+    [[ -n $p ]] || continue
+    row="$(classify_path "$p")"
+    results+=("$row")
+    review="$(cut -f3 <<<"$row")"
+    [[ $review == true ]] && overall=1
+  done
+
+  if [[ $json == 1 ]]; then
+    print_json "${results[@]}"
+  else
+    print_table "${results[@]}"
+  fi
+
+  return "$overall"
+}
+
+main "$@"
