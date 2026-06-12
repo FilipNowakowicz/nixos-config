@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-06-11-new-tailnet-tag-needs-acceptfrom-for-adguard-dns
+date: 2026-06-11
+expires: 2026-12-11
+status: superseded
+
+route: promote-doc
+best_form: doc
+
+evidence: [pr-#178, lib/hosts.nix-homeserver-gcp.tailscale.acceptFrom.agent, "tailscaled journal: dns udp query: waiting for response or error from [100.103.234.89]: context deadline exceeded", "fresh gcp-agent: gh auth status -> 'token is invalid' despite correct PAT, root cause was DNS not auth"]
+observation: AdGuard on homeserver-gcp (tag:server, 100.103.234.89) is the tailnet-wide global nameserver set via the Tailscale admin DNS override, but lib/acl.nix's generated ACL is default-deny per tag and only homeserver-gcp's acceptFrom.workstation included port 53. A brand-new tailnet tag (e.g. tag:agent for gcp-agent) has no ACL path to 100.103.234.89:53, so tailscaled's 100.100.100.100 DNS proxy times out and EVERY external hostname fails to resolve on that host — symptoms look like an auth/PAT problem (gh auth status: "token is invalid") rather than DNS. Fixed for tag:agent by adding acceptFrom.agent = [53] to homeserver-gcp in lib/hosts.nix (PR #178); tailscale-acl-drift applies on push to main.
+proposed_upgrade: Document in docs/tailscale-acl.md (and/or hosts/*/CLAUDE.md provisioning runbooks) that any new tailnet tag needing external DNS must add acceptFrom.<newtag> = [53] to homeserver-gcp's tailscale.acceptFrom in lib/hosts.nix, merged before relying on gh/claude/curl on that host. Consider also checking whether tag:builder (gcp-builder) has the same gap.
+type: policy-gap
+dedupe_key: tailscale-acl:new-tag-needs-adguard-dns-acceptfrom
+triggers: [new tailnet tag in lib/hosts.nix, new on-demand GCP host provisioning, "gh auth status" or "token is invalid" on a freshly provisioned host, "context deadline exceeded" in tailscaled journal, getent ahosts fails for external hostnames]
+targets: [docs/tailscale-acl.md, hosts/gcp-builder/CLAUDE.md]

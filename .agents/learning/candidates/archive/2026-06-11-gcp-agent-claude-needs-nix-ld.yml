@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-06-11-gcp-agent-claude-needs-nix-ld
+date: 2026-06-11
+expires: 2026-12-11
+status: superseded
+
+route: implement-fix
+best_form: invariant
+
+evidence: [pr-#179, hosts/main/default.nix:126-programs.nix-ld.enable, hosts/gcp-agent/default.nix-programs.nix-ld.enable, "gcp-agent: claude -> 'Could not start dynamically linked executable: claude' / nix.dev/permalink/stub-ld", home/users/user/agent.nix:23-27-claudeLatest-npx-wrapper]
+observation: home/users/user/agent.nix's `claude` wrapper runs `npx -y @anthropic-ai/claude-code@latest`, which fetches a dynamically linked generic-Linux binary at runtime (not a Nix-built/patched derivation). Any NixOS host that uses this wrapper needs `programs.nix-ld.enable = true` (as `main` already had) or the binary fails immediately with the stub-ld error. `gcp-agent` shipped without it (#167/#168/#169 provisioning), only caught interactively during step-7 login, requiring a full second VM reprovisioning cycle (#179) since gcp-agent has no manual-activation path (narrow sudo, PermitRootLogin=no).
+proposed_upgrade: Add an invariant (flake/checks.nix or lib/invariants.nix) asserting that any host whose Home Manager config imports home/users/user/agent.nix (or otherwise sets profiles.homeManager.role = "agent") also has programs.nix-ld.enable = true — catches this at `nix flake check` time instead of during an on-demand host's first interactive session.
+type: repo-fix
+dedupe_key: nix-ld:agent-role-requires-nix-ld
+triggers: [new host with homeManager.role = "agent", home/users/user/agent.nix changes, "Could not start dynamically linked executable", new on-demand GCP host provisioning]
+targets: [flake/checks.nix, lib/invariants.nix]

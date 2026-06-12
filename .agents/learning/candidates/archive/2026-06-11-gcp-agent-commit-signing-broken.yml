@@ -1,0 +1,12 @@
+schema: learning-candidate/v1
+id: 2026-06-11-gcp-agent-commit-signing-broken
+date: 2026-06-11
+expires: 2026-12-11
+status: superseded
+
+route: implement-fix
+best_form: invariant
+
+evidence: [home/users/user/common.nix:28-31, home/users/user/agent.nix:32, "live on gcp-agent: error: Couldn't load public key /home/user/.ssh/id_ed25519.pub: No such file or directory / fatal: failed to write commit object"]
+observation: home/users/user/common.nix sets programs.git.signing.signByDefault=true with key=~/.ssh/id_ed25519.pub; home/users/user/agent.nix imports common.nix without overriding it, but gcp-agent has userSecrets.enable=false and never deploys that SSH key (by design, hosts/gcp-agent/CLAUDE.md). Every git commit on gcp-agent fails to sign, blocking the commit step of every agent-run-issue.sh / issue-driven-development session on that host.
+proposed_upgrade: add programs.git.signing.signByDefault = lib.mkForce false; (or an mkIf based on key-file existence) to home/users/user/agent.nix, then re-activate Home Manager on gcp-agent so ~/.config/git/config picks it up; consider an invariant that flags signByDefault=true paired with userSecrets.enable=false for a host.

@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-06-11-gcp-agent-config-changes-need-operator-gated-reprovision
+date: 2026-06-11
+expires: 2026-12-11
+status: superseded
+
+route: promote-doc
+best_form: doc
+
+evidence: ["session-2026-06-11: sudo -n true on gcp-agent -> 'a password is required' (no password exists, hosts/gcp-agent/CLAUDE.md 'No console password')", "nix eval .#homeConfigurations -> only [user, user@wsl]; gcp-agent HM is closure-integrated", hosts/gcp-agent/CLAUDE.md-step-2-manual-tailscale-authkey-mint, pr-#183-live-host-bridge-note]
+observation: gcp-agent has no operator-free path to apply a merged Nix config change to the live host — no sudo password, no root SSH, no standalone homeConfigurations output, and reprovisioning requires a manually minted Tailscale auth key. A merged fix (e.g. #183 agent git signing) cannot reach the running host autonomously; the live #182 bug had to be bridged with a repo-local `git config commit.gpgsign false` in the disposable clone until the next reprovision.
+proposed_upgrade: document the pattern in hosts/gcp-agent/CLAUDE.md (declarative fix via PR + minimal user-level bridge confined to disposable session state + note that the next reprovision reconciles); separately consider making reprovision operator-free for the autonomous loop, e.g. a sops-stored reusable tagged auth key or a Tailscale OAuth client that mints tagged keys, weighing the blast radius of a standing join credential.
+type: policy-gap
+dedupe_key: gcp-agent:no-autonomous-config-activation-path
+triggers: [applying merged config changes to gcp-agent, home/users/user/agent.nix changes that must reach the live host, hosts/gcp-agent reprovision, "sudo: a password is required" on gcp-agent]
+targets: [hosts/gcp-agent/CLAUDE.md]

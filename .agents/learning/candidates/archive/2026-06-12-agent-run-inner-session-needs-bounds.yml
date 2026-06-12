@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-06-12-agent-run-inner-session-needs-bounds
+date: 2026-06-12
+expires: 2026-12-12
+status: superseded
+route: implement-fix
+best_form: test
+evidence: [issue-#230, pr-#229, "#226 dogfood run stayed quiet while claude consumed quota and had to be terminated manually"]
+observation: agent-run inner sessions can burn quota silently because the runner lacks a heartbeat, timeout, and timeout-specific failure outcome
+proposed_upgrade: add deterministic heartbeat and timeout supervision around the inner agent process, with fixture tests that do not invoke a real model
+agent: codex
+type: workflow-gotcha
+dedupe_key: agent-run:inner-session-timeout-heartbeat
+triggers: [scripts/agent-run-issue.sh, claude --dangerously-skip-permissions, small batch dogfood]
+targets: [scripts/agent-run-issue.sh, .agents/scripts/agent-record-outcome]
+risk: supervision bugs could orphan inner agent processes or kill valid long-running work

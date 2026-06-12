@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-06-11-ar-issue-fix-section-name-transposed
+date: 2026-06-11
+expires: 2026-12-11
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [PR-#204-issue-#202; issue #202 Fix section says canonical names should be `profiles-observability`/`profiles-observability-client` "matching the README's existing documentation"; README.md:248-249 and all real usages (examples/mini-fleet, tests/, flake/checks.nix, docs/observability-stack.md) document `observability-stack`/`observability-client` instead — the issue's two name-pairs were transposed]
+observation: an architecture-review-derived issue's Fix section named specific canonical identifiers, but the pairing was backwards relative to actual repo usage/README; only repo-wide grep caught it before applying the literal wording
+proposed_upgrade: in issue-driven-development, when an AR-derived issue's Fix section names specific identifiers/paths to keep or remove, grep the repo for those identifiers before applying literally — the issue text itself can have transposed or stale names; relevant to remaining AR-187 sub-issues
+type: workflow-gotcha
+dedupe_key: issue-driven-development:ar-fix-section-identifier-verification
+triggers: [architecture-review-*.md derived issue, "Fix" section naming specific module/export identifiers]
+targets: [.agents/skills/issue-driven-development/SKILL.md]

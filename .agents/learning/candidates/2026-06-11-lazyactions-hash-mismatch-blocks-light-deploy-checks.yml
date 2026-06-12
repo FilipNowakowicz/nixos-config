@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-06-11-lazyactions-hash-mismatch-blocks-light-deploy-checks
+date: 2026-06-11
+expires: 2026-09-11
+status: open
+
+route: implement-fix
+best_form: none
+
+evidence: [PR-#205, "flake.nix:83-96 lazyactionsOverlay pins fetchFromGitHub rev = \"main\" with a fixed hash", "nix build .#checks.x86_64-linux.deploy-activate fails: error: hash mismatch in fixed-output derivation '/nix/store/gwd6c7lg3xx7nhgmyb8sni9yjljp2nxi-source.drv' (lazyactions-unstable-go-modules)", "reproduced on main with no working-tree changes via git stash before re-running the build"]
+observation: bash scripts/validate.sh light fails on deploy-activate and deploy-schema only, due to a fixed-output hash mismatch fetching lazyactions source (rev = "main" is a moving branch ref whose content has since changed) for the mac home-manager closure; pre-existing on main, unrelated to lib/* or host-registry changes; all other light checks pass individually
+proposed_upgrade: pin flake.nix:90 lazyactionsOverlay rev to a specific commit SHA and update the src/vendorHash to match, restoring deploy-activate/deploy-schema; until fixed, agents validating unrelated lib/hosts.nix-style changes should run the remaining light checks individually and call out this known-broken pair rather than treating light as fully blocked
+
+type: repo-fix
+dedupe_key: build:lazyactions-unstable-source-hash-mismatch
+targets: [flake.nix]
