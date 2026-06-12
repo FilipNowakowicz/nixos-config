@@ -115,6 +115,13 @@ Raise it only when the issue explicitly needs a long validation/build phase.
 `scripts/agent-run-issue.sh --self-test` covers timeout supervision with local
 fixture workers; it does not invoke a real model.
 
+Fresh clones also get a push-safe `origin` remote. If the runner sees a standard
+GitHub HTTPS push URL such as `https://github.com/owner/repo.git`, it configures
+the push URL as `git@github.com:owner/repo.git` before issue work begins. This
+avoids completing a session and failing only at PR publication because an
+interactive HTTPS credential prompt was unavailable. Existing SSH remotes and
+non-GitHub HTTPS remotes are left unchanged.
+
 ## Governance Policy
 
 `.agents/governance.yaml` is a versioned, advisory policy that classifies
