@@ -173,3 +173,23 @@ Minimal evidence:
 This evidence sits between implementation and merge review in the issue-to-PR
 loop. It gives future automation deterministic fields to inspect, but it does
 not grant merge authority or replace human review.
+
+## Routing Metadata
+
+`.agents/model-routing.yaml` and `.agents/capability-profiles.yaml` define the
+first advisory routing substrate for agent work. They describe path classes,
+risk tiers, default capability profiles, required checks, and escalation rules
+for docs, agent workflow scripts, Nix modules, security/secrets, and
+CI/workflow changes.
+
+Validate the metadata locally:
+
+```sh
+.agents/scripts/agent-routing-check
+.agents/scripts/agent-routing-check --self-test # run via scripts/validate.sh docs
+```
+
+This metadata is not wired into `scripts/agent-run-issue.sh` yet and does not
+select models, grant merge authority, or change branch protection. It exists so
+the later dispatcher integration has a reviewed, deterministic policy surface
+instead of implicit routing conventions.

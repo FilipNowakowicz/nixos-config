@@ -1,0 +1,56 @@
+# Advisory model-routing metadata. Not consumed by dispatch yet.
+schema: agent-model-routing/v1
+version: 1
+
+path_classes:
+  - id: docs
+    description: "Markdown and operator documentation."
+    patterns: ["^README\\.md$", "^docs/", "^hosts/.*/CLAUDE\\.md$"]
+    risk: low
+    default_profile: doc-editor
+    required_checks: ["bash scripts/validate.sh docs", "git diff --check"]
+  - id: agent-workflow-scripts
+    description: "Agent workflow scripts, schemas, skills, and policy metadata."
+    patterns: ["^\\.agents/", "^scripts/agent-"]
+    risk: medium
+    default_profile: agent-workflow-engineer
+    required_checks:
+      [
+        "bash scripts/validate.sh docs",
+        "git diff --check",
+        "targeted shellcheck",
+      ]
+  - id: nix-modules
+    description: "NixOS, Home Manager, flake, package, and host module changes."
+    patterns:
+      ["^flake\\.nix$", "^flake/", "^lib/", "^modules/", "^hosts/", "^home/"]
+    risk: medium
+    default_profile: nix-engineer
+    required_checks:
+      [
+        "bash scripts/validate.sh flake-eval",
+        "surface-specific validate.sh target",
+      ]
+  - id: security-secrets
+    description: "Secrets policy, encrypted material, keys, and security boundaries."
+    patterns: ["^\\.sops\\.yaml$", "(^|/)secrets/", "\\.age$", "\\.enc\\.yaml$"]
+    risk: high
+    default_profile: security-review
+    required_checks: ["bash scripts/validate.sh light", "human review"]
+  - id: ci-workflows
+    description: "GitHub Actions, merge gates, validation graph, and CI helpers."
+    patterns:
+      [
+        "^\\.github/workflows/",
+        "^\\.github/actions/",
+        "^scripts/validate\\.sh$",
+        "^scripts/ci-plan\\.sh$",
+      ]
+    risk: high
+    default_profile: ci-workflow-engineer
+    required_checks:
+      [
+        "bash scripts/validate.sh docs",
+        "workflow-specific local proof",
+        "human review",
+      ]

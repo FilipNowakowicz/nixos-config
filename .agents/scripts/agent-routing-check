@@ -1,0 +1,242 @@
+#!/usr/bin/env bash
+# Validate advisory agent routing and capability-profile metadata.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: agent-routing-check [--routing <path>] [--profiles <path>]
+       agent-routing-check --self-test
+
+Validate the restricted YAML metadata used for advisory agent routing. The
+validator checks required fields, valid risk tiers, and non-empty required
+checks. It does not perform dispatch or call external services.
+EOF
+}
+
+die() {
+  printf 'agent-routing-check: %s\n' "$*" >&2
+  exit 2
+}
+
+script_dir() {
+  CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd
+}
+
+agent_root() {
+  CDPATH='' cd -- "$(script_dir)/.." && pwd
+}
+
+trim() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
+
+validate_array() {
+  local file="$1"
+  local field="$2"
+  local value="$3"
+  [[ $value =~ ^\[[^]]+\]$ ]] ||
+    die "$file: $field must be a non-empty inline array"
+}
+
+validate_risk() {
+  local file="$1"
+  local field="$2"
+  local value="$3"
+  case "$value" in
+  low | medium | high) ;;
+  *) die "$file: $field must be low, medium, or high (got: $value)" ;;
+  esac
+}
+
+validate_entries() {
+  local file="$1"
+  local schema="$2"
+  local section="$3"
+  local required_fields="$4"
+  shift 4
+  local required_classes=("$@")
+
+  [[ -f $file ]] || die "metadata file not found: $file"
+
+  local saw_schema=0 saw_section=0 in_section=0 have_entry=0 entry_count=0
+  local pending_array_key=""
+  local line key value current_id=""
+  declare -A seen=()
+  declare -A ids=()
+
+  flush_entry() {
+    [[ $have_entry == 1 ]] || return 0
+    local field
+    IFS=',' read -ra fields <<<"$required_fields"
+    for field in "${fields[@]}"; do
+      [[ -n ${seen[$field]:-} ]] ||
+        die "$file: entry '${current_id:-<unknown>}' missing required field: $field"
+    done
+    [[ -z ${ids[$current_id]:-} ]] || die "$file: duplicate id: $current_id"
+    ids[$current_id]=1
+    entry_count=$((entry_count + 1))
+    seen=()
+  }
+
+  # shellcheck disable=SC2094 # helpers only use $file in error messages.
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ $line =~ ^[[:space:]]*(#.*)?$ ]] && continue
+
+    if [[ -n $pending_array_key ]]; then
+      if [[ $line =~ ^[[:space:]]*\[[[:space:]]*\][[:space:]]*$ ]]; then
+        die "$file: $pending_array_key must be a non-empty array"
+      fi
+      if [[ $line == *"]" ]]; then
+        pending_array_key=""
+      fi
+      continue
+    fi
+
+    if [[ $line =~ ^schema:[[:space:]]*(.*)$ ]]; then
+      value="$(trim "${BASH_REMATCH[1]}")"
+      [[ $value == "$schema" ]] || die "$file: expected schema $schema (got: $value)"
+      saw_schema=1
+      continue
+    fi
+
+    if [[ $line =~ ^"$section":[[:space:]]*$ ]]; then
+      saw_section=1
+      in_section=1
+      continue
+    fi
+
+    if [[ $in_section == 1 && $line =~ ^[[:space:]]*-[[:space:]]*id:[[:space:]]*(.*)$ ]]; then
+      flush_entry
+      have_entry=1
+      current_id="$(trim "${BASH_REMATCH[1]}")"
+      [[ -n $current_id ]] || die "$file: entry id must not be empty"
+      seen[id]=1
+      continue
+    fi
+
+    if [[ $in_section == 1 && $line =~ ^[[:space:]]+([a-z_]+):[[:space:]]*(.*)$ ]]; then
+      key="${BASH_REMATCH[1]}"
+      value="$(trim "${BASH_REMATCH[2]}")"
+      seen[$key]=1
+      case "$key" in
+      patterns | allowed_path_classes | required_checks)
+        if [[ $value =~ ^\[[^]]+\]$ ]]; then
+          validate_array "$file" "$key" "$value"
+        elif [[ -z $value || $value == "[" ]]; then
+          pending_array_key="$key"
+        elif [[ $value == \[\] ]]; then
+          die "$file: $key must be a non-empty array"
+        else
+          die "$file: $key must be an inline or block flow array"
+        fi
+        ;;
+      risk | max_risk)
+        validate_risk "$file" "$key" "$value"
+        ;;
+      id)
+        die "$file: id must start a new list entry"
+        ;;
+      esac
+      continue
+    fi
+  done <"$file"
+  flush_entry
+
+  [[ -z $pending_array_key ]] || die "$file: unterminated array: $pending_array_key"
+
+  [[ $saw_schema == 1 ]] || die "$file: missing schema"
+  [[ $saw_section == 1 ]] || die "$file: missing $section section"
+  [[ $entry_count -gt 0 ]] || die "$file: $section must contain entries"
+
+  local class
+  for class in "${required_classes[@]}"; do
+    [[ -n ${ids[$class]:-} ]] || die "$file: missing required id: $class"
+  done
+}
+
+validate_routing() {
+  validate_entries "$1" \
+    "agent-model-routing/v1" \
+    "path_classes" \
+    "id,description,patterns,risk,default_profile,required_checks" \
+    docs agent-workflow-scripts nix-modules security-secrets ci-workflows
+}
+
+validate_profiles() {
+  validate_entries "$1" \
+    "agent-capability-profiles/v1" \
+    "profiles" \
+    "id,agent,allowed_path_classes,max_risk,required_checks,escalation" \
+    doc-editor agent-workflow-engineer nix-engineer security-review ci-workflow-engineer
+}
+
+self_test() {
+  local tmp good_routing good_profiles bad_risk bad_checks script_path
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' RETURN
+  good_routing="$tmp/model-routing.yaml"
+  good_profiles="$tmp/capability-profiles.yaml"
+  bad_risk="$tmp/bad-risk.yaml"
+  bad_checks="$tmp/bad-checks.yaml"
+  script_path="${BASH_SOURCE[0]}"
+
+  cp "$(agent_root)/model-routing.yaml" "$good_routing"
+  cp "$(agent_root)/capability-profiles.yaml" "$good_profiles"
+
+  sed 's/risk: low/risk: extreme/' "$good_routing" >"$bad_risk"
+  awk '
+    !done && /required_checks:/ {
+      print "    required_checks: []"
+      done = 1
+      next
+    }
+    { print }
+  ' "$good_profiles" >"$bad_checks"
+
+  "$script_path" --routing "$good_routing" --profiles "$good_profiles"
+
+  if "$script_path" --routing "$bad_risk" --profiles "$good_profiles" 2>/dev/null; then
+    die "self-test: expected invalid risk tier fixture to fail"
+  fi
+
+  if "$script_path" --routing "$good_routing" --profiles "$bad_checks" 2>/dev/null; then
+    die "self-test: expected missing required checks fixture to fail"
+  fi
+
+  printf 'agent-routing-check self-test passed\n'
+}
+
+routing_path="$(agent_root)/model-routing.yaml"
+profiles_path="$(agent_root)/capability-profiles.yaml"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --routing)
+    routing_path="${2:-}"
+    [[ -n $routing_path ]] || die "--routing requires a path"
+    shift 2
+    ;;
+  --profiles)
+    profiles_path="${2:-}"
+    [[ -n $profiles_path ]] || die "--profiles requires a path"
+    shift 2
+    ;;
+  --self-test)
+    self_test
+    exit 0
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    die "unknown argument: $1"
+    ;;
+  esac
+done
+
+validate_routing "$routing_path"
+validate_profiles "$profiles_path"
