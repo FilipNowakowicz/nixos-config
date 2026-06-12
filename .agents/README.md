@@ -134,3 +134,42 @@ It exits non-zero if any changed path requires human review (e.g. secrets,
 itself). This is a deterministic foundation for later autonomy policy, not an
 auto-merge system: nothing currently acts on its exit code, and it is not
 wired into branch protection.
+
+## Reviewer Evidence
+
+`.agents/schemas/reviewer-evidence.schema.json` defines the local JSON shape for
+structured PR review evidence. `.agents/scripts/agent-review-evidence-check`
+validates one evidence file without GitHub API calls:
+
+```sh
+.agents/scripts/agent-review-evidence-check review-evidence.json
+.agents/scripts/agent-review-evidence-check --self-test # run via scripts/validate.sh docs
+```
+
+Minimal evidence:
+
+```json
+{
+  "schema": "agent-reviewer-evidence/v1",
+  "issue": 227,
+  "pr": 999,
+  "result": "approved",
+  "acceptance_criteria": [
+    {
+      "criterion": "scripts/validate.sh docs runs the validator self-test",
+      "evidence": "bash scripts/validate.sh docs exited 0"
+    }
+  ],
+  "validation_commands": [
+    {
+      "command": "bash scripts/validate.sh docs",
+      "result": "passed"
+    }
+  ],
+  "residual_risk": "Evidence is advisory until later automation consumes it."
+}
+```
+
+This evidence sits between implementation and merge review in the issue-to-PR
+loop. It gives future automation deterministic fields to inspect, but it does
+not grant merge authority or replace human review.

@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+# Validate local reviewer-evidence JSON for the agent issue-to-PR loop.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: agent-review-evidence-check <evidence.json>
+       agent-review-evidence-check --self-test
+
+Validate a local reviewer-evidence JSON file. The check is intentionally
+offline: it verifies structure and required evidence fields, but does not call
+GitHub or decide merge authority.
+EOF
+}
+
+die() {
+  printf 'agent-review-evidence-check: %s\n' "$*" >&2
+  exit 2
+}
+
+validate_file() {
+  local file="$1"
+  [[ -f $file ]] || die "evidence file not found: $file"
+  command -v jq >/dev/null 2>&1 || die "jq not found"
+
+  jq -e '
+    def nonempty_string: type == "string" and length > 0;
+    (.schema == "agent-reviewer-evidence/v1")
+    and (.issue | type == "number" and . >= 1 and floor == .)
+    and (.pr | type == "number" and . >= 1 and floor == .)
+    and (.result | IN("approved", "changes_requested", "blocked"))
+    and (.residual_risk | nonempty_string)
+    and (.acceptance_criteria | type == "array" and length > 0)
+    and (
+      .acceptance_criteria
+      | all(
+          type == "object"
+          and (.criterion | nonempty_string)
+          and (.evidence | nonempty_string)
+        )
+    )
+    and (.validation_commands | type == "array" and length > 0)
+    and (
+      .validation_commands
+      | all(
+          type == "object"
+          and (.command | nonempty_string)
+          and (.result | IN("passed", "failed", "skipped"))
+          and ((has("notes") | not) or (.notes | type == "string"))
+        )
+    )
+  ' "$file" >/dev/null ||
+    die "$file: invalid reviewer evidence"
+}
+
+self_test() {
+  local tmp good missing_acceptance missing_validation_result script_path
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' RETURN
+  good="$tmp/good.json"
+  missing_acceptance="$tmp/missing-acceptance.json"
+  missing_validation_result="$tmp/missing-validation-result.json"
+  script_path="${BASH_SOURCE[0]}"
+
+  cat >"$good" <<'EOF'
+{
+  "schema": "agent-reviewer-evidence/v1",
+  "issue": 227,
+  "pr": 999,
+  "result": "approved",
+  "acceptance_criteria": [
+    {
+      "criterion": "validator accepts passing reviewer evidence",
+      "evidence": "agent-review-evidence-check good.json exited 0"
+    }
+  ],
+  "validation_commands": [
+    {
+      "command": "bash .agents/scripts/agent-review-evidence-check --self-test",
+      "result": "passed"
+    }
+  ],
+  "residual_risk": "Schema is advisory until later automation consumes it."
+}
+EOF
+
+  cat >"$missing_acceptance" <<'EOF'
+{
+  "schema": "agent-reviewer-evidence/v1",
+  "issue": 227,
+  "pr": 999,
+  "result": "approved",
+  "acceptance_criteria": [],
+  "validation_commands": [
+    {
+      "command": "bash .agents/scripts/agent-review-evidence-check --self-test",
+      "result": "passed"
+    }
+  ],
+  "residual_risk": "None."
+}
+EOF
+
+  cat >"$missing_validation_result" <<'EOF'
+{
+  "schema": "agent-reviewer-evidence/v1",
+  "issue": 227,
+  "pr": 999,
+  "result": "approved",
+  "acceptance_criteria": [
+    {
+      "criterion": "validator rejects missing validation result",
+      "evidence": "fixture intentionally omits validation_commands[0].result"
+    }
+  ],
+  "validation_commands": [
+    {
+      "command": "bash .agents/scripts/agent-review-evidence-check --self-test"
+    }
+  ],
+  "residual_risk": "None."
+}
+EOF
+
+  "$script_path" "$good"
+
+  if "$script_path" "$missing_acceptance" 2>/dev/null; then
+    die "self-test: expected missing acceptance criteria fixture to fail"
+  fi
+
+  if "$script_path" "$missing_validation_result" 2>/dev/null; then
+    die "self-test: expected missing validation result fixture to fail"
+  fi
+
+  printf 'agent-review-evidence-check self-test passed\n'
+}
+
+case "${1:-}" in
+--self-test)
+  self_test
+  ;;
+-h | --help)
+  usage
+  ;;
+"")
+  usage >&2
+  exit 2
+  ;;
+*)
+  [[ $# -eq 1 ]] || die "expected exactly one evidence JSON file"
+  validate_file "$1"
+  ;;
+esac
