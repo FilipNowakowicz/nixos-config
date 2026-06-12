@@ -167,10 +167,12 @@ if [[ $run_issues == 1 ]]; then
   # timer's `pgrep -f agent-run-issue` activity check.
   script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
   printf -v issue_args_q ' %q' "${issue_args[@]}"
+  set +e
   ssh -o StrictHostKeyChecking=accept-new "$SSH_USER@$AGENT_FQDN" -- \
     "tmp=\$(mktemp /tmp/agent-run-issue.XXXXXX) && cat >\"\$tmp\" && trap 'rm -f \"\$tmp\"' EXIT && bash \"\$tmp\"$issue_args_q" \
     <"$script_dir/agent-run-issue.sh"
   rc=$?
+  set -e
   collect_issue_artifacts
   exit "$rc"
 fi

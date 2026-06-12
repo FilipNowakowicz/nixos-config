@@ -48,6 +48,9 @@
 #                   session is alive (default: 60; 0 disables).
 #   AGENT_INNER_KILL_GRACE_SECONDS
 #                   seconds to wait after TERM before KILL (default: 15).
+#   AGENT_ISSUE_COMMENTS
+#                   when 1, post start/finish breadcrumbs to each GitHub issue
+#                   for live operator visibility (default: 1; set 0 to disable).
 #
 # v1 is attended: it opens PRs but never merges. You review and merge yourself.
 set -euo pipefail
@@ -61,6 +64,7 @@ AGENT_CLAUDE_CMD="${AGENT_CLAUDE_CMD:-claude}"
 AGENT_INNER_TIMEOUT_SECONDS="${AGENT_INNER_TIMEOUT_SECONDS:-900}"
 AGENT_HEARTBEAT_SECONDS="${AGENT_HEARTBEAT_SECONDS:-60}"
 AGENT_INNER_KILL_GRACE_SECONDS="${AGENT_INNER_KILL_GRACE_SECONDS:-15}"
+AGENT_ISSUE_COMMENTS="${AGENT_ISSUE_COMMENTS:-1}"
 SESSION_LOCK="/run/agent/session.lock"
 
 label=""
@@ -360,6 +364,96 @@ new_learning_candidates() {
   rm -f "$after"
 }
 
+post_issue_comment() {
+  local issue="$1"
+  local body="$2"
+  [[ $AGENT_ISSUE_COMMENTS == 1 ]] || return 0
+  command -v gh >/dev/null 2>&1 || return 0
+
+  local tmp
+  tmp=$(mktemp)
+  printf '%s\n' "$body" >"$tmp"
+  if gh issue comment "$issue" --body-file "$tmp" >/dev/null 2>&1; then
+    echo "agent-run-issue: posted issue #$issue observability comment" >&2
+  else
+    echo "agent-run-issue: failed to post issue #$issue observability comment" >&2
+  fi
+  rm -f "$tmp"
+}
+
+discover_pr_lines() {
+  local issue="$1"
+  local head_branch="$2"
+  {
+    if [[ -n $head_branch && $head_branch != DETACHED ]]; then
+      gh pr list --state all --head "$head_branch" --json number,title,state,url 2>/dev/null || true
+    fi
+    gh pr list --state all --search "#${issue} in:body" --json number,title,state,url 2>/dev/null || true
+  } | jq -rs '
+    (add // [])
+    | map(select(type == "object" and (.number | type == "number")))
+    | unique_by(.number)
+    | sort_by(.number)
+    | if length == 0 then
+        "- (none found yet)"
+      else
+        map("- #\(.number) \(.state): \(.title) (\(.url))") | join("\n")
+      end
+  ' 2>/dev/null || printf '%s\n' '- (failed to query PRs)'
+}
+
+post_started_comment() {
+  local issue="$1"
+  local started_at="$2"
+  post_issue_comment "$issue" "$(
+    cat <<EOF
+### Agent run started
+
+- started_at: ${started_at}
+- base_branch: ${BASE_BRANCH}
+- runner: gcp-agent issue loop
+- mode: attended; opens PRs, never merges
+
+The runner will post a finish comment with status, blocker, branch, and linked PRs.
+EOF
+  )"
+}
+
+post_finished_comment() {
+  local issue="$1"
+  local status="$2"
+  local exit_code="$3"
+  local started_at="$4"
+  local finished_at="$5"
+  local head_branch="$6"
+  local blocker="$7"
+  local outcome_path="$8"
+
+  local blocker_text pr_lines outcome_text
+  blocker_text="${blocker:-"(none)"}"
+  outcome_text="${outcome_path:-"(not recorded)"}"
+  pr_lines=$(discover_pr_lines "$issue" "$head_branch")
+
+  post_issue_comment "$issue" "$(
+    cat <<EOF
+### Agent run finished
+
+- status: ${status}
+- exit_code: ${exit_code}
+- started_at: ${started_at}
+- finished_at: ${finished_at}
+- head_branch: ${head_branch}
+- blocker: ${blocker_text}
+- outcome_record: ${outcome_text}
+
+Linked PRs:
+${pr_lines}
+EOF
+  )"
+}
+
+LAST_OUTCOME_PATH=""
+
 record_issue_outcome() {
   local issue="$1"
   local status="$2"
@@ -371,6 +465,7 @@ record_issue_outcome() {
   local head_branch="$8"
   local route_file="${9:-}"
 
+  LAST_OUTCOME_PATH=""
   if [[ ! -x .agents/scripts/agent-record-outcome ]]; then
     echo "agent-run-issue: outcome recorder missing; skipped outcome record for issue #$issue" >&2
     return 0
@@ -396,6 +491,7 @@ record_issue_outcome() {
       --output-dir "$AGENT_OUTCOME_DIR" \
       "${route_args[@]}"
   ); then
+    LAST_OUTCOME_PATH="$outcome_path"
     echo "agent-run-issue: recorded outcome: $outcome_path" >&2
   else
     echo "agent-run-issue: failed to record outcome for issue #$issue" >&2
@@ -426,6 +522,7 @@ run_one() {
   echo "agent-run-issue: ===== issue #$issue =====" >&2
   local started_at finished_at status exit_code blocker before_candidates new_candidates outcome_head_branch route_file
   started_at=$(utc_now)
+  post_started_comment "$issue" "$started_at"
   before_candidates=$(mktemp)
   new_candidates=$(mktemp)
   route_file=$(mktemp)
@@ -438,6 +535,7 @@ run_one() {
     : >"$new_candidates"
     finished_at=$(utc_now)
     record_issue_outcome "$issue" "$status" "$started_at" "$finished_at" "$exit_code" "$blocker" "$new_candidates" "$BASE_BRANCH"
+    post_finished_comment "$issue" "$status" "$exit_code" "$started_at" "$finished_at" "$BASE_BRANCH" "$blocker" "$LAST_OUTCOME_PATH"
     return "$exit_code"
   fi
 
@@ -450,6 +548,7 @@ run_one() {
       : >"$new_candidates"
       finished_at=$(utc_now)
       record_issue_outcome "$issue" "$status" "$started_at" "$finished_at" "$exit_code" "$blocker" "$new_candidates" "$BASE_BRANCH"
+      post_finished_comment "$issue" "$status" "$exit_code" "$started_at" "$finished_at" "$BASE_BRANCH" "$blocker" "$LAST_OUTCOME_PATH"
       echo "agent-run-issue: issue #$issue is not ready; skipping (see outcome record)" >&2
       return "$exit_code"
     fi
@@ -495,6 +594,7 @@ explain what is blocked."
   new_learning_candidates "$before_candidates" "$new_candidates"
   compute_route_decision "$route_file"
   record_issue_outcome "$issue" "$status" "$started_at" "$finished_at" "$exit_code" "$blocker" "$new_candidates" "$outcome_head_branch" "$route_file"
+  post_finished_comment "$issue" "$status" "$exit_code" "$started_at" "$finished_at" "$outcome_head_branch" "$blocker" "$LAST_OUTCOME_PATH"
   return "$exit_code"
 }
 

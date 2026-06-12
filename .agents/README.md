@@ -150,6 +150,12 @@ is exceeded, the runner terminates the inner process group, records a failure
 outcome with a timeout blocker, and moves on according to the normal issue-loop
 rules.
 
+By default the runner also posts a start comment and a finish comment on each
+target issue. The finish comment includes status, exit code, blocker, head
+branch, linked PRs, and the local outcome-record path so an operator can follow
+an attended run from GitHub without SSHing into the worker. Set
+`AGENT_ISSUE_COMMENTS=0` to suppress these breadcrumbs for a quiet dry run.
+
 For dogfood batches, keep the defaults or lower the timeout for tiny issues.
 Raise it only when the issue explicitly needs a long validation/build phase.
 `scripts/agent-run-issue.sh --self-test` covers timeout supervision with local
