@@ -93,6 +93,28 @@ It is opt-in and read-only: it does not perform live agent dispatch and
 requires no secrets, sudo, or remote host access beyond what `gh auth status`
 itself needs.
 
+## Dispatcher Skeleton
+
+`.agents/scripts/agent-dispatch` is an opt-in, maintainer-label-gated
+dispatcher skeleton. It selects open issues labeled `agent:ready` (excluding
+any also labeled `agent:not-ready` or `agent:blocked`), runs the liveness gate
+once, runs the issue-readiness check on each candidate, and dispatches ready
+issues one at a time to `scripts/agent-run-issue.sh --require-ready`:
+
+```sh
+.agents/scripts/agent-dispatch --dry-run                 # list eligible issues only
+.agents/scripts/agent-dispatch --max-issues 1            # dispatch up to 1 ready issue
+.agents/scripts/agent-dispatch --self-test               # local fixtures only (run via scripts/validate.sh docs)
+```
+
+Issues that fail the pre-dispatch readiness check are not dispatched; a
+`blocked` outcome record with a fixed blocker reason is written instead via
+`.agents/scripts/agent-record-outcome`, without burning a session.
+`--max-concurrent` must be `1` — higher concurrency is out of scope for this
+skeleton. The dispatcher only ever selects the maintainer-owned `agent:ready`
+label; it does not run on a timer, grant auto-merge authority, or change how
+`scripts/agent-run-issue.sh` itself operates.
+
 ## Issue Runner Bounds
 
 `scripts/agent-run-issue.sh` supervises each inner Claude issue session with

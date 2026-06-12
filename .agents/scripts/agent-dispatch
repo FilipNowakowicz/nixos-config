@@ -1,0 +1,351 @@
+#!/usr/bin/env bash
+# Opt-in, label-gated dispatcher skeleton for scripts/agent-run-issue.sh.
+#
+# Selects open issues labeled "agent:ready" (excluding any that are also
+# labeled "agent:not-ready" or "agent:blocked"), runs a cheap readiness
+# pre-check on each, and dispatches ready issues one at a time to
+# scripts/agent-run-issue.sh --require-ready. Non-ready issues are skipped
+# with a fixed blocker reason recorded via agent-record-outcome instead of
+# being dispatched.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: agent-dispatch [--label <name>] [--max-issues <n>]
+                       [--max-concurrent <n>] [--dry-run] [--skip-liveness]
+       agent-dispatch --self-test
+
+Selects open issues labeled --label (default: agent:ready), excluding any
+that are also labeled "agent:not-ready" or "agent:blocked", runs the
+issue-readiness check on each, and dispatches ready issues one at a time to
+scripts/agent-run-issue.sh --require-ready (or AGENT_DISPATCH_RUNNER).
+
+Issues that fail the pre-dispatch readiness check are NOT dispatched; a
+"blocked" outcome record with a fixed blocker reason is written instead via
+agent-record-outcome, mirroring what agent-run-issue.sh --require-ready would
+have recorded, without burning a session.
+
+Options:
+  --label <name>        Issue label to dispatch (default: agent:ready).
+  --max-issues <n>      Maximum number of issues to dispatch this run
+                         (default: 1).
+  --max-concurrent <n>  Must be 1; higher concurrency is out of scope for this
+                         skeleton (default: 1).
+  --dry-run             List eligible issues without running the readiness
+                         check, recording outcomes, or invoking the runner.
+  --skip-liveness       Skip the pre-dispatch liveness gate. Intended for
+                         self-tests and pipelines that already verified
+                         liveness.
+  --self-test           Run a local smoke test (mocked gh/runner/readiness/
+                         liveness fixtures; no GitHub or model calls) and
+                         exit.
+  -h, --help            Show this help.
+
+Env knobs (mainly for testing):
+  AGENT_DISPATCH_RUNNER          Runner command (default:
+                                  scripts/agent-run-issue.sh).
+  AGENT_DISPATCH_READINESS       Readiness check command (default:
+                                  .agents/scripts/agent-issue-readiness).
+  AGENT_DISPATCH_LIVENESS        Liveness gate command (default:
+                                  .agents/scripts/agent-liveness-gate).
+  AGENT_DISPATCH_RECORD_OUTCOME  Outcome recorder command (default:
+                                  .agents/scripts/agent-record-outcome).
+  AGENT_OUTCOME_DIR              Outcome record directory (default:
+                                  .agents/state/outcomes).
+  AGENT_REPO_DIR                 Repo dir passed to agent-record-outcome
+                                  (default: .).
+  BASE_BRANCH                    Base branch recorded in skip outcomes
+                                  (default: main).
+
+This dispatcher is advisory and opt-in: it does not run on a timer, grant
+auto-merge authority, or change how scripts/agent-run-issue.sh itself
+operates.
+EOF
+}
+
+die() {
+  printf 'agent-dispatch: %s\n' "$*" >&2
+  exit 1
+}
+
+utc_now() {
+  date -u '+%Y-%m-%dT%H:%M:%SZ'
+}
+
+AGENT_DISPATCH_RUNNER="${AGENT_DISPATCH_RUNNER:-scripts/agent-run-issue.sh}"
+AGENT_DISPATCH_READINESS="${AGENT_DISPATCH_READINESS:-.agents/scripts/agent-issue-readiness}"
+AGENT_DISPATCH_LIVENESS="${AGENT_DISPATCH_LIVENESS:-.agents/scripts/agent-liveness-gate}"
+AGENT_DISPATCH_RECORD_OUTCOME="${AGENT_DISPATCH_RECORD_OUTCOME:-.agents/scripts/agent-record-outcome}"
+AGENT_OUTCOME_DIR="${AGENT_OUTCOME_DIR:-.agents/state/outcomes}"
+AGENT_REPO_DIR="${AGENT_REPO_DIR:-.}"
+BASE_BRANCH="${BASE_BRANCH:-main}"
+
+# Fixed blocker reason for issues skipped by the pre-dispatch readiness check.
+SKIP_BLOCKER="agent-dispatch: pre-dispatch agent-issue-readiness check failed; issue not dispatched"
+
+# Print eligible issue numbers (one per line) for $label: open issues labeled
+# $label, excluding any also labeled agent:not-ready or agent:blocked.
+discover_eligible_issues() {
+  local label="$1"
+  command -v gh >/dev/null 2>&1 || die "gh not found"
+  command -v jq >/dev/null 2>&1 || die "jq not found"
+  gh issue list --state open --label "$label" --json number,labels |
+    jq -r '
+      [.[] | select(
+        ([.labels[].name] | index("agent:not-ready") | not)
+        and ([.labels[].name] | index("agent:blocked") | not)
+      ) | .number] | .[]
+    '
+}
+
+# Record a "blocked" outcome for an issue skipped before dispatch, with the
+# fixed SKIP_BLOCKER reason. Best-effort: a recorder failure is logged but
+# does not abort the dispatch loop.
+record_skip() {
+  local issue="$1"
+  local now
+  now=$(utc_now)
+  if [[ ! -x $AGENT_DISPATCH_RECORD_OUTCOME ]]; then
+    echo "agent-dispatch: outcome recorder missing; skipped outcome record for issue #$issue" >&2
+    return 0
+  fi
+  if outcome_path=$(
+    "$AGENT_DISPATCH_RECORD_OUTCOME" \
+      --issue "$issue" \
+      --status blocked \
+      --base-branch "$BASE_BRANCH" \
+      --repo-dir "$AGENT_REPO_DIR" \
+      --started-at "$now" \
+      --finished-at "$now" \
+      --exit-code 1 \
+      --blocker "$SKIP_BLOCKER" \
+      --output-dir "$AGENT_OUTCOME_DIR"
+  ); then
+    echo "agent-dispatch: recorded skip outcome: $outcome_path" >&2
+  else
+    echo "agent-dispatch: failed to record skip outcome for issue #$issue" >&2
+  fi
+}
+
+run_dispatch() {
+  local label="$1"
+  local max_issues="$2"
+  local dry_run="$3"
+
+  local eligible=()
+  mapfile -t eligible < <(discover_eligible_issues "$label")
+
+  if [[ ${#eligible[@]} -eq 0 ]]; then
+    echo "agent-dispatch: no eligible issues (label=$label)"
+    return 0
+  fi
+
+  echo "agent-dispatch: eligible issues (label=$label): ${eligible[*]}"
+
+  local dispatched=0 issue
+  for issue in "${eligible[@]}"; do
+    [[ $dispatched -lt $max_issues ]] || break
+
+    if [[ $dry_run == 1 ]]; then
+      echo "agent-dispatch: [dry-run] would consider issue #$issue"
+      dispatched=$((dispatched + 1))
+      continue
+    fi
+
+    local readiness_output
+    if ! readiness_output=$("$AGENT_DISPATCH_READINESS" --issue "$issue" 2>&1); then
+      echo "agent-dispatch: issue #$issue failed readiness check; skipping (${readiness_output})" >&2
+      record_skip "$issue"
+      dispatched=$((dispatched + 1))
+      continue
+    fi
+
+    echo "agent-dispatch: dispatching issue #$issue via $AGENT_DISPATCH_RUNNER --require-ready"
+    "$AGENT_DISPATCH_RUNNER" --require-ready "$issue"
+    dispatched=$((dispatched + 1))
+  done
+}
+
+self_test() {
+  local tmp repo bin out rc
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' RETURN
+  repo="$tmp/repo"
+  bin="$tmp/bin"
+  mkdir -p "$repo" "$bin"
+
+  git -C "$repo" init -q
+  git -C "$repo" config user.email test@example.invalid
+  git -C "$repo" config user.name 'Agent Dispatch Test'
+  printf 'seed\n' >"$repo/README.md"
+  git -C "$repo" add README.md
+  git -C "$repo" commit -q -m seed
+
+  # Fake gh: agent:ready issues 901 (clean), 902 (also agent:not-ready, must
+  # be excluded), 903 (also agent:blocked, must be excluded), 904 (clean).
+  cat >"$bin/gh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ $1 == issue && $2 == list ]]; then
+  printf '%s\n' '[
+    {"number": 901, "labels": [{"name": "agent:ready"}]},
+    {"number": 902, "labels": [{"name": "agent:ready"}, {"name": "agent:not-ready"}]},
+    {"number": 903, "labels": [{"name": "agent:ready"}, {"name": "agent:blocked"}]},
+    {"number": 904, "labels": [{"name": "agent:ready"}]}
+  ]'
+  exit 0
+fi
+printf 'unexpected gh invocation: %s\n' "$*" >&2
+exit 1
+EOF
+  chmod +x "$bin/gh"
+
+  # Fake readiness: issue 901 is ready, issue 904 is not.
+  cat >"$bin/readiness" <<'EOF'
+#!/usr/bin/env bash
+[[ ${1:-} == --issue ]] || { echo "unexpected args: $*" >&2; exit 2; }
+case "$2" in
+901) echo "agent-issue-readiness: ready (all required sections present)"; exit 0 ;;
+904) echo "agent-issue-readiness: NOT READY - missing sections" >&2; exit 1 ;;
+*) echo "unexpected issue: $2" >&2; exit 2 ;;
+esac
+EOF
+  chmod +x "$bin/readiness"
+
+  # Fake runner: records its invocation.
+  cat >"$bin/runner" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$RUNNER_LOG"
+exit 0
+EOF
+  chmod +x "$bin/runner"
+
+  # Fake liveness gates: one that passes, one that fails.
+  cat >"$bin/liveness-ok" <<'EOF'
+#!/usr/bin/env bash
+echo "liveness ok"
+exit 0
+EOF
+  cat >"$bin/liveness-fail" <<'EOF'
+#!/usr/bin/env bash
+echo "liveness FAILED" >&2
+exit 1
+EOF
+  chmod +x "$bin/liveness-ok" "$bin/liveness-fail"
+
+  export PATH="$bin:$PATH"
+  export AGENT_DISPATCH_READINESS="$bin/readiness"
+  export AGENT_DISPATCH_RUNNER="$bin/runner"
+  export AGENT_REPO_DIR="$repo"
+  export AGENT_OUTCOME_DIR="$tmp/out"
+  export BASE_BRANCH=main
+  export RUNNER_LOG="$tmp/runner.log"
+  : >"$RUNNER_LOG"
+
+  local script_path="${BASH_SOURCE[0]}"
+
+  # --max-concurrent must be 1.
+  set +e
+  out=$(AGENT_DISPATCH_LIVENESS="$bin/liveness-ok" "$script_path" --skip-liveness --max-concurrent 2 2>&1)
+  rc=$?
+  set -e
+  [[ $rc -ne 0 ]] || die "self-test: expected --max-concurrent 2 to be rejected"
+  [[ $out == *"max-concurrent"* ]] || die "self-test: expected concurrency error message (got: $out)"
+
+  # Liveness gate failure aborts the dispatch before discovery/dispatch.
+  set +e
+  out=$(AGENT_DISPATCH_LIVENESS="$bin/liveness-fail" "$script_path" --max-issues 1 2>&1)
+  rc=$?
+  set -e
+  [[ $rc -ne 0 ]] || die "self-test: expected a failing liveness gate to abort dispatch"
+  [[ ! -s $RUNNER_LOG ]] || die "self-test: runner must not be invoked when liveness gate fails"
+
+  # --dry-run lists eligible issues without invoking readiness or the runner.
+  : >"$RUNNER_LOG"
+  out=$("$script_path" --skip-liveness --dry-run --max-issues 5 2>&1)
+  [[ $out == *"901"* && $out == *"904"* ]] ||
+    die "self-test: expected dry-run to list eligible issues 901 and 904 (got: $out)"
+  [[ $out != *"902"* && $out != *"903"* ]] ||
+    die "self-test: expected dry-run to exclude not-ready/blocked issues 902/903 (got: $out)"
+  [[ ! -s $RUNNER_LOG ]] || die "self-test: dry-run must not invoke the runner"
+
+  # Real dispatch: issue 901 is ready and dispatched via --require-ready.
+  : >"$RUNNER_LOG"
+  out=$("$script_path" --skip-liveness --max-issues 1 2>&1)
+  [[ $out == *"dispatching issue #901"* ]] || die "self-test: expected issue #901 to be dispatched (got: $out)"
+  out=$(<"$RUNNER_LOG")
+  [[ $out == "--require-ready 901" ]] || die "self-test: expected runner invocation '--require-ready 901' (got: $out)"
+
+  # Issue 904 fails readiness: not dispatched, but a blocked outcome is recorded
+  # with the fixed skip blocker.
+  : >"$RUNNER_LOG"
+  out=$("$script_path" --skip-liveness --max-issues 5 2>&1)
+  [[ $out == *"issue #904 failed readiness check; skipping"* ]] ||
+    die "self-test: expected issue #904 to be skipped on readiness (got: $out)"
+  out=$(<"$RUNNER_LOG")
+  [[ $out == *"--require-ready 904"* ]] && die "self-test: issue #904 must not be dispatched (runner log: $out)"
+
+  local record
+  record=$(find "$tmp/out" -name '*-issue-904-blocked.json' | head -n1)
+  [[ -n $record ]] || die "self-test: expected a blocked outcome record for issue #904"
+  jq -e --arg blocker "$SKIP_BLOCKER" '.issue == 904 and .status == "blocked" and .blocker == $blocker' "$record" >/dev/null ||
+    die "self-test: blocked outcome record for issue #904 missing expected fields"
+
+  printf 'agent-dispatch self-test passed\n'
+}
+
+main() {
+  local label="agent:ready"
+  local max_issues=1
+  local max_concurrent=1
+  local dry_run=0
+  local skip_liveness=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --label)
+      label="${2:?--label needs a value}"
+      shift 2
+      ;;
+    --max-issues)
+      max_issues="${2:?--max-issues needs a value}"
+      shift 2
+      ;;
+    --max-concurrent)
+      max_concurrent="${2:?--max-concurrent needs a value}"
+      shift 2
+      ;;
+    --dry-run)
+      dry_run=1
+      shift
+      ;;
+    --skip-liveness)
+      skip_liveness=1
+      shift
+      ;;
+    --self-test)
+      self_test
+      exit 0
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+    esac
+  done
+
+  [[ $max_issues =~ ^[0-9]+$ && $max_issues -gt 0 ]] || die "--max-issues must be a positive integer"
+  [[ $max_concurrent == 1 ]] || die "--max-concurrent must be 1 (higher concurrency is out of scope)"
+
+  if [[ $skip_liveness == 0 ]]; then
+    [[ -x $AGENT_DISPATCH_LIVENESS ]] || die "liveness gate not found or not executable: $AGENT_DISPATCH_LIVENESS"
+    "$AGENT_DISPATCH_LIVENESS" || die "liveness gate failed; aborting dispatch"
+  fi
+
+  run_dispatch "$label" "$max_issues" "$dry_run"
+}
+
+main "$@"
