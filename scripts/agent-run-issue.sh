@@ -400,8 +400,10 @@ to ${BASE_BRANCH} directly). Implement the smallest durable fix, validate with t
 nix-verification-loop skill (the smallest meaningful scripts/validate.sh command for \
 what you changed), then push the branch and open a pull request that links the issue \
 (use 'Closes #${issue}' only if the PR fully satisfies it, otherwise 'Refs #${issue}'). \
-Do NOT merge the PR and do NOT push to ${BASE_BRANCH}. If you cannot complete it, stop \
-and explain what is blocked."
+Do NOT merge the PR, do NOT push to ${BASE_BRANCH}, and do NOT wait for long GitHub \
+Actions checks after the PR is open; treat CI as asynchronous unless a required check \
+has already failed and needs an immediate fix. If you cannot complete it, stop and \
+explain what is blocked."
 
   status=success
   exit_code=0

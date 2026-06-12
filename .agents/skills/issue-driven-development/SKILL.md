@@ -48,7 +48,13 @@ If the source item is still vague, use `issue-tdd` first.
      text.
    - Use `Refs #NNN` when completion needs post-merge or live proof; use
      `Closes #NNN` only when the PR fully satisfies the issue.
-9. Watch CI and fix failures when asked to complete the loop.
+9. Treat long PR CI as asynchronous by default.
+   - Do not wait for the full matrix merely because a PR was opened.
+   - Watch CI only when the user asks to merge/finish, when repairing a failing
+     check, or when the touched surface makes the long check the meaningful
+     proof.
+   - For dependent follow-up work, prefer a stacked branch/PR over waiting for
+     each intermediate PR to finish long checks.
 10. Merge only when the requested gate is satisfied.
 11. Cleanup merged worktrees/branches only after verifying the merge.
 12. Capture a learning candidate only for reusable, evidence-backed lessons.
@@ -60,6 +66,8 @@ If the source item is still vague, use `issue-tdd` first.
 - For full-loop work, include branch/PR state, CI status, merge result, cleanup,
   and whether a learning candidate was warranted.
 - Keep branch and PR work targeted; avoid bundling unrelated cleanup.
+- If the PR is intentionally left for asynchronous CI, say which focused checks
+  passed and whether any required check was already failing.
 
 ## Repo-Specific Notes
 
