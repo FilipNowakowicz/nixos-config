@@ -114,7 +114,7 @@ self_test() {
   printf 'guard-agent-dirty-checkout self-test passed\n'
 }
 
-if [[ "${1:-}" == --self-test ]]; then
+if [[ ${1:-} == --self-test ]]; then
   self_test
   exit 0
 fi
