@@ -14,6 +14,12 @@
     fsType = "ext4";
   };
 
+  # A placeholder bootloader target — same `by-label` convention as the
+  # filesystem above — so `system.build.toplevel` evaluates to a buildable
+  # derivation (NixOS asserts a GRUB target device otherwise). Point this at
+  # your own boot disk when adapting the pattern for real use.
+  boot.loader.grub.devices = [ "/dev/disk/by-label/nixos" ];
+
   # ── Users ───────────────────────────────────────────────────────────────
   users.users.demo = {
     isNormalUser = true;

@@ -597,6 +597,11 @@ let
           ../modules/nixos/profiles/security.nix
           inputs.home-manager.nixosModules.home-manager
           {
+            # The example's workstation defines `users.users.demo`, not the
+            # `profiles.desktop` default of `user` — point the desktop
+            # profile's group grants at the account that actually exists.
+            profiles.desktop.user = "demo";
+
             home-manager = {
               useGlobalPkgs = true;
               useUserPackages = true;
@@ -608,6 +613,9 @@ let
           }
         ];
       };
+      workstationToplevel = builtins.tryEval (
+        builtins.deepSeq workstation.config.system.build.toplevel.drvPath true
+      );
       server = lib.nixosSystem {
         system = pkgs.stdenv.hostPlatform.system;
         modules = [
@@ -623,13 +631,17 @@ let
         workstationHasDesktop = workstation.config.programs.hyprland.enable;
         workstationFirewallEnabled = workstation.config.networking.firewall.enable;
         workstationHomeHasBasePackages = workstation.config.home-manager.users.demo.home.packages != [ ];
+        workstationToplevelBuildable = workstationToplevel.success;
         serverHostName = server.config.networking.hostName;
         serverServiceCapabilityBoundingSet =
           server.config.systemd.services.demo-app.serviceConfig.CapabilityBoundingSet;
         serverMetricsURL = (builtins.head server.config.services.prometheus.remoteWrite).url;
       };
     in
-    pkgs.writeText "mini-fleet-example-fixture.json" (builtins.toJSON evaluated);
+    if !workstationToplevel.success then
+      throw "mini-fleet example fixture: workstation system.build.toplevel failed to evaluate (e.g. failing NixOS assertions)"
+    else
+      pkgs.writeText "mini-fleet-example-fixture.json" (builtins.toJSON evaluated);
 
   mkSopsBootstrapCheck =
     hostName: secretsDir:
