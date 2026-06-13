@@ -20,7 +20,11 @@ let
   mkDeployNodes =
     nixosConfigs:
     lib.mapAttrs (name: cfg: {
-      hostname = cfg.tailnetFQDN;
+      # Registry tailnetFQDN is the deploy addressing source of truth;
+      # fall back to the bare name only for a deploy target that genuinely
+      # lacks tailnet metadata (checkDeployTargetsHaveTailnetAddresses still
+      # permits `tailscale` without `tailnetFQDN`).
+      hostname = cfg.tailnetFQDN or name;
       # tailnetFQDN (e.g. "homeserver-gcp.tail90fc7a.ts.net") is a different
       # known_hosts key than the bare registry name used before #142, so
       # existing known_hosts entries (keyed by the short MagicDNS name) don't

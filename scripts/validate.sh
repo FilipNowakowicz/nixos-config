@@ -17,7 +17,7 @@ cd "$repo_root"
 # build key is absent — e.g. in CI or before `main` has the wiring deployed.
 builder_name="gcp-builder"
 builder_zone="${BUILDER_ZONE:-europe-west2-a}"
-builder_fqdn="${BUILDER_FQDN:-gcp-builder.tail90fc7a.ts.net}"
+builder_fqdn="${BUILDER_FQDN:-}"
 builder_key="/run/secrets/gcp_builder_build_key" # root-owned; daemon reads it
 builder_maxjobs="${BUILDER_MAXJOBS:-8}"
 builder_features="kvm,nixos-test,big-parallel,benchmark"
@@ -29,11 +29,23 @@ builder_enabled() {
   [[ -e $builder_key ]] || return 1 # only present on a deployed `main`
 }
 
+# Resolve the builder FQDN from the deploy-rs flake output (sourced from the
+# host registry's tailnetFQDN), falling back to the historical literal if
+# `nix eval` fails. BUILDER_FQDN still overrides both.
+resolve_builder_fqdn() {
+  [[ -n $builder_fqdn ]] && return 0
+  builder_fqdn="$(nix eval --raw .#deploy.nodes.gcp-builder.hostname 2>/dev/null || true)"
+  if [[ -z $builder_fqdn ]]; then
+    builder_fqdn="gcp-builder.tail90fc7a.ts.net"
+  fi
+}
+
 ensure_builder() {
   builder_enabled || {
     echo "remote builder: disabled (USE_BUILDER=0, no gcloud, or no build key); building locally" >&2
     return 0
   }
+  resolve_builder_fqdn
   echo "remote builder: starting $builder_name ..." >&2
   if ! gcloud compute instances start "$builder_name" --zone "$builder_zone" --quiet >/dev/null 2>&1; then
     echo "remote builder: could not start VM (check gcloud project/auth); building locally" >&2
