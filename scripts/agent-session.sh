@@ -148,13 +148,19 @@ preflight_issue_auth() {
   remote_probe=$(
     cat <<'EOF'
 out=$(mktemp /tmp/agent-claude-preflight.XXXXXX)
-if claude -p "say ok" --model sonnet --dangerously-skip-permissions >"$out" 2>&1; then
+rc=0
+claude -p "say ok" --model sonnet --dangerously-skip-permissions >"$out" 2>&1 || rc=$?
+if [ "$rc" -eq 0 ] &&
+  grep -Eiq '(^|[^[:alpha:]])ok([^[:alpha:]]|$)' "$out" &&
+  ! grep -Eiq '401|Invalid authentication credentials|Failed to authenticate|OAuth|quota|rate limit' "$out"; then
   rm -f "$out"
   exit 0
 fi
-rc=$?
 tail -5 "$out" >&2 || true
 rm -f "$out"
+if [ "$rc" -eq 0 ]; then
+  exit 1
+fi
 exit "$rc"
 EOF
   )
