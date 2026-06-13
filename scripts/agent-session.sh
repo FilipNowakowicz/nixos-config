@@ -10,6 +10,8 @@
 # Usage:
 #   scripts/agent-session.sh                 # start, wait, open interactive SSH
 #   scripts/agent-session.sh --wait-only     # start + confirm SSH, then exit 0
+#   scripts/agent-session.sh --preflight-only
+#                                            # start + confirm SSH, gh, and claude
 #   scripts/agent-session.sh --issues <n|--label x>...
 #                                            # start, wait, run the issue loop:
 #                                            # ships the workstation's copy of
@@ -30,6 +32,8 @@
 #
 # Prerequisite: gcloud authenticated with the agent's project active
 #   (gcloud config set project <id>), and tailnet access as tag:workstation.
+#   If gcloud is not on PATH but nix is available, this script falls back to
+#   `nix shell nixpkgs#google-cloud-sdk -c gcloud`.
 set -euo pipefail
 
 AGENT_NAME="${AGENT_NAME:-gcp-agent}"
@@ -39,6 +43,7 @@ SSH_USER="${SSH_USER:-user}"
 REMOTE_AGENT_REPO_DIR="${REMOTE_AGENT_REPO_DIR:-nix}"
 
 wait_only=0
+preflight_only=0
 remote_cmd=()
 issue_args=()
 run_issues=0
@@ -47,6 +52,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
   --wait-only)
     wait_only=1
+    shift
+    ;;
+  --preflight-only)
+    preflight_only=1
     shift
     ;;
   --self-test)
@@ -125,6 +134,41 @@ collect_issue_artifacts() {
     1
 }
 
+preflight_issue_auth() {
+  echo "agent-session: preflighting issue-run credentials on $AGENT_NAME ..." >&2
+
+  if ! ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new \
+    "$SSH_USER@$AGENT_FQDN" \
+    "gh auth status >/dev/null" 2>/dev/null; then
+    echo "agent-session: gh auth failed on $AGENT_NAME (check hosts/gcp-agent/secrets/gh-hosts.yaml)" >&2
+    exit 1
+  fi
+
+  local remote_probe
+  remote_probe=$(
+    cat <<'EOF'
+out=$(mktemp /tmp/agent-claude-preflight.XXXXXX)
+if claude -p "say ok" --model sonnet --dangerously-skip-permissions >"$out" 2>&1; then
+  rm -f "$out"
+  exit 0
+fi
+rc=$?
+tail -5 "$out" >&2 || true
+rm -f "$out"
+exit "$rc"
+EOF
+  )
+
+  if ! ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new \
+    "$SSH_USER@$AGENT_FQDN" "$remote_probe"; then
+    echo "agent-session: claude auth/preflight failed on $AGENT_NAME" >&2
+    echo "agent-session: refresh hosts/gcp-agent/secrets/claude-credentials.enc from a working login and activate/reprovision the host" >&2
+    exit 1
+  fi
+
+  echo "agent-session: issue-run credentials ready" >&2
+}
+
 # Regression test for the artifact-collection path (learning candidate
 # 2026-06-12-agent-session-collects-failed-outcomes): a NONZERO remote
 # issue-run must still collect outcome records, session logs, and learning
@@ -199,10 +243,16 @@ if [[ $run_self_test == 1 ]]; then
   exit 0
 fi
 
-command -v gcloud >/dev/null 2>&1 || {
-  echo "agent-session: gcloud not found (authenticate + set the agent project)" >&2
-  exit 1
-}
+gcloud_cmd=(gcloud)
+if ! command -v gcloud >/dev/null 2>&1; then
+  if command -v nix >/dev/null 2>&1; then
+    gcloud_cmd=(nix shell nixpkgs#google-cloud-sdk -c gcloud)
+    echo "agent-session: gcloud not on PATH; using nixpkgs#google-cloud-sdk" >&2
+  else
+    echo "agent-session: gcloud not found and nix is unavailable (authenticate + set the agent project)" >&2
+    exit 1
+  fi
+fi
 command -v ssh >/dev/null 2>&1 || {
   echo "agent-session: ssh not found" >&2
   exit 1
@@ -213,7 +263,7 @@ command -v scp >/dev/null 2>&1 || {
 }
 
 echo "agent-session: starting $AGENT_NAME (no-op if already running) ..." >&2
-if ! gcloud compute instances start "$AGENT_NAME" --zone "$AGENT_ZONE" --quiet >/dev/null 2>&1; then
+if ! "${gcloud_cmd[@]}" compute instances start "$AGENT_NAME" --zone "$AGENT_ZONE" --quiet >/dev/null 2>&1; then
   echo "agent-session: could not start VM (check gcloud project/auth)" >&2
   exit 1
 fi
@@ -237,6 +287,11 @@ fi
 
 echo "agent-session: $AGENT_NAME ready" >&2
 
+if [[ $preflight_only == 1 ]]; then
+  preflight_issue_auth
+  exit 0
+fi
+
 if [[ $wait_only == 1 ]]; then
   exit 0
 fi
@@ -246,6 +301,7 @@ if [[ $run_issues == 1 ]]; then
     echo "agent-session: --issues needs at least one issue number or --label <name>" >&2
     exit 2
   }
+  preflight_issue_auth
   # Ship the workstation's copy of the entrypoint instead of invoking
   # nix/scripts/agent-run-issue.sh on the host: on a fresh/reprovisioned host
   # the clone does not exist yet, so the on-host path would fail before the
