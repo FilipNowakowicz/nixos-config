@@ -453,194 +453,210 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    assertions = [
-      {
-        assertion =
-          !(
-            cfg.collectors.metrics.enable
-            && shouldUseIngestAuth
-            && cfg.collectors.metrics.remoteWriteURL == null
-            && !cfg.mimir.enable
-          );
-        message = ''
-          profiles.observability.ingestAuth credentials are set but collectors.metrics.remoteWriteURL
-          is null and mimir is disabled; the auth will not be applied to any metrics remote-write
-          destination. Set remoteWriteURL or enable mimir.
-        '';
-      }
-      {
-        assertion = !shouldUseRemoteTraceAuth || cfg.ingestAuth.serviceEnvironmentFile != null;
-        message = ''
-          profiles.observability.ingestAuth.serviceEnvironmentFile must be set when
-          authenticated remote trace export is enabled, because the OpenTelemetry
-          collector basicauth extension reads BASICAUTH_PASSWORD from an env file.
-        '';
-      }
-      {
-        assertion = !cfg.collectors.blackbox.enable || cfg.collectors.metrics.enable;
-        message = "profiles.observability.collectors.blackbox.enable requires profiles.observability.collectors.metrics.enable";
-      }
-      {
-        assertion = !cfg.collectors.blackbox.enable || cfg.collectors.blackbox.probes != { };
-        message = "profiles.observability.collectors.blackbox.enable requires at least one probe definition";
-      }
-    ];
-
-    services = {
-      prometheus = lib.mkIf cfg.collectors.metrics.enable {
-        enable = true;
-        listenAddress = "127.0.0.1";
-        port = prometheusPort;
-        retentionTime = "24h";
-        globalConfig = {
-          scrape_interval = cfg.collectors.metrics.scrapeInterval;
-          external_labels.host = config.networking.hostName;
-        };
-
-        exporters.node = {
-          enable = true;
-          listenAddress = "127.0.0.1";
-          port = nodeExporterPort;
-          enabledCollectors = [
-            "cpu"
-            "filesystem"
-            "loadavg"
-            "meminfo"
-            "netdev"
-            "powersupplyclass"
-            "systemd"
-            "textfile"
-            "thermal_zone"
-          ];
-          extraFlags = [ "--collector.textfile.directory=${nodeExporterTextfileDir}" ];
-        };
-
-        scrapeConfigs = [
-          {
-            job_name = "prometheus";
-            static_configs = [ { targets = [ "127.0.0.1:${toString prometheusPort}" ]; } ];
-          }
-          {
-            job_name = "node";
-            static_configs = [ { targets = [ "127.0.0.1:${toString nodeExporterPort}" ]; } ];
-          }
-        ]
-        ++ lib.optionals cfg.collectors.blackbox.enable blackboxScrapeConfigs;
-
-        remoteWrite =
-          if cfg.collectors.metrics.remoteWriteURL != null then
-            [
-              (
-                {
-                  url = cfg.collectors.metrics.remoteWriteURL;
-                }
-                // metricsRemoteWriteAuth
-              )
-            ]
-          else
-            lib.optionals cfg.mimir.enable [
-              {
-                url = "http://127.0.0.1:9009/api/v1/push";
-              }
-            ];
-
-        exporters.blackbox = lib.mkIf cfg.collectors.blackbox.enable {
-          enable = true;
-          listenAddress = "127.0.0.1";
-          configFile = blackboxConfig;
-        };
+  config = lib.mkMerge [
+    {
+      lib.profiles.observability = {
+        inherit mkPromScript nodeExporterTextfileDir;
       };
-
-      alloy = lib.mkIf cfg.collectors.logs.enable {
-        enable = true;
-        configPath = "/etc/alloy/config.alloy";
-      };
-
-      "opentelemetry-collector" = lib.mkIf cfg.collectors.traces.enable {
-        enable = true;
-        # contrib distribution required for the basicauth extension used for authenticated remote export
-        package = pkgs.opentelemetry-collector-contrib;
-        settings = {
-          receivers.otlp.protocols = {
-            grpc.endpoint = cfg.collectors.traces.receiverGRPCEndpoint;
-            http.endpoint = cfg.collectors.traces.receiverHTTPEndpoint;
-          };
-          processors.batch = { };
-          extensions = lib.optionalAttrs shouldUseIngestAuth {
-            "basicauth/client" = {
-              client_auth = {
-                inherit (cfg.ingestAuth) username;
-                password = "\${env:BASICAUTH_PASSWORD}";
-              };
-            };
-          };
-          exporters =
-            if cfg.collectors.traces.exportURL != null then
-              {
-                otlphttp = {
-                  endpoint = cfg.collectors.traces.exportURL;
-                }
-                // lib.optionalAttrs shouldUseIngestAuth {
-                  auth.authenticator = "basicauth/client";
-                };
-              }
-            else
-              {
-                otlp = {
-                  endpoint = "127.0.0.1:4317";
-                  tls.insecure = true;
-                };
-              };
-          service.pipelines.traces = {
-            receivers = [ "otlp" ];
-            processors = [ "batch" ];
-            exporters = if cfg.collectors.traces.exportURL != null then [ "otlphttp" ] else [ "otlp" ];
-          };
-          service.extensions = lib.optionals shouldUseIngestAuth [ "basicauth/client" ];
-        };
-      };
-    };
-
-    environment.etc = lib.mkIf cfg.collectors.logs.enable {
-      "alloy/config.alloy".text = alloyConfig;
-    };
-
-    lib.profiles.observability = {
-      inherit mkPromScript nodeExporterTextfileDir;
-    };
-
-    systemd = {
-      tmpfiles.rules = lib.mkIf cfg.collectors.metrics.enable [
-        "d /var/lib/prometheus2 0750 prometheus prometheus -"
-        "d ${nodeExporterTextfileDir} 0755 root root -"
+    }
+    (lib.mkIf cfg.enable {
+      assertions = [
+        {
+          assertion =
+            !(
+              cfg.collectors.metrics.enable
+              && shouldUseIngestAuth
+              && cfg.collectors.metrics.remoteWriteURL == null
+              && !cfg.mimir.enable
+            );
+          message = ''
+            profiles.observability.ingestAuth credentials are set but collectors.metrics.remoteWriteURL
+            is null and mimir is disabled; the auth will not be applied to any metrics remote-write
+            destination. Set remoteWriteURL or enable mimir.
+          '';
+        }
+        {
+          assertion = !shouldUseRemoteTraceAuth || cfg.ingestAuth.serviceEnvironmentFile != null;
+          message = ''
+            profiles.observability.ingestAuth.serviceEnvironmentFile must be set when
+            authenticated remote trace export is enabled, because the OpenTelemetry
+            collector basicauth extension reads BASICAUTH_PASSWORD from an env file.
+          '';
+        }
+        {
+          assertion = !cfg.collectors.blackbox.enable || cfg.collectors.metrics.enable;
+          message = "profiles.observability.collectors.blackbox.enable requires profiles.observability.collectors.metrics.enable";
+        }
+        {
+          assertion = !cfg.collectors.blackbox.enable || cfg.collectors.blackbox.probes != { };
+          message = "profiles.observability.collectors.blackbox.enable requires at least one probe definition";
+        }
       ];
 
       services = {
         prometheus = lib.mkIf cfg.collectors.metrics.enable {
-          serviceConfig.SupplementaryGroups = ingestAuthGroups;
-        };
+          enable = true;
+          listenAddress = "127.0.0.1";
+          port = prometheusPort;
+          retentionTime = "24h";
+          globalConfig = {
+            scrape_interval = cfg.collectors.metrics.scrapeInterval;
+            external_labels.host = config.networking.hostName;
+          };
 
-        prometheus-node-exporter = lib.mkIf cfg.collectors.metrics.enable {
-          after = [ "systemd-tmpfiles-setup.service" ];
-          wants = [ "systemd-tmpfiles-setup.service" ];
+          exporters.node = {
+            enable = true;
+            listenAddress = "127.0.0.1";
+            port = nodeExporterPort;
+            enabledCollectors = [
+              "cpu"
+              "filesystem"
+              "loadavg"
+              "meminfo"
+              "netdev"
+              "powersupplyclass"
+              "systemd"
+              "textfile"
+              "thermal_zone"
+            ];
+            extraFlags = [ "--collector.textfile.directory=${nodeExporterTextfileDir}" ];
+          };
+
+          scrapeConfigs = [
+            {
+              job_name = "prometheus";
+              static_configs = [ { targets = [ "127.0.0.1:${toString prometheusPort}" ]; } ];
+            }
+            {
+              job_name = "node";
+              static_configs = [ { targets = [ "127.0.0.1:${toString nodeExporterPort}" ]; } ];
+            }
+          ]
+          ++ lib.optionals cfg.collectors.blackbox.enable blackboxScrapeConfigs;
+
+          remoteWrite =
+            if cfg.collectors.metrics.remoteWriteURL != null then
+              [
+                (
+                  {
+                    url = cfg.collectors.metrics.remoteWriteURL;
+                  }
+                  // metricsRemoteWriteAuth
+                )
+              ]
+            else
+              lib.optionals cfg.mimir.enable [
+                {
+                  url = "http://127.0.0.1:9009/api/v1/push";
+                }
+              ];
+
+          exporters.blackbox = lib.mkIf cfg.collectors.blackbox.enable {
+            enable = true;
+            listenAddress = "127.0.0.1";
+            configFile = blackboxConfig;
+          };
         };
 
         alloy = lib.mkIf cfg.collectors.logs.enable {
-          after = lib.optionals cfg.loki.enable [ "loki.service" ];
-          requires = lib.optionals cfg.loki.enable [ "loki.service" ];
-          serviceConfig.SupplementaryGroups = [ "systemd-journal" ] ++ ingestAuthGroups;
+          enable = true;
+          configPath = "/etc/alloy/config.alloy";
         };
 
-        "opentelemetry-collector" =
-          lib.mkIf (cfg.collectors.traces.enable && cfg.ingestAuth.serviceEnvironmentFile != null)
-            {
-              serviceConfig = {
-                EnvironmentFile = cfg.ingestAuth.serviceEnvironmentFile;
-                SupplementaryGroups = ingestAuthGroups;
+        "opentelemetry-collector" = lib.mkIf cfg.collectors.traces.enable {
+          enable = true;
+          # contrib distribution required for the basicauth extension used for authenticated remote export
+          package = pkgs.opentelemetry-collector-contrib;
+          settings = {
+            receivers.otlp.protocols = {
+              grpc.endpoint = cfg.collectors.traces.receiverGRPCEndpoint;
+              http.endpoint = cfg.collectors.traces.receiverHTTPEndpoint;
+            };
+            processors.batch = { };
+            extensions = lib.optionalAttrs shouldUseIngestAuth {
+              "basicauth/client" = {
+                client_auth = {
+                  inherit (cfg.ingestAuth) username;
+                  password = "\${env:BASICAUTH_PASSWORD}";
+                };
               };
             };
+            exporters =
+              if cfg.collectors.traces.exportURL != null then
+                {
+                  otlphttp = {
+                    endpoint = cfg.collectors.traces.exportURL;
+                  }
+                  // lib.optionalAttrs shouldUseIngestAuth {
+                    auth.authenticator = "basicauth/client";
+                  };
+                }
+              else
+                {
+                  otlp = {
+                    endpoint = "127.0.0.1:4317";
+                    tls.insecure = true;
+                  };
+                };
+            service.pipelines.traces = {
+              receivers = [ "otlp" ];
+              processors = [ "batch" ];
+              exporters = if cfg.collectors.traces.exportURL != null then [ "otlphttp" ] else [ "otlp" ];
+            };
+            service.extensions = lib.optionals shouldUseIngestAuth [ "basicauth/client" ];
+          };
+        };
       };
-    };
-  };
+
+      environment.etc = lib.mkIf cfg.collectors.logs.enable {
+        "alloy/config.alloy".text = alloyConfig;
+      };
+
+      system.activationScripts.exportSystemMetadata.text = lib.mkIf cfg.collectors.metrics.enable "${
+        mkPromScript
+        {
+          name = "system_metadata.prom";
+          lines = [
+            "nixos_system_activated_at_seconds $(${pkgs.coreutils}/bin/date +%s)"
+          ]
+          ++ lib.optionals (config.system.configurationRevision != null) [
+            ''nixos_system_revision_info{revision="${config.system.configurationRevision}"} 1''
+          ];
+        }
+      }";
+
+      systemd = {
+        tmpfiles.rules = lib.mkIf cfg.collectors.metrics.enable [
+          "d /var/lib/prometheus2 0750 prometheus prometheus -"
+          "d ${nodeExporterTextfileDir} 0755 root root -"
+        ];
+
+        services = {
+          prometheus = lib.mkIf cfg.collectors.metrics.enable {
+            serviceConfig.SupplementaryGroups = ingestAuthGroups;
+          };
+
+          prometheus-node-exporter = lib.mkIf cfg.collectors.metrics.enable {
+            after = [ "systemd-tmpfiles-setup.service" ];
+            wants = [ "systemd-tmpfiles-setup.service" ];
+          };
+
+          alloy = lib.mkIf cfg.collectors.logs.enable {
+            after = lib.optionals cfg.loki.enable [ "loki.service" ];
+            requires = lib.optionals cfg.loki.enable [ "loki.service" ];
+            serviceConfig.SupplementaryGroups = [ "systemd-journal" ] ++ ingestAuthGroups;
+          };
+
+          "opentelemetry-collector" =
+            lib.mkIf (cfg.collectors.traces.enable && cfg.ingestAuth.serviceEnvironmentFile != null)
+              {
+                serviceConfig = {
+                  EnvironmentFile = cfg.ingestAuth.serviceEnvironmentFile;
+                  SupplementaryGroups = ingestAuthGroups;
+                };
+              };
+        };
+      };
+    })
+  ];
 }

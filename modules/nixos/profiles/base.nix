@@ -1,29 +1,10 @@
 {
-  config,
-  inputs,
   lib,
   pkgs,
-  self,
   ...
 }:
-let
-  configurationRevision = self.dirtyShortRev or self.shortRev or self.dirtyRev or self.rev or null;
-  inherit (config.lib.profiles.observability) mkPromScript;
-in
 {
   zramSwap.enable = true;
-
-  system.configurationRevision = lib.mkDefault configurationRevision;
-
-  system.activationScripts.exportSystemMetadata.text = "${mkPromScript {
-    name = "system_metadata.prom";
-    lines = [
-      "nixos_system_activated_at_seconds $(${pkgs.coreutils}/bin/date +%s)"
-    ]
-    ++ lib.optionals (configurationRevision != null) [
-      ''nixos_system_revision_info{revision="${configurationRevision}"} 1''
-    ];
-  }}";
 
   # None of the current hosts use ZFS for root import. Set the upcoming 26.11
   # default explicitly across the fleet to avoid evaluation-time warnings.
@@ -32,11 +13,6 @@ in
   # ── Nix ────────────────────────────────────────────────────────────────────
   nixpkgs.config.allowUnfree = true;
   nix = {
-    registry.nixpkgs.flake = inputs.nixpkgs;
-
-    # Keep legacy nixpkgs lookups aligned with the flake-pinned registry entry.
-    nixPath = [ "nixpkgs=flake:nixpkgs" ];
-
     settings.experimental-features = [
       "nix-command"
       "flakes"

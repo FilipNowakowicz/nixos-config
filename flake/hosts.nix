@@ -61,6 +61,7 @@ let
       };
       extraModules = variantArgs.extraModules or [ ];
       homeManagerExtraArgs = builtins.removeAttrs variantArgs [ "extraModules" ];
+      configurationRevision = self.dirtyShortRev or self.shortRev or self.dirtyRev or self.rev or null;
     in
     nixpkgs.lib.nixosSystem {
       inherit (hostMeta) system;
@@ -84,6 +85,14 @@ let
         }
         {
           imports = [ ../modules/nixos ];
+        }
+        {
+          system.configurationRevision = lib.mkDefault configurationRevision;
+          nix = {
+            registry.nixpkgs.flake = inputs.nixpkgs;
+            # Keep legacy nixpkgs lookups aligned with the flake-pinned registry entry.
+            nixPath = [ "nixpkgs=flake:nixpkgs" ];
+          };
         }
         (lib.mkIf (hostMeta ? homeManager) {
           home-manager.sharedModules = [ inputs.sops-nix.homeManagerModules.sops ];

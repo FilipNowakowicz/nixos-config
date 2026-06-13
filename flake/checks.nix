@@ -582,6 +582,31 @@ let
     in
     pkgs.writeText "services-hardened-example-fixture.json" (builtins.toJSON evaluated);
 
+  # Evaluates `nixosModules.profiles-base` standalone: no observability module
+  # imported or enabled, and no `inputs`/`self` specialArgs. The public export
+  # must not depend on observability internals or this private flake's argument
+  # names.
+  profilesBaseStandaloneFixture =
+    let
+      systemConfig = lib.nixosSystem {
+        system = pkgs.stdenv.hostPlatform.system;
+        modules = [
+          ../modules/nixos/profiles/base.nix
+          {
+            networking.hostName = "profiles-base-standalone-fixture";
+            system.stateVersion = "26.05";
+          }
+        ];
+      };
+      evaluated = {
+        configurationRevision = systemConfig.config.system.configurationRevision;
+        hasNixpkgsRegistry = systemConfig.config.nix.registry ? nixpkgs;
+        hasExportSystemMetadata = systemConfig.config.system.activationScripts ? exportSystemMetadata;
+        zramSwap = systemConfig.config.zramSwap.enable;
+      };
+    in
+    pkgs.writeText "profiles-base-standalone-fixture.json" (builtins.toJSON evaluated);
+
   # Evaluates both `examples/mini-fleet` hosts against nixpkgs only — the same
   # `nixosModules.*` paths the example's own `flake.nix` imports as public
   # flake outputs, never `hosts/`. Mirrors the `servicesHardenedExampleFixture`
@@ -726,6 +751,7 @@ in
     observability-client-fixture = observabilityClientFixture;
     observability-dashboard-backend-assertion-fixture = observabilityDashboardBackendAssertionFixture;
     services-hardened-example-fixture = servicesHardenedExampleFixture;
+    profiles-base-standalone-fixture = profilesBaseStandaloneFixture;
     mini-fleet-example-fixture = miniFleetExampleFixture;
   };
 
