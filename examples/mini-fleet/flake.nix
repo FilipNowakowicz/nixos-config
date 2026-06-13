@@ -40,6 +40,11 @@
                 nixos-fleet.nixosModules.profiles-desktop
                 nixos-fleet.nixosModules.profiles-security
               ];
+
+              # profiles-desktop grants its primary user a couple of extra
+              # groups (e.g. /dev/input for swayosd-server); point it at the
+              # user this host actually defines below.
+              profiles.desktop.user = "demo";
             }
             {
               home-manager = {
