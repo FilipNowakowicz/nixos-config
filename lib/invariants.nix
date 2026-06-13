@@ -496,6 +496,37 @@ rec {
     check = cfg: checkNoGlobalTCPPorts [ 22 443 ] cfg;
   };
 
+  homeserverDeployRunnerRegistrationGcRunbookMatchesConfig = {
+    name = "homeserver deploy runner registration-GC runbook matches config";
+    check =
+      cfg:
+      let
+        stateDirs = lib.toList (
+          cfg.systemd.services.github-runner-homeserver-deploy.serviceConfig.StateDirectory or [ ]
+        );
+        stateDir = if stateDirs == [ ] then "" else lib.head stateDirs;
+        expectedPath = "/var/lib/${stateDir}";
+        runbook = lib.fileContents ../hosts/homeserver-gcp/CLAUDE.md;
+        violations = lib.filter (msg: msg != "") [
+          (lib.optionalString (
+            stateDir == ""
+          ) "systemd.services.github-runner-homeserver-deploy.serviceConfig.StateDirectory must be set")
+          (lib.optionalString (!lib.hasInfix expectedPath runbook)
+            "hosts/homeserver-gcp/CLAUDE.md must document the registration-GC remediation path ${expectedPath}"
+          )
+          (lib.optionalString (!lib.hasInfix "github-runner-homeserver-deploy.service" runbook)
+            "hosts/homeserver-gcp/CLAUDE.md must reference github-runner-homeserver-deploy.service in the registration-GC remediation"
+          )
+        ];
+      in
+      mkResult (violations == [ ]) (
+        if violations == [ ] then
+          "runbook documents the current registration-GC remediation path"
+        else
+          lib.concatStringsSep "; " violations
+      );
+  };
+
   homeserverSshAndHttpsTailscaleOnly = {
     name = "SSH and HTTPS stay Tailscale-only";
     check =
