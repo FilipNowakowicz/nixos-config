@@ -50,12 +50,6 @@ in
     # deploy-rs and `main`'s distributed builds connect as `user`; trust it so
     # the daemon accepts remote-build store operations and restricted settings.
     nix.extraTrustedUsers = [ "user" ];
-
-    # base.nix unconditionally uses lib.profiles.observability.mkPromScript,
-    # which only exists when the observability profile is enabled. Turn it on
-    # but leave every collector and backend off: this disposable build box ships
-    # no telemetry and runs no LGTM services — this just satisfies shared base.
-    observability.enable = true;
   };
 
   nix = {

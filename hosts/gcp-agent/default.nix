@@ -45,14 +45,6 @@
     ];
   };
 
-  profiles = {
-    # base.nix unconditionally uses lib.profiles.observability.mkPromScript,
-    # which only exists when the observability profile is enabled. Turn it on
-    # but leave every collector and backend off: this box ships no telemetry and
-    # runs no LGTM services — this just satisfies shared base (same as builder).
-    observability.enable = true;
-  };
-
   nix = {
     settings.trusted-public-keys = [
       "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
