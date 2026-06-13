@@ -37,6 +37,23 @@ packages, deploy wiring, secrets boundaries, or generated data in this repo.
   shell directly, use `nix fmt -- <files>` for formatter-backed checks when
   appropriate, or run ad-hoc tools explicitly with `nix run`.
 
+## Static golden checks for heavy CLI contracts
+
+When a golden/contract check targets a CLI entrypoint that itself shells out
+to networked or build-heavy commands (e.g. `nix flake check`, `nix fmt`),
+prefer a static source-assertion `pkgs.runCommand` — grep-based section/keyword
+anchors and ordered-list diffs against the script source — over trying to
+execute the real script in the Nix sandbox, which has no network/build access.
+
+When such a check encodes a list, especially a negative/denylist, derive it
+from its canonical source (e.g. `lib/hosts.nix`, flake outputs) rather than
+hardcoding it, so a new entry is covered automatically instead of silently
+rotting the check open.
+
+See `tests/lib/doctor.nix` (section/keyword/order assertions plus a
+host-denylist derived from `lib/hosts.nix`) and `tests/lib/mini-fleet-flake.nix`
+(derives the expected output list from `flake.nix`) for worked examples.
+
 ## Operational gotchas
 
 - **A successful build is not a live switch.** In non-interactive sessions
