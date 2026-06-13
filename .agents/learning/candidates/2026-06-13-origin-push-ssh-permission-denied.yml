@@ -1,0 +1,12 @@
+schema: learning-candidate/v1
+id: 2026-06-13-origin-push-ssh-permission-denied
+date: 2026-06-13
+expires: 2026-09-13
+status: open
+
+route: implement-fix
+best_form: doc
+
+evidence: [pr-#255, "git push -u origin <branch> -> 'git@github.com: Permission denied (publickey)'"]
+observation: origin's push URL defaults to git@github.com:... (SSH) but the agent session has no SSH key, only a working gh HTTPS token; a plain `git push` to a new branch fails before gh pr create can run, and gh pr create then errors with "you must first push the current branch to a remote, or use the --head flag" because the local branch has no upstream.
+proposed_upgrade: document (e.g. in issue-driven-development skill or a repo runbook) that agents must run `git remote set-url --push origin https://github.com/FilipNowakowicz/nixos-config.git` before the first push of a new branch in this environment, then `git push -u origin <branch>`; likely root cause of the prior failed automated run for issue #194 (2026-06-12T21:50, exit_code 1, no linked PR).

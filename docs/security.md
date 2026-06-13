@@ -455,8 +455,6 @@ access because the current deploy flow depends on it:
   activate the companion workstation over Tailscale.
 - `hosts/homeserver-gcp` sets `security.sudo.wheelNeedsPassword = false` for
   deploy-rs activation over Tailscale-scoped SSH.
-- `modules/nixos/profiles/machine-dev.nix` sets passwordless wheel for
-  disposable development machines and microVM guests that import it.
 - The stock GCP bootstrap image creates a temporary `bootstrap` user with
   `NOPASSWD:ALL` so `nixos-anywhere` can install NixOS.
 

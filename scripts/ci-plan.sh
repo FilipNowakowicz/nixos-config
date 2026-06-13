@@ -24,7 +24,6 @@ installer_change='^hosts/installer/'
 module_all_hosts='^modules/nixos/(default\.nix|services/|profiles/(base|backup|security|sops-base|user)\.nix|profiles/observability/)'
 module_desktop_hosts='^modules/nixos/(profiles/(desktop|observability-client)\.nix|hardware/nvidia-prime\.nix)'
 module_machine_hosts='^modules/nixos/profiles/(impermanence-base|machine-common)\.nix'
-module_microvm_guest='^modules/nixos/profiles/microvm-guest\.nix'
 home_all_hosts='^home/(profiles/base\.nix|users/user/common\.nix)'
 home_desktop_hosts='^home/(neovim/|profiles/(desktop|workstation)\.nix|profiles/workflow-packs/|users/user/home\.nix|theme/|files/(nvim/|firefox|hypr|kitty|waybar|scripts/(theme-switch|waybar-weather|clipboard-pick)\.sh))'
 home_server_hosts='^home/users/user/server\.nix'
@@ -97,7 +96,7 @@ if [[ -n $changed_files ]]; then
 
     if
       [[ $path =~ ^modules/nixos/ ]] &&
-        ! grep -qE "${module_all_hosts}|${module_desktop_hosts}|${module_machine_hosts}|${module_microvm_guest}" <<<"$path"
+        ! grep -qE "${module_all_hosts}|${module_desktop_hosts}|${module_machine_hosts}" <<<"$path"
     then
       unknown_module_changed=true
     fi
