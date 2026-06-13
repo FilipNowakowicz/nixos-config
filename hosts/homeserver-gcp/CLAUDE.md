@@ -161,3 +161,31 @@ failed-unit checks. It does not automate `main` workstation rollout.
   is an accepted, recorded decision documented here.
 
 - **AdGuard web UI** — HTTPS on port 3001 (proxied by nginx using the Tailscale cert). AdGuard itself binds to `127.0.0.1:13001`. Login: `admin`; password material is managed through the sops-backed AdGuard configuration.
+- **Deploy runner registration GC** — `services.github-runners.homeserver-deploy`
+  only re-registers with GitHub when its NixOS module config or the
+  `github_runner_homeserver_deploy_token` secret _changes on disk_ (the
+  module's `unconfigure` script `diff`s the new config/token against
+  `.nixos-current-config.json`/`.current-token` in the state directory). If
+  GitHub garbage-collects or invalidates the registration server-side (e.g.
+  after a long idle period) while the local config and token are unchanged,
+  that diff sees no change, skips re-registration, and `Runner.Listener`
+  starts with stale `.runner`/`.credentials` that GitHub now rejects — the
+  unit fails, with a journal entry like "session ... has been deleted" /
+  "no longer exists". Recover by clearing the persisted runner state so the
+  next start re-registers from scratch:
+  ```bash
+  ssh user@homeserver-gcp.example.ts.net
+  sudo systemctl stop github-runner-homeserver-deploy.service
+  sudo find /var/lib/github-runner/homeserver-deploy -mindepth 1 -delete
+  sudo systemctl start github-runner-homeserver-deploy.service
+  sudo systemctl status github-runner-homeserver-deploy.service --no-pager
+  ```
+  `find -mindepth 1 -delete` is required instead of `rm -rf .../*` — the
+  persisted state (`.runner`, `.credentials`, `.nixos-current-config.json`,
+  ...) is all dotfiles a bare glob won't match, and leaving any behind makes
+  the unconfigure diff see "unchanged" again and skip re-registration. An
+  empty state directory hits the unconfigure script's first-start path, which
+  copies `github_runner_homeserver_deploy_token` into the work area; the
+  configure script then detects the PAT format and re-registers with
+  `--pat`, minting a fresh registration token automatically — no token
+  rotation needed for this recovery path.
