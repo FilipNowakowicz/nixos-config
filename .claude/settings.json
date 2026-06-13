@@ -18,6 +18,15 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-bash.sh"
           }
         ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-agent-dirty-checkout.sh"
+          }
+        ]
       }
     ],
     "Stop": [

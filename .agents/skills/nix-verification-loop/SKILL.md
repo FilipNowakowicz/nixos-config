@@ -36,6 +36,31 @@ packages, deploy wiring, secrets boundaries, or generated data in this repo.
   exit successfully with no output. Run tools already available in the current
   shell directly, use `nix fmt -- <files>` for formatter-backed checks when
   appropriate, or run ad-hoc tools explicitly with `nix run`.
+- When backgrounding a validation command, join every step on one logical line
+  with `&&`/`;` (or a single quoted `bash -c '...'`) — never rely on a literal
+  newline between top-level statements. A backgrounded multi-line command can
+  collapse onto one pipeline, e.g. turning `nix fmt FILE | tail -5` + a
+  following `git add` line into `tail -5 git add FILE && git commit`, which
+  hangs `tail` forever on an open pipe with empty output. Avoid piping
+  `nix develop -c <cmd>` through `tail`/`head` in the background for the same
+  reason; run such commands in the foreground or redirect to a file instead.
+
+## Static golden checks for heavy CLI contracts
+
+When a golden/contract check targets a CLI entrypoint that itself shells out
+to networked or build-heavy commands (e.g. `nix flake check`, `nix fmt`),
+prefer a static source-assertion `pkgs.runCommand` — grep-based section/keyword
+anchors and ordered-list diffs against the script source — over trying to
+execute the real script in the Nix sandbox, which has no network/build access.
+
+When such a check encodes a list, especially a negative/denylist, derive it
+from its canonical source (e.g. `lib/hosts.nix`, flake outputs) rather than
+hardcoding it, so a new entry is covered automatically instead of silently
+rotting the check open.
+
+See `tests/lib/doctor.nix` (section/keyword/order assertions plus a
+host-denylist derived from `lib/hosts.nix`) and `tests/lib/mini-fleet-flake.nix`
+(derives the expected output list from `flake.nix`) for worked examples.
 
 ## Operational gotchas
 

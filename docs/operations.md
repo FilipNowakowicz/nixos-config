@@ -479,3 +479,14 @@ config now excludes. Trust the CI-equivalent commands — `nix fmt --
 --fail-on-change` and `nix run .#statix -- check .` — over a stale hook. Only
 re-`nix develop` (to regenerate the wrapper) or commit with `--no-verify` once
 those fresh checks pass; never use `--no-verify` to skip a real failure.
+
+### Markdown Prose And Prettier
+
+Prettier (via `nix fmt`) rewrites bare underscores in Markdown prose into
+escaped emphasis markers (`authorized_keys` → `authorized\_keys`,
+`_patterns_` → `\_patterns_`). A local `nix fmt` can report no changes for an
+unrelated reason and still leave this drift for CI's `nix fmt --
+--fail-on-change` to catch, failing lint on an otherwise docs-only PR.
+Backtick identifiers containing underscores (`` `authorized_keys` ``) instead
+of writing them as bare prose, and run `nix fmt -- --fail-on-change` (not just
+`nix fmt`) before opening a docs PR.

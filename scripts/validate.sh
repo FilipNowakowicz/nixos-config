@@ -201,6 +201,7 @@ docs)
   bash .agents/scripts/agent-dispatch --self-test
   bash .agents/scripts/agent-dispatchable-issues --self-test
   bash .agents/scripts/agent-route --self-test
+  bash .claude/hooks/guard-agent-dirty-checkout.sh --self-test
   bash .agents/learning/scripts/validate-candidates.sh
   bash .agents/repo-map/scripts/validate.sh
   ;;
