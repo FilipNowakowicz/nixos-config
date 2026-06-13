@@ -150,11 +150,14 @@ capture** in steps 7–8.
      > hosts/gcp-agent/secrets/claude-credentials.enc
    ```
 
-   If `claude -p 'say ok' --model sonnet --dangerously-skip-permissions` fails
-   with `401 Invalid authentication credentials`, refresh this secret from a
-   currently working login and reprovision or manually activate the host. The
-   OAuth access token in `.credentials.json` is time-bound, and a stale encrypted
-   secret can decrypt cleanly while still failing at runtime.
+If `claude -p 'say ok' --model sonnet --dangerously-skip-permissions` fails
+with `401 Invalid authentication credentials`, refresh this secret from a
+currently working login and reprovision or manually activate the host. The
+OAuth access token in `.credentials.json` is time-bound, and a stale encrypted
+secret can decrypt cleanly while still failing at runtime. A reboot or
+activation re-materializes `/home/user/.claude/.credentials.json` from
+`hosts/gcp-agent/secrets/claude-credentials.enc`, so updating only the live
+home file is temporary; refresh the encrypted secret too.
 
 8. **Provision the scoped GitHub PAT** — mint a fine-grained PAT limited to this
    repo with **Contents, Issues, Pull requests: read/write**. Put it in the
@@ -186,6 +189,7 @@ to open a session, not offload a build):
 ```bash
 scripts/agent-session.sh                  # start, wait for SSH over Tailscale, open a shell
 scripts/agent-session.sh --wait-only      # start + confirm reachability, then return
+scripts/agent-session.sh --preflight-only # start + confirm SSH, gh, and claude auth
 scripts/agent-session.sh --issues <n|--label x>...
                                           # start, wait, run the issue loop (works on a fresh host)
 scripts/agent-session.sh -- <cmd...>      # start, wait, run <cmd...> on the host
@@ -193,9 +197,12 @@ scripts/agent-session.sh -- <cmd...>      # start, wait, run <cmd...> on the hos
 
 It `gcloud`-starts the VM (no-op if already running), waits for SSH at
 `gcp-agent.tail90fc7a.ts.net`, then opens an interactive shell or runs the
-passed command. Knobs: `AGENT_NAME`, `AGENT_ZONE`, `AGENT_FQDN`, `SSH_USER`.
-**Prerequisite:** `gcloud` authenticated with the agent's project active, and
-tailnet access as `tag:workstation`.
+passed command. If `gcloud` is not on `PATH` but `nix` is available, it falls
+back to `nix shell nixpkgs#google-cloud-sdk -c gcloud` so a normal checkout can
+start the VM without manually entering a dev shell first. Knobs: `AGENT_NAME`,
+`AGENT_ZONE`, `AGENT_FQDN`, `SSH_USER`. **Prerequisite:** Google Cloud SDK
+credentials are authenticated with the agent's project active, and tailnet
+access as `tag:workstation`.
 
 ### Idle auto-shutdown
 
@@ -252,13 +259,17 @@ What it does per issue:
 
 1. Bootstrap: clone `$AGENT_REPO_DIR` from `$REPO_URL` if it doesn't exist yet
    (first run / after reprovisioning); otherwise reuse the existing clone.
-2. `git fetch` + `reset --hard origin/main` (criterion: clone up to date with `main`).
-3. Runs `claude -p` headless, instructing it to follow the
+2. Before shipping the runner, `scripts/agent-session.sh --issues ...`
+   preflights `gh auth status` and a cheap `claude -p "say ok"` on the host.
+   This fails fast for expired OAuth or PAT problems before burning queued
+   issue sessions.
+3. `git fetch` + `reset --hard origin/main` (criterion: clone up to date with `main`).
+4. Runs `claude -p` headless, instructing it to follow the
    `issue-driven-development` skill: branch off `main`, smallest durable fix,
    validate with the `nix-verification-loop` skill, push, open a PR linking the
    issue (`Closes` only if fully satisfied, else `Refs`), never merge, never
    push to `main`.
-4. Push + PR creation use the host's scoped GitHub PAT via `gh` and the
+5. Push + PR creation use the host's scoped GitHub PAT via `gh` and the
    `gh auth git-credential` helper (`home/users/user/agent.nix`).
 
 Knobs: `AGENT_REPO_DIR` (default `$HOME/nix`), `BASE_BRANCH` (default `main`),
