@@ -684,15 +684,58 @@ let
         exit 1
       '';
 
+  # Host-specific invariant overlays, layered on top of the generated
+  # baseline (commonSystemInvariants ++ registryAssertionsFor "<host>") for
+  # every hostRegistry entry below. A registry host with no overlay entry
+  # still gets the baseline, so adding a host here is optional, not required.
+  hostInvariantOverlays = {
+    main = mainAccessInvariants ++ mainExperienceInvariants ++ mainBackupInvariants;
+    "homeserver-gcp" =
+      homeserverAccessInvariants ++ homeserverBackupInvariants ++ homeserverAlertDeliveryInvariants;
+    "gcp-builder" = gcpBuilderAccessInvariants;
+    "gcp-agent" = gcpAgentAccessInvariants;
+    mac = macAccessInvariants;
+  };
+
+  baselineInvariantsFor =
+    hostName:
+    commonSystemInvariants
+    ++ registryAssertionsFor hostName
+    ++ (hostInvariantOverlays.${hostName} or [ ]);
+
   # Invariant list shared by the full `main` closure and the `main-ci`
   # closure CI actually builds, so a `profiles.ci`-gated change to a
   # security option cannot slip past either variant.
-  mainInvariants =
-    commonSystemInvariants
-    ++ mainAccessInvariants
-    ++ mainExperienceInvariants
-    ++ mainBackupInvariants
-    ++ registryAssertionsFor "main";
+  mainInvariants = baselineInvariantsFor "main";
+
+  # Hosts needing a pre-baked SSH host key for nixos-anywhere/deploy-rs
+  # bootstrap: deploy-rs targets (`deploy` present) that are sops-enabled
+  # (`sops != false`). `gcp-builder` is excluded via `sops = false`; `main` is
+  # excluded because it has no `deploy` entry and never carries a pre-baked
+  # host key.
+  sopsBootstrapHostNames = builtins.attrNames (
+    lib.filterAttrs (_: cfg: (cfg ? deploy) && (cfg.sops or true) != false) hostRegistry
+  );
+
+  # Baseline `invariants-<host>` check for every hostRegistry entry, so a new
+  # host automatically gets merge-gate coverage without touching this file.
+  generatedInvariantChecks = lib.mapAttrs' (
+    hostName: _:
+    lib.nameValuePair "invariants-${hostName}" (
+      invariants.mkInvariantCheck hostName (baselineInvariantsFor hostName)
+        allNixosConfigs.${hostName}.config
+    )
+  ) hostRegistry;
+
+  # `<host>-sops-bootstrap` check for every sopsBootstrapHostNames entry.
+  generatedSopsBootstrapChecks = lib.listToAttrs (
+    map (
+      hostName:
+      lib.nameValuePair "${hostName}-sops-bootstrap" (
+        mkSopsBootstrapCheck hostName (../hosts + "/${hostName}/secrets")
+      )
+    ) sopsBootstrapHostNames
+  );
 
   registrySecurityInvariants = [
     {
@@ -711,40 +754,12 @@ in
       invariants.mkInvariantCheck "registry-security" registrySecurityInvariants
         { };
 
-    invariants-main = invariants.mkInvariantCheck "main" mainInvariants allNixosConfigs.main.config;
-
     # CI ships `main-ci` (profiles.ci = true; skipHeavyPackages = true), not
     # the full `main` closure; pin the same invariants to it so the gated
     # build is what gets validated.
     invariants-main-ci =
       invariants.mkInvariantCheck "main-ci" mainInvariants
         ciNixosConfigs.main-ci.config;
-
-    invariants-homeserver-gcp = invariants.mkInvariantCheck "homeserver-gcp" (
-      commonSystemInvariants
-      ++ homeserverAccessInvariants
-      ++ homeserverBackupInvariants
-      ++ homeserverAlertDeliveryInvariants
-      ++ registryAssertionsFor "homeserver-gcp"
-    ) ciNixosConfigs.homeserver-gcp.config;
-
-    invariants-gcp-builder = invariants.mkInvariantCheck "gcp-builder" (
-      commonSystemInvariants ++ gcpBuilderAccessInvariants ++ registryAssertionsFor "gcp-builder"
-    ) allNixosConfigs.gcp-builder.config;
-
-    invariants-gcp-agent = invariants.mkInvariantCheck "gcp-agent" (
-      commonSystemInvariants ++ gcpAgentAccessInvariants ++ registryAssertionsFor "gcp-agent"
-    ) allNixosConfigs.gcp-agent.config;
-
-    invariants-mac = invariants.mkInvariantCheck "mac" (
-      commonSystemInvariants ++ macAccessInvariants ++ registryAssertionsFor "mac"
-    ) allNixosConfigs.mac.config;
-
-    homeserver-gcp-sops-bootstrap = mkSopsBootstrapCheck "homeserver-gcp" ../hosts/homeserver-gcp/secrets;
-
-    mac-sops-bootstrap = mkSopsBootstrapCheck "mac" ../hosts/mac/secrets;
-
-    gcp-agent-sops-bootstrap = mkSopsBootstrapCheck "gcp-agent" ../hosts/gcp-agent/secrets;
 
     observability-alerts-lint = observabilityAlertsLint;
     observability-stack-fixture = observabilityStackFixture;
@@ -753,7 +768,9 @@ in
     services-hardened-example-fixture = servicesHardenedExampleFixture;
     profiles-base-standalone-fixture = profilesBaseStandaloneFixture;
     mini-fleet-example-fixture = miniFleetExampleFixture;
-  };
+  }
+  // generatedInvariantChecks
+  // generatedSopsBootstrapChecks;
 
   ciTestsFor = system: {
     homeserver-gcp-smoke = import ../tests/nixos/homeserver-gcp-smoke.nix {
