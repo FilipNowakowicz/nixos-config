@@ -4,6 +4,14 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
+    # Tempo 3.0 restructured its config schema and made the monolithic "all"
+    # target depend on a Kafka broker (live-store/ingest), which this fleet
+    # doesn't run. Pin a known-good pre-bump revision just for the tempo
+    # package until that migration is evaluated (see issue #252 and its
+    # follow-up). Deliberately not `follows`-ing nixpkgs: this pin is
+    # intentionally independent of the main channel.
+    nixpkgs-tempo-2105.url = "github:NixOS/nixpkgs/331800de5053fcebacf6813adb5db9c9dca22a0c";
+
     flake-parts = {
       url = "github:hercules-ci/flake-parts";
       inputs.nixpkgs-lib.follows = "nixpkgs";

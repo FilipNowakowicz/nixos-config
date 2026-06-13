@@ -377,6 +377,22 @@
         "type": "github"
       }
     },
+    "nixpkgs-tempo-2105": {
+      "locked": {
+        "lastModified": 1780243769,
+        "narHash": "sha256-x5UQuRsH3MqI0U9afaXSNqzTPSeZlRLvFAav2Ux1pNw=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "331800de5053fcebacf6813adb5db9c9dca22a0c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "331800de5053fcebacf6813adb5db9c9dca22a0c",
+        "type": "github"
+      }
+    },
     "nixpkgs_2": {
       "locked": {
         "lastModified": 1781074563,
@@ -449,6 +465,7 @@
         "nix-index-database": "nix-index-database",
         "nixos-anywhere": "nixos-anywhere",
         "nixpkgs": "nixpkgs_2",
+        "nixpkgs-tempo-2105": "nixpkgs-tempo-2105",
         "pre-commit-hooks": "pre-commit-hooks",
         "sops-nix": "sops-nix",
         "treefmt-nix": "treefmt-nix_2"

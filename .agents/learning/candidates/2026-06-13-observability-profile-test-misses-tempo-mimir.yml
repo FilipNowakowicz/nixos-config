@@ -1,0 +1,12 @@
+schema: learning-candidate/v1
+id: 2026-06-13-observability-profile-test-misses-tempo-mimir
+date: 2026-06-13
+expires: 2026-09-13
+status: open
+
+route: implement-fix
+best_form: test
+
+evidence: [tests/nixos/profile-observability.nix:83-104, issue-#252, issue-#267, pr-#251]
+observation: weekly flake.lock PR #251 bumped Tempo 2.10.5->3.0.1 (config schema break + new Kafka-dependent live-store module, #252) and Mimir to 3.1.0 (new default *:7946 memberlist listener, fails check-host-drift.sh on homeserver-gcp); merge-gate passed and auto-merged because tests/nixos/profile-observability.nix only wait_for_unit's loki/alloy (and stub-ingest/prometheus in the auth VM), never enabling or checking tempo.service or mimir.service
+proposed_upgrade: extend tests/nixos/profile-observability.nix to enable services.tempo and services.mimir on the obs VM and wait_for_unit("tempo.service")/wait_for_unit("mimir.service"), so future package bumps to these backends fail merge-gate instead of breaking homeserver-gcp at deploy/runtime

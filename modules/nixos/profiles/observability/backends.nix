@@ -1,10 +1,22 @@
 {
   config,
   lib,
+  pkgs,
+  inputs,
   ...
 }:
 let
   cfg = config.profiles.observability;
+
+  # Tempo 3.0 restructured its config schema (the `compactor` key used below
+  # no longer exists) and made the monolithic "all" target depend on a Kafka
+  # broker for its new live-store/ingest path. Stay on the last version whose
+  # config shape matches `tempo.settings` below until that migration is
+  # evaluated (see issue #252 and its follow-up).
+  tempoPkgs = import inputs.nixpkgs-tempo-2105 {
+    inherit (pkgs) system;
+    config.allowUnfree = true;
+  };
 in
 {
   options.profiles.observability = {
@@ -14,6 +26,14 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # The tempo NixOS module hardcodes pkgs.tempo with no package override
+    # option, so pin it via overlay.
+    nixpkgs.overlays = lib.optional cfg.tempo.enable (
+      _final: _prev: {
+        inherit (tempoPkgs) tempo;
+      }
+    );
+
     services = {
       loki = lib.mkIf cfg.loki.enable {
         enable = true;
@@ -90,6 +110,11 @@ in
             http_listen_port = 9009;
             grpc_listen_address = "127.0.0.1";
           };
+          # Mimir 3.1 starts a memberlist gossip listener on *:7946 by
+          # default even with inmemory ring kvstores. Bind it to loopback so
+          # it doesn't show up as an unexpected listener on the tailnet
+          # interface (single-instance setup, no gossip needed).
+          memberlist.bind_addr = [ "127.0.0.1" ];
           blocks_storage = {
             backend = "filesystem";
             filesystem.dir = "/var/lib/mimir/blocks";
