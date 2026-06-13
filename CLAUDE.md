@@ -96,6 +96,13 @@ shared profiles changed, build all affected hosts.
   block-device ops (`dd`/`mkfs`/`wipefs`/partitioning), LUKS format/erase, and
   recursive `rm` of a top-level path. A blocked/prompted action there is by
   design, not a failure.
+- **Agent-spawn dirty-checkout guard** —
+  `.claude/hooks/guard-agent-dirty-checkout.sh` (PreToolUse on the `Agent`
+  tool) _asks_ before launching an `isolation: "worktree"` subagent if this
+  checkout has uncommitted, non-generated changes — a worktree-isolated
+  subagent still shares this checkout's `.git` and can clobber staged/unstaged
+  edits here via `git reset`/`checkout`/`clean`. Commit or stash first, or
+  instruct the subagent not to touch this checkout's path.
 
 ## Shared Workflow Skills
 

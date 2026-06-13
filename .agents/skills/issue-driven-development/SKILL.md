@@ -79,3 +79,14 @@ If the source item is still vague, use `issue-tdd` first.
 - For this git-backed flake, stage newly created files before Nix eval/build checks
   that need to see them.
 - Do not include `Co-Authored-By` trailers.
+- Before launching an `isolation: "worktree"` subagent for issue/subagent work,
+  commit or stash any intentional edits in the primary checkout first.
+  Worktree isolation protects files the subagent writes, but the subagent
+  shares this checkout's `.git` — a `git reset`/`checkout`/`clean` it runs
+  against this checkout's path can still destroy staged/unstaged edits here
+  (see learning candidate
+  `2026-06-08-worktree-subagent-reset-clobbers-shared-checkout`). The repo's
+  `.claude/hooks/guard-agent-dirty-checkout.sh` warns before such a spawn if
+  this checkout has uncommitted, non-generated changes. When dispatching the
+  subagent, explicitly tell it to operate only inside its assigned worktree
+  path and never run git commands against the primary checkout.
