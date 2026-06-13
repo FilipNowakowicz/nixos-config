@@ -432,12 +432,13 @@ replaced with `nix-index`, and `comma` is available for one-off commands:
 Use `comma` for temporary tools you do not want to add to the permanent package
 set.
 
-`nix develop --command <cmd>` is **not** a reliable non-interactive wrapper
-here: the default dev shell's `shellHook` unconditionally execs `zsh`, so the
-wrapped command's own output gets swallowed. For automation (CI steps, deploy
-scripts), reach for a flake app/package directly or `nix shell nixpkgs#tool -c
-<cmd>` instead — see `nix shell nixpkgs#deploy-rs -c deploy` in the [Automated
-Homeserver Deploy](#automated-homeserver-deploy) workflow.
+The default dev shell's `shellHook` execs `zsh` only for interactive sessions
+(when `$-` contains `i`), so `nix develop --command <cmd>` runs `<cmd>`
+normally and passes its stdout/exit status through. For automation (CI steps,
+deploy scripts) you can still reach for a flake app/package directly or `nix
+shell nixpkgs#tool -c <cmd>` when a tool isn't part of the dev shell — see
+`nix shell nixpkgs#deploy-rs -c deploy` in the [Automated Homeserver
+Deploy](#automated-homeserver-deploy) workflow.
 
 ## Desktop Apps
 

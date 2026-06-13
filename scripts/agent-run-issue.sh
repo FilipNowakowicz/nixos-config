@@ -265,6 +265,38 @@ parse_session_result() {
     | (last // null)' "$log" 2>/dev/null || printf 'null\n'
 }
 
+linked_pr_count() {
+  local issue="$1"
+  local head_branch="$2"
+  {
+    if [[ -n $head_branch && $head_branch != DETACHED ]]; then
+      gh pr list --state all --head "$head_branch" --json number 2>/dev/null || true
+    fi
+    gh pr list --state all --search "#${issue} in:body" --json number,body 2>/dev/null |
+      jq -c --arg issue "$issue" '
+        map(select((.body // "")
+          | test("(?i)(close[sd]?|fix(es|ed)?|resolve[sd]?|refs?)[[:space:]]+#" + $issue + "\\b")))
+        | map(del(.body))' 2>/dev/null || true
+  } | jq -rs '
+    (add // [])
+    | map(select(type == "object" and (.number | type == "number")))
+    | unique_by(.number)
+    | length
+  ' 2>/dev/null || printf '0\n'
+}
+
+has_clean_pr_after_timeout() {
+  local issue="$1"
+  local head_branch="$2"
+  local dirty_count pr_count
+
+  [[ -n $head_branch && $head_branch != "$BASE_BRANCH" && $head_branch != DETACHED ]] || return 1
+  dirty_count=$(git status --short 2>/dev/null | wc -l | tr -d ' ' || printf '1')
+  [[ ${dirty_count:-1} == 0 ]] || return 1
+  pr_count=$(linked_pr_count "$issue" "$head_branch")
+  [[ ${pr_count:-0} =~ ^[0-9]+$ && ${pr_count:-0} -gt 0 ]]
+}
+
 self_test() {
   local tmp repo bin out rc old_timeout old_heartbeat old_grace
   tmp=$(mktemp -d)
@@ -316,11 +348,36 @@ sleep 30
 EOF
   chmod +x "$bin/slow-worker"
 
+  cat >"$bin/gh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ ${1:-} == pr && ${2:-} == list ]]; then
+  case "$*" in
+  *"--head codex/clean-pr"*) printf '[{"number":77}]\n' ;;
+  *"#999 in:body"*) printf '[{"number":77,"body":"Refs #999"}]\n' ;;
+  *) printf '[]\n' ;;
+  esac
+  exit 0
+fi
+exit 1
+EOF
+  chmod +x "$bin/gh"
+  PATH="$bin:$PATH"
+
   old_timeout="$AGENT_INNER_TIMEOUT_SECONDS"
   old_heartbeat="$AGENT_HEARTBEAT_SECONDS"
   old_grace="$AGENT_INNER_KILL_GRACE_SECONDS"
 
   cd "$repo"
+  git checkout -q -b codex/clean-pr
+  has_clean_pr_after_timeout 999 codex/clean-pr ||
+    die "self-test: expected clean linked PR to classify as post-PR timeout"
+  printf 'dirty\n' >dirty.txt
+  if has_clean_pr_after_timeout 999 codex/clean-pr; then
+    die "self-test: dirty worktree must not classify as post-PR timeout"
+  fi
+  rm -f dirty.txt
+
   AGENT_INNER_TIMEOUT_SECONDS=10
   AGENT_HEARTBEAT_SECONDS=1
   AGENT_INNER_KILL_GRACE_SECONDS=1
@@ -690,6 +747,16 @@ explain what is blocked."
     fi
     echo "agent-run-issue: last session output for issue #$issue:" >&2
     tail -n 40 "$session_log" >&2 2>/dev/null || true
+
+    if [[ $exit_code -eq 124 ]]; then
+      outcome_head_branch=$(git symbolic-ref --short HEAD 2>/dev/null || printf 'DETACHED')
+      if has_clean_pr_after_timeout "$issue" "$outcome_head_branch"; then
+        status=success
+        exit_code=0
+        blocker="claude session timed out after a clean linked PR was already opened; treating as post-PR finalization timeout"
+        echo "agent-run-issue: issue #$issue timeout happened after linked PR publication; recording success with blocker note" >&2
+      fi
+    fi
   fi
 
   session_result=$(parse_session_result "$session_log")

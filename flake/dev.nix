@@ -153,7 +153,13 @@ in
         if [ -n "$common_git_dir" ]; then
           ${pkgs.coreutils}/bin/install -Dm755 ${commitMsgHook} "$common_git_dir/hooks/commit-msg"
         fi
-        exec ${pkgs.zsh}/bin/zsh
+        # Only replace the shell for interactive sessions. `nix develop -c
+        # <cmd>` runs this hook in a non-interactive bash, and execing zsh
+        # there would replace `<cmd>` with an idle zsh and swallow its
+        # output/exit status.
+        case $- in
+          *i*) exec ${pkgs.zsh}/bin/zsh ;;
+        esac
       '';
     };
 

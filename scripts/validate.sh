@@ -114,6 +114,13 @@ build_host() {
     build_attrs ".#nixosConfigurations.main-ci.config.system.build.toplevel"
     ;;
   main | main-full)
+    # Sanctioned exception: this is the only place the real `main` closure
+    # (which pulls in the displaylink requireFile blob) may be referenced.
+    # CI-required commands (hosts, light, cve-reports, package, etc.) must
+    # build `main-ci` instead — enforced by
+    # scripts/check-ci-closure-targets.sh. `host main`/`host main-full` is
+    # used for local deploys and the post-merge R2 cache-priming step in
+    # .github/workflows/nix.yml.
     build_attrs ".#nixosConfigurations.main.config.system.build.toplevel"
     ;;
   homeserver-gcp)
@@ -202,6 +209,8 @@ docs)
   bash .agents/scripts/agent-dispatchable-issues --self-test
   bash .agents/scripts/agent-route --self-test
   bash .claude/hooks/guard-agent-dirty-checkout.sh --self-test
+  bash scripts/check-ci-closure-targets.sh
+  bash scripts/check-ci-closure-targets.sh --self-test
   bash .agents/learning/scripts/validate-candidates.sh
   bash .agents/repo-map/scripts/validate.sh
   ;;
