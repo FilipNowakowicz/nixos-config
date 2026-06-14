@@ -142,6 +142,54 @@ let
     };
   };
 
+  setenvAllCommand = {
+    command = "ALL";
+    options = [ "SETENV" ];
+  };
+
+  nopasswd = command: {
+    inherit command;
+    options = [ "NOPASSWD" ];
+  };
+
+  mainSudoRootSetenvRule = {
+    users = [ "root" ];
+    commands = [ setenvAllCommand ];
+  };
+
+  mainSudoWheelSetenvRule = {
+    groups = [ "wheel" ];
+    commands = [ setenvAllCommand ];
+  };
+
+  mainSudoAgentMaintenanceRule = {
+    users = [ "user" ];
+    commands = map nopasswd invariants.mainExpectedAgentMaintenanceCommands;
+  };
+
+  mainSudoBtrbkRule = {
+    users = [ "btrbk" ];
+    commands = map nopasswd [
+      "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-btrfs-progs-1.0/bin/btrfs"
+      "/nix/store/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-coreutils-9.0/bin/mkdir"
+      "/nix/store/cccccccccccccccccccccccccccccccc-coreutils-9.0/bin/readlink"
+      "/run/current-system/sw/bin/btrfs"
+      "/run/current-system/sw/bin/mkdir"
+      "/run/current-system/sw/bin/readlink"
+    ];
+  };
+
+  mainSudoExtraRulesGood = [
+    mainSudoRootSetenvRule
+    mainSudoWheelSetenvRule
+    mainSudoAgentMaintenanceRule
+    mainSudoBtrbkRule
+  ];
+
+  checkMainSudoExtraRules =
+    extraRules:
+    invariants.mainAgentMaintenanceSudoAllowlist.check { security.sudo.extraRules = extraRules; };
+
   assertions = invariants.mkRegistryAssertions "homeserver-gcp" hostMeta;
 
   hostMetaWithAcceptFrom = hostMeta // {
@@ -502,6 +550,81 @@ let
           )
         ).message;
       expected = "ports must not be exposed on non-tailscale0 interfaces: eth0 (22)";
+    };
+
+    mainSudoAllowlistPasses = {
+      expr = (checkMainSudoExtraRules mainSudoExtraRulesGood).passed;
+      expected = true;
+    };
+
+    mainSudoAllowlistRejectsUnexpectedUserRule = {
+      expr =
+        (checkMainSudoExtraRules (
+          mainSudoExtraRulesGood
+          ++ [
+            {
+              users = [ "evil" ];
+              commands = [ (nopasswd "ALL") ];
+            }
+          ]
+        )).passed;
+      expected = false;
+    };
+
+    mainSudoAllowlistRejectsBroadAllAdditionToAgentRule = {
+      expr =
+        (checkMainSudoExtraRules [
+          mainSudoRootSetenvRule
+          mainSudoWheelSetenvRule
+          (
+            mainSudoAgentMaintenanceRule
+            // {
+              commands = mainSudoAgentMaintenanceRule.commands ++ [ (nopasswd "ALL") ];
+            }
+          )
+          mainSudoBtrbkRule
+        ]).message;
+      expected = "expected exactly 1 agent maintenance allowlist rule, got 0; main sudo extraRules contains 1 unexpected rule(s)";
+    };
+
+    mainSudoAllowlistRejectsNonUserNopasswdResidue = {
+      expr =
+        (checkMainSudoExtraRules (
+          mainSudoExtraRulesGood ++ [ (mainSudoAgentMaintenanceRule // { users = [ "user2" ]; }) ]
+        )).passed;
+      expected = false;
+    };
+
+    mainSudoAllowlistRejectsMalformedBtrbkResidue = {
+      expr =
+        (checkMainSudoExtraRules [
+          mainSudoRootSetenvRule
+          mainSudoWheelSetenvRule
+          mainSudoAgentMaintenanceRule
+          (
+            mainSudoBtrbkRule
+            // {
+              commands = (lib.take 5 mainSudoBtrbkRule.commands) ++ [ (nopasswd "/tmp/evil/bin/btrfs") ];
+            }
+          )
+        ]).message;
+      expected = "expected exactly 1 btrbk maintenance allowlist rule, got 0; main sudo extraRules contains 1 unexpected rule(s)";
+    };
+
+    mainSudoAllowlistRejectsMissingDefaultRule = {
+      expr =
+        (checkMainSudoExtraRules [
+          mainSudoRootSetenvRule
+          mainSudoAgentMaintenanceRule
+          mainSudoBtrbkRule
+        ]).message;
+      expected = "expected exactly 1 default wheel SETENV rule, got 0";
+    };
+
+    mainSudoAllowlistRejectsDuplicateAgentRule = {
+      expr =
+        (checkMainSudoExtraRules (mainSudoExtraRulesGood ++ [ mainSudoAgentMaintenanceRule ])).message;
+      expected = "expected exactly 1 agent maintenance allowlist rule, got 2";
     };
   };
 in

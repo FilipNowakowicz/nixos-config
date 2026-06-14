@@ -497,6 +497,140 @@ rec {
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
 
+  # Pre-sorted so the check can compare directly without sorting a constant on
+  # every eval. Mirrors hosts/main/default.nix's agentMaintenanceCommands.
+  mainExpectedAgentMaintenanceCommands = [
+    "/run/current-system/sw/bin/bootctl cleanup"
+    "/run/current-system/sw/bin/bootctl status --no-pager"
+    "/run/current-system/sw/bin/efibootmgr -b [0-9A-F][0-9A-F][0-9A-F][0-9A-F] -B"
+    "/run/current-system/sw/bin/nix-gc-14d"
+    "/run/current-system/sw/bin/nixos-switch-main"
+    "/run/current-system/sw/bin/systemctl start btrbk-local.service"
+    "/run/current-system/sw/bin/systemctl start restic-backups-local.service"
+    "/run/current-system/sw/bin/systemctl start restic-check-local.service"
+    "/run/current-system/sw/bin/systemctl status btrbk-local.service --no-pager"
+    "/run/current-system/sw/bin/systemctl status btrbk-local.timer --no-pager"
+    "/run/current-system/sw/bin/systemctl status restic-backups-local.service --no-pager"
+    "/run/current-system/sw/bin/systemctl status restic-backups-local.timer --no-pager"
+    "/run/current-system/sw/bin/systemctl status restic-check-local.service --no-pager"
+    "/run/current-system/sw/bin/systemctl status restic-check-local.timer --no-pager"
+  ];
+
+  mainAgentMaintenanceSudoAllowlist = {
+    name = "agent maintenance sudo allowlist stays narrow";
+    check =
+      cfg:
+      let
+        extraRules = cfg.security.sudo.extraRules or [ ];
+
+        commandPath = command: command.command or "";
+        commandOptions = command: command.options or [ ];
+        hasOnlyOptions = options: command: commandOptions command == options;
+        sortedCommandPaths = rule: lib.sort builtins.lessThan (map commandPath (rule.commands or [ ]));
+        hostIsAll = rule: (rule.host or "ALL") == "ALL";
+        runAsIsAll = rule: (rule.runAs or "ALL:ALL") == "ALL:ALL";
+
+        isSetenvAllRule =
+          rule:
+          hostIsAll rule
+          && runAsIsAll rule
+          &&
+            (rule.commands or [ ]) == [
+              {
+                command = "ALL";
+                options = [ "SETENV" ];
+              }
+            ];
+
+        isDefaultRootSetenvRule =
+          rule: isSetenvAllRule rule && (rule.users or [ ]) == [ "root" ] && (rule.groups or [ ]) == [ ];
+
+        isDefaultWheelSetenvRule =
+          rule: isSetenvAllRule rule && (rule.users or [ ]) == [ ] && (rule.groups or [ ]) == [ "wheel" ];
+
+        isAgentMaintenanceRule =
+          rule:
+          hostIsAll rule
+          && runAsIsAll rule
+          && (rule.users or [ ]) == [ "user" ]
+          && (rule.groups or [ ]) == [ ]
+          && sortedCommandPaths rule == mainExpectedAgentMaintenanceCommands
+          && lib.all (hasOnlyOptions [ "NOPASSWD" ]) (rule.commands or [ ]);
+
+        # btrbk's NixOS module grants the btrbk user NOPASSWD btrfs/mkdir/readlink
+        # twice: once via the stable /run/current-system/sw/bin wrapper (used over
+        # ssh) and once via the package's own Nix store path (used locally). Store
+        # paths carry a build-dependent hash, so match those by store-relative
+        # shape (under /nix/store, ending in /bin/<name>) rather than full
+        # equality.
+        btrbkCommandNames = [
+          "btrfs"
+          "mkdir"
+          "readlink"
+        ];
+        btrbkStablePaths = map (name: "/run/current-system/sw/bin/${name}") btrbkCommandNames;
+        isBtrbkStoreCommandPath =
+          path:
+          lib.hasPrefix (builtins.storeDir + "/") path
+          && lib.any (name: lib.hasSuffix "/bin/${name}" path) btrbkCommandNames;
+        classifyBtrbkCommandPath =
+          path:
+          if lib.elem path btrbkStablePaths then
+            "stable:${builtins.baseNameOf path}"
+          else if isBtrbkStoreCommandPath path then
+            "store:${builtins.baseNameOf path}"
+          else
+            "other:${path}";
+        expectedBtrbkCommandClasses = lib.sort builtins.lessThan (
+          map (name: "stable:${name}") btrbkCommandNames ++ map (name: "store:${name}") btrbkCommandNames
+        );
+
+        isBtrbkMaintenanceRule =
+          rule:
+          let
+            commands = rule.commands or [ ];
+          in
+          hostIsAll rule
+          && runAsIsAll rule
+          && (rule.users or [ ]) == [ "btrbk" ]
+          && (rule.groups or [ ]) == [ ]
+          && lib.all (hasOnlyOptions [ "NOPASSWD" ]) commands
+          &&
+            lib.sort builtins.lessThan (map (c: classifyBtrbkCommandPath (commandPath c)) commands)
+            == expectedBtrbkCommandClasses;
+
+        isKnownRule =
+          rule:
+          isDefaultRootSetenvRule rule
+          || isDefaultWheelSetenvRule rule
+          || isAgentMaintenanceRule rule
+          || isBtrbkMaintenanceRule rule;
+
+        rootSetenvRules = lib.filter isDefaultRootSetenvRule extraRules;
+        wheelSetenvRules = lib.filter isDefaultWheelSetenvRule extraRules;
+        agentRules = lib.filter isAgentMaintenanceRule extraRules;
+        btrbkRules = lib.filter isBtrbkMaintenanceRule extraRules;
+        unexpectedRules = lib.filter (rule: !(isKnownRule rule)) extraRules;
+
+        countViolation =
+          label: rules:
+          lib.optionalString (
+            lib.length rules != 1
+          ) "expected exactly 1 ${label}, got ${toString (lib.length rules)}";
+
+        violations = lib.filter (msg: msg != "") [
+          (countViolation "default root SETENV rule" rootSetenvRules)
+          (countViolation "default wheel SETENV rule" wheelSetenvRules)
+          (countViolation "agent maintenance allowlist rule" agentRules)
+          (countViolation "btrbk maintenance allowlist rule" btrbkRules)
+          (lib.optionalString (
+            unexpectedRules != [ ]
+          ) "main sudo extraRules contains ${toString (lib.length unexpectedRules)} unexpected rule(s)")
+        ];
+      in
+      mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
+  };
+
   deployTargetBaseAccessAssertions = [
     {
       name = "passwordless sudo enabled";

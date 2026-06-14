@@ -55,95 +55,6 @@ let
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
 
-  # Pre-sorted so the check can compare directly without sorting a constant on every eval.
-  expectedAgentMaintenanceCommands = [
-    "/run/current-system/sw/bin/bootctl cleanup"
-    "/run/current-system/sw/bin/bootctl status --no-pager"
-    "/run/current-system/sw/bin/efibootmgr -b [0-9A-F][0-9A-F][0-9A-F][0-9A-F] -B"
-    "/run/current-system/sw/bin/nix-gc-14d"
-    "/run/current-system/sw/bin/nixos-switch-main"
-    "/run/current-system/sw/bin/systemctl start btrbk-local.service"
-    "/run/current-system/sw/bin/systemctl start restic-backups-local.service"
-    "/run/current-system/sw/bin/systemctl start restic-check-local.service"
-    "/run/current-system/sw/bin/systemctl status btrbk-local.service --no-pager"
-    "/run/current-system/sw/bin/systemctl status btrbk-local.timer --no-pager"
-    "/run/current-system/sw/bin/systemctl status restic-backups-local.service --no-pager"
-    "/run/current-system/sw/bin/systemctl status restic-backups-local.timer --no-pager"
-    "/run/current-system/sw/bin/systemctl status restic-check-local.service --no-pager"
-    "/run/current-system/sw/bin/systemctl status restic-check-local.timer --no-pager"
-  ];
-
-  mainAgentMaintenanceSudoAllowlist = {
-    name = "agent maintenance sudo allowlist stays narrow";
-    check =
-      cfg:
-      let
-        extraRules = cfg.security.sudo.extraRules or [ ];
-
-        commandOptions = command: command.options or [ ];
-        commandPath = command: command.command or "";
-        commandBasename = command: builtins.baseNameOf (commandPath command);
-        sortedCommandPaths = rule: lib.sort builtins.lessThan (map commandPath (rule.commands or [ ]));
-        hasOnlyOptions = options: command: commandOptions command == options;
-
-        isDefaultSetenvRule =
-          rule:
-          let
-            commands = rule.commands or [ ];
-          in
-          (rule.host or "ALL") == "ALL"
-          && (rule.runAs or "ALL:ALL") == "ALL:ALL"
-          &&
-            commands == [
-              {
-                command = "ALL";
-                options = [ "SETENV" ];
-              }
-            ];
-
-        isDefaultRootSetenvRule =
-          rule: isDefaultSetenvRule rule && (rule.users or [ ]) == [ "root" ] && (rule.groups or [ ]) == [ ];
-
-        isDefaultWheelSetenvRule =
-          rule: isDefaultSetenvRule rule && (rule.users or [ ]) == [ ] && (rule.groups or [ ]) == [ "wheel" ];
-
-        expectedCommands = expectedAgentMaintenanceCommands;
-        isAgentMaintenanceRule =
-          rule:
-          (rule.users or [ ]) == [ "user" ]
-          && (rule.groups or [ ]) == [ ]
-          && sortedCommandPaths rule == expectedCommands
-          && lib.all (hasOnlyOptions [ "NOPASSWD" ]) (rule.commands or [ ]);
-
-        expectedBtrbkCommands = [
-          "btrfs"
-          "btrfs"
-          "mkdir"
-          "mkdir"
-          "readlink"
-          "readlink"
-        ];
-        isBtrbkMaintenanceRule =
-          rule:
-          (rule.users or [ ]) == [ "btrbk" ]
-          && (rule.groups or [ ]) == [ ]
-          && lib.sort builtins.lessThan (map commandBasename (rule.commands or [ ])) == expectedBtrbkCommands
-          && lib.all (hasOnlyOptions [ "NOPASSWD" ]) (rule.commands or [ ]);
-
-        isKnownRule =
-          rule:
-          isDefaultRootSetenvRule rule
-          || isDefaultWheelSetenvRule rule
-          || isAgentMaintenanceRule rule
-          || isBtrbkMaintenanceRule rule;
-
-        unexpectedRules = lib.filter (rule: !(isKnownRule rule)) extraRules;
-        agentRules = lib.filter isAgentMaintenanceRule extraRules;
-      in
-      mkResult (agentRules != [ ] && unexpectedRules == [ ])
-        "main sudo extraRules must only contain the default SETENV rules, exact agent maintenance allowlist, and btrbk maintenance allowlist";
-  };
-
   mainBackupPathsArePersisted = {
     name = "main backup paths are persisted or on a persistent fs";
     check =
@@ -300,7 +211,7 @@ let
       check =
         cfg: require cfg.security.sudo.wheelNeedsPassword "security.sudo.wheelNeedsPassword must be true";
     }
-    mainAgentMaintenanceSudoAllowlist
+    invariants.mainAgentMaintenanceSudoAllowlist
     invariants.mainSshIsTailnetOnly
     invariants.mainUsbguardIsDenyDefault
     {
