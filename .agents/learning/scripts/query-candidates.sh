@@ -18,7 +18,7 @@ trap 'rm -f "$tmp"' EXIT
 {
   head -1 "$tmp"
   tail -n +2 "$tmp" |
-    awk -v query="$query" '
+    awk -F "\t" -v query="$query" '
       BEGIN {
         n = split(tolower(query), terms, /[[:space:]]+/)
       }
@@ -31,12 +31,16 @@ trap 'rm -f "$tmp"' EXIT
           }
         }
         if (score > 0) {
-          print score "\t" $0
+          recurrence = $NF
+          if (recurrence !~ /^[0-9]+$/) {
+            recurrence = 1
+          }
+          print score "\t" recurrence "\t" $0
         }
       }
     ' |
-    sort -rn |
-    cut -f2- ||
+    sort -t "$(printf '\t')" -k1,1rn -k2,2rn |
+    cut -f3- ||
     true
 } |
   head -6
