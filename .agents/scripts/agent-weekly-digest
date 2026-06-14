@@ -83,6 +83,61 @@ list_candidates() {
   find "$dir" -maxdepth 1 -type f -name '*.yml' ! -name '.gitkeep' -printf '%f\n' | sort
 }
 
+candidate_field() {
+  local path="$1"
+  local name="$2"
+  sed -n "s/^${name}:[[:space:]]*//p" "$path" | head -1 |
+    tr '\t' ' ' |
+    sed "s/^\"//; s/\"$//; s/^'//; s/'$//"
+}
+
+top_recurring_open_candidates() {
+  local dir="$1"
+  [[ -d $dir ]] || return 0
+
+  local rows counts
+  rows=$(mktemp)
+  counts=$(mktemp)
+
+  while IFS= read -r -d '' path; do
+    local status dedupe id
+    status=$(candidate_field "$path" status)
+    [[ $status == open ]] || continue
+    dedupe=$(candidate_field "$path" dedupe_key)
+    [[ -n $dedupe ]] || continue
+    id=$(candidate_field "$path" id)
+    [[ -n $id ]] || id=$(basename "$path")
+    printf '%s\t%s\t%s\n' "$dedupe" "$id" "$(basename "$path")" >>"$rows"
+    printf '%s\n' "$dedupe" >>"$counts"
+  done < <(find "$dir" -maxdepth 1 -type f -name '*.yml' ! -name '.gitkeep' -print0 | sort -z)
+
+  if [[ ! -s $rows ]]; then
+    rm -f "$rows" "$counts"
+    return 0
+  fi
+
+  sort "$counts" |
+    uniq -c |
+    awk '$1 > 1 { count=$1; $1=""; sub(/^ /, ""); print count "\t" $0 }' |
+    sort -t "$(printf '\t')" -k1,1rn -k2,2 |
+    awk -F '\t' -v rows="$rows" '
+      NR <= 10 {
+        dedupe = $2
+        first_id = ""
+        first_file = ""
+        while ((getline row < rows) > 0) {
+          split(row, fields, "\t")
+          if (fields[1] == dedupe && first_id == "") {
+            first_id = fields[2]
+            first_file = fields[3]
+          }
+        }
+        close(rows)
+        print "- captured " $1 " times: " dedupe " (" first_id ", " first_file ")"
+      }'
+  rm -f "$rows" "$counts"
+}
+
 render_digest() {
   local records_file="$1"
   local candidates_dir="$2"
@@ -165,6 +220,16 @@ render_digest() {
     echo "- ${cand}"
   done < <(list_candidates "$candidates_dir")
   [[ $found == 1 ]] || echo "- (none)"
+  echo
+
+  echo "## Top recurring open learning candidates"
+  local recurring
+  recurring=$(top_recurring_open_candidates "$candidates_dir")
+  if [[ -n $recurring ]]; then
+    printf '%s\n' "$recurring"
+  else
+    echo "- (none)"
+  fi
   echo
 
   echo "## Run durations"
@@ -280,7 +345,24 @@ self_test() {
 
   printf 'malformed\n' >"$dir/2026-06-05T00:00:00Z-issue-104-failure.json"
 
-  printf 'name: example\n' >"$cand_dir/2026-06-01-foo.yml"
+  cat >"$cand_dir/2026-06-01-foo.yml" <<'EOF'
+schema: learning-candidate/v1
+id: recurring-one
+status: open
+dedupe_key: repeated:thing
+EOF
+  cat >"$cand_dir/2026-06-02-bar.yml" <<'EOF'
+schema: learning-candidate/v1
+id: recurring-two
+status: open
+dedupe_key: repeated:thing
+EOF
+  cat >"$cand_dir/2026-06-03-single.yml" <<'EOF'
+schema: learning-candidate/v1
+id: single-one
+status: open
+dedupe_key: single:thing
+EOF
 
   local records="$tmp/records.ndjson"
 
@@ -296,6 +378,10 @@ self_test() {
   [[ $out == *".agents/learning/candidates/2026-06-01-foo.yml (issue(s): #101)"* ]] ||
     die "self-test: expected learning candidate from issue #101 in digest"
   [[ $out == *"2026-06-01-foo.yml"* ]] || die "self-test: expected currently-open candidate listed"
+  [[ $out == *"captured 2 times: repeated:thing"* ]] ||
+    die "self-test: expected recurring open candidate ranking in digest"
+  [[ $out != *"captured 1 times: single:thing"* ]] ||
+    die "self-test: singleton dedupe keys should not appear in recurring ranking"
   [[ $out == *"| #101 | success | 300s |"* ]] || die "self-test: expected 300s duration for issue #101 (got: $out)"
   [[ $out == *"PR #302 is OPEN and awaiting review/merge"* ]] || die "self-test: expected open PR in human-decisions section"
   [[ $out == *"Issue #103 is blocked"* ]] || die "self-test: expected blocked issue in human-decisions section"

@@ -22,6 +22,12 @@ tail -n +2 "$tmp" |
   awk -F '\t' '$3 == "open" { key = ($6 == "" ? "unknown" : $6) "/" ($7 == "" ? "unknown" : $7); count[key]++ } END { for (k in count) print count[k], k }' |
   sort -k2
 
+printf '\nTop recurring open candidates:\n'
+tail -n +2 "$tmp" |
+  awk -F '\t' '$3 == "open" && $12 > 1 { print $12 "\t" $8 "\t" $2 "\t" $1 }' |
+  sort -t "$(printf '\t')" -k1,1rn -k2,2 -k3,3 |
+  awk -F '\t' 'NR<=10 { print "captured " $1 " times\t" $2 "\t" $3 "\t" $4 }'
+
 printf '\nExpired open candidates:\n'
 tail -n +2 "$tmp" |
   awk -F '\t' -v today="$today" '$3 == "open" && $4 != "" && $4 < today { print $1 "\t" $2 "\t" $4 "\t" $6 "/" $7 }' |
@@ -32,4 +38,4 @@ printf '\nOpen candidate rows:\n'
 head -1 "$tmp"
 tail -n +2 "$tmp" |
   awk -F '\t' '$3 == "open"' |
-  sort -t "$(printf '\t')" -k6,6 -k7,7 -k4,4 -k2,2
+  sort -t "$(printf '\t')" -k6,6 -k7,7 -k12,12rn -k4,4 -k2,2
