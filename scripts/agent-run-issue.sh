@@ -511,7 +511,12 @@ nix-verification-loop skill (the smallest meaningful scripts/validate.sh command
 what you changed). When you run nix validation, redirect its output to a file and read \
 back only the exit status and the last ~20 lines on failure — do NOT paste full build \
 or flake-check logs into the conversation, because the whole transcript is re-read on \
-every turn and large logs dominate cost. Then push the branch and open a pull request \
+every turn and large logs dominate cost. For a wider validation tier (e.g. \
+'scripts/validate.sh hosts' or 'heavy') or any exploration that would take more than a \
+few file reads/greps, prefer dispatching a subagent (the Explore agent type for \
+read-only searches, a general-purpose agent for builds) and bring back only its \
+conclusion — that keeps the noisy run out of this session's transcript entirely, \
+rather than relying on truncation alone. Then push the branch and open a pull request \
 that links the issue \
 (use 'Closes #${issue}' only if the PR fully satisfies it, otherwise 'Refs #${issue}'). \
 Do NOT merge the PR, do NOT push to ${BASE_BRANCH}, and do NOT wait for long GitHub \
@@ -754,6 +759,12 @@ EOF
   base_prompt=$(build_issue_prompt 999)
   [[ $base_prompt == *"do NOT paste full build"* ]] ||
     die "self-test: dispatch prompt missing the transcript-hygiene instruction"
+
+  # --- subagent isolation for noisy build/explore steps (#303) ---
+  [[ $base_prompt == *"dispatching a subagent"* ]] ||
+    die "self-test: dispatch prompt missing the subagent-isolation instruction"
+  [[ $base_prompt == *"out of this session's transcript entirely"* ]] ||
+    die "self-test: dispatch prompt missing the subagent-isolation rationale"
 
   AGENT_INNER_TIMEOUT_SECONDS=10
   AGENT_HEARTBEAT_SECONDS=1
