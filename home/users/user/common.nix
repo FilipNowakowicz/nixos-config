@@ -5,6 +5,7 @@
 }:
 {
   imports = [
+    ../../profiles/fleet.nix
     ../../profiles/base.nix
     ../../neovim/module.nix
   ];

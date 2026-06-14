@@ -2,11 +2,10 @@
   config,
   lib,
   pkgs,
-  hostName ? "main",
-  skipHeavyPackages ? false,
   ...
 }:
 let
+  inherit (config.fleet) hostName skipHeavyPackages;
   nixRepo = "${config.home.homeDirectory}/nix";
   privateUserJs = ../../files/firefox/private-user.js;
   langgraphPython = pkgs.python3.withPackages (

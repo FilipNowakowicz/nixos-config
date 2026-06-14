@@ -60,7 +60,18 @@ let
         name = host;
       };
       extraModules = variantArgs.extraModules or [ ];
-      homeManagerExtraArgs = builtins.removeAttrs variantArgs [ "extraModules" ];
+      homeManagerExtraArgs = builtins.removeAttrs variantArgs [
+        "enableSpotify"
+        "extraModules"
+        "skipHeavyPackages"
+      ];
+      homeManagerFleetConfig = {
+        fleet = {
+          hostName = host;
+          skipHeavyPackages = variantArgs.skipHeavyPackages or false;
+          enableSpotify = variantArgs.enableSpotify or (hostMeta.homeManager.enableSpotify or true);
+        };
+      };
       configurationRevision = self.dirtyShortRev or self.shortRev or self.dirtyRev or self.rev or null;
     in
     nixpkgs.lib.nixosSystem {
@@ -96,14 +107,13 @@ let
         }
         (lib.mkIf (hostMeta ? homeManager) {
           home-manager.sharedModules = [ inputs.sops-nix.homeManagerModules.sops ];
-          home-manager.users.user.imports = mkHomeManagerImports hostMetaWithName;
+          home-manager.users.user = homeManagerFleetConfig // {
+            imports = mkHomeManagerImports hostMetaWithName;
+          };
         })
         {
           home-manager.extraSpecialArgs = {
             inherit hostRegistry;
-            hostName = host;
-            skipHeavyPackages = false;
-            enableSpotify = hostMeta.homeManager.enableSpotify or true;
           }
           // homeManagerExtraArgs;
         }
@@ -129,13 +139,18 @@ in
       inherit pkgs;
       extraSpecialArgs = {
         inherit inputs;
-        skipHeavyPackages = false;
-        enableSpotify = true;
       };
       modules = [
         inputs.sops-nix.homeManagerModules.sops
         ../home/users/user/home.nix
         ../home/profiles/desktop.nix
+        {
+          fleet = {
+            hostName = "main";
+            skipHeavyPackages = false;
+            enableSpotify = true;
+          };
+        }
       ];
     };
 
@@ -143,11 +158,16 @@ in
       inherit pkgs;
       extraSpecialArgs = {
         inherit inputs;
-        skipHeavyPackages = false;
-        enableSpotify = true;
       };
       modules = [
         ../home/users/user/wsl.nix
+        {
+          fleet = {
+            hostName = "wsl";
+            skipHeavyPackages = false;
+            enableSpotify = true;
+          };
+        }
       ];
     };
   };

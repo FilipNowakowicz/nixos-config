@@ -2,11 +2,11 @@
   lib,
   config,
   pkgs,
-  skipHeavyPackages ? false,
   ...
 }:
 let
   cfg = config.workflowPacks.latex;
+  inherit (config.fleet) skipHeavyPackages;
 in
 {
   config = lib.mkIf (cfg.enable && !skipHeavyPackages) {
