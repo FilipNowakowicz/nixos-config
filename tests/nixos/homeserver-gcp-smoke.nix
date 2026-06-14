@@ -5,6 +5,7 @@
 {
   nixpkgs,
   system,
+  inputs,
   ...
 }:
 let
@@ -24,6 +25,11 @@ in
 }).runTest
   {
     name = "homeserver-gcp-smoke";
+
+    # The observability profile's backends.nix pins Tempo via the `inputs`
+    # module arg (inputs.nixpkgs-tempo-2105); thread it into the node so the
+    # tempo overlay can resolve when the system closure is actually built.
+    node.specialArgs = { inherit inputs; };
 
     nodes.server =
       { pkgs, lib, ... }:
