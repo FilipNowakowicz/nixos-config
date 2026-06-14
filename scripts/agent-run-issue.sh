@@ -42,11 +42,14 @@
 #                   event supplies cost/turns/duration telemetry for the
 #                   outcome record. (default: .agents/state/sessions)
 #   AGENT_REQUIRE_READY
-#                   when set to 1 (or pass --require-ready), run
+#                   when set to 1 (the default), run
 #                   .agents/scripts/agent-issue-readiness on each issue first
 #                   and skip the claude session (recording a "blocked"
-#                   outcome) if it is not ready. Default is 0 (off): issues
-#                   are dispatched as before.
+#                   outcome) if it is not ready. Under-specified issues are the
+#                   main source of sessions that explore for the full timeout
+#                   and produce nothing, so the gate is on by default. Set to 0
+#                   (or pass --no-require-ready) for an attended run on a
+#                   known-good issue that lacks the formal section headings.
 #   AGENT_CLAUDE_CMD
 #                   Claude command to execute (default: claude). Tests can
 #                   point this at a local fixture worker.
@@ -71,7 +74,7 @@ BASE_BRANCH="${BASE_BRANCH:-main}"
 REPO_URL="${REPO_URL:-https://github.com/FilipNowakowicz/nixos-config.git}"
 AGENT_OUTCOME_DIR="${AGENT_OUTCOME_DIR:-.agents/state/outcomes}"
 AGENT_SESSION_DIR="${AGENT_SESSION_DIR:-.agents/state/sessions}"
-AGENT_REQUIRE_READY="${AGENT_REQUIRE_READY:-0}"
+AGENT_REQUIRE_READY="${AGENT_REQUIRE_READY:-1}"
 AGENT_CLAUDE_CMD="${AGENT_CLAUDE_CMD:-claude}"
 AGENT_INNER_TIMEOUT_SECONDS="${AGENT_INNER_TIMEOUT_SECONDS:-900}"
 AGENT_HEARTBEAT_SECONDS="${AGENT_HEARTBEAT_SECONDS:-60}"
@@ -90,6 +93,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --require-ready)
     AGENT_REQUIRE_READY=1
+    shift
+    ;;
+  --no-require-ready)
+    AGENT_REQUIRE_READY=0
     shift
     ;;
   --self-test)
@@ -720,7 +727,9 @@ run_one() {
   local prompt
   prompt="Implement GitHub issue #${issue} in this repository end to end using the \
 issue-driven-development skill. Work on a new branch off ${BASE_BRANCH} (never commit \
-to ${BASE_BRANCH} directly). Implement the smallest durable fix, validate with the \
+to ${BASE_BRANCH} directly). When the relevant files are not already obvious, use the \
+repo-map-query skill to locate them instead of broad cat/grep/find sweeps, then open \
+only the top likely files. Implement the smallest durable fix, validate with the \
 nix-verification-loop skill (the smallest meaningful scripts/validate.sh command for \
 what you changed), then push the branch and open a pull request that links the issue \
 (use 'Closes #${issue}' only if the PR fully satisfies it, otherwise 'Refs #${issue}'). \
