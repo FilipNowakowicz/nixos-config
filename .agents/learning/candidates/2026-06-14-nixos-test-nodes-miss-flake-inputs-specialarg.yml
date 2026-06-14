@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-06-14-nixos-test-nodes-miss-flake-inputs-specialarg
+date: 2026-06-14
+expires: 2026-09-14
+status: open
+
+route: implement-fix
+best_form: test
+evidence: ["pr-#268 added inputs.nixpkgs-tempo-2105 dependency in modules/nixos/profiles/observability/backends.nix:16,33", "Deploy homeserver-gcp run 27507939669 validate job failed: 'error: attribute inputs missing' building nodes.server.system.build.toplevel via tempo overlay", "fix: tests/nixos/homeserver-gcp-smoke.nix added node.specialArgs = { inherit inputs; }; verified by nix build .#legacyPackages.x86_64-linux.ciTests.homeserver-gcp-smoke EXIT 0"]
+observation: nixos-runTest-nodes-do-not-receive-flake-inputs-as-module-arg-so-a-profile-depending-on-inputs-passes-host-closures-and-lazy-light-fixtures-but-fails-when-a-vm-test-actually-builds-the-node-closure
+proposed_upgrade: add-light-lane-fixture-that-forces-system.build.toplevel.drvPath-of-observability-profile-with-tempo.enable-so-inputs-dependency-regressions-fail-fast-instead-of-only-in-kvm-smoke-test
+type: workflow-gotcha
+dedupe_key: nixos-tests:flake-inputs-not-threaded-into-test-nodes
+triggers: [tests/nixos/*.nix, "nixosTest/runTest node importing a profile that uses the inputs module arg", "error: attribute 'inputs' missing while building nodes.*.system.build.toplevel"]
+targets: [tests/nixos/homeserver-gcp-smoke.nix, flake/checks.nix]
+risk: forcing-toplevel-in-light-lane-adds-build-cost-if-scoped-too-broadly
