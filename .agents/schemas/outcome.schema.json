@@ -151,6 +151,27 @@
           "enum": ["auto", "human-review"]
         }
       }
+    },
+    "review": {
+      "type": "object",
+      "description": "Reviewer-stage evidence (agent-reviewer-evidence/v1) for this issue's PR, embedded via --review-file. Absent when no reviewer evidence was attached.",
+      "required": ["schema", "issue", "pr", "result"],
+      "properties": {
+        "schema": {
+          "const": "agent-reviewer-evidence/v1"
+        },
+        "issue": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "pr": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "result": {
+          "enum": ["approved", "changes_requested", "blocked"]
+        }
+      }
     }
   }
 }

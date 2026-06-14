@@ -138,6 +138,52 @@ top_recurring_open_candidates() {
   rm -f "$rows" "$counts"
 }
 
+# Reviewer-vs-CI/merge calibration: for outcome records carrying a "review"
+# field (agent-reviewer-evidence/v1, embedded via agent-record-outcome
+# --review-file), flag two kinds of miscalibration against the linked PRs'
+# eventual GitHub state:
+#   - reviewer said "approved" but a linked PR was closed without merging, or
+#     is not cleanly mergeable/CI-green (mergeStateStatus DIRTY/BLOCKED/UNSTABLE)
+#   - reviewer said "changes_requested"/"blocked" but a linked PR merged anyway
+reviewer_ci_calibration() {
+  local records_file="$1"
+  local approved_but_not_clean flagged_but_merged
+
+  approved_but_not_clean=$(jq -rs '
+    [.[] | select((.review.result? // "") == "approved")]
+    | sort_by(.issue)
+    | .[] | .issue as $issue
+      | .prs[]?
+      | select((.state == "CLOSED") or ((.mergeStateStatus // "") | IN("DIRTY", "BLOCKED", "UNSTABLE")))
+      | "- #\($issue): PR #\(.number) approved by reviewer but state=\(.state), mergeStateStatus=\(.mergeStateStatus // "n/a")"
+  ' "$records_file")
+
+  flagged_but_merged=$(jq -rs '
+    [.[] | select((.review.result? // "") | IN("changes_requested", "blocked"))]
+    | sort_by(.issue)
+    | .[] | .issue as $issue | .review.result as $result
+      | .prs[]?
+      | select(.state == "MERGED")
+      | "- #\($issue): PR #\(.number) merged despite reviewer result=\($result)"
+  ' "$records_file")
+
+  echo "### Approved by reviewer but PR closed unmerged or not CI-clean"
+  echo
+  if [[ -n $approved_but_not_clean ]]; then
+    printf '%s\n' "$approved_but_not_clean"
+  else
+    echo "- (none)"
+  fi
+  echo
+  echo "### Reviewer requested changes or blocked but PR merged anyway"
+  echo
+  if [[ -n $flagged_but_merged ]]; then
+    printf '%s\n' "$flagged_but_merged"
+  else
+    echo "- (none)"
+  fi
+}
+
 render_digest() {
   local records_file="$1"
   local candidates_dir="$2"
@@ -230,6 +276,11 @@ render_digest() {
   else
     echo "- (none)"
   fi
+  echo
+
+  echo "## Reviewer vs CI/merge calibration"
+  echo
+  reviewer_ci_calibration "$records_file"
   echo
 
   echo "## Run durations"
@@ -332,6 +383,32 @@ self_test() {
     blocker: "agent-dispatch: pre-dispatch agent-issue-readiness check failed; issue not dispatched"
   }' >"$dir/2026-06-04T00:01:00Z-issue-103-blocked.json"
 
+  # Reviewer approved, but the PR was closed unmerged: an
+  # approve-but-CI/merge-failed miscalibration.
+  jq -n '{
+    schema: "agent-outcome/v1", id: "2026-06-05T00:10:00Z-issue-105-success",
+    issue: 105, status: "success", exit_code: 0,
+    started_at: "2026-06-05T00:00:00Z", finished_at: "2026-06-05T00:10:00Z",
+    base_branch: "main", repo_dir: "/repo", head_branch: "codex/issue-105-baz",
+    head_sha: "eee555",
+    prs: [{number: 305, title: "feat: baz", state: "CLOSED", headRefName: "codex/issue-105-baz", url: "https://example.invalid/pr/305", mergeStateStatus: "DIRTY"}],
+    learning_candidates: [], git_dirty: [], blocker: "",
+    review: {schema: "agent-reviewer-evidence/v1", issue: 105, pr: 305, result: "approved"}
+  }' >"$dir/2026-06-05T00:10:00Z-issue-105-success.json"
+
+  # Reviewer requested changes, but the PR merged anyway: the opposite
+  # miscalibration.
+  jq -n '{
+    schema: "agent-outcome/v1", id: "2026-06-06T00:10:00Z-issue-106-success",
+    issue: 106, status: "success", exit_code: 0,
+    started_at: "2026-06-06T00:00:00Z", finished_at: "2026-06-06T00:10:00Z",
+    base_branch: "main", repo_dir: "/repo", head_branch: "codex/issue-106-qux",
+    head_sha: "fff666",
+    prs: [{number: 306, title: "feat: qux", state: "MERGED", headRefName: "codex/issue-106-qux", url: "https://example.invalid/pr/306", mergeStateStatus: "CLEAN"}],
+    learning_candidates: [], git_dirty: [], blocker: "",
+    review: {schema: "agent-reviewer-evidence/v1", issue: 106, pr: 306, result: "changes_requested"}
+  }' >"$dir/2026-06-06T00:10:00Z-issue-106-success.json"
+
   # Out-of-window record (before --since): must be excluded when filtered.
   jq -n '{
     schema: "agent-outcome/v1", id: "2026-05-01T00:05:00Z-issue-50-success",
@@ -366,9 +443,9 @@ EOF
 
   local records="$tmp/records.ndjson"
 
-  # Unfiltered: all 4 valid records included, malformed one skipped.
+  # Unfiltered: all 6 valid records included, malformed one skipped.
   read_records "$dir" "" >"$records"
-  [[ $(wc -l <"$records" | tr -d ' ') -eq 4 ]] || die "self-test: expected 4 valid records (got $(wc -l <"$records"))"
+  [[ $(wc -l <"$records" | tr -d ' ') -eq 6 ]] || die "self-test: expected 6 valid records (got $(wc -l <"$records"))"
 
   out=$(render_digest "$records" "$cand_dir" "")
   [[ $out == *"#301 MERGED"* ]] || die "self-test: expected merged PR #301 in digest"
@@ -388,10 +465,14 @@ EOF
   [[ $out == *"Issue #102 run failed and needs investigation"* ]] || die "self-test: expected failed issue in human-decisions section"
   [[ $out == *"Not recorded in any outcome record yet"* ]] || die "self-test: expected reserved cost/token note"
   [[ $out != *"#200"* ]] && die "self-test: expected unfiltered digest to include out-of-range PR #200" || true
+  [[ $out == *"#105: PR #305 approved by reviewer but state=CLOSED, mergeStateStatus=DIRTY"* ]] ||
+    die "self-test: expected approve-but-not-clean calibration entry for issue #105 (got: $out)"
+  [[ $out == *"#106: PR #306 merged despite reviewer result=changes_requested"* ]] ||
+    die "self-test: expected changes-requested-but-merged calibration entry for issue #106 (got: $out)"
 
   # --since excludes the older record (issue #50 / PR #200).
   read_records "$dir" "2026-06-01T00:00:00Z" >"$records"
-  [[ $(wc -l <"$records" | tr -d ' ') -eq 3 ]] || die "self-test: expected 3 records with --since filter (got $(wc -l <"$records"))"
+  [[ $(wc -l <"$records" | tr -d ' ') -eq 5 ]] || die "self-test: expected 5 records with --since filter (got $(wc -l <"$records"))"
   out=$(render_digest "$records" "$cand_dir" "2026-06-01T00:00:00Z")
   [[ $out != *"#200"* ]] || die "self-test: expected --since to exclude PR #200 (issue #50)"
   [[ $out == *"#301 MERGED"* ]] || die "self-test: expected --since to keep PR #301 (issue #101)"
