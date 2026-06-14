@@ -1,0 +1,18 @@
+schema: learning-candidate/v1
+id: 2026-06-14-agent-run-issue-cost-scales-with-turns
+date: 2026-06-14
+expires: 2026-09-12
+status: open
+
+route: implement-fix
+best_form: test
+
+evidence: ["telemetry across 8 sessions with .session in .agents/state/outcomes/*.json totals $13.53 and 25.9M cache_read_input_tokens; per-session cost tracks turn count: 2026-06-13T11:30:06Z-issue-259.log = 23 turns / 0.9M cache-read / $0.57 vs 2026-06-13T18:24:25Z-issue-191.log = 77 turns / 7.2M cache-read / $3.42; for #191 cache reads are ~63% of cost"]
+observation: "issue-loop spend is dominated by cache-read tokens that grow super-linearly with turn count (every turn re-reads the whole growing transcript), so cost is a function of turns x accumulated-context; fat nix build logs dumped into a tool result are then re-read on every later turn, and the AGENT_INNER_TIMEOUT_SECONDS bound is a time cap that does not bound turns"
+proposed_upgrade: "pass --max-turns to the claude -p invocation in scripts/agent-run-issue.sh as a hard backstop on the quadratic, and write nix validation output to a file feeding back only exit code + tail instead of the full log into the transcript; assert the runner invokes claude with a turn cap"
+
+type: behavior-upgrade
+dedupe_key: agent-run-issue:session-cost-scales-with-turn-count
+triggers: [scripts/agent-run-issue.sh, claude -p, cache_read_input_tokens, num_turns, .agents/state/sessions]
+targets: [scripts/agent-run-issue.sh]
+risk: "too-low a --max-turns truncates legitimate multi-step nix work mid-session, producing blocked outcomes that need re-runs"

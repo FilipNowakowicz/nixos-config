@@ -145,6 +145,7 @@ cheap, deterministic guardrails:
 AGENT_INNER_TIMEOUT_SECONDS=900   # default; 0 disables the timeout
 AGENT_HEARTBEAT_SECONDS=60        # default; 0 disables heartbeat lines
 AGENT_INNER_KILL_GRACE_SECONDS=15 # TERM grace period before KILL
+AGENT_REQUIRE_READY=1             # default; gate each issue on readiness first
 ```
 
 Heartbeat lines go to stderr while the inner process is alive and include
@@ -152,6 +153,13 @@ elapsed seconds, the session-log byte count, and the current git branch and
 dirty-file count. If the timeout is exceeded, the runner terminates the inner
 process group, records a failure outcome with a timeout blocker, and moves on
 according to the normal issue-loop rules.
+
+The runner gates each target issue on `agent-issue-readiness` **by default**:
+an under-specified issue is recorded as a `blocked` outcome without burning a
+session, since exploring a vague issue to the full timeout is the main source
+of expensive sessions that produce nothing. Pass `--no-require-ready` (or set
+`AGENT_REQUIRE_READY=0`) for an attended run on a known-good issue that lacks
+the formal section headings.
 
 ### Session Logs And Cost Telemetry
 
