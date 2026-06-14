@@ -1,0 +1,18 @@
+schema: learning-candidate/v1
+id: 2026-06-14-runner-strands-completed-work-when-cap-hits-before-pr
+date: 2026-06-14
+expires: 2026-12-14
+status: open
+
+route: implement-fix
+best_form: test
+
+evidence: ["#259 first real dispatch: the inner session committed complete, validated work (c1a189c on agent/259-sudo-allowlist-invariant) and PUSHED the branch, then hit AGENT_MAX_TURNS=60 on the very next step before running `gh pr create`", "agent-run-issue recorded `.agents/state/outcomes/2026-06-14T19:00:42Z-issue-259-failure.json` with prs:[] and a turn-cap blocker, and printed 'done. Open PRs:' (none) -- the finished work was silently stranded on the remote branch", "recovery was manual: a human verified flake-eval + the lib-invariants check, then opened PR #305 by hand"]
+observation: "agent-run-issue opens the PR as a late in-session step done by the model, so a cap/timeout that fires after the branch is pushed but before `gh pr create` loses the PR AND mislabels a complete, pushed branch as a pure 'failure' with prs:[]. The outcome record gives no signal that mergeable work exists, so good work looks like a dead loss and a naive re-run would redo it."
+proposed_upgrade: "make PR creation a runner post-step independent of the model's turn budget: after the session ends for ANY reason (success/cap/timeout), if the head branch has commits ahead of base and no PR exists, have agent-run-issue open a DRAFT PR (or at minimum record outcome status 'incomplete-pushed' with the branch + head_sha) instead of plain 'failure'. Add a self-test: a stub worker that commits+pushes then exits non-zero must still yield a draft PR / non-failure outcome carrying the branch."
+
+type: behavior-upgrade
+dedupe_key: agent-run-issue:strands-pushed-work-when-cap-or-timeout-precedes-pr-create
+triggers: [scripts/agent-run-issue.sh, AGENT_MAX_TURNS, gh pr create, .agents/state/outcomes, draft PR]
+targets: [scripts/agent-run-issue.sh]
+risk: "low -- a draft PR for incomplete work is cheap and reviewable; the only downside is occasional draft PRs for genuinely abandoned branches, which a human can close"

@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-06-14-review-stage-matches-only-first-line-of-wrapped-criteria
+date: 2026-06-14
+expires: 2026-12-14
+status: open
+route: implement-fix
+best_form: test
+evidence: ["pr-#294 review: agent-review-stage check failed 'N acceptance criterion/criteria have no matching evidence' for two wrapped bullets while hand-authoring .agents/state/review/issue-293-pr-294.json", ".agents/scripts/agent-review-stage extract_acceptance_criteria awk emits only the first physical line of a multi-line '## Acceptance criteria' bullet"]
+observation: agent-review-stage's acceptance-criteria matcher keys on the first physical line of each issue bullet only; an 'approved' evidence file whose acceptance_criteria[].criterion holds the full (unwrapped) bullet text fails the check confusingly, even though init scaffolds the same truncated strings.
+proposed_upgrade: Either join wrapped continuation lines in extract_acceptance_criteria before matching (robust to issue formatting), or document that reviewers must seed evidence from `agent-review-stage init` rather than hand-authoring criterion strings. Add a self-test bullet that wraps across lines to lock the chosen behavior.
+type: workflow-gotcha
+dedupe_key: agent-review-stage:criterion-match-first-line-only-on-wrapped-bullets
+triggers: ["agent-review-stage check", "reviewer evidence acceptance_criteria", "wrapped issue bullet"]
+targets: [".agents/scripts/agent-review-stage"]
