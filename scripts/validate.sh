@@ -210,6 +210,7 @@ docs)
   bash scripts/agent-session.sh --self-test
   bash .agents/scripts/agent-record-outcome --self-test
   bash .agents/scripts/agent-outcome-index --self-test
+  bash .agents/scripts/agent-outcome-stats --self-test
   bash .agents/scripts/agent-outcome-dashboard --self-test
   bash .agents/scripts/agent-weekly-digest --self-test
   bash .agents/scripts/agent-issue-readiness --self-test

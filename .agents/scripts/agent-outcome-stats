@@ -1,0 +1,274 @@
+#!/usr/bin/env bash
+# Aggregate per-path-class success/failure rates from committed agent
+# outcome records.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: agent-outcome-stats [options]
+
+Scan a directory of agent-outcome/v1 records (see
+.agents/schemas/outcome.schema.json) and aggregate, per path class declared
+in each record's optional `route.path_classes` array, counts and rates:
+total, success, failure, blocked, changes_requested, success_rate,
+changes_requested_rate, and failure_rate.
+
+An outcome can contribute to multiple path classes (one per entry in
+route.path_classes). Records with no `route` object, or an empty
+`route.path_classes`, are excluded from per-class stats (they carry no
+path-class information to aggregate).
+
+There is currently no `changes_requested` outcome status (see
+.agents/schemas/outcome.schema.json); the `changes_requested` and
+`changes_requested_rate` fields are always 0 today and exist so a future
+status can populate them without an output-shape change.
+
+Options:
+  --dir <path>   Outcome directory to scan (default: .agents/state/outcomes,
+                  or $AGENT_OUTCOME_DIR if set).
+  --json         Emit a JSON array instead of a table, sorted by path_class.
+  --self-test    Run a deterministic self-test and exit.
+  -h, --help     Show this help.
+
+This command is read-only and advisory: it does not change route decisions,
+dispatch eligibility, or exit codes of any other command.
+EOF
+}
+
+die() {
+  printf 'agent-outcome-stats: %s\n' "$*" >&2
+  exit 1
+}
+
+is_valid_record() {
+  jq -e '
+    (.schema == "agent-outcome/v1")
+    and (.id | type == "string")
+    and (.issue | type == "number" and . > 0)
+    and ((.status == "success") or (.status == "failure") or (.status == "blocked"))
+  ' >/dev/null 2>&1
+}
+
+# Print one line per (path_class, status) for records that carry a non-empty
+# route.path_classes, for later aggregation.
+extract_path_class_rows() {
+  jq -c '
+    select((.route.path_classes // []) | length > 0)
+    | .status as $status
+    | .route.path_classes[]
+    | {path_class: ., status: $status}
+  '
+}
+
+# Aggregate rows ({path_class, status}) into per-class stats, sorted by
+# path_class.
+aggregate_stats() {
+  local rows="$1"
+  jq -s '
+    group_by(.path_class)
+    | map({
+        path_class: .[0].path_class,
+        total: length,
+        success: (map(select(.status == "success")) | length),
+        failure: (map(select(.status == "failure")) | length),
+        blocked: (map(select(.status == "blocked")) | length),
+        changes_requested: (map(select(.status == "changes_requested")) | length)
+      })
+    | map(. + {
+        success_rate: (if .total == 0 then null else (.success / .total) end),
+        changes_requested_rate: (if .total == 0 then null else (.changes_requested / .total) end),
+        failure_rate: (if .total == 0 then null else (.failure / .total) end)
+      })
+    | sort_by(.path_class)
+  ' "$rows"
+}
+
+print_table() {
+  local stats="$1"
+  printf 'path_class\ttotal\tsuccess\tfailure\tblocked\tchanges_requested\tsuccess_rate\tchanges_requested_rate\tfailure_rate\n'
+  jq -r '
+    .[] | [
+      .path_class,
+      .total,
+      .success,
+      .failure,
+      .blocked,
+      .changes_requested,
+      (.success_rate * 100 | (. * 10 | round) / 10 | tostring + "%"),
+      (.changes_requested_rate * 100 | (. * 10 | round) / 10 | tostring + "%"),
+      (.failure_rate * 100 | (. * 10 | round) / 10 | tostring + "%")
+    ] | @tsv
+  ' "$stats"
+}
+
+# Scan $1 for *.json outcome records, aggregate per-path-class stats, and
+# print to stdout (table or JSON depending on $2). Malformed/invalid records
+# are reported on stderr but never cause a non-zero exit: this command is
+# best-effort/advisory only (matches agent-outcome-index --permissive style).
+build_stats() {
+  local dir="$1" out_json="$2"
+  local rows file json
+
+  rows=$(mktemp)
+  trap 'rm -f "$rows"' RETURN
+
+  if [[ -d $dir ]]; then
+    while IFS= read -r -d '' file; do
+      if ! json=$(jq -c . "$file" 2>/dev/null); then
+        printf 'agent-outcome-stats: malformed JSON: %s\n' "$file" >&2
+        continue
+      fi
+      if ! printf '%s\n' "$json" | is_valid_record; then
+        printf 'agent-outcome-stats: invalid outcome record (schema mismatch): %s\n' "$file" >&2
+        continue
+      fi
+      printf '%s\n' "$json" | extract_path_class_rows >>"$rows"
+    done < <(find "$dir" -maxdepth 1 -type f -name '*.json' -print0 | sort -z)
+  elif [[ -e $dir ]]; then
+    die "not a directory: $dir"
+  fi
+
+  local stats
+  if [[ -s $rows ]]; then
+    stats=$(aggregate_stats "$rows")
+  else
+    stats='[]'
+  fi
+
+  if [[ $out_json == 1 ]]; then
+    printf '%s\n' "$stats"
+  else
+    local stats_file
+    stats_file=$(mktemp)
+    printf '%s\n' "$stats" >"$stats_file"
+    print_table "$stats_file"
+    rm -f "$stats_file"
+  fi
+}
+
+self_test() {
+  local tmp dir out
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' RETURN
+  dir="$tmp/outcomes"
+  mkdir -p "$dir"
+
+  # Two successes in "docs", one failure in "docs" and "nix-modules".
+  jq -n '{
+    schema: "agent-outcome/v1", id: "2026-01-01T00:01:00Z-issue-1-success",
+    issue: 1, status: "success", exit_code: 0,
+    started_at: "2026-01-01T00:00:00Z", finished_at: "2026-01-01T00:01:00Z",
+    base_branch: "main", repo_dir: "/repo", head_branch: "codex/test",
+    head_sha: "abc123",
+    prs: [], learning_candidates: [], git_dirty: [], blocker: "",
+    route: {schema: "agent-route/v1", path_classes: ["docs"], risk: "low", default_profile: "doc-editor", route: "auto"}
+  }' >"$dir/2026-01-01T00:01:00Z-issue-1-success.json"
+
+  jq -n '{
+    schema: "agent-outcome/v1", id: "2026-01-02T00:01:00Z-issue-2-success",
+    issue: 2, status: "success", exit_code: 0,
+    started_at: "2026-01-02T00:00:00Z", finished_at: "2026-01-02T00:01:00Z",
+    base_branch: "main", repo_dir: "/repo", head_branch: "codex/test2",
+    head_sha: "def456",
+    prs: [], learning_candidates: [], git_dirty: [], blocker: "",
+    route: {schema: "agent-route/v1", path_classes: ["docs"], risk: "low", default_profile: "doc-editor", route: "auto"}
+  }' >"$dir/2026-01-02T00:01:00Z-issue-2-success.json"
+
+  jq -n '{
+    schema: "agent-outcome/v1", id: "2026-01-03T00:01:00Z-issue-3-failure",
+    issue: 3, status: "failure", exit_code: 1,
+    started_at: "2026-01-03T00:00:00Z", finished_at: "2026-01-03T00:01:00Z",
+    base_branch: "main", repo_dir: "/repo", head_branch: "codex/test3",
+    head_sha: "ghi789",
+    prs: [], learning_candidates: [], git_dirty: [], blocker: "build failed",
+    route: {schema: "agent-route/v1", path_classes: ["docs", "nix-modules"], risk: "medium", default_profile: "nix-engineer", route: "auto"}
+  }' >"$dir/2026-01-03T00:01:00Z-issue-3-failure.json"
+
+  # Blocked record with no route: excluded from per-class stats.
+  jq -n '{
+    schema: "agent-outcome/v1", id: "2026-01-04T00:01:00Z-issue-4-blocked",
+    issue: 4, status: "blocked",
+    started_at: "2026-01-04T00:00:00Z", finished_at: "2026-01-04T00:01:00Z",
+    base_branch: "main", repo_dir: "/repo", head_branch: "codex/test4",
+    head_sha: "jkl012",
+    prs: [], learning_candidates: [], git_dirty: [], blocker: "needs human"
+  }' >"$dir/2026-01-04T00:01:00Z-issue-4-blocked.json"
+
+  # Record with an empty route.path_classes: also excluded.
+  jq -n '{
+    schema: "agent-outcome/v1", id: "2026-01-05T00:01:00Z-issue-5-success",
+    issue: 5, status: "success", exit_code: 0,
+    started_at: "2026-01-05T00:00:00Z", finished_at: "2026-01-05T00:01:00Z",
+    base_branch: "main", repo_dir: "/repo", head_branch: "codex/test5",
+    head_sha: "mno345",
+    prs: [], learning_candidates: [], git_dirty: [], blocker: "",
+    route: {schema: "agent-route/v1", path_classes: [], risk: "low", default_profile: null, route: "auto"}
+  }' >"$dir/2026-01-05T00:01:00Z-issue-5-success.json"
+
+  printf 'not json\n' >"$dir/2026-01-06T00:01:00Z-issue-6-failure.json"
+
+  local out
+  out=$(build_stats "$dir" 1 2>/dev/null)
+  printf '%s' "$out" | jq -e '
+    length == 2
+    and (map(.path_class) | sort) == ["docs", "nix-modules"]
+    and (.[] | select(.path_class == "docs") | .total == 3)
+    and (.[] | select(.path_class == "docs") | .success == 2)
+    and (.[] | select(.path_class == "docs") | .failure == 1)
+    and (.[] | select(.path_class == "docs") | .blocked == 0)
+    and (.[] | select(.path_class == "docs") | .changes_requested == 0)
+    and (.[] | select(.path_class == "docs") | .success_rate == (2/3))
+    and (.[] | select(.path_class == "docs") | .changes_requested_rate == 0)
+    and (.[] | select(.path_class == "docs") | .failure_rate == (1/3))
+    and (.[] | select(.path_class == "nix-modules") | .total == 1)
+    and (.[] | select(.path_class == "nix-modules") | .failure == 1)
+    and (.[] | select(.path_class == "nix-modules") | .failure_rate == 1)
+  ' >/dev/null || die "self-test: --json stats mismatch: $out"
+
+  # Table mode includes a header and one row per path class.
+  out=$(build_stats "$dir" 0 2>/dev/null)
+  printf '%s\n' "$out" | head -1 | grep -q '^path_class	total	success	failure	blocked	changes_requested	success_rate	changes_requested_rate	failure_rate$' ||
+    die "self-test: unexpected table header: $out"
+  printf '%s\n' "$out" | grep -qF $'docs\t3\t2\t1\t0\t0\t' || die "self-test: missing docs row: $out"
+  printf '%s\n' "$out" | grep -qF $'nix-modules\t1\t0\t1\t0\t0\t' || die "self-test: missing nix-modules row: $out"
+
+  # Malformed records are skipped without affecting exit status.
+  out=$(build_stats "$dir" 1) || die "self-test: build_stats should exit 0 with malformed records present"
+
+  # Missing directory: empty stats, exit 0.
+  out=$(build_stats "$tmp/missing" 1) || die "self-test: missing directory should exit 0"
+  [[ $out == "[]" ]] || die "self-test: missing directory should yield empty stats: $out"
+
+  printf 'agent-outcome-stats self-test passed\n'
+}
+
+dir="${AGENT_OUTCOME_DIR:-.agents/state/outcomes}"
+out_json=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --dir)
+    dir="${2:?--dir needs a value}"
+    shift 2
+    ;;
+  --json)
+    out_json=1
+    shift
+    ;;
+  --self-test)
+    self_test
+    exit 0
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    die "unknown argument: $1"
+    ;;
+  esac
+done
+
+command -v jq >/dev/null 2>&1 || die "jq not found"
+
+build_stats "$dir" "$out_json"
