@@ -100,17 +100,23 @@ check_body() {
     ready[$current_group]=1
   fi
 
-  local missing=() group
+  local missing=() group ready_count total_count
+  ready_count=0
+  total_count=${#group_order[@]}
   for group in "${group_order[@]}"; do
-    [[ -n ${ready[$group]:-} ]] || missing+=("$group")
+    if [[ -n ${ready[$group]:-} ]]; then
+      ready_count=$((ready_count + 1))
+    else
+      missing+=("$group")
+    fi
   done
 
   if [[ ${#missing[@]} -eq 0 ]]; then
-    echo "agent-issue-readiness: ready (all required sections present)"
+    echo "agent-issue-readiness: ready (${ready_count}/${total_count} required section groups present)"
     return 0
   fi
 
-  echo "agent-issue-readiness: NOT READY - missing or empty required sections:" >&2
+  echo "agent-issue-readiness: NOT READY (${ready_count}/${total_count} required section groups present) - missing or empty required sections:" >&2
   for group in "${missing[@]}"; do
     printf '  - %s (expected a heading like: %s)\n' "${group_labels[$group]}" "${group_hints[$group]}" >&2
   done
