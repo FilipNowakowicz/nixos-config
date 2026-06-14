@@ -474,6 +474,27 @@ startup-script metadata prevents the temporary bootstrap user and sudoers entry
 from being recreated by later OpenTofu applies; the bootstrap OS itself is
 replaced by the installed NixOS system.
 
+## Autonomous Agent Merge Authority
+
+No agent holds merge-to-main rights that bypass branch protection. The
+risk-gated merge loop (`scripts/agent-review-pr.sh` + `.agents/scripts/agent-merge-gate`)
+can only enable GitHub **native** auto-merge (`gh pr merge --auto --squash`),
+which merges a PR solely after the required `merge-gate` status is green; it
+never uses `--admin` and never pushes to a base branch. `main`'s branch
+protection (`merge-gate` required) therefore stays the objective gate even for
+autonomously approved PRs.
+
+A PR is eligible for autonomous merge only when three independent gates agree:
+`agent-route` classifies every changed path as `route=auto` and `risk=low`,
+`agent-policy-eval` finds no protected path, and an approved reviewer-evidence
+file bound to that PR (`.pr` must match) is present. The gate evaluates the
+routing/governance/evidence helpers from **trusted, already-reviewed code** (the
+committed `.agents` tree at the base ref, or `$AGENT_GATE_TRUSTED_ROOT`), never
+from the PR's own working copy, so a PR cannot weaken the classifier that gates
+it. Anything medium/high risk — or touching a protected path such as
+`.agents/scripts/**`, `.claude/hooks/**`, `secrets/**`, or host/deploy code — is
+reported `human` and left for a person.
+
 ## Audit Timeline In Loki
 
 Security-relevant host events are shipped to Loki through the existing Alloy
