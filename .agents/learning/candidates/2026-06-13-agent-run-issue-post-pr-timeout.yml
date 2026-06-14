@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-06-13-agent-run-issue-post-pr-timeout
+date: 2026-06-13
+expires: 2026-09-11
+status: open
+route: implement-fix
+best_form: test
+evidence: [issue-#257 outcome .agents/state/outcomes/2026-06-13T11:18:11Z-issue-257-failure.json recorded exit_code 124 after PR #271 was already opened; session log .agents/state/sessions/2026-06-13T11:03:08Z-issue-257.log shows commit 78a82d6 pushed and gh pr create returned https://github.com/FilipNowakowicz/nixos-config/pull/271 before timeout during learning capture]
+observation: agent-run-issue can mark an issue run as failure when AGENT_INNER_TIMEOUT_SECONDS expires after the implementation was committed, pushed, and a PR was opened, because post-PR learning capture still consumes the same inner-session timeout budget.
+proposed_upgrade: teach the wrapper/outcome model to distinguish post-PR-finalization timeouts from implementation failures, or move learning capture to a separate bounded/non-blocking phase after PR creation.
+type: workflow-gotcha
+dedupe_key: agent-run-issue:post-pr-timeout-after-successful-pr-create
+triggers: [scripts/agent-run-issue.sh, scripts/agent-session.sh, capture-learning-candidate, AGENT_INNER_TIMEOUT_SECONDS]
+targets: [scripts/agent-run-issue.sh, .agents/state/outcomes, .agents/skills/capture-learning-candidate]
+risk: misclassified failures can cause humans or dispatch automation to treat a successfully opened PR as failed work.

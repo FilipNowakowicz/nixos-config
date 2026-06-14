@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-06-14-shellcheck-backtick-treefmt-loop
+date: 2026-06-14
+expires: 2026-12-14
+status: open
+route: promote-skill
+best_form: skill
+evidence: [PR-#310 lint failed on ShellCheck SC2016 for literal backtick regex/test strings; local `nix fmt -- --fail-on-change` rewrote escaped-backtick double-quoted strings back to single-quoted literals; final fix used `local backtick=$'\x60'` and passed `nix fmt -- --fail-on-change`, ShellCheck, and `bash scripts/validate.sh docs`]
+observation: shfmt/treefmt can undo escaped-backtick double-quoted shell strings back into ShellCheck SC2016-triggering single-quoted literals, causing a formatter-vs-linter loop.
+proposed_upgrade: document in nix-verification-loop or issue-driven-development shell guidance that shell scripts needing literal backticks should prefer constructing the byte with `$'\x60'` (or another ShellCheck-clean pattern) and run treefmt plus ShellCheck together before pushing.
+agent: codex
+type: workflow-gotcha
+dedupe_key: shell:literal-backtick-treefmt-shellcheck-loop
+triggers: [ShellCheck SC2016, treefmt, shfmt, literal backticks, shell regex]
+targets: [.agents/skills/nix-verification-loop/SKILL.md, .agents/skills/issue-driven-development/SKILL.md]
+risk: stale if formatter or ShellCheck behavior changes

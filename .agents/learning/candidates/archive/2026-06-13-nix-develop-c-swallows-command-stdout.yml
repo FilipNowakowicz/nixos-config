@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-06-13-nix-develop-c-swallows-command-stdout
+date: 2026-06-13
+expires: 2026-12-13
+status: superseded
+
+route: implement-fix
+best_form: none
+
+evidence: ["session 2026-06-13: `nix develop -c bash scripts/validate.sh docs >/tmp/validate-docs.log 2>&1` exited 0 with only 'warning: Git tree dirty' in the log, while direct `bash scripts/validate.sh docs` printed 16 self-test pass lines", "same for `nix develop -c pre-commit run --all-files` (rc=0, no hook output)"]
+observation: in this repo `nix develop -c <cmd>` returns the command's exit code but the command's stdout never reaches the caller — only nix's own stderr arrives — likely the flake dev shellHook (git-hooks/pre-commit install chatter) interfering; an agent can misread a silent rc=0 as "checks did not run" and waste cycles re-running or debugging.
+proposed_upgrade: reproduce and fix the dev shell so `nix develop -c` passes through command stdout, or (if upstream behavior) note in CLAUDE.md/docs that validation commands should be run directly and `nix develop -c` reserved for PATH-only tool access with exit-code-based judgement.
+
+type: workflow-gotcha
+dedupe_key: dev-shell:nix-develop-c-stdout-swallowed
+targets: [flake.nix, scripts/validate.sh]

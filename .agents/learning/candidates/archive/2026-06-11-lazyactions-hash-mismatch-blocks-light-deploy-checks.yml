@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-11-lazyactions-hash-mismatch-blocks-light-deploy-checks
 date: 2026-06-11
 expires: 2026-09-11
-status: open
+status: superseded
 
 route: implement-fix
 best_form: none

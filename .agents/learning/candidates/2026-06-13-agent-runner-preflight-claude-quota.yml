@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-06-13-agent-runner-preflight-claude-quota
+date: 2026-06-13
+expires: 2026-09-11
+status: open
+route: implement-fix
+best_form: test
+evidence: [issue-#259 outcome .agents/state/outcomes/2026-06-13T11:32:49Z-issue-259-failure.json recorded failure after the session log returned "You've hit your session limit"; agent-session output showed no PR was opened before the 429 rate_limit_event]
+observation: agent-run-issue currently starts an implementation session without a cheap Claude quota/capacity preflight, so a known account-level rate limit is discovered only after an issue has been marked started and an outcome failure is recorded.
+proposed_upgrade: add a bounded preflight before dispatch that runs a tiny Claude prompt or checks CLI quota state, records a blocked outcome instead of a failed implementation when the model is rate-limited, and leaves agent:ready labels intact for retry after reset.
+type: workflow-gotcha
+dedupe_key: agent-runner:preflight-claude-quota-before-issue-session
+triggers: [scripts/agent-run-issue.sh, scripts/agent-session.sh, claude, rate_limit_event]
+targets: [scripts/agent-run-issue.sh, .agents/state/outcomes]
+risk: quota-only failures create noisy failed outcomes and can waste queued issue attempts even though the issue and repo state are healthy.

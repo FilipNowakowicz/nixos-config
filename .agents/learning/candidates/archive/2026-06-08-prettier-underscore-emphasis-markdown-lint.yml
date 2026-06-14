@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-08-prettier-underscore-emphasis-markdown-lint
 date: 2026-06-08
 expires: 2026-12-08
-status: open
+status: superseded
 
 route: promote-doc
 best_form: doc

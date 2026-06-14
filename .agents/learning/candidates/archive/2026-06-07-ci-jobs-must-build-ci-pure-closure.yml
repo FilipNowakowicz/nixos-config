@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-07-ci-jobs-must-build-ci-pure-closure
 date: 2026-06-07
 expires: 2026-12-07
-status: open
+status: superseded
 
 route: implement-fix
 best_form: ci-gate

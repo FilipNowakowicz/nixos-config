@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-07-goals-roadmap-link-sweep
 date: 2026-06-07
 expires: 2026-12-07
-status: open
+status: superseded
 route: promote-skill
 best_form: skill
 evidence: [docs/goals/roadmap.md:1-8, docs/goals/roadmap.md:24-37, docs/goals/homeserver-goals.md:96-101, bash-scripts-validate-sh-docs-checked-45-markdown-files]

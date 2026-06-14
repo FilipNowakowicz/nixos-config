@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-09-golden-check-derive-membership-lists-from-source
 date: 2026-06-09
 expires: 2026-12-09
-status: open
+status: superseded
 route: promote-skill
 best_form: skill
 type: behavior-upgrade

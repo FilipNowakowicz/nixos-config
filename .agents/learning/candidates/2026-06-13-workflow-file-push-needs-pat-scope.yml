@@ -1,0 +1,13 @@
+schema: learning-candidate/v1
+id: 2026-06-13-workflow-file-push-needs-pat-scope
+date: 2026-06-13
+expires: 2026-12-13
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [pr-#269, "session 2026-06-13 (issue #258, branch ci/closure-target-audit-258, commit 1a36cb0): `git push -u origin ci/closure-target-audit-258` with .github/workflows/nix.yml in the diff -> 'remote: ! [remote rejected] ... (refusing to allow a Personal Access Token to create or update workflow `.github/workflows/nix.yml` without `workflow` scope)'; push succeeded only after `git checkout HEAD~1 -- .github/workflows/nix.yml` + `git commit --amend` to drop the workflow-file edit"]
+observation: the gh PAT available in agent sessions lacks the `workflow` OAuth scope, so any push (to any branch, not just main) that includes changes to .github/workflows/*.yml is rejected by GitHub before the PR can be opened. There is no local-only workaround; the edit must either be dropped/reverted or applied by a human/token with `workflow` scope.
+proposed_upgrade: document in CLAUDE.md or issue-driven-development that agent-authored PRs cannot include .github/workflows/*.yml changes with the current token; if a task calls for workflow-file edits, either scope the PR to non-workflow files and call out the deferred workflow edit in the PR description, or flag it upfront so the user can apply that part manually / with a `workflow`-scoped token.
+triggers: [".github/workflows/*.yml", "git push", "remote rejected ... without `workflow` scope"]

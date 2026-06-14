@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-07-dbus-broker-user-notify-reload-hang
 date: 2026-06-07
 expires: 2026-12-07
-status: open
+status: superseded
 
 route: promote-doc
 best_form: doc

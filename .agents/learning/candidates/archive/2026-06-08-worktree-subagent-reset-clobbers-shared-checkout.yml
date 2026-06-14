@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-08-worktree-subagent-reset-clobbers-shared-checkout
 date: 2026-06-08
 expires: 2026-12-08
-status: open
+status: superseded
 
 route: promote-hook
 best_form: hook

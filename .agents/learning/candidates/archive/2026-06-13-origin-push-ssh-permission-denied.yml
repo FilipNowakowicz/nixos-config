@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-13-origin-push-ssh-permission-denied
 date: 2026-06-13
 expires: 2026-09-13
-status: open
+status: superseded
 
 route: implement-fix
 best_form: doc

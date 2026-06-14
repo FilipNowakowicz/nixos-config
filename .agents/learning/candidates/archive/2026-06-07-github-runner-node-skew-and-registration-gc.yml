@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-07-github-runner-node-skew-and-registration-gc
 date: 2026-06-07
 expires: 2026-09-05
-status: open
+status: superseded
 route: implement-fix
 best_form: ci-gate
 evidence: [issue-#109; deploy run 27089620283 failed at actions/checkout with "start process .../externals/node20/bin/node ... No such file or directory"; on-host github-runner-2.334.0 lib/externals/ contains node24 only; runner also crash-looped "registration has been deleted from the server" until /var/lib/github-runner/homeserver-deploy creds were cleared]

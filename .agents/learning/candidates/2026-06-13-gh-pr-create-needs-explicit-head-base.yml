@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-06-13-gh-pr-create-needs-explicit-head-base
+date: 2026-06-13
+expires: 2026-12-13
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [pr-#266, "session 2026-06-13: after `git push -u origin codex/agent-spawn-dirty-checkout-guard` (verified via git ls-remote and .git/config tracking), `gh pr create --title ... --body-file -` failed twice with 'aborted: you must first push the current branch to a remote, or use the --head flag'", "same command with --head codex/agent-spawn-dirty-checkout-guard --base main added succeeded immediately and opened PR #266"]
+observation: gh-pr-create-can-misdetect-the-local-branch-tracking-state-and-abort-with-push-the-current-branch-even-when-git-confirms-the-branch-is-pushed-and-tracked
+proposed_upgrade: in-issue-driven-development-skill-step-8-note-that-if-gh-pr-create-aborts-with-you-must-first-push-the-current-branch-despite-a-confirmed-pushed-tracked-branch-retry-the-same-command-with-explicit---head-branch-name---base-base-branch
+type: workflow-gotcha
+triggers: [gh pr create, issue-driven-development step 8]
+targets: [.agents/skills/issue-driven-development/SKILL.md]

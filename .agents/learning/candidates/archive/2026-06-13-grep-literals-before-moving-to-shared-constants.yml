@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-13-grep-literals-before-moving-to-shared-constants
 date: 2026-06-13
 expires: 2026-12-13
-status: open
+status: superseded
 
 route: promote-doc
 best_form: doc

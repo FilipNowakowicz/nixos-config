@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-07-hardened-capabilitybounding-statedirectory-conflict
 date: 2026-06-07
 expires: 2026-12-07
-status: open
+status: superseded
 route: promote-doc
 best_form: doc
 evidence: [hosts/main/default.nix:377-403, modules/nixos/services/hardened.nix:23 (CapabilityBoundingSet = ""), journalctl: "Failed to create '/var/lib/fwupd/pki': Permission denied" + "Can't open /var/lib/fwupd/pending.db: unable to open database file", ls -la /var/lib/fwupd showing owner fwupd-refresh:fwupd-refresh mode 0755, nixpkgs nixos/modules/services/hardware/fwupd.nix:205-213 (fwupd-refresh runs as dedicated user with StateDirectory=fwupd)]

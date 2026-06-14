@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-09-invariant-coverage-filtered-asserts
 date: 2026-06-09
 expires: 2026-12-09
-status: open
+status: superseded
 
 route: implement-fix
 best_form: invariant
