@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-06-14-anchored-dir-prefix-alternation-and-cross-line-selftest-glob
+date: 2026-06-14
+expires: 2026-12-14
+status: open
+route: implement-fix
+best_form: test
+evidence: ["pr-#290", ".agents/governance.yaml protected rule was ^(...|\\.agents/scripts/|\\.claude/hooks/|...)$ — files UNDER those dirs classified low/unprotected by agent-policy-eval; verified `.agents/scripts/agent-merge-gate` returned requires_human_review=false before fix", "agent-policy-eval self-test asserted protected paths with `[[ $out == *$'\\n'\"$p\"$'\\t'*$'\\t'true$'\\t'* ]]` which matched a LATER true row across newlines, masking the bug (green CI)"]
+observation: "In a POSIX ERE alternation anchored with ^(a|dir/|b)$, a directory-prefix alternative only matches the literal prefix, never files under it; and a self-test that greps a multi-line table with a `*...*` glob can pass by spanning newlines into an unrelated row."
+proposed_upgrade: "When matching path prefixes in anchored alternations use a trailing .+ (dir/.+); assert tabular self-test output per-row (awk -F'\\t' '$1==p && $3==\"true\"') not with whole-output globs. Consider a check that flags `/)$` or `/|` inside ^(...)$ governance patterns."
+type: repo-fix
+dedupe_key: governance:anchored-dir-prefix-and-crossline-selftest-glob
+triggers: [".agents/governance.yaml", "agent-policy-eval", "anchored regex alternation", "tab-separated self-test assertions"]
+targets: [".agents/governance.yaml", ".agents/scripts/agent-policy-eval"]
+risk: "low — the fix is already in #290; promoting a redundant check could duplicate coverage"
