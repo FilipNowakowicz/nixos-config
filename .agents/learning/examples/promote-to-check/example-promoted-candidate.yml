@@ -1,0 +1,11 @@
+schema: learning-candidate/v1
+id: example-promoted-check
+status: promoted
+route: implement-fix
+best_form: test
+dedupe_key: example:promote-to-check
+triggers: [review-learning-candidates, scaffold-promotion-check]
+targets: [scripts/validate.sh]
+evidence: [example-only]
+observation: A recurring agent mistake should become an executable check instead of prose.
+proposed_upgrade: scaffold a failing validate.sh check, implement the assertion, and archive the candidate in the same PR.
