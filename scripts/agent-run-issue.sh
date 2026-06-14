@@ -90,6 +90,8 @@ AGENT_MAX_TURNS="${AGENT_MAX_TURNS:-100}"
 AGENT_HEARTBEAT_SECONDS="${AGENT_HEARTBEAT_SECONDS:-60}"
 AGENT_INNER_KILL_GRACE_SECONDS="${AGENT_INNER_KILL_GRACE_SECONDS:-15}"
 AGENT_ISSUE_COMMENTS="${AGENT_ISSUE_COMMENTS:-1}"
+AGENT_PROMOTED_LEARNING_LIMIT="${AGENT_PROMOTED_LEARNING_LIMIT:-3}"
+AGENT_PROMOTED_LEARNING_CHAR_BUDGET="${AGENT_PROMOTED_LEARNING_CHAR_BUDGET:-900}"
 SESSION_LOCK="/run/agent/session.lock"
 
 label=""
@@ -147,6 +149,8 @@ validate_supervision_config() {
   validate_non_negative_integer AGENT_MAX_TURNS "$AGENT_MAX_TURNS"
   validate_non_negative_integer AGENT_HEARTBEAT_SECONDS "$AGENT_HEARTBEAT_SECONDS"
   validate_non_negative_integer AGENT_INNER_KILL_GRACE_SECONDS "$AGENT_INNER_KILL_GRACE_SECONDS"
+  validate_non_negative_integer AGENT_PROMOTED_LEARNING_LIMIT "$AGENT_PROMOTED_LEARNING_LIMIT"
+  validate_non_negative_integer AGENT_PROMOTED_LEARNING_CHAR_BUDGET "$AGENT_PROMOTED_LEARNING_CHAR_BUDGET"
 }
 
 github_ssh_to_https_url() {
@@ -383,6 +387,112 @@ compute_issue_path_hints() {
   printf '%s\n' "${hints[@]}" | awk 'NF' | sort -u | awk 'NR<=8'
 }
 
+learning_metadata_field() {
+  local path="$1"
+  local name="$2"
+  sed -n "s/^${name}:[[:space:]]*//p" "$path" | head -1 |
+    tr '\t' ' ' |
+    sed "s/^\"//; s/\"$//; s/^'//; s/'$//"
+}
+
+learning_match_terms() {
+  local issue_text="$1"
+  local path_hints="${2:-}"
+  local labels="${3:-}"
+  local backtick=$'\x60'
+
+  {
+    printf '%s\n' "$path_hints"
+    printf '%s\n' "$labels" | tr ',' '\n'
+    printf '%s\n' "$issue_text" |
+      grep -oE "${backtick}[^${backtick}]+${backtick}" |
+      tr -d '`' || true
+  } |
+    tr '[:upper:]' '[:lower:]' |
+    grep -oE '[a-z0-9_.:/-]{3,}' |
+    sort -u
+}
+
+# Select reviewed, promoted learnings that match this issue's path hints,
+# labels, or quoted routing terms. Raw open candidates are intentionally not
+# queried: only archived candidates with status: promoted can affect prompts.
+select_promoted_learnings() {
+  local issue_text="$1"
+  local path_hints="${2:-}"
+  local labels="${3:-}"
+  local archive_dir=".agents/learning/candidates/archive"
+
+  validate_non_negative_integer AGENT_PROMOTED_LEARNING_LIMIT "$AGENT_PROMOTED_LEARNING_LIMIT"
+  validate_non_negative_integer AGENT_PROMOTED_LEARNING_CHAR_BUDGET "$AGENT_PROMOTED_LEARNING_CHAR_BUDGET"
+  [[ $AGENT_PROMOTED_LEARNING_LIMIT -gt 0 && $AGENT_PROMOTED_LEARNING_CHAR_BUDGET -gt 0 ]] || return 0
+  [[ -d $archive_dir ]] || return 0
+
+  local terms_file candidates_file scored_file
+  terms_file=$(mktemp)
+  candidates_file=$(mktemp)
+  scored_file=$(mktemp)
+
+  learning_match_terms "$issue_text" "$path_hints" "$labels" >"$terms_file"
+  if [[ ! -s $terms_file ]]; then
+    rm -f "$terms_file" "$candidates_file" "$scored_file"
+    return 0
+  fi
+
+  find "$archive_dir" -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) | sort >"$candidates_file"
+  while IFS= read -r path; do
+    [[ -n $path ]] || continue
+    [[ $(learning_metadata_field "$path" status) == promoted ]] || continue
+
+    local id triggers targets route best_form dedupe observation upgrade metadata score summary
+    id=$(learning_metadata_field "$path" id)
+    triggers=$(learning_metadata_field "$path" triggers)
+    targets=$(learning_metadata_field "$path" targets)
+    route=$(learning_metadata_field "$path" route)
+    best_form=$(learning_metadata_field "$path" best_form)
+    dedupe=$(learning_metadata_field "$path" dedupe_key)
+    observation=$(learning_metadata_field "$path" observation)
+    upgrade=$(learning_metadata_field "$path" proposed_upgrade)
+    metadata=$(printf '%s %s %s %s %s %s %s' "$id" "$triggers" "$targets" "$route" "$best_form" "$dedupe" "$observation" |
+      tr '[:upper:]' '[:lower:]')
+    score=$(awk -v metadata="$metadata" '
+      BEGIN { score = 0 }
+      NF && index(metadata, tolower($0)) > 0 { score++ }
+      END { print score }
+    ' "$terms_file")
+    [[ $score =~ ^[0-9]+$ && $score -gt 0 ]] || continue
+
+    summary="${upgrade:-$observation}"
+    [[ -n $summary ]] || summary="$dedupe"
+    [[ -n $summary ]] || summary="$id"
+    summary=$(printf '%s' "$summary" | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g')
+    printf '%04d\t%s\t%s\n' "$score" "${id:-$(basename "$path")}" "$summary" >>"$scored_file"
+  done <"$candidates_file"
+
+  if [[ ! -s $scored_file ]]; then
+    rm -f "$terms_file" "$candidates_file" "$scored_file"
+    return 0
+  fi
+  sort -r "$scored_file" |
+    awk -F '\t' \
+      -v limit="$AGENT_PROMOTED_LEARNING_LIMIT" \
+      -v budget="$AGENT_PROMOTED_LEARNING_CHAR_BUDGET" '
+      count >= limit { next }
+      {
+        line = "- " $2 ": " $3
+        if (length(line) > budget) {
+          line = substr(line, 1, budget - 3) "..."
+        }
+        add = length(line) + (used == 0 ? 0 : 1)
+        if (used + add > budget) {
+          next
+        }
+        print line
+        used += add
+        count++
+      }'
+  rm -f "$terms_file" "$candidates_file" "$scored_file"
+}
+
 # Build the headless dispatch prompt for an issue. When $2 (newline-separated
 # path hints) is non-empty, append an advisory "likely files" line that the
 # agent is told to verify, not blindly trust; when empty, the prompt is
@@ -390,6 +500,7 @@ compute_issue_path_hints() {
 build_issue_prompt() {
   local issue="$1"
   local hint_text="${2:-}"
+  local promoted_learnings="${3:-}"
   local prompt
   prompt="Implement GitHub issue #${issue} in this repository end to end using the \
 issue-driven-development skill. Work on a new branch off ${BASE_BRANCH} (never commit \
@@ -418,11 +529,17 @@ editing, and do not treat the list as exhaustive or as a restriction on what you
     fi
   fi
 
+  if [[ -n $promoted_learnings ]]; then
+    prompt+=" Known gotchas for these paths:
+${promoted_learnings}
+Treat these as reviewed context to verify against the current tree, not as a substitute for reading the code."
+  fi
+
   printf '%s' "$prompt"
 }
 
 self_test() {
-  local tmp repo bin out rc old_timeout old_heartbeat old_grace
+  local tmp repo bin out rc old_timeout old_heartbeat old_grace old_learning_limit old_learning_budget
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' RETURN
   repo="$tmp/repo"
@@ -491,6 +608,8 @@ EOF
   old_timeout="$AGENT_INNER_TIMEOUT_SECONDS"
   old_heartbeat="$AGENT_HEARTBEAT_SECONDS"
   old_grace="$AGENT_INNER_KILL_GRACE_SECONDS"
+  old_learning_limit="$AGENT_PROMOTED_LEARNING_LIMIT"
+  old_learning_budget="$AGENT_PROMOTED_LEARNING_CHAR_BUDGET"
 
   cd "$repo"
   git checkout -q -b codex/clean-pr
@@ -533,6 +652,91 @@ EOF
     die "self-test: empty hints must not add a hint line to the prompt"
   [[ $prompt_without == "$(build_issue_prompt 999)" ]] ||
     die "self-test: omitted vs empty hints must build an identical prompt"
+
+  # --- promoted learning selection (#296) ---
+  mkdir -p .agents/learning/candidates/archive .agents/learning/candidates
+  cat >.agents/learning/candidates/archive/promoted-runner.yml <<'EOF'
+schema: learning-candidate/v1
+id: promoted-runner
+status: promoted
+route: promote-doc
+best_form: doc
+dedupe_key: agent-runner:validate-output-budget
+triggers: [scripts/agent-run-issue.sh, agent:ready]
+targets: [scripts/agent-run-issue.sh]
+observation: runner sessions should avoid verbose validation logs.
+proposed_upgrade: keep validation output bounded in runner prompts.
+EOF
+  cat >.agents/learning/candidates/archive/raw-archived.yml <<'EOF'
+schema: learning-candidate/v1
+id: raw-archived
+status: open
+route: promote-doc
+best_form: doc
+dedupe_key: raw-should-not-match
+triggers: [scripts/agent-run-issue.sh]
+targets: [scripts/agent-run-issue.sh]
+observation: this raw candidate must never be injected.
+EOF
+  cat >.agents/learning/candidates/raw-open.yml <<'EOF'
+schema: learning-candidate/v1
+id: raw-open
+status: promoted
+route: promote-doc
+best_form: doc
+dedupe_key: open-dir-should-not-match
+triggers: [scripts/agent-run-issue.sh]
+targets: [scripts/agent-run-issue.sh]
+observation: this non-archived candidate must never be injected.
+EOF
+  local backtick=$'\x60'
+  out=$(select_promoted_learnings "Fix ${backtick}agent-run-issue${backtick} prompt handling" 'scripts/agent-run-issue.sh' 'agent:ready')
+  [[ $out == *"promoted-runner"* ]] ||
+    die "self-test: expected promoted archived learning to match (got: $out)"
+  [[ $out != *"raw-archived"* && $out != *"raw-open"* ]] ||
+    die "self-test: raw/unarchived candidates must not be injected (got: $out)"
+  [[ -z $(select_promoted_learnings 'nothing relevant here' '' 'enhancement') ]] ||
+    die "self-test: expected no promoted learning block when nothing matches"
+
+  cat >.agents/learning/candidates/archive/promoted-runner-2.yml <<'EOF'
+schema: learning-candidate/v1
+id: promoted-runner-2
+status: promoted
+triggers: [scripts/agent-run-issue.sh]
+targets: [scripts/agent-run-issue.sh]
+observation: second matching promoted learning.
+EOF
+  cat >.agents/learning/candidates/archive/promoted-runner-3.yml <<'EOF'
+schema: learning-candidate/v1
+id: promoted-runner-3
+status: promoted
+triggers: [scripts/agent-run-issue.sh]
+targets: [scripts/agent-run-issue.sh]
+observation: third matching promoted learning.
+EOF
+  cat >.agents/learning/candidates/archive/promoted-runner-4.yml <<'EOF'
+schema: learning-candidate/v1
+id: promoted-runner-4
+status: promoted
+triggers: [scripts/agent-run-issue.sh]
+targets: [scripts/agent-run-issue.sh]
+observation: fourth matching promoted learning.
+EOF
+  AGENT_PROMOTED_LEARNING_LIMIT=2
+  AGENT_PROMOTED_LEARNING_CHAR_BUDGET=120
+  out=$(select_promoted_learnings 'Fix runner prompt handling' 'scripts/agent-run-issue.sh' '')
+  [[ $(printf '%s\n' "$out" | grep -c '^- ') -le 2 ]] ||
+    die "self-test: promoted learning selector exceeded item cap (got: $out)"
+  [[ ${#out} -le 120 ]] ||
+    die "self-test: promoted learning selector exceeded char budget (${#out} > 120): $out"
+  AGENT_PROMOTED_LEARNING_LIMIT="$old_learning_limit"
+  AGENT_PROMOTED_LEARNING_CHAR_BUDGET="$old_learning_budget"
+
+  prompt_with=$(build_issue_prompt 999 "" "- promoted-runner: keep validation output bounded")
+  [[ $prompt_with == *"Known gotchas for these paths:"* ]] ||
+    die "self-test: prompt with promoted learnings missing known-gotchas block"
+  [[ $(build_issue_prompt 999 "" "") != *"Known gotchas for these paths:"* ]] ||
+    die "self-test: empty promoted learnings must not add a known-gotchas block"
   rm -rf scripts .agents
 
   # --- turn-cap detection + transcript-hygiene prompt (#282) ---
@@ -589,6 +793,8 @@ EOF
   AGENT_INNER_TIMEOUT_SECONDS="$old_timeout"
   AGENT_HEARTBEAT_SECONDS="$old_heartbeat"
   AGENT_INNER_KILL_GRACE_SECONDS="$old_grace"
+  AGENT_PROMOTED_LEARNING_LIMIT="$old_learning_limit"
+  AGENT_PROMOTED_LEARNING_CHAR_BUDGET="$old_learning_budget"
   printf 'agent-run-issue self-test passed\n'
 }
 
@@ -895,13 +1101,18 @@ run_one() {
   # text, so the cold session starts where a human prompter would point it
   # instead of discovering the files turn-by-turn (discovery tax inflates turn
   # count, and cache-read cost scales super-linearly with turns).
-  local issue_text path_hints prompt
+  local issue_text issue_labels path_hints promoted_learnings prompt
   issue_text=$(gh issue view "$issue" --json title,body --jq '.title + "\n\n" + .body' 2>/dev/null || true)
+  issue_labels=$(gh issue view "$issue" --json labels --jq '[.labels[].name] | join(",")' 2>/dev/null || true)
   path_hints=$(compute_issue_path_hints "$issue_text")
   if [[ -n $path_hints ]]; then
     echo "agent-run-issue: issue #$issue path hints: $(printf '%s' "$path_hints" | paste -sd ' ' -)" >&2
   fi
-  prompt=$(build_issue_prompt "$issue" "$path_hints")
+  promoted_learnings=$(select_promoted_learnings "$issue_text" "$path_hints" "$issue_labels")
+  if [[ -n $promoted_learnings ]]; then
+    echo "agent-run-issue: issue #$issue promoted learnings: $(printf '%s' "$promoted_learnings" | sed 's/^- //g' | paste -sd ' ' -)" >&2
+  fi
+  prompt=$(build_issue_prompt "$issue" "$path_hints" "$promoted_learnings")
 
   # --max-turns is a hard backstop on the turn-count quadratic that the
   # wall-clock timeout does not bound; 0 disables it.
