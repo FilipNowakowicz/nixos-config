@@ -322,6 +322,53 @@ call a real model, auto-merge PRs, override `.agents/governance.yaml` or
 `agent-policy-eval`, or otherwise decide autonomy policy — those remain
 separate, human-reviewed gates.
 
+## Risk-Gated Merge (v2 Closed Loop)
+
+The v1 runner is attended: `scripts/agent-run-issue.sh` opens PRs but never
+merges. The v2 closed loop adds a **risk-gated** merge step that connects the
+reviewer stage to GitHub's native, CI-gated auto-merge. Two entrypoints:
+
+`scripts/agent-review-pr.sh` is the reviewer entrypoint. It scaffolds reviewer
+evidence from the linked issue's acceptance criteria, runs a reviewer model
+(`claude -p`) to fill it from the PR diff + issue, validates it via
+`agent-review-stage`, posts a summary comment, and then runs the merge gate.
+A `--decision-only` mode skips the model and runs the gate against an existing
+evidence file (offline-friendly with `--files-from`).
+
+`.agents/scripts/agent-merge-gate` is the deterministic gate. A PR is eligible
+for autonomous merge **only** when all of these agree:
+
+1. `agent-route` classifies the changed paths as `route == auto` **and**
+   `risk == low` (docs, learning candidates, and other low-risk classes only).
+2. `agent-policy-eval` reports that **no** changed path requires human review
+   (an independent allowlist — both gates must agree).
+3. A reviewer-evidence file is present, valid, and `result == "approved"`.
+
+```sh
+# Dry-run decision for a PR (no GitHub state changes):
+.agents/scripts/agent-merge-gate --pr 123 --evidence path/to/evidence.json
+# Offline decision from a changed-paths list:
+git diff --name-only main | .agents/scripts/agent-merge-gate --files-from - --evidence e.json --json
+# Enable GitHub native, CI-gated auto-merge on an "auto" decision:
+.agents/scripts/agent-merge-gate --pr 123 --evidence e.json --enable
+.agents/scripts/agent-merge-gate --self-test   # run via scripts/validate.sh docs
+.agents/scripts/agent-review-pr.sh --self-test  # run via scripts/validate.sh docs
+```
+
+**Safety invariants.** The gate only ever enables `gh pr merge --auto --squash`
+— native auto-merge that GitHub completes when the required `merge-gate` status
+is green. It **never** uses `--admin`, never pushes to a base branch, and
+defaults to dry-run (`--enable` is required to act). High-risk or human-review
+PRs are reported as decision `human` and left for a person. No agent holds
+direct merge-to-main rights that bypass branch protection; CI stays the
+objective gate. A high-risk change still gets a posted review, but the merge
+stays human.
+
+> Note: `.agents/governance.yaml`'s protected-path rule matches files **under**
+> `.agents/scripts/`, `.claude/hooks/`, and `scripts/agent-*.sh` (the directory
+> prefixes are matched with a trailing `.+`), so agents cannot route changes to
+> their own workflow scripts or guard hooks as low-risk auto-merge.
+
 ## Routing Metadata
 
 `.agents/model-routing.yaml` and `.agents/capability-profiles.yaml` define the

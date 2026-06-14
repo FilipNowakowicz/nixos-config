@@ -232,16 +232,20 @@ self_test() {
     ".agents/governance.yaml"
     ".agents/scripts/agent-policy-eval"
     ".agents/scripts/agent-record-outcome"
+    ".agents/scripts/agent-merge-gate"
     ".claude/hooks/guard-edits.sh"
     ".codex/hooks.json"
     "scripts/agent-run-issue.sh"
+    "scripts/agent-review-pr.sh"
     "hosts/main/secrets/host.age"
   )
   out=$(printf '%s\n' "${protected[@]}" | "$script_path" --files-from - 2>&1) && rc=0 || rc=$?
   [[ $rc -eq 1 ]] || die "self-test: expected protected paths to exit 1 (got $rc; output: $out)"
   local p
+  # Match per row (awk on tab-separated fields); a glob over the whole output
+  # would spuriously pass by spanning newlines into a later "true" row.
   for p in "${protected[@]}"; do
-    [[ $out == *$'\n'"$p"$'\t'*$'\t'true$'\t'* ]] ||
+    awk -F'\t' -v p="$p" '$1 == p && $3 == "true" { f = 1 } END { exit f ? 0 : 1 }' <<<"$out" ||
       die "self-test: expected '$p' to require human review (got: $out)"
   done
 
@@ -255,7 +259,7 @@ self_test() {
   out=$(printf '%s\n' "${ordinary[@]}" | "$script_path" --files-from - 2>&1) && rc=0 || rc=$?
   [[ $rc -eq 0 ]] || die "self-test: expected ordinary paths to exit 0 (got $rc; output: $out)"
   for p in "${ordinary[@]}"; do
-    [[ $out == *$'\n'"$p"$'\t'low$'\t'false$'\t'* ]] ||
+    awk -F'\t' -v p="$p" '$1 == p && $2 == "low" && $3 == "false" { f = 1 } END { exit f ? 0 : 1 }' <<<"$out" ||
       die "self-test: expected '$p' to be low risk and not require review (got: $out)"
   done
 
