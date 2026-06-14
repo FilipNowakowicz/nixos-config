@@ -90,8 +90,8 @@
           src = prev.fetchFromGitHub {
             owner = "nnnkkk7";
             repo = "lazyactions";
-            rev = "main";
-            hash = "sha256-G2Rsu59Qbq9Nm0CSPbieAZHHCZVdDkdUNe3wi0tq8Po=";
+            rev = "7058157e1ac3723c905cf2f9bf0138f8ebfb4465";
+            hash = "sha256-2y4jmuCBe6HDpn2tj9YMAHNBx46z/LsmMoPOWAGkbAk=";
           };
           vendorHash = "sha256-cDLLpU0xsv57yE2cOMddcf2/mHsmGAe69pbNYGSL1XE=";
           subPackages = [ "cmd/lazyactions" ];
@@ -120,14 +120,16 @@
 
       inherit (nixpkgs) lib;
 
-      pkgs = import nixpkgs {
-        system = defaultSystem;
-        config.allowUnfree = true;
+      pkgsHelper = import ./flake/pkgs.nix {
+        inherit nixpkgs;
         overlays = [
           lazyactionsOverlay
           libfprintGoodixOverlay
         ];
       };
+      inherit (pkgsHelper) mkPkgs overlays;
+
+      pkgs = mkPkgs { system = defaultSystem; };
 
       invariants = import ./lib/invariants.nix { inherit lib pkgs; };
       aclGen = import ./lib/acl.nix { inherit lib; };
@@ -139,8 +141,8 @@
           nixpkgs
           lib
           hostRegistry
-          lazyactionsOverlay
-          libfprintGoodixOverlay
+          mkPkgs
+          overlays
           ;
         inherit (inputs)
           home-manager
@@ -193,10 +195,7 @@
       perSystem =
         { system, self', ... }:
         let
-          pkgs = import nixpkgs {
-            inherit system;
-            config.allowUnfree = true;
-          };
+          pkgs = mkPkgs { inherit system; };
         in
         import ./flake/dev.nix {
           inherit

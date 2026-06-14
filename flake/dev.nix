@@ -87,6 +87,7 @@ in
     control-center = controlCenterPackage;
     inherit (pkgs)
       deadnix
+      lazyactions
       shellcheck
       statix
       ;

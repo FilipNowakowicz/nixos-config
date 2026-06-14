@@ -6,17 +6,12 @@
   sops-nix,
   lib,
   hostRegistry,
-  lazyactionsOverlay,
-  libfprintGoodixOverlay,
+  mkPkgs,
+  overlays,
 }:
 let
-  pkgs = import nixpkgs {
+  pkgs = mkPkgs {
     system = "x86_64-linux";
-    config.allowUnfree = true;
-    overlays = [
-      lazyactionsOverlay
-      libfprintGoodixOverlay
-    ];
   };
 
   homeManagerRoleModules = {
@@ -89,10 +84,7 @@ let
         home-manager.nixosModules.home-manager
         sops-nix.nixosModules.sops
         {
-          nixpkgs.overlays = [
-            lazyactionsOverlay
-            libfprintGoodixOverlay
-          ];
+          nixpkgs.overlays = overlays;
         }
         {
           imports = [ ../modules/nixos ];
