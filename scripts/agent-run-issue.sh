@@ -304,6 +304,100 @@ has_clean_pr_after_timeout() {
   [[ ${pr_count:-0} =~ ^[0-9]+$ && ${pr_count:-0} -gt 0 ]]
 }
 
+# Resolve a path-ish token from issue prose to an existing repo path, or print
+# nothing. Strips trailing prose punctuation and reduces a glob mention
+# (".agents/state/outcomes/*.json") to its longest existing leading directory.
+_resolve_path_token() {
+  local tok="$1"
+  local trailing_punct='[).,:;!?]$'
+  while [[ -n $tok && $tok =~ $trailing_punct ]]; do tok="${tok%?}"; done
+  if [[ $tok == *'*'* ]]; then
+    tok="${tok%%\**}"
+    tok="${tok%/}"
+  fi
+  [[ -n $tok && -e $tok ]] && printf '%s\n' "$tok"
+  return 0
+}
+
+# Compute advisory candidate-path hints for an issue from its title+body text,
+# so a cold session starts where a human prompter would point it instead of
+# paying a discovery tax (grep/find/Read) that inflates turn count and cost.
+# High precision by design: only existing paths the issue explicitly names,
+# plus repo-map-query routing keyed on the issue's backtick-quoted (author-
+# chosen, high-signal) terms. Prints newline-separated paths, capped; prints
+# nothing when routing yields nothing. Best-effort: never fails the caller.
+compute_issue_path_hints() {
+  local text="$1"
+  [[ -n $text ]] || return 0
+  local -a hints=()
+  local tok resolved
+
+  # 1) Existing paths the issue explicitly names (highest precision).
+  while IFS= read -r tok; do
+    [[ -n $tok ]] || continue
+    resolved=$(_resolve_path_token "$tok")
+    [[ -n $resolved ]] && hints+=("$resolved")
+  done < <(printf '%s\n' "$text" |
+    grep -oE '[A-Za-z0-9_.][A-Za-z0-9_./*-]*/[A-Za-z0-9_./*-]+' || true)
+
+  # 2) repo-map-query enrichment, keyed on backtick-quoted terms only (the
+  #    author deliberately quoted them, so they route well; generic prose words
+  #    produce weak routing per the repo-map-query skill). Additive, advisory,
+  #    never fatal — skipped when the helper or terms are absent.
+  if [[ -x .agents/repo-map/scripts/query.sh ]]; then
+    local -a terms=()
+    # shellcheck disable=SC2016  # literal backticks: match `quoted` issue terms
+    mapfile -t terms < <(printf '%s\n' "$text" |
+      grep -oE '`[^`]+`' |
+      tr -d '`' |
+      grep -oE '[A-Za-z0-9_.-]{3,}' |
+      sort -u | awk 'NR<=8' || true)
+    if [[ ${#terms[@]} -gt 0 ]]; then
+      while IFS= read -r tok; do
+        [[ -n $tok && -e $tok ]] && hints+=("$tok")
+      done < <(bash .agents/repo-map/scripts/query.sh "${terms[@]}" 2>/dev/null |
+        awk 'NR>1 {print $2}' | awk 'NR<=4' || true)
+    fi
+  fi
+
+  [[ ${#hints[@]} -gt 0 ]] || return 0
+  printf '%s\n' "${hints[@]}" | awk 'NF' | sort -u | awk 'NR<=8'
+}
+
+# Build the headless dispatch prompt for an issue. When $2 (newline-separated
+# path hints) is non-empty, append an advisory "likely files" line that the
+# agent is told to verify, not blindly trust; when empty, the prompt is
+# byte-identical to the no-hints baseline (no empty/garbage hint).
+build_issue_prompt() {
+  local issue="$1"
+  local hint_text="${2:-}"
+  local prompt
+  prompt="Implement GitHub issue #${issue} in this repository end to end using the \
+issue-driven-development skill. Work on a new branch off ${BASE_BRANCH} (never commit \
+to ${BASE_BRANCH} directly). When the relevant files are not already obvious, use the \
+repo-map-query skill to locate them instead of broad cat/grep/find sweeps, then open \
+only the top likely files. Implement the smallest durable fix, validate with the \
+nix-verification-loop skill (the smallest meaningful scripts/validate.sh command for \
+what you changed), then push the branch and open a pull request that links the issue \
+(use 'Closes #${issue}' only if the PR fully satisfies it, otherwise 'Refs #${issue}'). \
+Do NOT merge the PR, do NOT push to ${BASE_BRANCH}, and do NOT wait for long GitHub \
+Actions checks after the PR is open; treat CI as asynchronous unless a required check \
+has already failed and needs an immediate fix. If you cannot complete it, stop and \
+explain what is blocked."
+
+  if [[ -n $hint_text ]]; then
+    local hint_list
+    hint_list=$(printf '%s' "$hint_text" | awk 'NF' | paste -sd ', ' -)
+    if [[ -n $hint_list ]]; then
+      prompt+=" Based on the issue text, the relevant files are likely: ${hint_list}. \
+Treat this as an advisory starting point — verify each against the real code before \
+editing, and do not treat the list as exhaustive or as a restriction on what you may change."
+    fi
+  fi
+
+  printf '%s' "$prompt"
+}
+
 self_test() {
   local tmp repo bin out rc old_timeout old_heartbeat old_grace
   tmp=$(mktemp -d)
@@ -384,6 +478,39 @@ EOF
     die "self-test: dirty worktree must not classify as post-PR timeout"
   fi
   rm -f dirty.txt
+
+  # --- issue path-hint construction (#281) ---
+  mkdir -p scripts .agents/state/outcomes
+  : >scripts/validate.sh
+  local hints prompt_with prompt_without
+  # an existing path the issue names verbatim becomes a hint
+  hints=$(compute_issue_path_hints 'Fix the flag handling in scripts/validate.sh please')
+  [[ $hints == *"scripts/validate.sh"* ]] ||
+    die "self-test: expected an existing named path to become a hint (got: $hints)"
+  # a glob mention resolves to its existing parent directory
+  hints=$(compute_issue_path_hints 'records live under .agents/state/outcomes/*.json')
+  [[ $hints == *".agents/state/outcomes"* ]] ||
+    die "self-test: expected a glob mention to resolve to its existing dir (got: $hints)"
+  # an issue naming no existing path yields no hints (prompt stays unchanged)
+  [[ -z $(compute_issue_path_hints 'make the loop cheaper and more reliable somehow') ]] ||
+    die "self-test: expected no hints when the issue names no existing path"
+  [[ -z $(compute_issue_path_hints 'edit some/path/that/does/not/exist.txt') ]] ||
+    die "self-test: expected no hints for a non-existent path mention"
+  # prompt construction: hints present -> advisory, verify-before-editing line
+  prompt_with=$(build_issue_prompt 999 "scripts/validate.sh")
+  [[ $prompt_with == *"Implement GitHub issue #999"* ]] ||
+    die "self-test: built prompt missing the issue directive"
+  [[ $prompt_with == *"relevant files are likely: scripts/validate.sh"* ]] ||
+    die "self-test: prompt with hints missing the advisory hint line"
+  [[ $prompt_with == *"verify each against the real code before"* ]] ||
+    die "self-test: prompt with hints missing the verify-before-editing instruction"
+  # no hints -> prompt has no hint line and equals the empty-hints baseline
+  prompt_without=$(build_issue_prompt 999 "")
+  [[ $prompt_without != *"relevant files are likely"* ]] ||
+    die "self-test: empty hints must not add a hint line to the prompt"
+  [[ $prompt_without == "$(build_issue_prompt 999)" ]] ||
+    die "self-test: omitted vs empty hints must build an identical prompt"
+  rm -rf scripts .agents
 
   AGENT_INNER_TIMEOUT_SECONDS=10
   AGENT_HEARTBEAT_SECONDS=1
@@ -724,19 +851,18 @@ run_one() {
   # repo's issue-driven-development skill end to end. Claude picks the branch,
   # implements the smallest durable fix, validates via the nix-verification-loop,
   # pushes, and opens a PR. It must NOT merge (attended v1).
-  local prompt
-  prompt="Implement GitHub issue #${issue} in this repository end to end using the \
-issue-driven-development skill. Work on a new branch off ${BASE_BRANCH} (never commit \
-to ${BASE_BRANCH} directly). When the relevant files are not already obvious, use the \
-repo-map-query skill to locate them instead of broad cat/grep/find sweeps, then open \
-only the top likely files. Implement the smallest durable fix, validate with the \
-nix-verification-loop skill (the smallest meaningful scripts/validate.sh command for \
-what you changed), then push the branch and open a pull request that links the issue \
-(use 'Closes #${issue}' only if the PR fully satisfies it, otherwise 'Refs #${issue}'). \
-Do NOT merge the PR, do NOT push to ${BASE_BRANCH}, and do NOT wait for long GitHub \
-Actions checks after the PR is open; treat CI as asynchronous unless a required check \
-has already failed and needs an immediate fix. If you cannot complete it, stop and \
-explain what is blocked."
+  #
+  # Seed the prompt with advisory candidate-path hints computed from the issue
+  # text, so the cold session starts where a human prompter would point it
+  # instead of discovering the files turn-by-turn (discovery tax inflates turn
+  # count, and cache-read cost scales super-linearly with turns).
+  local issue_text path_hints prompt
+  issue_text=$(gh issue view "$issue" --json title,body --jq '.title + "\n\n" + .body' 2>/dev/null || true)
+  path_hints=$(compute_issue_path_hints "$issue_text")
+  if [[ -n $path_hints ]]; then
+    echo "agent-run-issue: issue #$issue path hints: $(printf '%s' "$path_hints" | paste -sd ' ' -)" >&2
+  fi
+  prompt=$(build_issue_prompt "$issue" "$path_hints")
 
   status=success
   exit_code=0
