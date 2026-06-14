@@ -375,6 +375,36 @@ Rules of thumb:
 - `infra/` changes: run `bash scripts/validate.sh tf-drift` (manual/local; needs
   ADC) to confirm live GCP state still matches — see [Terraform Drift Guard](#terraform-drift-guard).
 
+## Agent Risk-Gated Merge (v2 Closed Loop)
+
+The gcp-agent issue loop can autonomously merge **low-risk** PRs while leaving
+high-risk ones for a person, with CI (`merge-gate`) as the objective gate
+throughout. Two entrypoints drive it:
+
+- `scripts/agent-review-pr.sh` — reviews a PR's diff against its linked issue,
+  writes schema-valid reviewer evidence, posts a summary, then runs the gate.
+- `.agents/scripts/agent-merge-gate` — the deterministic decision. A PR is
+  eligible for autonomous merge only when **all three** independent gates agree:
+  `agent-route` says `route == auto` and `risk == low`, `agent-policy-eval`
+  reports no path needs human review, and an approved reviewer-evidence file is
+  present and bound to the PR (`.pr` must match `--pr`).
+
+On an eligible decision, `--enable` turns on GitHub **native** auto-merge
+(`gh pr merge --auto --squash`): GitHub merges only once `merge-gate` is green.
+Safety invariants — it never uses `--admin`, never pushes to a base branch,
+defaults to dry-run, and evaluates the routing/governance helpers from
+**trusted** code (the committed `.agents` tree at the base ref, or
+`$AGENT_GATE_TRUSTED_ROOT`) rather than the PR's own working copy, so a PR cannot
+weaken the classifier that gates it. No agent holds merge rights that bypass
+branch protection.
+
+```bash
+# Dry-run the gate against a PR's existing evidence (no GitHub changes):
+.agents/scripts/agent-merge-gate --pr <n> --evidence <evidence.json>
+# Review a PR and enable auto-merge if it is eligible:
+scripts/agent-review-pr.sh --pr <n> --enable-auto-merge
+```
+
 ## On-Demand Remote Builder
 
 Build-heavy `scripts/validate.sh` subcommands (`host`, `hosts`, `heavy`,
