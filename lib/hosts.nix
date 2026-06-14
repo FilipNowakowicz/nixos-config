@@ -101,6 +101,9 @@ let
       tailscale = {
         tag = "builder";
         acceptFrom.workstation = [ 22 ];
+        # gcp-agent offloads heavy builds here too (its own dedicated build
+        # key, see hosts/gcp-agent/nix-remote-build.nix).
+        acceptFrom.agent = [ 22 ];
       };
       deploy.sshUser = "user";
       sops = false;
