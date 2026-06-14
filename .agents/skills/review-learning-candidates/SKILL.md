@@ -28,6 +28,14 @@ Turn candidate proposals into the strongest useful repo artifact:
 Prefer executable enforcement over prose. A candidate that can become a check,
 test, or invariant should not be promoted to `CLAUDE.md`.
 
+For candidates already promoted by review and routed `implement-fix` with
+`best_form: test`, `best_form: assertion`, `best_form: invariant`, or
+`best_form: check`, use
+`.agents/learning/scripts/scaffold-promotion-check.sh` to create the failing
+check stub and `scripts/validate.sh` wiring before writing prose. The generated
+stub is intentionally red until you replace its TODO body with the real
+assertion, and it keeps a back-reference to the candidate for audit.
+
 ## Workflow
 
 ### 1. Triage from metadata
@@ -52,7 +60,9 @@ as "a fix is owed" — the fix is often already in tree.
 For everything that still needs action:
 
 - `implement-fix`: implement the repo fix, or leave it as explicit backlog if
-  the user only asked for triage.
+  the user only asked for triage. If the fix should become a repo check, first
+  run the promotion scaffold helper so the PR has a concrete failing assertion
+  path instead of a prose reminder.
 - `promote-hook`: update a hook and validate it with direct hook tests.
 - `promote-skill`: update or create a skill and validate any helper scripts.
 - `promote-doc`: update the smallest relevant doc only if no stronger form fits.
