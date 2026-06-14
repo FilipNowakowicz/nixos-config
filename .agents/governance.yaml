@@ -35,7 +35,7 @@ rules:
     risk: high
     requires_human_review: true
     reason: "CI/CD workflow definitions control automation trust boundaries."
-  - pattern: ^(\.agents/governance\.yaml|\.agents/scripts/|scripts/agent-run-issue\.sh|\.claude/hooks/|\.claude/settings\.json|\.codex/hooks\.json|\.codex/config\.toml)$
+  - pattern: ^(\.agents/governance\.yaml|\.agents/scripts/.+|scripts/agent-[^/]+\.sh|\.claude/hooks/.+|\.claude/settings\.json|\.codex/hooks\.json|\.codex/config\.toml)$
     risk: high
     requires_human_review: true
     reason: "Agent workflow policy, hooks, scripts, or config; models must not grant themselves authority here."

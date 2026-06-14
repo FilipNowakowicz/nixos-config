@@ -217,6 +217,8 @@ docs)
   bash .agents/scripts/agent-policy-eval --self-test
   bash .agents/scripts/agent-review-evidence-check --self-test
   bash .agents/scripts/agent-review-stage --self-test
+  bash .agents/scripts/agent-merge-gate --self-test
+  bash scripts/agent-review-pr.sh --self-test
   bash .agents/scripts/agent-routing-check --self-test
   bash .agents/scripts/agent-dispatch --self-test
   bash .agents/scripts/agent-dispatchable-issues --self-test

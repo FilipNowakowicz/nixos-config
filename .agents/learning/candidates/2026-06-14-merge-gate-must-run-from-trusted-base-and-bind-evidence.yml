@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-06-14-merge-gate-must-run-from-trusted-base-and-bind-evidence
+date: 2026-06-14
+expires: 2026-12-14
+status: open
+route: implement-fix
+best_form: test
+evidence: ["pr-#290 review (epic #284): agent-merge-gate resolved agent-route/agent-policy-eval/agent-review-evidence-check from the SAME checkout it was gating, so a PR editing those workflow scripts could weaken the classifier that decides the PR is low-risk, then --enable native auto-merge (CI-gated but risk-gate bypassed)", "same gate validated evidence schema + .result==approved but never checked evidence.pr against --pr; reviewer reproduced decision==auto using evidence for PR 999 on docs-only paths"]
+observation: "A merge/policy gate that executes the routing/governance code from the PR's own working tree is not a boundary: the gated artifact can rewrite its own gate. And approved reviewer evidence not bound to the PR under test lets a stale/foreign approval unlock a different PR."
+proposed_upgrade: "Gate must evaluate helpers from TRUSTED, already-reviewed code (explicit $AGENT_GATE_TRUSTED_ROOT, else the committed .agents tree at the base ref via `git archive`), never the working copy; refuse the act/--enable step when no trusted base resolves. Bind evidence to subject: when --pr given, require `jq -e --argjson pr \"$pr\" '.pr == $pr'`. Cover both with self-tests (untrusted --enable refused; mismatched .pr -> human)."
+type: repo-fix
+dedupe_key: agent-gate:trusted-base-eval-and-evidence-pr-binding
+triggers: ["agent-merge-gate", "git archive base ref", "auto-merge gate", "reviewer evidence binding", "self-gating"]
+targets: [".agents/scripts/agent-merge-gate", "scripts/agent-review-pr.sh"]
+risk: "low — fix already in #290; promoting a redundant check could duplicate the self-test coverage already added"

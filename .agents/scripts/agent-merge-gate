@@ -1,0 +1,445 @@
+#!/usr/bin/env bash
+# Risk-gated merge decision for the agent issue-to-PR loop (v2 closed loop).
+#
+# Given a PR's changed paths and (optionally) a reviewer-evidence file, decide
+# whether the PR may merge autonomously. A PR is eligible for autonomous merge
+# only when ALL of these hold:
+#
+#   1. .agents/scripts/agent-route classifies the changed paths as
+#      route == "auto" AND risk == "low" (docs, learning candidates, and other
+#      low-risk classes only — anything medium/high or human-review routed is
+#      excluded).
+#   2. .agents/scripts/agent-policy-eval reports that NO changed path requires
+#      human review (a second, independent allowlist — both must agree).
+#   3. A reviewer-evidence file is present, passes
+#      .agents/scripts/agent-review-evidence-check, and has result == "approved".
+#
+# When eligible AND --enable is given, this enables GitHub *native* auto-merge
+# (`gh pr merge --auto --squash`): GitHub merges the PR only once the required
+# `merge-gate` status is green. CI stays the objective gate; the agent never
+# races it.
+#
+# SAFETY INVARIANTS (do not weaken):
+#   - This NEVER uses `gh pr merge --admin` and NEVER pushes to a base branch.
+#     It only ever enables native, CI-gated auto-merge. No agent holds direct
+#     merge-to-main rights that bypass branch protection.
+#   - Default mode is dry-run: the decision is computed and printed but no
+#     GitHub state changes. --enable is required to act.
+#   - High-risk / human-review PRs are never auto-merged; they are reported as
+#     decision "human" and left for a person.
+#   - The routing/governance/evidence helpers are evaluated from TRUSTED,
+#     already-reviewed code (an explicit $AGENT_GATE_TRUSTED_ROOT, or the
+#     committed `.agents` tree at the base ref) -- never from a PR's own working
+#     copy. A PR therefore cannot weaken the classifier that gates itself;
+#     --enable is refused when no trusted base can be established.
+#   - Approved reviewer evidence is bound to the PR under test: when --pr is
+#     given, the evidence's `.pr` must match, so a stale or foreign approval
+#     cannot unlock a different PR.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: agent-merge-gate --pr <n> [--evidence <path>] [--enable] [--json]
+       agent-merge-gate --files-from <path> [--evidence <path>] [--json]
+       agent-merge-gate --self-test
+
+Decide whether a PR is eligible for autonomous, CI-gated native auto-merge and
+optionally enable it. The decision is "auto" only when the changed paths route
+to low-risk auto AND no path requires human review AND an approved reviewer
+evidence file is supplied; otherwise the decision is "human".
+
+Changed-path source (pick one):
+  --pr <n>            Fetch the PR's changed paths via `gh pr view <n>
+                      --json files`. Required for --enable.
+  --files-from <path> Read newline-separated changed paths from <path>
+                      ("-" for stdin). Offline; never calls GitHub.
+
+Options:
+  --evidence <path>   Reviewer-evidence JSON (schema agent-reviewer-evidence/v1).
+                      Required for an "auto" decision; without it the decision
+                      is always "human" (no approved review). When --pr is set,
+                      the evidence's `.pr` must equal it (binding).
+  --base-ref <ref>    Git ref whose committed `.agents` tree is the TRUSTED
+                      source for the routing/governance/evidence helpers
+                      (default: the PR base, else origin/main, else main).
+                      Overridden by $AGENT_GATE_TRUSTED_ROOT.
+  --enable            Act on an "auto" decision by enabling GitHub native
+                      auto-merge (`gh pr merge <n> --auto --squash`). Requires
+                      --pr AND a trusted helper base (see --base-ref). Without
+                      --enable, runs as a dry-run and only prints the decision.
+                      A "human" decision never enables anything.
+  --json              Emit the decision as a JSON object instead of text.
+  --self-test         Run a deterministic, offline self-test and exit.
+  -h, --help          Show this help.
+
+Exit status:
+  0  decision computed (auto or human), or auto-merge enabled successfully
+  2  usage error or a required tool failed
+
+The merge decision is gated by CI: enabling native auto-merge only queues the
+PR; GitHub merges it when `merge-gate` passes. This command never bypasses
+branch protection.
+EOF
+}
+
+die() {
+  printf 'agent-merge-gate: %s\n' "$*" >&2
+  exit 2
+}
+
+script_dir() {
+  CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd
+}
+
+agent_root() {
+  CDPATH='' cd -- "$(script_dir)/.." && pwd
+}
+
+# Echo the first existing base ref to treat as already-reviewed, trusted code.
+default_base_ref() {
+  local repo="$1" ref
+  for ref in origin/main main; do
+    if git -C "$repo" rev-parse --verify --quiet "$ref^{commit}" >/dev/null 2>&1; then
+      printf '%s\n' "$ref"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Resolve a TRUSTED `.agents` root for the routing/governance/evidence helpers.
+# A PR must not use its own (possibly modified) copy of these scripts to decide
+# that the same PR is low-risk, so prefer already-reviewed code:
+#   1. $AGENT_GATE_TRUSTED_ROOT (an explicit trusted `.agents` dir)   -> trusted
+#   2. the committed `.agents` tree at the base ref (via git archive) -> trusted
+#   3. the working-tree `.agents`                                     -> UNTRUSTED
+# Echoes "<.agents root>\t<trusted:0|1>".
+resolve_helper_root() {
+  local tmp="$1" base_ref="$2"
+
+  if [[ -n ${AGENT_GATE_TRUSTED_ROOT:-} ]]; then
+    [[ -d ${AGENT_GATE_TRUSTED_ROOT} ]] ||
+      die "AGENT_GATE_TRUSTED_ROOT is not a directory: $AGENT_GATE_TRUSTED_ROOT"
+    printf '%s\t1\n' "$AGENT_GATE_TRUSTED_ROOT"
+    return 0
+  fi
+
+  local repo
+  if repo=$(git rev-parse --show-toplevel 2>/dev/null); then
+    local ref="$base_ref"
+    [[ -n $ref ]] || ref=$(default_base_ref "$repo" || true)
+    if [[ -n $ref ]] &&
+      git -C "$repo" rev-parse --verify --quiet "$ref^{commit}" >/dev/null 2>&1; then
+      local troot="$tmp/trusted"
+      mkdir -p "$troot"
+      if git -C "$repo" archive "$ref" .agents 2>/dev/null | tar -x -C "$troot" 2>/dev/null &&
+        [[ -x "$troot/.agents/scripts/agent-route" ]]; then
+        printf '%s\t1\n' "$troot/.agents"
+        return 0
+      fi
+    fi
+  fi
+
+  printf '%s\t0\n' "$(agent_root)"
+}
+
+# Compute the risk-gated decision from a changed-paths file and an optional
+# evidence file, using helpers under the TRUSTED root "$4". Echoes a compact
+# JSON object:
+#   {decision, route, risk, requires_human_review, evidence_result, reasons[]}
+# decision is "auto" only when every gate agrees; otherwise "human".
+compute_decision() {
+  local paths_file="$1" evidence="$2" pr="$3" root="$4"
+  local route_json route risk policy_review evidence_result
+
+  local route_bin="$root/scripts/agent-route"
+  local policy_bin="$root/scripts/agent-policy-eval"
+  local evidence_bin="$root/scripts/agent-review-evidence-check"
+  [[ -x $route_bin ]] || die "agent-route not found or not executable: $route_bin"
+  [[ -x $policy_bin ]] || die "agent-policy-eval not found or not executable: $policy_bin"
+  [[ -x $evidence_bin ]] || die "agent-review-evidence-check not found or not executable: $evidence_bin"
+
+  local -a reasons=()
+
+  # Gate 1: routing decision (primary risk gate).
+  route_json=$("$route_bin" --files-from "$paths_file" --json) ||
+    die "agent-route failed for $paths_file"
+  route=$(jq -r '.route' <<<"$route_json")
+  risk=$(jq -r '.risk' <<<"$route_json")
+  [[ $route == auto ]] || reasons+=("route is '$route' (not 'auto')")
+  [[ $risk == low ]] || reasons+=("risk is '$risk' (not 'low')")
+
+  # Gate 2: governance policy (independent allowlist; exit 1 == needs a human).
+  if "$policy_bin" --files-from "$paths_file" >/dev/null 2>&1; then
+    policy_review=false
+  else
+    policy_review=true
+    reasons+=("a changed path requires human review per agent-policy-eval")
+  fi
+
+  # Gate 3: approved reviewer evidence.
+  evidence_result="none"
+  if [[ -n $evidence ]]; then
+    if "$evidence_bin" "$evidence" >/dev/null 2>&1; then
+      evidence_result=$(jq -r '.result' "$evidence")
+      [[ $evidence_result == approved ]] ||
+        reasons+=("reviewer evidence result is '$evidence_result' (not 'approved')")
+      # Bind the approval to the PR under test: a stale or foreign approval must
+      # not unlock a different PR.
+      if [[ -n $pr ]] &&
+        ! jq -e --argjson pr "$pr" '.pr == $pr' "$evidence" >/dev/null 2>&1; then
+        reasons+=("reviewer evidence is for PR #$(jq -r '.pr // "?"' "$evidence") (not #$pr)")
+      fi
+    else
+      evidence_result="invalid"
+      reasons+=("reviewer evidence failed schema validation")
+    fi
+  else
+    reasons+=("no reviewer-evidence file supplied")
+  fi
+
+  local decision="human"
+  [[ ${#reasons[@]} -eq 0 ]] && decision="auto"
+
+  local reasons_json
+  reasons_json=$(printf '%s\n' "${reasons[@]+"${reasons[@]}"}" |
+    jq -Rsc '[splits("\n")] | map(select(length > 0))')
+
+  jq -nc \
+    --arg decision "$decision" \
+    --arg route "$route" \
+    --arg risk "$risk" \
+    --argjson requires_human_review "$policy_review" \
+    --arg evidence_result "$evidence_result" \
+    --argjson reasons "$reasons_json" \
+    '{
+      schema: "agent-merge-gate/v1",
+      decision: $decision,
+      route: $route,
+      risk: $risk,
+      requires_human_review: $requires_human_review,
+      evidence_result: $evidence_result,
+      reasons: $reasons
+    }'
+}
+
+# Resolve changed paths into a temp file, echoing its path. Honors --files-from
+# (offline) first, otherwise fetches the PR's files via gh.
+resolve_paths_file() {
+  local pr="$1" files_from="$2" tmp="$3"
+  local out="$tmp/paths.txt"
+  if [[ -n $files_from ]]; then
+    if [[ $files_from == "-" ]]; then
+      cat >"$out"
+    else
+      [[ -f $files_from ]] || die "files-from path not found: $files_from"
+      cat "$files_from" >"$out"
+    fi
+  else
+    command -v gh >/dev/null 2>&1 || die "gh not found (needed to fetch PR files)"
+    gh pr view "$pr" --json files --jq '.files[].path' >"$out" ||
+      die "failed to fetch changed files for PR #$pr via gh"
+  fi
+  sed -i '/^[[:space:]]*$/d' "$out"
+  [[ -s $out ]] || die "no changed paths found"
+  printf '%s\n' "$out"
+}
+
+run() {
+  local pr="" files_from="" evidence="" enable=0 json=0 base_ref=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --pr)
+      pr="${2:?--pr needs a value}"
+      [[ $pr =~ ^[0-9]+$ ]] || die "--pr must be a positive integer"
+      shift 2
+      ;;
+    --files-from)
+      files_from="${2:?--files-from needs a value}"
+      shift 2
+      ;;
+    --evidence)
+      evidence="${2:?--evidence needs a value}"
+      [[ -f $evidence ]] || die "evidence file not found: $evidence"
+      shift 2
+      ;;
+    --base-ref)
+      base_ref="${2:?--base-ref needs a value}"
+      shift 2
+      ;;
+    --enable)
+      enable=1
+      shift
+      ;;
+    --json)
+      json=1
+      shift
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+    esac
+  done
+
+  command -v jq >/dev/null 2>&1 || die "jq not found"
+  [[ -n $pr || -n $files_from ]] || die "one of --pr or --files-from is required (see --help)"
+  [[ $enable -eq 1 && -z $pr ]] && die "--enable requires --pr"
+
+  local tmp
+  tmp=$(mktemp -d)
+  trap 'rm -rf "${tmp:-}"' EXIT
+
+  # Evaluate the routing/governance/evidence helpers from trusted code, never
+  # from the PR's own working copy (see resolve_helper_root).
+  local root_line helper_root trusted
+  root_line=$(resolve_helper_root "$tmp" "$base_ref")
+  helper_root=${root_line%$'\t'*}
+  trusted=${root_line##*$'\t'}
+
+  if [[ $enable -eq 1 && $trusted -ne 1 ]]; then
+    die "refusing --enable: could not establish a trusted base for the routing/governance helpers (set AGENT_GATE_TRUSTED_ROOT, or run inside the repo with a reachable base ref). A PR must not gate itself with its own copy of these scripts."
+  fi
+
+  local paths_file decision_json decision
+  paths_file=$(resolve_paths_file "$pr" "$files_from" "$tmp")
+  decision_json=$(compute_decision "$paths_file" "$evidence" "$pr" "$helper_root")
+  decision=$(jq -r '.decision' <<<"$decision_json")
+
+  if [[ $json -eq 1 ]]; then
+    printf '%s\n' "$decision_json"
+  else
+    printf 'decision: %s (route=%s risk=%s evidence=%s)\n' \
+      "$decision" \
+      "$(jq -r '.route' <<<"$decision_json")" \
+      "$(jq -r '.risk' <<<"$decision_json")" \
+      "$(jq -r '.evidence_result' <<<"$decision_json")"
+    jq -r '.reasons[]? | "  - " + .' <<<"$decision_json"
+  fi
+
+  if [[ $decision != auto ]]; then
+    [[ $json -eq 1 ]] || printf 'agent-merge-gate: PR #%s stays human (not auto-merged).\n' "${pr:-?}" >&2
+    return 0
+  fi
+
+  if [[ $enable -eq 0 ]]; then
+    [[ $json -eq 1 ]] || printf 'agent-merge-gate: dry-run; would enable native auto-merge for PR #%s. Re-run with --enable to act.\n' "$pr" >&2
+    return 0
+  fi
+
+  # Eligible and --enable: enable GitHub native, CI-gated auto-merge only.
+  # NEVER --admin; GitHub merges only when merge-gate passes.
+  command -v gh >/dev/null 2>&1 || die "gh not found (needed to enable auto-merge)"
+  gh pr merge "$pr" --auto --squash ||
+    die "failed to enable native auto-merge for PR #$pr (does the repo allow auto-merge + squash?)"
+  printf 'agent-merge-gate: native auto-merge enabled for PR #%s; GitHub will merge when merge-gate passes.\n' "$pr"
+}
+
+self_test() {
+  local tmp script_path out
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' RETURN
+  script_path="$(script_dir)/$(basename "${BASH_SOURCE[0]}")"
+
+  # Pin the helper root to this checkout so the test exercises the current
+  # routing/governance logic deterministically (not the committed base ref).
+  export AGENT_GATE_TRUSTED_ROOT
+  AGENT_GATE_TRUSTED_ROOT="$(agent_root)"
+
+  # Guard the core safety invariant: no actual `gh pr merge` command may use
+  # `--admin` (anchored to command lines so doc/comment mentions are allowed).
+  if grep -nE '^[[:space:]]*gh +pr +merge[^#]*--admin' "$script_path"; then
+    die "self-test: a 'gh pr merge' command uses '--admin'; native auto-merge must never bypass branch protection"
+  fi
+
+  local approved="$tmp/approved.json" changes="$tmp/changes.json"
+  cat >"$approved" <<'EOF'
+{
+  "schema": "agent-reviewer-evidence/v1",
+  "issue": 284,
+  "pr": 9001,
+  "result": "approved",
+  "acceptance_criteria": [
+    {"criterion": "low-risk change", "evidence": "docs only"}
+  ],
+  "validation_commands": [
+    {"command": "bash scripts/validate.sh docs", "result": "passed"}
+  ],
+  "residual_risk": "Docs-only; CI gate still required."
+}
+EOF
+  jq '.result = "changes_requested"' "$approved" >"$changes"
+
+  local low="$tmp/low.txt" high="$tmp/high.txt" medium="$tmp/medium.txt"
+  printf 'docs/architecture.md\n' >"$low"
+  printf '.sops.yaml\n' >"$high"
+  printf 'flake.nix\n' >"$medium"
+
+  # Low-risk path + approved evidence -> auto.
+  out=$("$script_path" --files-from "$low" --evidence "$approved" --json)
+  jq -e '.decision == "auto" and .route == "auto" and .risk == "low" and (.reasons | length == 0)' \
+    <<<"$out" >/dev/null || die "self-test: expected low-risk+approved to be auto (got: $out)"
+
+  # Low-risk path but NO evidence -> human (no approved review).
+  out=$("$script_path" --files-from "$low" --json)
+  jq -e '.decision == "human" and (.reasons | any(. | test("no reviewer-evidence")))' \
+    <<<"$out" >/dev/null || die "self-test: expected low-risk+no-evidence to be human (got: $out)"
+
+  # Low-risk path + changes_requested evidence -> human.
+  out=$("$script_path" --files-from "$low" --evidence "$changes" --json)
+  jq -e '.decision == "human" and (.reasons | any(. | test("not .approved.")))' \
+    <<<"$out" >/dev/null || die "self-test: expected changes_requested to be human (got: $out)"
+
+  # High-risk path (.sops.yaml) + approved evidence -> human (route + policy).
+  out=$("$script_path" --files-from "$high" --evidence "$approved" --json)
+  jq -e '.decision == "human" and .route == "human-review" and .requires_human_review == true' \
+    <<<"$out" >/dev/null || die "self-test: expected protected path to be human (got: $out)"
+
+  # Medium-risk path (flake.nix) + approved evidence -> human (risk too high).
+  out=$("$script_path" --files-from "$medium" --evidence "$approved" --json)
+  jq -e '.decision == "human" and .risk == "medium"' \
+    <<<"$out" >/dev/null || die "self-test: expected medium-risk to be human (got: $out)"
+
+  # Approved evidence bound to a DIFFERENT PR -> human (binding).
+  out=$("$script_path" --files-from "$low" --evidence "$approved" --pr 4242 --json)
+  jq -e '.decision == "human" and (.reasons | any(. | test("not #4242")))' \
+    <<<"$out" >/dev/null || die "self-test: expected mismatched evidence .pr to be human (got: $out)"
+
+  # Approved evidence bound to the matching PR -> auto.
+  out=$("$script_path" --files-from "$low" --evidence "$approved" --pr 9001 --json)
+  jq -e '.decision == "auto" and (.reasons | length == 0)' \
+    <<<"$out" >/dev/null || die "self-test: expected matching evidence .pr to be auto (got: $out)"
+
+  # --enable without --pr is rejected.
+  if "$script_path" --files-from "$low" --evidence "$approved" --enable >/dev/null 2>&1; then
+    die "self-test: expected --enable without --pr to fail"
+  fi
+
+  # --enable from an UNTRUSTED checkout (no trusted base) is refused: run from a
+  # non-repo CWD with the trusted-root override unset so no base ref resolves.
+  if (cd "$tmp" && env -u AGENT_GATE_TRUSTED_ROOT \
+    "$script_path" --files-from "$low" --evidence "$approved" --pr 9001 --enable) \
+    >/dev/null 2>&1; then
+    die "self-test: expected --enable without a trusted base to be refused"
+  fi
+
+  printf 'agent-merge-gate self-test passed\n'
+}
+
+main() {
+  case "${1:-}" in
+  --self-test)
+    self_test
+    exit 0
+    ;;
+  -h | --help | "")
+    usage
+    [[ ${1:-} == "" ]] && exit 2
+    exit 0
+    ;;
+  *)
+    run "$@"
+    ;;
+  esac
+}
+
+main "$@"
