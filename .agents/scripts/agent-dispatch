@@ -50,6 +50,8 @@ Env knobs (mainly for testing):
                                   .agents/scripts/agent-liveness-gate).
   AGENT_DISPATCH_RECORD_OUTCOME  Outcome recorder command (default:
                                   .agents/scripts/agent-record-outcome).
+  AGENT_DISPATCH_COMMENTS        Post GitHub bounce comments for non-ready
+                                  issues (default: 1; set 0 to disable).
   AGENT_OUTCOME_DIR              Outcome record directory (default:
                                   .agents/state/outcomes).
   AGENT_REPO_DIR                 Repo dir passed to agent-record-outcome
@@ -76,6 +78,7 @@ AGENT_DISPATCH_RUNNER="${AGENT_DISPATCH_RUNNER:-scripts/agent-run-issue.sh}"
 AGENT_DISPATCH_READINESS="${AGENT_DISPATCH_READINESS:-.agents/scripts/agent-issue-readiness}"
 AGENT_DISPATCH_LIVENESS="${AGENT_DISPATCH_LIVENESS:-.agents/scripts/agent-liveness-gate}"
 AGENT_DISPATCH_RECORD_OUTCOME="${AGENT_DISPATCH_RECORD_OUTCOME:-.agents/scripts/agent-record-outcome}"
+AGENT_DISPATCH_COMMENTS="${AGENT_DISPATCH_COMMENTS:-1}"
 AGENT_OUTCOME_DIR="${AGENT_OUTCOME_DIR:-.agents/state/outcomes}"
 AGENT_REPO_DIR="${AGENT_REPO_DIR:-.}"
 BASE_BRANCH="${BASE_BRANCH:-main}"
@@ -127,6 +130,40 @@ record_skip() {
   fi
 }
 
+post_readiness_bounce_comment() {
+  local issue="$1"
+  local readiness_output="$2"
+  [[ $AGENT_DISPATCH_COMMENTS == 1 ]] || return 0
+  command -v gh >/dev/null 2>&1 || return 0
+
+  local tmp
+  tmp=$(mktemp)
+  cat >"$tmp" <<EOF
+### Agent dispatch skipped
+
+This issue has the dispatch label, but the pre-dispatch readiness check failed, so no agent session was started.
+
+\`\`\`text
+${readiness_output}
+\`\`\`
+
+Please add the missing implementation handoff sections, then keep or re-apply the dispatch label:
+
+- problem / desired outcome or summary
+- acceptance criteria
+- non-goals
+- validation / proving check
+- risk / rollback notes
+EOF
+
+  if gh issue comment "$issue" --body-file "$tmp" >/dev/null 2>&1; then
+    echo "agent-dispatch: posted readiness bounce comment for issue #$issue" >&2
+  else
+    echo "agent-dispatch: failed to post readiness bounce comment for issue #$issue" >&2
+  fi
+  rm -f "$tmp"
+}
+
 run_dispatch() {
   local label="$1"
   local max_issues="$2"
@@ -155,6 +192,7 @@ run_dispatch() {
     local readiness_output
     if ! readiness_output=$("$AGENT_DISPATCH_READINESS" --issue "$issue" 2>&1); then
       echo "agent-dispatch: issue #$issue failed readiness check; skipping (${readiness_output})" >&2
+      post_readiness_bounce_comment "$issue" "$readiness_output"
       record_skip "$issue"
       dispatched=$((dispatched + 1))
       continue
@@ -193,6 +231,10 @@ if [[ $1 == issue && $2 == list ]]; then
     {"number": 903, "labels": [{"name": "agent:ready"}, {"name": "agent:blocked"}]},
     {"number": 904, "labels": [{"name": "agent:ready"}]}
   ]'
+  exit 0
+fi
+if [[ $1 == issue && $2 == comment ]]; then
+  printf 'issue=%s body=%s\n' "$3" "$(cat "$5")" >>"$COMMENT_LOG"
   exit 0
 fi
 printf 'unexpected gh invocation: %s\n' "$*" >&2
@@ -240,7 +282,9 @@ EOF
   export AGENT_OUTCOME_DIR="$tmp/out"
   export BASE_BRANCH=main
   export RUNNER_LOG="$tmp/runner.log"
+  export COMMENT_LOG="$tmp/comment.log"
   : >"$RUNNER_LOG"
+  : >"$COMMENT_LOG"
 
   local script_path="${BASH_SOURCE[0]}"
 
@@ -282,8 +326,13 @@ EOF
   out=$("$script_path" --skip-liveness --max-issues 5 2>&1)
   [[ $out == *"issue #904 failed readiness check; skipping"* ]] ||
     die "self-test: expected issue #904 to be skipped on readiness (got: $out)"
+  [[ $out == *"posted readiness bounce comment for issue #904"* ]] ||
+    die "self-test: expected issue #904 to receive a bounce comment (got: $out)"
   out=$(<"$RUNNER_LOG")
   [[ $out == *"--require-ready 904"* ]] && die "self-test: issue #904 must not be dispatched (runner log: $out)"
+  out=$(<"$COMMENT_LOG")
+  [[ $out == *"issue=904"* && $out == *"Agent dispatch skipped"* && $out == *"NOT READY"* ]] ||
+    die "self-test: expected actionable readiness bounce comment for issue #904 (got: $out)"
 
   local record
   record=$(find "$tmp/out" -name '*-issue-904-blocked.json' | head -n1)
