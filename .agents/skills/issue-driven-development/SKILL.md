@@ -90,6 +90,19 @@ If the source item is still vague, use `issue-tdd` first.
   this checkout has uncommitted, non-generated changes. When dispatching the
   subagent, explicitly tell it to operate only inside its assigned worktree
   path and never run git commands against the primary checkout.
+- For sequential/stacked `isolation: "worktree"` dispatches (e.g. issue #300's
+  subagent finishing before issue #301's is spawned, with #301 building on
+  #300's branch), record the primary checkout's current branch and commit
+  (`git rev-parse --abbrev-ref HEAD` and `git rev-parse HEAD`) immediately
+  before each spawn. After each spawn completes — regardless of reported
+  success or failure — verify the primary checkout is still on that branch and
+  commit, and restore it (e.g. `git checkout main`) if not, before using it as
+  the base for the next dispatch. A worktree-isolated subagent shares the
+  primary checkout's `.git`, so a `git checkout`/`branch` operation it runs can
+  leave the primary checkout on a foreign branch even when the subagent never
+  touches the primary checkout's working-tree files and reports success (see
+  learning candidate
+  `2026-06-15-worktree-subagent-leaves-primary-checkout-on-foreign-branch`).
 - Goals/roadmap cleanup checklist (e.g. `docs/goals/roadmap.md`,
   `docs/goals/*-goals.md`): remove shipped history, but first identify a
   durable-doc home for anything worth keeping (architecture/operations docs)
