@@ -1,0 +1,18 @@
+schema: learning-candidate/v1
+id: 2026-06-15-agent-ready-label-without-readiness-check-wastes-dispatch
+date: 2026-06-15
+expires: 2026-12-15
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [issue-321-comment, issue-320-comment, "session 2026-06-15: gh issue edit 320,321 --add-label agent:ready (321 also got a risk label), then scripts/agent-session.sh --issues 320 321 on gcp-agent; both finished in ~3-5s with status=blocked, blocker='issue readiness lint failed: agent-issue-readiness: NOT READY (0/5 required section groups present)', recorded as .agents/state/outcomes/2026-06-15T11:57:4*Z-issue-{320,321}-blocked.json"]
+observation: adding agent:ready to an issue that lacks the issue-tdd template sections (Problem/Summary, Acceptance criteria, Non-goals, Validation, Risk/Rollback) costs a full dispatch slot (VM start + preflight) for a 0-turn, 0-PR outcome -- agent-issue-readiness only runs inside agent-run-issue.sh, after the session is already underway.
+proposed_upgrade: document in issue-tdd SKILL.md (and/or the maintainer-facing labeling note in issue-driven-development) that before adding agent:ready to an issue, run `.agents/scripts/agent-issue-readiness --issue <n>` (or run the issue through issue-tdd first); a NOT READY result means the issue will be immediately blocked without consuming a real session turn.
+
+type: workflow-gotcha
+dedupe_key: agent-dispatch:ready-label-without-readiness-precheck
+triggers: ["gh issue edit --add-label agent:ready", agent-issue-readiness, scripts/agent-session.sh --issues]
+targets: [.agents/skills/issue-tdd/SKILL.md]
+risk: low -- doc-only guidance for the maintainer/orchestrator labeling step
