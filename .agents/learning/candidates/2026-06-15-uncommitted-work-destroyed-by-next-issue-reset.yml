@@ -1,0 +1,18 @@
+schema: learning-candidate/v1
+id: 2026-06-15-uncommitted-work-destroyed-by-next-issue-reset
+date: 2026-06-15
+expires: 2026-12-15
+status: open
+
+route: implement-fix
+best_form: test
+
+evidence: [".agents/state/outcomes/2026-06-15T12:20:17Z-issue-320-failure.json: exit_code=124, blocker='claude session exceeded AGENT_INNER_TIMEOUT_SECONDS=900', git_dirty=[' M flake/checks.nix',' M tests/nixos/profile-observability.nix'], head_branch=issue-320-observability-tempo-mimir-tests, head_sha=151e8f4 (== origin/main, no commit made)", "session log .agents/state/sessions/2026-06-15T12:05:08Z-issue-320.log: 31 Bash tool calls, zero 'git commit' calls -- the inner session edited the two files then got stuck in a ScheduleWakeup poll loop waiting on a background profile-tests VM build until the 900s timeout killed it", "post-mortem on gcp-agent: branch issue-320-observability-tempo-mimir-tests exists but at commit 151e8f4 (identical to main); `git status --porcelain` clean; `git stash list` empty -- the two edited files' content is gone, only recoverable by redoing the implementation"]
+observation: scripts/agent-run-issue.sh's per-issue setup (`git fetch && git reset --hard origin/main` before starting the next queued issue, e.g. #323 after #320 timed out) silently destroys any uncommitted working-tree changes left by a prior issue's session that hit AGENT_INNER_TIMEOUT_SECONDS before committing -- worse than the known stranded-pushed-branch case ([[2026-06-14-runner-strands-completed-work-when-cap-hits-before-pr]]), this is unrecoverable data loss with no branch, no stash, no diff saved anywhere.
+proposed_upgrade: before `git reset --hard origin/main` (or right after a timeout/SIGTERM is detected for the inner session), check `git status --porcelain`; if non-empty, commit the dirty tree to the issue's head_branch with a clear WIP message and push it (or at minimum `git stash push` with a labeled message and record the stash ref in the outcome record) so a human can recover the work, instead of silently discarding it. Add a regression test that simulates a timed-out session leaving dirty files and asserts the next-issue setup preserves them on a branch/stash rather than reset --hard wiping them.
+
+type: behavior-upgrade
+dedupe_key: agent-run-issue:uncommitted-dirty-tree-destroyed-by-next-issue-reset
+triggers: [scripts/agent-run-issue.sh, AGENT_INNER_TIMEOUT_SECONDS, "git reset --hard origin/main", multi-issue --issues batch]
+targets: [scripts/agent-run-issue.sh]
+risk: high if unfixed -- any multi-issue dispatch where an earlier issue times out mid-edit loses that work entirely
