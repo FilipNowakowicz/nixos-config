@@ -101,3 +101,12 @@ host-denylist derived from `lib/hosts.nix`) and `tests/lib/mini-fleet-flake.nix`
   fail in ways a build never surfaces. Any drill or check that spawns
   `systemd-run` units must be smoke-tested by actually starting it on a live
   host.
+- **Literal backtick in a shell string: use `$'\x60'`, not an escaped
+  backtick in a quoted literal.** ShellCheck SC2016 flags a literal backtick
+  inside a single-quoted string as unexpanded command substitution, but
+  `nix fmt` (treefmt/shfmt) rewrites an escaped backtick in a double-quoted
+  string back into that single-quoted form — a formatter-vs-linter loop (see
+  PR #310). Instead, build the string with `local backtick=$'\x60'` (or
+  another ShellCheck-clean construction) and interpolate that variable. Run
+  `nix fmt -- --fail-on-change` and ShellCheck together (not just one) before
+  pushing a shell-script change to confirm both pass.
