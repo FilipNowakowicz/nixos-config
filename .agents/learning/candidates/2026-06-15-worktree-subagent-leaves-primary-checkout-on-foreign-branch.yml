@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-06-15-worktree-subagent-leaves-primary-checkout-on-foreign-branch
+date: 2026-06-15
+expires: 2026-12-15
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [pr-#315, "session 2026-06-15: dispatched isolation:worktree subagents sequentially for stacked issues #300 then #301, each told 'operate only inside your assigned worktree path; never touch any other checkout'", "after the #301 subagent reported success (PR #315 codex/issue-301 -> codex/issue-300, head 464d7cc, correct), the PRIMARY checkout /home/user/nix was left on local branch codex/issue-301 at commit 26b1966 (== codex/issue-300 tip, not the real #301 work)", "the real #301 commit 464d7cc only existed on origin/codex/issue-301 and a second leftover worktree's work/issue-301 branch", "orchestrator had to manually git checkout main in the primary checkout to restore a sane base for the next stacked dispatch"]
+observation: even-with-an-explicit-do-not-touch-other-checkouts-instruction-and-a-clean-pre-spawn-tree-an-isolation-worktree-subagent-can-still-run-branch-create-checkout-in-the-primary-checkout-leaving-it-on-a-stale-foreign-branch-non-destructive-no-data-loss-but-confusing-state-for-the-next-sequential-stacked-dispatch
+proposed_upgrade: in-issue-driven-development-and-any-stacked-PR-orchestration-guidance-tell-the-orchestrator-to-record-the-primary-checkouts-branch-before-each-worktree-isolated-subagent-spawn-and-verify-restore-it-checkout-main-after-each-spawn-completes-regardless-of-reported-success-before-using-that-branch-as-the-base-for-the-next-stacked-branch-also-consider-a-stale-local-branch-cleanup-note-since-this-left-an-extra-codex-issue-301-ref-at-the-wrong-commit
+
+type: workflow-gotcha
+triggers: [Agent tool isolation:worktree, sequential stacked-branch PR dispatch, "operate only inside your assigned worktree" instruction]
+targets: [.agents/skills/issue-driven-development/SKILL.md]

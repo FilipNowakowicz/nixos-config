@@ -1,0 +1,17 @@
+schema: learning-candidate/v1
+id: 2026-06-15-zsh-errexit-doesnt-abort-on-eval-command-not-found
+date: 2026-06-15
+expires: 2026-12-15
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [pr-#318, "session 2026-06-15: generating hosts/gcp-agent/secrets/gcp_builder_build_key.enc"]
+observation: a zsh one-liner ran `ssh-keygen ...; sops -e ... > out.enc; shred -u <privkey>` directly in the login shell (not inside `nix develop`); `sops` was `command not found` (exit 127), producing a 0-byte out.enc via the `>` redirect, but zsh's `set -e` did NOT abort on the exit-127 `(eval)` failure, so `shred -u` still ran and destroyed the only copy of the freshly-generated private key. Recovery only worked because the key had no other consumers yet (regenerated from scratch).
+proposed_upgrade: when a task generates a new keypair/secret and then sops-encrypts + shreds the plaintext, do the whole sequence (keygen, encrypt, shred via trap) inside one `nix develop -c bash -c 'set -euo pipefail; ...; trap cleanup EXIT; ...'` invocation so `sops`/`ssh-to-age` etc. are guaranteed on PATH — never chain keygen/encrypt/shred as separate top-level zsh commands, since a missing-tool exit 127 inside `(eval)` does not reliably halt a `set -e` zsh script before a later destructive step runs. Document this in CLAUDE.md's "Secrets (sops-nix)" section or the sops-bootstrap-related skill.
+
+dedupe_key: shell:zsh-errexit-eval-command-not-found-before-shred
+triggers: [generate-new-sops-secret-keypair, "ssh-keygen+sops+shred"]
+targets: [CLAUDE.md]
+risk: low — a documentation/process note only; no behavior change until promoted
