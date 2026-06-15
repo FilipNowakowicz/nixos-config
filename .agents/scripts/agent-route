@@ -12,7 +12,8 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: agent-route [--files-from <path>] [--git-diff [<ref>]]
-                    [--routing <path>] [--profiles <path>] [--json]
+                    [--routing <path>] [--profiles <path>]
+                    [--outcome-dir <path>] [--json]
        agent-route < paths.txt
        agent-route --self-test
 
@@ -29,11 +30,14 @@ Changed-path source (pick at most one; default is stdin):
   (none)               Read newline-separated paths from stdin.
 
 Options:
-  --routing <path>   Path-class metadata file (default: .agents/model-routing.yaml).
-  --profiles <path>  Capability-profile metadata file (default: .agents/capability-profiles.yaml).
-  --json             Emit the full route-decision JSON object instead of a table.
-  --self-test        Run a deterministic self-test and exit.
-  -h, --help         Show this help.
+  --routing <path>      Path-class metadata file (default: .agents/model-routing.yaml).
+  --profiles <path>     Capability-profile metadata file (default: .agents/capability-profiles.yaml).
+  --outcome-dir <path>  Outcome directory for advisory path_class_stats
+                        annotation (default: .agents/state/outcomes, or
+                        $AGENT_OUTCOME_DIR if set).
+  --json                Emit the full route-decision JSON object instead of a table.
+  --self-test           Run a deterministic self-test and exit.
+  -h, --help            Show this help.
 
 A path matching no declared path class is treated as "unclassified": high
 risk, route "human-review", no default profile. Any path class whose
@@ -46,6 +50,14 @@ Route decisions are advisory: this command does not perform dispatch, grant
 auto-merge authority, or weaken protected-path policy. Exit status is 0 for
 any successful classification (including "human-review" routes); only usage
 or metadata errors exit non-zero.
+
+In --json mode, the decision additionally carries a `path_class_stats` object
+mapping each entry of `path_classes` to its per-class outcome stats from
+.agents/scripts/agent-outcome-stats (success/failure/blocked/
+changes_requested counts and rates), when that command is available and the
+outcome directory has matching records. This is purely informational: it does
+not affect `risk`, `route`, `default_profile`, or exit codes. Path classes
+with no recorded outcomes are omitted from `path_class_stats`.
 EOF
 }
 
@@ -317,6 +329,38 @@ git_changed_paths() {
   } | sort -u
 }
 
+# Best-effort, advisory per-path-class outcome stats for the path classes in
+# $1 (a JSON array of strings), sourced from agent-outcome-stats --json
+# against $2 (outcome dir). Prints a JSON object mapping each path class with
+# recorded outcomes to its stats; prints "{}" (and never fails the caller) if
+# the helper is missing, the outcome dir has no matching records, or any
+# error occurs. Path classes with no recorded outcomes are omitted.
+compute_path_class_stats() {
+  local path_classes_json="$1" outcome_dir="$2"
+  local helper
+  helper="$(agent_root)/scripts/agent-outcome-stats"
+  [[ -x $helper ]] || {
+    printf '{}\n'
+    return 0
+  }
+
+  local all_stats
+  all_stats=$(AGENT_OUTCOME_DIR="$outcome_dir" "$helper" --json 2>/dev/null) || {
+    printf '{}\n'
+    return 0
+  }
+
+  jq -c --argjson classes "$path_classes_json" '
+    (try (. // []) catch []) as $all
+    | reduce $classes[] as $c (
+        {};
+        . as $acc
+        | ($all | map(select(.path_class == $c)) | .[0]) as $s
+        | if $s == null then $acc else $acc + {($c): ($s | del(.path_class))} end
+      )
+  ' <<<"$all_stats" 2>/dev/null || printf '{}\n'
+}
+
 build_decision() {
   local -a items=("$@")
   local items_json
@@ -356,7 +400,10 @@ self_test() {
   script_path="$(CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
   local out
 
-  # docs: low risk, auto route, doc-editor profile.
+  # docs: low risk, auto route, doc-editor profile. With no outcome records
+  # (default --outcome-dir resolves to .agents/state/outcomes, which is
+  # gitignored and typically absent in a fresh checkout), path_class_stats is
+  # an empty object.
   out=$(printf 'docs/architecture.md\n' | "$script_path" --json)
   printf '%s' "$out" | jq -e '
     .risk == "low"
@@ -364,6 +411,7 @@ self_test() {
     and .default_profile == "doc-editor"
     and .path_classes == ["docs"]
     and (.capability_profile.agent == "gemini-cli")
+    and (.path_class_stats | type == "object")
   ' >/dev/null || die "self-test: unexpected docs decision: $out"
 
   # learning candidates: run byproducts, low risk, must NOT classify as
@@ -469,10 +517,55 @@ self_test() {
   [[ $out == *$'\n'"OVERALL"$'\t'"low"$'\t'"doc-editor"$'\t'"auto" ]] ||
     die "self-test: unexpected table output: $out"
 
+  # --outcome-dir: path_class_stats is populated for a path class with
+  # recorded outcomes, advisory-only (no effect on risk/route/default_profile).
+  local outcome_tmp
+  outcome_tmp=$(mktemp -d)
+  trap 'rm -rf "$outcome_tmp"' RETURN
+  # Note: a later `trap ... RETURN` below replaces this one; outcome_tmp is
+  # cleaned up via the combined trap installed alongside $tmp.
+  jq -n '{
+    schema: "agent-outcome/v1", id: "2026-01-01T00:01:00Z-issue-1-success",
+    issue: 1, status: "success", exit_code: 0,
+    started_at: "2026-01-01T00:00:00Z", finished_at: "2026-01-01T00:01:00Z",
+    base_branch: "main", repo_dir: "/repo", head_branch: "codex/test",
+    head_sha: "abc123",
+    prs: [], learning_candidates: [], git_dirty: [], blocker: "",
+    route: {schema: "agent-route/v1", path_classes: ["docs"], risk: "low", default_profile: "doc-editor", route: "auto"}
+  }' >"$outcome_tmp/2026-01-01T00:01:00Z-issue-1-success.json"
+  jq -n '{
+    schema: "agent-outcome/v1", id: "2026-01-02T00:01:00Z-issue-2-failure",
+    issue: 2, status: "failure", exit_code: 1,
+    started_at: "2026-01-02T00:00:00Z", finished_at: "2026-01-02T00:01:00Z",
+    base_branch: "main", repo_dir: "/repo", head_branch: "codex/test2",
+    head_sha: "def456",
+    prs: [], learning_candidates: [], git_dirty: [], blocker: "build failed",
+    route: {schema: "agent-route/v1", path_classes: ["docs"], risk: "low", default_profile: "doc-editor", route: "auto"}
+  }' >"$outcome_tmp/2026-01-02T00:01:00Z-issue-2-failure.json"
+
+  out=$(printf 'docs/architecture.md\n' | "$script_path" --outcome-dir "$outcome_tmp" --json)
+  printf '%s' "$out" | jq -e '
+    .risk == "low"
+    and .route == "auto"
+    and .default_profile == "doc-editor"
+    and .path_classes == ["docs"]
+    and (.path_class_stats.docs.total == 2)
+    and (.path_class_stats.docs.success == 1)
+    and (.path_class_stats.docs.failure == 1)
+    and (.path_class_stats.docs.success_rate == 0.5)
+  ' >/dev/null || die "self-test: unexpected --outcome-dir path_class_stats: $out"
+
+  # Empty outcome dir: path_class_stats has no entry for "docs".
+  out=$(printf 'docs/architecture.md\n' | "$script_path" --outcome-dir "$outcome_tmp/no-such-dir" --json)
+  printf '%s' "$out" | jq -e '
+    .path_classes == ["docs"]
+    and (.path_class_stats | has("docs") | not)
+  ' >/dev/null || die "self-test: expected empty path_class_stats for missing outcome dir: $out"
+
   # --git-diff finds both a modified tracked file and a new untracked file.
   local tmp repo
   tmp=$(mktemp -d)
-  trap 'rm -rf "$tmp"' RETURN
+  trap 'rm -rf "$tmp" "$outcome_tmp"' RETURN
   repo="$tmp/repo"
   mkdir -p "$repo"
   git -C "$repo" init -q
@@ -498,6 +591,7 @@ self_test() {
 
 routing_path="$(agent_root)/model-routing.yaml"
 profiles_path="$(agent_root)/capability-profiles.yaml"
+outcome_dir="${AGENT_OUTCOME_DIR:-$(agent_root)/state/outcomes}"
 files_from="" git_ref="" use_git=0 json=0
 
 while [[ $# -gt 0 ]]; do
@@ -522,6 +616,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --profiles)
     profiles_path="${2:?--profiles needs a value}"
+    shift 2
+    ;;
+  --outcome-dir)
+    outcome_dir="${2:?--outcome-dir needs a value}"
     shift 2
     ;;
   --json)
@@ -567,6 +665,9 @@ done
 decision=$(build_decision "${items[@]}")
 
 if [[ $json == 1 ]]; then
+  path_classes_json=$(jq -c '.path_classes' <<<"$decision")
+  path_class_stats=$(compute_path_class_stats "$path_classes_json" "$outcome_dir")
+  decision=$(jq -c --argjson stats "$path_class_stats" '. + {path_class_stats: $stats}' <<<"$decision")
   printf '%s\n' "$decision"
 else
   print_table "$decision"
