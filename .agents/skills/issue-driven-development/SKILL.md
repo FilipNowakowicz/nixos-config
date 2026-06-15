@@ -60,6 +60,10 @@ If the source item is still vague, use `issue-tdd` first.
      text.
    - Use `Refs #NNN` when completion needs post-merge or live proof; use
      `Closes #NNN` only when the PR fully satisfies the issue.
+   - If `gh pr create` aborts with "you must first push the current branch to
+     a remote, or use the --head flag" despite a verified `git push -u`
+     (branch pushed and tracked), retry the same command with explicit
+     `--head <branch> --base <base-branch>`.
 9. Treat long PR CI as asynchronous by default.
    - Do not wait for the full matrix merely because a PR was opened.
    - Watch CI only when the user asks to merge/finish, when repairing a failing
