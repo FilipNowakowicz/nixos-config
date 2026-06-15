@@ -13,8 +13,11 @@ cd "$repo_root"
 # Heavy build commands transparently offload to the on-demand gcp-builder VM:
 # start it (idempotent), wait for SSH over Tailscale, then pass --builders for
 # the invocation. The builder powers itself off when idle. This is a no-op
-# (local build) whenever offload is disabled, gcloud is unavailable, or the
-# build key is absent — e.g. in CI or before `main` has the wiring deployed.
+# (local build) whenever offload is disabled, gcloud/nix are unavailable, or
+# the build key is absent — e.g. in CI or before a caller host has the build-key
+# wiring deployed. `main` and `gcp-agent` each carry their own dedicated build
+# key at this same path (see hosts/main/nix-remote-build.nix and
+# hosts/gcp-agent/nix-remote-build.nix).
 builder_name="gcp-builder"
 builder_zone="${BUILDER_ZONE:-europe-west2-a}"
 builder_fqdn="${BUILDER_FQDN:-}"
@@ -22,11 +25,24 @@ builder_key="/run/secrets/gcp_builder_build_key" # root-owned; daemon reads it
 builder_maxjobs="${BUILDER_MAXJOBS:-8}"
 builder_features="kvm,nixos-test,big-parallel,benchmark"
 builder_nix_args=()
+gcloud_cmd=()
 
 builder_enabled() {
   [[ ${USE_BUILDER:-1} != 0 ]] || return 1
-  command -v gcloud >/dev/null 2>&1 || return 1
-  [[ -e $builder_key ]] || return 1 # only present on a deployed `main`
+  [[ -e $builder_key ]] || return 1 # only present on a deployed `main`/`gcp-agent`
+}
+
+# Resolve a `gcloud` invocation: prefer `gcloud` on PATH, falling back to
+# `nix shell nixpkgs#google-cloud-sdk -c gcloud` (gcp-agent does not carry the
+# Google Cloud SDK as a base package). Mirrors scripts/agent-session.sh.
+resolve_gcloud_cmd() {
+  if command -v gcloud >/dev/null 2>&1; then
+    gcloud_cmd=(gcloud)
+  elif command -v nix >/dev/null 2>&1; then
+    gcloud_cmd=(nix shell nixpkgs#google-cloud-sdk -c gcloud)
+  else
+    return 1
+  fi
 }
 
 # Resolve the builder FQDN from the deploy-rs flake output (sourced from the
@@ -42,20 +58,28 @@ resolve_builder_fqdn() {
 
 ensure_builder() {
   builder_enabled || {
-    echo "remote builder: disabled (USE_BUILDER=0, no gcloud, or no build key); building locally" >&2
+    echo "remote builder: disabled (USE_BUILDER=0 or no build key); building locally" >&2
+    return 0
+  }
+  resolve_gcloud_cmd || {
+    echo "remote builder: gcloud unavailable (and no nix fallback); building locally" >&2
     return 0
   }
   resolve_builder_fqdn
   echo "remote builder: starting $builder_name ..." >&2
-  if ! gcloud compute instances start "$builder_name" --zone "$builder_zone" --quiet >/dev/null 2>&1; then
+  if ! "${gcloud_cmd[@]}" compute instances start "$builder_name" --zone "$builder_zone" --quiet >/dev/null 2>&1; then
     echo "remote builder: could not start VM (check gcloud project/auth); building locally" >&2
     return 0
   fi
-  # Readiness probe uses the caller's own SSH key (authorized via sops-base);
-  # the build itself uses the root-only build key path under --builders.
+  # Readiness probe prefers the caller's own SSH key (authorized via
+  # sops-base), falling back to the dedicated build key if the caller has no
+  # personal key (gcp-agent: -i on an unreadable/absent file is silently
+  # skipped, so this is a no-op on main). The build itself always goes through
+  # $builder_key under --builders, read by root's nix-daemon.
   local ready=0
   for _ in $(seq 1 40); do
     if ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new \
+      -o IdentitiesOnly=no -i "$builder_key" \
       "user@$builder_fqdn" true 2>/dev/null; then
       ready=1
       break

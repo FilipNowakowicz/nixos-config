@@ -300,6 +300,55 @@ rather than burning a session.
     (`TERMINATED` = idle/off as expected; `RUNNING` long after a session implies a
     still-active or stuck run — SSH in and check `pgrep -af agent-run-issue`).
 
+## Remote-builder offload (gcp-builder)
+
+Like `main`, this host can offload heavy `scripts/validate.sh` tiers
+(`host`/`hosts`/`heavy`/`profile-test(s)`/`smoke-*`) to the on-demand
+`gcp-builder` VM via `ensure_builder` — see
+[`docs/remote-builder.md`](../../docs/remote-builder.md) for the pattern and
+[`hosts/gcp-builder/CLAUDE.md`](../gcp-builder/CLAUDE.md#build-key-rotation) for
+the shared mechanics. `gcp-agent` carries its **own** dedicated build key
+(`./nix-remote-build.nix`, `./secrets/gcp_builder_build_key.enc`) —
+independently revocable from `main`'s, so a compromised agent session cannot
+reuse `main`'s root-equivalent credential to `gcp-builder` (#304).
+
+Two differences from `main`:
+
+- `gcloud` is not part of this host's base packages; `scripts/validate.sh`
+  falls back to `nix shell nixpkgs#google-cloud-sdk -c gcloud` when `gcloud` is
+  not on `PATH`.
+- The unprivileged readiness probe (the `ssh user@gcp-builder...` check before
+  passing `--builders`) authenticates with `gcp_builder_build_key` itself
+  (`owner = "user"` in `nix-remote-build.nix`) rather than a personal SSH key,
+  since this host deliberately carries no `&user` personal age key.
+
+### Operator follow-ups to make offload live
+
+The Nix-side wiring above lands declaratively, but these out-of-band steps are
+required before `agent-run-issue.sh` sessions actually offload to
+`gcp-builder`. Until they're done, `ensure_builder` logs why and falls back to
+a local build — safe, just slower:
+
+1. **Redeploy/reprovision `gcp-builder`** so its `authorizedKeys` picks up the
+   new `nix-remote-build-gcp-agent-to-gcp-builder` public key
+   (`hosts/gcp-builder/default.nix`).
+2. **Apply the Tailscale ACL** (`scripts/apply-tailscale-acl.sh`) so the new
+   `tag:agent -> tag:builder:22` rule (generated from `lib/hosts.nix`'s
+   `gcp-builder.tailscale.acceptFrom.agent`) takes effect on the live tailnet.
+3. **Redeploy/reprovision `gcp-agent`** itself so it picks up the new sops
+   secret (`gcp_builder_build_key`) and `nix-remote-build.nix` config — narrow
+   sudo means no deploy-rs auto-activation (see the top-level CLAUDE.md).
+4. **Grant `gcp-agent`'s GCE service account permission to start/stop/describe
+   `gcp-builder`.** Neither `infra/agent.tf` nor `infra/builder.tf` currently
+   attach a `service_account` block, so `gcp-agent` has no GCP credentials for
+   `gcloud` at all. Without this, `ensure_builder`'s
+   `gcloud compute instances start gcp-builder` step fails with an auth error
+   and offload falls back to local — logged, not fatal, but the "offload heavy
+   builds to `gcp-builder` by default" acceptance criterion won't hold until a
+   service account with `compute.instances.{start,stop,get}` on `gcp-builder`
+   is attached to the `gcp-agent` instance and the IAM binding is applied
+   (`tofu apply` in `infra/`).
+
 ## Validation
 
 ```bash

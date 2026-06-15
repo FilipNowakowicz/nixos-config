@@ -3,11 +3,15 @@
   pkgs,
   ...
 }:
+let
+  binaryCache = import ../../lib/binary-cache.nix;
+in
 {
   imports = [
     inputs.disko.nixosModules.disko
     ./hardware-configuration.nix
     ./disko.nix
+    ./nix-remote-build.nix
     ../../modules/nixos/profiles/base.nix
     ../../modules/nixos/profiles/machine-common.nix
     ../../modules/nixos/profiles/security.nix
@@ -46,16 +50,29 @@
   };
 
   nix = {
-    settings.trusted-public-keys = [
-      "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
-      "main.local:fSo1pk+WU1RU7vpv+GTbzldKn4MMtBS46vQasXJ2oeQ="
-    ];
+    settings = {
+      trusted-public-keys = [
+        "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
+        "main.local:fSo1pk+WU1RU7vpv+GTbzldKn4MMtBS46vQasXJ2oeQ="
+      ];
+      # Same R2-hosted CI cache `main`/`mac` trust, so `scripts/validate.sh`'s
+      # narrower tiers (flake-eval/light/docs) on this host can substitute
+      # CI-built outputs instead of evaluating/building them cold every session.
+      extra-substituters = [ binaryCache.r2.substituter ];
+      extra-trusted-public-keys = [ binaryCache.r2.publicKey ];
+    };
     gc = {
       automatic = true;
       dates = "weekly";
       options = "--delete-older-than 7d";
     };
   };
+
+  # Required for `--builders`/`builders-use-substitutes` (set in
+  # ./nix-remote-build.nix) to take effect for the unprivileged `user` that
+  # scripts/validate.sh runs as: the daemon ignores client-supplied builder/
+  # substituter overrides from untrusted users.
+  profiles.nix.extraTrustedUsers = [ "user" ];
 
   # The `claude` wrapper (home/users/user/agent.nix) runs `npx -y
   # @anthropic-ai/claude-code@latest`, which fetches a dynamically linked

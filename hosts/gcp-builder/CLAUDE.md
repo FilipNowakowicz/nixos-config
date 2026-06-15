@@ -17,22 +17,31 @@ the host-local provisioning runbook.
 - **Isn't:** a service host. No Vaultwarden/AdGuard/LGTM/nginx, no backups, no
   Home Manager, no sops. Losing it costs nothing but provisioning time.
 
-## How `main` uses it
+## How `main` (and `gcp-agent`) use it
 
 - `main` carries a dedicated build key (`root`'s nix-daemon → trusted `user@`
   here): private half is sops-encrypted at
   `hosts/main/secrets/gcp_builder_build_key.enc`, public half is authorized in
   `hosts/gcp-builder/default.nix`.
-- `nix.buildMachines` is intentionally **not** set on `main` — that would make
-  every ordinary `rebuild` pay an SSH-connect timeout while the builder is off.
+- `gcp-agent` carries its own, independently-revocable build key (same
+  mechanism, see `hosts/gcp-agent/nix-remote-build.nix`): private half at
+  `hosts/gcp-agent/secrets/gcp_builder_build_key.enc`, public half also
+  authorized in `hosts/gcp-builder/default.nix`. This lets `gcp-agent`'s
+  unattended sessions offload heavy `scripts/validate.sh` tiers the same way
+  `main` does, without sharing a credential with `main` (#304).
+- `nix.buildMachines` is intentionally **not** set on either caller — that would
+  make every ordinary build pay an SSH-connect timeout while the builder is off.
   Instead `scripts/validate.sh` (`host`/`hosts`/`heavy`/`profile-test(s)`/
-  `smoke-*`) calls `ensure_builder`: it `gcloud`-starts the VM, waits for SSH
-  over Tailscale, and passes `--builders` for that one invocation.
+  `smoke-*`) calls `ensure_builder`: it starts the VM (via `gcloud`, falling back
+  to `nix shell nixpkgs#google-cloud-sdk -c gcloud` if `gcloud` isn't on `PATH`),
+  waits for SSH over Tailscale, and passes `--builders` for that one invocation.
 - Knobs: `USE_BUILDER=0` disables offload; `BUILDER_ZONE`, `BUILDER_FQDN`,
   `BUILDER_MAXJOBS` override defaults. Offload is a silent no-op (local build)
-  when `gcloud` is absent or the build key isn't present (CI, fresh clones).
-- **Prerequisite:** `gcloud` on `main` must be authenticated and have the
-  builder's project as its active config (`gcloud config set project <id>`).
+  when neither `gcloud` nor `nix` is available, or the caller's build key isn't
+  present (CI, fresh clones).
+- **Prerequisite:** the calling host's `gcloud` (or `nix shell` fallback) must be
+  authenticated, with the builder's project active
+  (`gcloud config set project <id>`).
 
 ## Idle auto-shutdown
 

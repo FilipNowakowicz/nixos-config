@@ -1,10 +1,11 @@
 # On-Demand Remote Builder Pattern
 
 This repository runs a real on-demand Nix remote builder: `gcp-builder` is a
-cloud VM that is **normally powered off**, started transparently by `main` for
-heavy builds, and powers itself off again when idle. This page documents that
-pattern — what it is, how the offload works, and the trust boundary it relies on
-— so the lifecycle is legible without reading three files at once.
+cloud VM that is **normally powered off**, started transparently by `main` (and
+by `gcp-agent`, for unattended issue-loop sessions) for heavy builds, and powers
+itself off again when idle. This page documents that pattern — what it is, how
+the offload works, and the trust boundary it relies on — so the lifecycle is
+legible without reading three files at once.
 
 It is a documented pattern, not a generic package. The implementation is
 GCP- and tailnet-specific by design; see [Scope and reuse boundary](#scope-and-reuse-boundary).
@@ -51,13 +52,16 @@ live in the system configuration, not a global build machine:
 The offload is driven by `ensure_builder` in `scripts/validate.sh`, invoked by the
 build-heavy subcommands (`host`, `hosts`, `heavy`, `profile-test(s)`, `smoke-*`):
 
-1. **Gate.** Offload runs only when it can help: `USE_BUILDER != 0`, `gcloud` is
-   on `PATH`, and the build key exists at `/run/secrets/gcp_builder_build_key`
-   (present only on a deployed `main`). If any check fails it is a silent no-op
-   and the build runs locally — so CI and fresh clones are unaffected.
-2. **Start.** `gcloud compute instances start gcp-builder` (idempotent). If the
-   VM cannot be started — wrong project, missing auth — it logs and falls back to
-   a local build rather than failing the command.
+1. **Gate.** Offload runs only when it can help: `USE_BUILDER != 0` and the
+   build key exists at `/run/secrets/gcp_builder_build_key` (present only on a
+   deployed `main` or `gcp-agent`, each with their own dedicated key — see
+   [Trust boundary](#trust-boundary)). If the key is absent it is a silent
+   no-op and the build runs locally — so CI and fresh clones are unaffected.
+2. **Start.** `gcloud compute instances start gcp-builder` (idempotent),
+   falling back to `nix shell nixpkgs#google-cloud-sdk -c gcloud` if `gcloud`
+   isn't on `PATH` (it isn't on `gcp-agent`'s base packages). If the VM cannot be
+   started — wrong project, missing auth — it logs and falls back to a local
+   build rather than failing the command.
 3. **Wait.** A readiness probe SSHes over the tailnet (`user@<builder-fqdn>`) with
    a bounded retry (~2 min) until the box answers. The probe uses the caller's own
    SSH key; the build itself uses the root-only build key under `--builders`.
@@ -99,9 +103,13 @@ boundary is kept tight accordingly:
   without a bespoke rule). There is no public TCP/22 — a network-wide
   `deny_public_ssh` rule blocks it, and provisioning opens only a scoped,
   source-pinned, temporary hole that is removed afterward.
-- **Dedicated build key.** The `main → gcp-builder` link uses its own ed25519 key
-  (`hosts/main/secrets/gcp_builder_build_key.enc`), separate from personal SSH
-  keys, and is low-stakes/rotatable (rotation steps in the host runbook).
+- **Dedicated, per-caller build keys.** The `main → gcp-builder` link uses its
+  own ed25519 key (`hosts/main/secrets/gcp_builder_build_key.enc`), separate
+  from personal SSH keys. `gcp-agent → gcp-builder` uses a second, independent
+  key (`hosts/gcp-agent/secrets/gcp_builder_build_key.enc`,
+  `hosts/gcp-agent/nix-remote-build.nix`): a compromised agent session cannot
+  reuse `main`'s credential, and either key can be revoked without affecting the
+  other. Both are low-stakes/rotatable (rotation steps in the builder runbook).
 - **Disposable, secret-free builder.** The builder holds no sops secrets, no
   service state, and no backup. Losing it costs only provisioning time, which is
   why a changed host key after reprovisioning is tolerated with `accept-new`.
@@ -123,5 +131,8 @@ actually appears. Extract helpers only then.
   knobs and validation offload behaviour.
 - [`hosts/gcp-builder/CLAUDE.md`](../hosts/gcp-builder/CLAUDE.md) — provisioning
   runbook, idle-shutdown details, build-key rotation, and gotchas.
-- `hosts/main/nix-remote-build.nix` — the consumer-side system wiring on `main`.
+- [`hosts/gcp-agent/CLAUDE.md`](../hosts/gcp-agent/CLAUDE.md) — `gcp-agent`'s
+  offload wiring and the operator follow-ups needed to make it live.
+- `hosts/main/nix-remote-build.nix` / `hosts/gcp-agent/nix-remote-build.nix` —
+  the consumer-side system wiring on each caller.
 - `scripts/validate.sh` — the `ensure_builder` offload implementation.
