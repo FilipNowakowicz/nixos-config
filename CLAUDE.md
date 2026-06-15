@@ -145,6 +145,17 @@ Managed with sops-nix + age. Edit secrets with `sops <file>`.
 - `boot.initrd.secrets` MUST only point to sops-managed `/run/secrets/*`
   paths (e.g., `config.sops.secrets.X.path`) — enforced by a native NixOS
   assertion in `modules/nixos/profiles/sops-base.nix`.
+- **Generate-keypair-then-encrypt-then-shred sequences must run as one
+  `nix develop -c bash -c '...'` invocation**, with `set -euo pipefail` and a
+  cleanup `trap` on the plaintext key, not as separate top-level zsh commands.
+  A prior run chained `ssh-keygen`, `sops -e ... > out.enc`, and `shred -u` as
+  separate top-level commands outside `nix develop`; `sops` was missing from
+  `PATH`, so `sops -e ... > out.enc` exited 127 with `command not found` and
+  produced a 0-byte `out.enc`, but zsh's `set -e` did not abort before
+  `shred -u` ran — destroying the only copy of the freshly-generated private
+  key. Running the whole sequence inside one `nix develop` invocation
+  guarantees `sops`/`ssh-to-age` are on `PATH` and lets a single shell's
+  `set -euo pipefail` and `trap` catch failures before any destructive step.
 
 See [`docs/security.md`](docs/security.md) for the full secrets/exposure model.
 
