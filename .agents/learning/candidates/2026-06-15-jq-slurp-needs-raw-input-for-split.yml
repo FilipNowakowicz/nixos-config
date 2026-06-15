@@ -1,0 +1,17 @@
+schema: learning-candidate/v1
+id: 2026-06-15-jq-slurp-needs-raw-input-for-split
+date: 2026-06-15
+expires: 2026-09-15
+status: open
+
+route: implement-fix
+best_form: none
+
+evidence: [pr-#314, "scripts/agent-run-issue.sh extract_plan_paths: first attempt used `jq -rs 'split(\"\\n\") | ...'` over a stream-json session log and failed with `jq: error: split input and separator must be strings` because plain `-s` slurps stdin as an array of parsed JSON values, not a raw string; fixed by switching to `-rRs` (matches the existing `parse_session_result` idiom at scripts/agent-run-issue.sh:283 which already uses `-cRs`)"]
+observation: jq `-s` alone slurps parsed JSON values into an array; `split()` on a JSON-lines log needs `-R` (raw input) too, i.e. `-rRs`/`-cRs`, or `split` errors with "input and separator must be strings".
+proposed_upgrade: when adding a new jq pipeline in scripts/agent-run-issue.sh that does `split("\n") | map(fromjson? // empty)` over a stream-json log, copy the existing `-cRs`/`-rRs` flag combo from parse_session_result/extract_plan_paths rather than re-deriving flags.
+
+type: workflow-gotcha
+dedupe_key: jq:slurp-raw-input-for-split-on-jsonlines
+triggers: [scripts/agent-run-issue.sh, jq -rs, jq -cs, "split(\"\\n\")", stream-json]
+targets: [scripts/agent-run-issue.sh]

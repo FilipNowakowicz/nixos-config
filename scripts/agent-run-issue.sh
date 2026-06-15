@@ -387,6 +387,76 @@ compute_issue_path_hints() {
   printf '%s\n' "${hints[@]}" | awk 'NF' | sort -u | awk 'NR<=8'
 }
 
+# Extract existing repo paths mentioned in the first assistant text message of
+# a stream-json session log (the turn-1 plan that build_issue_prompt asks
+# for). Same resolution as compute_issue_path_hints step 1: path-like tokens
+# are reduced to existing repo paths via _resolve_path_token. Prints
+# newline-separated paths, capped; prints nothing on any failure or when the
+# log/message is absent. Best-effort: never fails the caller.
+extract_plan_paths() {
+  local log="$1"
+  [[ -s $log ]] || return 0
+  local first_text
+  first_text=$(jq -rRs '
+    split("\n")
+    | map(fromjson? // empty)
+    | map(select(type == "object" and .type == "assistant"))
+    | map(.message.content[]? | select(.type == "text") | .text)
+    | first(.[] // empty) // empty
+  ' "$log" 2>/dev/null || true)
+  [[ -n $first_text ]] || return 0
+
+  local -a paths=()
+  local tok resolved
+  while IFS= read -r tok; do
+    [[ -n $tok ]] || continue
+    resolved=$(_resolve_path_token "$tok")
+    [[ -n $resolved ]] && paths+=("$resolved")
+  done < <(printf '%s\n' "$first_text" |
+    grep -oE '[A-Za-z0-9_.][A-Za-z0-9_./*-]*/[A-Za-z0-9_./*-]+' || true)
+
+  [[ ${#paths[@]} -gt 0 ]] || return 0
+  printf '%s\n' "${paths[@]}" | awk 'NF' | sort -u | awk 'NR<=16'
+}
+
+# Best-effort, non-fatal: when the issue had non-empty advisory path_hints,
+# extract the turn-1 plan's file list from the session log (extract_plan_paths)
+# and check for overlap with path_hints (exact match or one path being a
+# prefix of the other, e.g. a hinted directory containing a planned file).
+# When path_hints is non-empty but the plan's paths have no overlap with it at
+# all, emit a single stderr log line so the orchestrator can observe plan/hint
+# divergence without parsing inner-session prose. Silent when path_hints is
+# empty, when the plan has no resolvable paths (nothing to compare), or when
+# any overlap exists.
+check_plan_path_hint_divergence() {
+  local issue="$1"
+  local session_log="$2"
+  local path_hints="$3"
+  [[ -n $path_hints ]] || return 0
+
+  local plan_paths
+  plan_paths=$(extract_plan_paths "$session_log")
+  [[ -n $plan_paths ]] || return 0
+
+  local hint overlap=0
+  while IFS= read -r hint; do
+    [[ -n $hint ]] || continue
+    local plan
+    while IFS= read -r plan; do
+      [[ -n $plan ]] || continue
+      if [[ $plan == "$hint" || $plan == "$hint"/* || $hint == "$plan"/* ]]; then
+        overlap=1
+        break 2
+      fi
+    done <<<"$plan_paths"
+  done <<<"$path_hints"
+
+  if [[ $overlap -eq 0 ]]; then
+    echo "agent-run-issue: issue #$issue plan/path-hint divergence: plan files [$(printf '%s' "$plan_paths" | paste -sd ' ' -)] vs path hints [$(printf '%s' "$path_hints" | paste -sd ' ' -)]" >&2
+  fi
+  return 0
+}
+
 learning_metadata_field() {
   local path="$1"
   local name="$2"
@@ -504,7 +574,11 @@ build_issue_prompt() {
   local prompt
   prompt="Implement GitHub issue #${issue} in this repository end to end using the \
 issue-driven-development skill. Work on a new branch off ${BASE_BRANCH} (never commit \
-to ${BASE_BRANCH} directly). When the relevant files are not already obvious, use the \
+to ${BASE_BRANCH} directly). As your first action, state a short plan: one paragraph \
+of approach plus a concrete target file list, and explicitly compare that file list to \
+the advisory likely-files hints below (if any), noting any large divergence in one \
+sentence before proceeding — keep this to a few sentences, it is a checkpoint, not a \
+design doc. When the relevant files are not already obvious, use the \
 repo-map-query skill to locate them instead of broad cat/grep/find sweeps, then open \
 only the top likely files. Implement the smallest durable fix, validate with the \
 nix-verification-loop skill (the smallest meaningful scripts/validate.sh command for \
@@ -516,7 +590,11 @@ every turn and large logs dominate cost. For a wider validation tier (e.g. \
 few file reads/greps, prefer dispatching a subagent (the Explore agent type for \
 read-only searches, a general-purpose agent for builds) and bring back only its \
 conclusion — that keeps the noisy run out of this session's transcript entirely, \
-rather than relying on truncation alone. Then push the branch and open a pull request \
+rather than relying on truncation alone. Before opening the PR, do one bounded \
+self-review pass: re-read your diff against the issue's acceptance criteria and the \
+validation output, and fix any obvious gaps (missed criterion, leftover debug code, \
+failing check) — this is a single targeted pass, not a second full implementation \
+pass. Then push the branch and open a pull request \
 that links the issue \
 (use 'Closes #${issue}' only if the PR fully satisfies it, otherwise 'Refs #${issue}'). \
 Do NOT merge the PR, do NOT push to ${BASE_BRANCH}, and do NOT wait for long GitHub \
@@ -657,6 +735,63 @@ EOF
     die "self-test: empty hints must not add a hint line to the prompt"
   [[ $prompt_without == "$(build_issue_prompt 999)" ]] ||
     die "self-test: omitted vs empty hints must build an identical prompt"
+
+  # --- turn-1 plan + pre-PR self-review bookends (#300) ---
+  [[ $prompt_without == *"first action, state a short plan"* ]] ||
+    die "self-test: prompt missing the turn-1 plan instruction"
+  [[ $prompt_without == *"compare that file list to the advisory likely-files hints"* ]] ||
+    die "self-test: turn-1 plan instruction missing the path-hint comparison"
+  [[ $prompt_without == *"Before opening the PR, do one bounded self-review pass"* ]] ||
+    die "self-test: prompt missing the pre-PR self-review instruction"
+  [[ $prompt_without == *"acceptance criteria and the validation output"* ]] ||
+    die "self-test: pre-PR self-review instruction missing acceptance-criteria/validation reference"
+
+  # --- turn-1 plan vs path-hint divergence check (#300) ---
+  mkdir -p .agents/state/outcomes scripts/lib
+  : >scripts/lib/example.sh
+  local plan_paths divergence_out
+
+  # plan mentions the hinted path -> extract_plan_paths sees it, no divergence
+  printf '%s\n' \
+    '{"type":"system","subtype":"init"}' \
+    '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Plan: fix the flag handling in scripts/validate.sh and add a check."}]}}' \
+    '{"type":"result","subtype":"success","total_cost_usd":0.1,"num_turns":3}' \
+    >"$tmp/plan-match.log"
+  plan_paths=$(extract_plan_paths "$tmp/plan-match.log")
+  [[ $plan_paths == *"scripts/validate.sh"* ]] ||
+    die "self-test: expected extract_plan_paths to find scripts/validate.sh (got: $plan_paths)"
+  divergence_out=$(check_plan_path_hint_divergence 999 "$tmp/plan-match.log" "scripts/validate.sh" 2>&1)
+  [[ -z $divergence_out ]] ||
+    die "self-test: expected no divergence log when plan overlaps path hints (got: $divergence_out)"
+
+  # plan mentions a different existing path than the hint -> divergence logged
+  printf '%s\n' \
+    '{"type":"system","subtype":"init"}' \
+    '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Plan: update scripts/lib/example.sh to add the helper."}]}}' \
+    '{"type":"result","subtype":"success","total_cost_usd":0.1,"num_turns":3}' \
+    >"$tmp/plan-diverge.log"
+  divergence_out=$(check_plan_path_hint_divergence 999 "$tmp/plan-diverge.log" "scripts/validate.sh" 2>&1)
+  [[ $divergence_out == *"plan/path-hint divergence"* ]] ||
+    die "self-test: expected a divergence log line when plan and hints share no path (got: $divergence_out)"
+  [[ $divergence_out == *"scripts/lib/example.sh"* && $divergence_out == *"scripts/validate.sh"* ]] ||
+    die "self-test: divergence log should name both the plan path and the hint path (got: $divergence_out)"
+
+  # empty path hints -> never logs, regardless of plan content
+  divergence_out=$(check_plan_path_hint_divergence 999 "$tmp/plan-diverge.log" "" 2>&1)
+  [[ -z $divergence_out ]] ||
+    die "self-test: expected no divergence log when path_hints is empty (got: $divergence_out)"
+
+  # plan with no resolvable paths -> nothing to compare, no log
+  printf '%s\n' \
+    '{"type":"system","subtype":"init"}' \
+    '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"I will start by reviewing the issue."}]}}' \
+    >"$tmp/plan-empty.log"
+  [[ -z $(extract_plan_paths "$tmp/plan-empty.log") ]] ||
+    die "self-test: expected no plan paths when the plan names no existing path"
+  divergence_out=$(check_plan_path_hint_divergence 999 "$tmp/plan-empty.log" "scripts/validate.sh" 2>&1)
+  [[ -z $divergence_out ]] ||
+    die "self-test: expected no divergence log when the plan has no resolvable paths (got: $divergence_out)"
+  rm -rf scripts/lib
 
   # --- promoted learning selection (#296) ---
   mkdir -p .agents/learning/candidates/archive .agents/learning/candidates
@@ -1168,6 +1303,7 @@ run_one() {
   session_duration_ms=$(jq -r '.duration_ms // empty' <<<"$session_result" 2>/dev/null || true)
   session_id=$(jq -r '.session_id // empty' <<<"$session_result" 2>/dev/null || true)
   echo "agent-run-issue: issue #$issue session telemetry: cost_usd=${session_cost:-unknown} turns=${session_turns:-unknown} log=$session_log" >&2
+  check_plan_path_hint_divergence "$issue" "$session_log" "$path_hints"
 
   # Hitting the --max-turns cap is a distinct, recoverable blocker, not a
   # silent stop: record it as a failure with a clear, actionable note. (A

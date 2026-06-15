@@ -46,6 +46,24 @@ each JSON file, use `.agents/scripts/agent-outcome-index`:
 Malformed or schema-invalid records are reported on stderr and cause a
 non-zero exit; pass `--permissive` to report them without failing.
 
+To learn which path classes the loop handles well, aggregate outcomes'
+`route.path_classes` (set by `agent-route`, see "Routing Metadata" below) into
+per-class success/failure/blocked/changes-requested counts and rates with
+`.agents/scripts/agent-outcome-stats`:
+
+```sh
+.agents/scripts/agent-outcome-stats               # table from .agents/state/outcomes
+.agents/scripts/agent-outcome-stats --json        # JSON array, sorted by path_class
+.agents/scripts/agent-outcome-stats --dir <path>  # scan a different outcome directory
+```
+
+Records with no `route` object, or an empty `route.path_classes`, are excluded
+from per-class stats. `changes_requested`/`changes_requested_rate` are always
+0 today (no outcome status produces that value yet); the fields exist so a
+future status can populate them without an output-shape change. Malformed or
+schema-invalid records are reported on stderr but never cause a non-zero exit
+(best-effort, like `agent-outcome-index --permissive`).
+
 Outcome records are separate from learning candidates:
 
 - outcome records describe what happened in one run;
@@ -402,6 +420,15 @@ profile.
 .agents/scripts/agent-route --git-diff main --json   # full route-decision JSON
 .agents/scripts/agent-route --self-test              # run via scripts/validate.sh docs
 ```
+
+In `--json` mode, the decision also carries a `path_class_stats` object
+mapping each path class in `path_classes` to its per-class outcome stats from
+`.agents/scripts/agent-outcome-stats` (success/failure/blocked/
+changes_requested counts and rates), sourced from `--outcome-dir` (default
+`.agents/state/outcomes`, or `$AGENT_OUTCOME_DIR`). This is **purely
+informational**: it never changes `risk`, `route`, `default_profile`, or exit
+codes, and path classes with no recorded outcomes are simply omitted from
+`path_class_stats`.
 
 `scripts/agent-run-issue.sh` computes a route decision for the paths changed
 during each issue session (relative to `$BASE_BRANCH`) and embeds it under

@@ -19,6 +19,9 @@ Options:
   --route-file <path>               agent-route --json output to embed under "route".
                                      Ignored if the file's "schema" is not
                                      "agent-route/v1".
+  --review-file <path>               Reviewer-evidence JSON to embed under
+                                     "review". Ignored if the file's "schema"
+                                     is not "agent-reviewer-evidence/v1".
   --session-log <path>              Inner-session log path to record under "session".
   --session-cost-usd <n>            Session cost in USD (from the stream-json result event).
   --session-turns <n>               Session turn count.
@@ -133,6 +136,7 @@ write_outcome() {
   local pr_head_branch="${12}"
   local pr_numbers_file="${13}"
   local route_file="${14}"
+  local review_file="${15}"
 
   [[ $issue =~ ^[0-9]+$ ]] || die "--issue must be a positive integer"
   [[ $issue -gt 0 ]] || die "--issue must be a positive integer"
@@ -151,7 +155,7 @@ write_outcome() {
   safe_finished=$(printf '%s' "$finished_at" | tr -c '0-9TZ:-' '-')
   id="${safe_finished}-issue-${issue}-${status}"
 
-  local prs_json candidates_json dirty_json discovery_head_branch route_json
+  local prs_json candidates_json dirty_json discovery_head_branch route_json review_json
   discovery_head_branch="${pr_head_branch:-$head_branch}"
   prs_json=$(discover_prs "$issue" "$discovery_head_branch" "$pr_numbers_file" | jq -c 'if type == "array" then . else [] end')
   candidates_json=$(collect_learning_candidates "$candidates_file" | json_array_from_lines)
@@ -162,6 +166,13 @@ write_outcome() {
     [[ -f $route_file ]] || die "route file not found: $route_file"
     route_json=$(jq -c 'if .schema == "agent-route/v1" then . else null end' "$route_file") ||
       die "route file is not valid JSON: $route_file"
+  fi
+
+  review_json='null'
+  if [[ -n $review_file ]]; then
+    [[ -f $review_file ]] || die "review file not found: $review_file"
+    review_json=$(jq -c 'if .schema == "agent-reviewer-evidence/v1" then . else null end' "$review_file") ||
+      die "review file is not valid JSON: $review_file"
   fi
 
   # Session telemetry comes from the --session-* globals (not positional
@@ -188,6 +199,7 @@ write_outcome() {
       --argjson git_dirty "$dirty_json" \
       --arg blocker "$blocker" \
       --argjson route "$route_json" \
+      --argjson review "$review_json" \
       --argjson session "$session_json" \
       '{
         schema: $schema,
@@ -206,6 +218,7 @@ write_outcome() {
         git_dirty: $git_dirty,
         blocker: $blocker
       } + (if $route == null then {} else {route: $route} end)
+        + (if $review == null then {} else {review: $review} end)
         + (if $session == null then {} else {session: $session} end)'
   )
 
@@ -388,6 +401,55 @@ EOF
   )
   printf '%s\n' "$json" | jq -e '(has("route") | not)' >/dev/null
 
+  # --review-file embeds a valid agent-reviewer-evidence/v1 decision under
+  # "review".
+  local review_file="$tmp/review.json"
+  printf '%s\n' '{"schema":"agent-reviewer-evidence/v1","issue":1,"pr":42,"result":"approved","acceptance_criteria":[{"criterion":"x","evidence":"y"}],"validation_commands":[{"command":"x","result":"passed"}],"residual_risk":"none"}' >"$review_file"
+  json=$(
+    PATH="$bin:$PATH" \
+      "$script_path" \
+      --issue 1 \
+      --status success \
+      --base-branch main \
+      --repo-dir "$repo" \
+      --started-at '2026-01-01T00:00:00Z' \
+      --finished-at '2026-01-01T00:01:00Z' \
+      --exit-code 0 \
+      --blocker '' \
+      --learning-candidates-file "$candidates" \
+      --output-dir "$out" \
+      --head-branch 'codex/test-outcome-pr' \
+      --pr-number 42 \
+      --review-file "$review_file" \
+      --dry-run
+  )
+  printf '%s\n' "$json" | jq -e \
+    '.review.schema == "agent-reviewer-evidence/v1"
+     and .review.result == "approved"' >/dev/null
+
+  # A review file with the wrong schema is ignored, not embedded.
+  local bad_review_file="$tmp/bad-review.json"
+  printf '%s\n' '{"schema":"something-else/v1"}' >"$bad_review_file"
+  json=$(
+    PATH="$bin:$PATH" \
+      "$script_path" \
+      --issue 1 \
+      --status success \
+      --base-branch main \
+      --repo-dir "$repo" \
+      --started-at '2026-01-01T00:00:00Z' \
+      --finished-at '2026-01-01T00:01:00Z' \
+      --exit-code 0 \
+      --blocker '' \
+      --learning-candidates-file "$candidates" \
+      --output-dir "$out" \
+      --head-branch 'codex/test-outcome-pr' \
+      --pr-number 42 \
+      --review-file "$bad_review_file" \
+      --dry-run
+  )
+  printf '%s\n' "$json" | jq -e '(has("review") | not)' >/dev/null
+
   printf 'agent-record-outcome self-test passed\n'
 }
 
@@ -403,6 +465,7 @@ candidates_file=""
 pr_head_branch=""
 pr_numbers_file=""
 route_file=""
+review_file=""
 session_log=""
 session_cost_usd=""
 session_turns=""
@@ -466,6 +529,10 @@ while [[ $# -gt 0 ]]; do
     route_file="${2:?--route-file needs a value}"
     shift 2
     ;;
+  --review-file)
+    review_file="${2:?--review-file needs a value}"
+    shift 2
+    ;;
   --session-log)
     session_log="${2:?--session-log needs a value}"
     shift 2
@@ -524,4 +591,4 @@ finished_at="${finished_at:-$(utc_now)}"
 
 write_outcome "$issue" "$status" "$base_branch" "$repo_dir" "$started_at" \
   "$finished_at" "$exit_code" "$blocker" "$candidates_file" "$output_dir" "$dry_run" \
-  "$pr_head_branch" "${tmp_pr_numbers:-/dev/null}" "$route_file"
+  "$pr_head_branch" "${tmp_pr_numbers:-/dev/null}" "$route_file" "$review_file"
