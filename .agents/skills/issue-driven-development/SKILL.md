@@ -40,6 +40,14 @@ If the source item is still vague, use `issue-tdd` first.
 5. Create a targeted branch/worktree when useful for isolation.
    - Prefer `codex/<short-scope>` or the established branch prefix.
    - Keep one issue to one PR unless the scope clearly splits.
+   - The agent session's GitHub PAT lacks the `workflow` OAuth scope: any
+     `git push` (to any branch, not just `main`) that includes changes to
+     `.github/workflows/*.yml` is rejected by GitHub before a PR can be
+     opened, with no local workaround. If a task calls for workflow-file
+     edits, either drop/defer that edit, scope the PR to the remaining files,
+     and call out the deferred workflow-file change in the PR description
+     (`Refs #NNN`), or flag it to the user upfront so a human/token with
+     `workflow` scope can apply it.
 6. Implement the smallest durable repo-side fix.
 7. Run the acceptance check, then any broader validation justified by the touched surface.
 8. Open or update the PR when the user wants the full loop.
