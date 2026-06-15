@@ -82,9 +82,19 @@ agent_root() {
 # heading (matched the same way agent-issue-readiness does), one per line.
 extract_acceptance_criteria() {
   local body="$1"
+  # A criterion can wrap across several physical lines (markdown soft-wrap or a
+  # hand-authored body). Emitting only the first physical line dropped the
+  # continuation and produced false "no matching evidence" failures, so join
+  # each bullet's continuation lines into one logical criterion before printing.
+  # A line is a continuation when, inside the section, it is neither a heading,
+  # a new bullet, nor blank.
   awk '
-    BEGIN { in_section = 0 }
+    BEGIN { in_section = 0; cur = "" }
+    function flush() {
+      if (length(cur) > 0) { print cur; cur = "" }
+    }
     /^[[:space:]]*#+[[:space:]]+/ {
+      flush()
       line = $0
       sub(/^[[:space:]]*#+[[:space:]]+/, "", line)
       heading = tolower(line)
@@ -92,11 +102,25 @@ extract_acceptance_criteria() {
       next
     }
     in_section && /^[[:space:]]*[-*][[:space:]]+/ {
+      flush()
       line = $0
       sub(/^[[:space:]]*[-*][[:space:]]+/, "", line)
       gsub(/[[:space:]]+$/, "", line)
-      if (length(line) > 0) print line
+      cur = line
+      next
     }
+    in_section && /^[[:space:]]*$/ {
+      flush()
+      next
+    }
+    in_section && length(cur) > 0 {
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      gsub(/[[:space:]]+$/, "", line)
+      if (length(line) > 0) cur = cur " " line
+      next
+    }
+    END { flush() }
   ' <<<"$body"
 }
 
@@ -308,7 +332,8 @@ Example issue for the reviewer-stage self-test.
 ## Acceptance criteria
 
 - First criterion is covered.
-- Second criterion is covered.
+- Second criterion is covered,
+  continued on a wrapped line.
 
 ## Validation
 
@@ -328,8 +353,8 @@ EOF
     and .result == "blocked"
     and (.acceptance_criteria | length == 2)
     and (.acceptance_criteria[0].criterion == "First criterion is covered.")
-    and (.acceptance_criteria[1].criterion == "Second criterion is covered.")
-  ' "$repo/$init_out" >/dev/null || die "self-test: init scaffold missing expected fields"
+    and (.acceptance_criteria[1].criterion == "Second criterion is covered, continued on a wrapped line.")
+  ' "$repo/$init_out" >/dev/null || die "self-test: init scaffold missing expected fields (wrapped criterion must join into one logical criterion)"
 
   # check: approved evidence covering both criteria on a non-protected path passes.
   local approved="$tmp/approved.json"

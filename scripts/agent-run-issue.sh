@@ -193,6 +193,39 @@ preflight_push_auth() {
     die "cannot authenticate to origin non-interactively (check the scoped PAT / gh credential helper — hosts/gcp-agent/CLAUDE.md)"
 }
 
+# Pure classifier for a claude quota/auth probe: rc must be 0, the output must
+# contain a standalone "ok", and must not carry an auth / quota / rate-limit /
+# session-limit error. Mirrors agent-session.sh's remote_probe (plus the
+# "session limit" wording from issue #259) so the two paths agree.
+claude_preflight_output_ok() {
+  local rc="$1"
+  local out_file="$2"
+  [[ $rc -eq 0 ]] || return 1
+  grep -Eiq '(^|[^[:alpha:]])ok([^[:alpha:]]|$)' "$out_file" || return 1
+  ! grep -Eiq '401|Invalid authentication credentials|Failed to authenticate|OAuth|quota|rate limit|session limit' "$out_file"
+}
+
+preflight_claude_quota() {
+  # Gate the billed session on a cheap model probe so a quota / rate-limit /
+  # session-limit wall fails fast instead of burning a dispatch — issue #259
+  # failed mid-run with "You've hit your session limit" and opened no PR.
+  # agent-session.sh already runs this check, but only over its SSH dispatch;
+  # the runner is also invoked directly on the host, where that preflight never
+  # runs. This is the on-host analogue of its remote_probe.
+  local out rc=0
+  out=$(mktemp /tmp/agent-claude-preflight.XXXXXX)
+  "$AGENT_CLAUDE_CMD" -p "say ok" --model sonnet --dangerously-skip-permissions >"$out" 2>&1 || rc=$?
+  if claude_preflight_output_ok "$rc" "$out"; then
+    rm -f "$out"
+    echo "agent-run-issue: claude quota/auth preflight ok" >&2
+    return 0
+  fi
+  echo "agent-run-issue: claude quota/auth preflight failed (rc=$rc) — last output:" >&2
+  tail -n 5 "$out" >&2 2>/dev/null || true
+  rm -f "$out"
+  die "claude quota/auth preflight failed; not starting a billed session (refresh credentials or wait out the rate/session limit — hosts/gcp-agent/CLAUDE.md)"
+}
+
 heartbeat_worktree_summary() {
   local branch dirty
   branch=$(git symbolic-ref --short HEAD 2>/dev/null || printf 'DETACHED')
@@ -325,6 +358,53 @@ has_clean_pr_after_timeout() {
   [[ ${dirty_count:-1} == 0 ]] || return 1
   pr_count=$(linked_pr_count "$issue" "$head_branch")
   [[ ${pr_count:-0} =~ ^[0-9]+$ && ${pr_count:-0} -gt 0 ]]
+}
+
+# True when the local branch HEAD has been published to origin verbatim (remote
+# tip equals local tip). Used to tell "validated work pushed but PR-less" apart
+# from "nothing made it off the box".
+branch_pushed_to_origin() {
+  local branch="$1"
+  local local_sha remote_sha
+  [[ -n $branch && $branch != "$BASE_BRANCH" && $branch != DETACHED ]] || return 1
+  local_sha=$(git rev-parse --verify --quiet "refs/heads/$branch" 2>/dev/null) || return 1
+  remote_sha=$(git ls-remote --heads origin "$branch" 2>/dev/null | awk 'NR==1{print $1}')
+  [[ -n $remote_sha && $remote_sha == "$local_sha" ]]
+}
+
+# Recover work the inner session pushed but never turned into a PR: a cap /
+# timeout that strikes between `git push` and `gh pr create` leaves validated
+# work stranded on the remote branch, recorded as a bare failure with prs:[]
+# (recovery was manual, e.g. PR #305). When the head branch is pushed, the
+# worktree is clean, and no PR links the issue yet, auto-open a DRAFT PR so the
+# work surfaces for human review instead of being silently lost. Prints the
+# created PR ref on success; returns non-zero (prints nothing) when no such
+# stranded branch exists. Best-effort: never fails the caller.
+recover_stranded_branch_pr() {
+  local issue="$1"
+  local head_branch="$2"
+  local dirty_count pr_count pr_url
+  [[ -n $head_branch && $head_branch != "$BASE_BRANCH" && $head_branch != DETACHED ]] || return 1
+  dirty_count=$(git status --short 2>/dev/null | wc -l | tr -d ' ' || printf '1')
+  [[ ${dirty_count:-1} == 0 ]] || return 1
+  branch_pushed_to_origin "$head_branch" || return 1
+  pr_count=$(linked_pr_count "$issue" "$head_branch")
+  [[ ${pr_count:-1} == 0 ]] || return 1
+  pr_url=$(
+    gh pr create --draft --base "$BASE_BRANCH" --head "$head_branch" \
+      --title "Refs #${issue}: recovered stranded branch ${head_branch}" \
+      --body-file - <<EOF 2>/dev/null
+Refs #${issue}
+
+Auto-opened **draft** PR by \`agent-run-issue\`: the session committed and
+pushed work to \`${head_branch}\` but hit the turn cap / wall-clock timeout
+before running \`gh pr create\`, stranding the branch on the remote with no PR.
+Review the diff against the linked issue's acceptance criteria before promoting
+out of draft.
+EOF
+  ) || return 1
+  [[ -n $pr_url ]] || return 1
+  printf '%s\n' "$pr_url"
 }
 
 # Resolve a path-ish token from issue prose to an existing repo path, or print
@@ -683,6 +763,11 @@ if [[ ${1:-} == pr && ${2:-} == list ]]; then
   esac
   exit 0
 fi
+if [[ ${1:-} == pr && ${2:-} == create ]]; then
+  cat >/dev/null # consume the heredoc body
+  printf 'https://github.com/example-owner/example-repo/pull/4242\n'
+  exit 0
+fi
 exit 1
 EOF
   chmod +x "$bin/gh"
@@ -703,6 +788,71 @@ EOF
     die "self-test: dirty worktree must not classify as post-PR timeout"
   fi
   rm -f dirty.txt
+
+  # --- claude quota/auth preflight classifier (#319 / #259) ---
+  local pf_ok pf_limit pf_rate pf_auth
+  pf_ok="$tmp/pf-ok.txt"
+  printf 'ok\n' >"$pf_ok"
+  claude_preflight_output_ok 0 "$pf_ok" ||
+    die "self-test: a standalone 'ok' on rc 0 must pass the claude preflight"
+  pf_limit="$tmp/pf-limit.txt"
+  printf "You've hit your session limit\n" >"$pf_limit"
+  if claude_preflight_output_ok 0 "$pf_limit"; then
+    die "self-test: a session-limit message must fail the claude preflight"
+  fi
+  pf_rate="$tmp/pf-rate.txt"
+  printf 'Error: rate limit exceeded\n' >"$pf_rate"
+  if claude_preflight_output_ok 0 "$pf_rate"; then
+    die "self-test: a rate-limit message must fail the claude preflight"
+  fi
+  pf_auth="$tmp/pf-auth.txt"
+  printf 'ok\n' >"$pf_auth"
+  if claude_preflight_output_ok 1 "$pf_auth"; then
+    die "self-test: a non-zero probe rc must fail the claude preflight even with 'ok' text"
+  fi
+
+  # --- stranded pushed-but-PR-less branch recovery (#319) ---
+  local strand_origin strand_repo strand_pr
+  strand_origin="$tmp/strand-origin.git"
+  strand_repo="$tmp/strand-repo"
+  git init -q --bare "$strand_origin"
+  git init -q "$strand_repo"
+  git -C "$strand_repo" config user.email test@example.invalid
+  git -C "$strand_repo" config user.name 'Agent Runner Test'
+  git -C "$strand_repo" remote add origin "$strand_origin"
+  printf 'seed\n' >"$strand_repo/README.md"
+  git -C "$strand_repo" add README.md
+  git -C "$strand_repo" commit -q -m seed
+  git -C "$strand_repo" checkout -q -b codex/strand
+  printf 'work\n' >"$strand_repo/work.txt"
+  git -C "$strand_repo" add work.txt
+  git -C "$strand_repo" commit -q -m work
+  git -C "$strand_repo" push -q origin codex/strand
+  (
+    cd "$strand_repo"
+    branch_pushed_to_origin codex/strand ||
+      die "self-test: a pushed branch must be detected as pushed"
+    printf 'more\n' >more.txt
+    git add more.txt && git commit -q -m more
+    if branch_pushed_to_origin codex/strand; then
+      die "self-test: a branch with unpushed local commits must not count as pushed"
+    fi
+    git reset -q --hard HEAD~1 # back to the pushed (clean) state
+    strand_pr=$(recover_stranded_branch_pr 888 codex/strand) ||
+      die "self-test: a pushed, clean, PR-less branch must trigger a recovery draft PR"
+    [[ $strand_pr == *"/pull/4242"* ]] ||
+      die "self-test: recovery must return the created draft PR url (got: $strand_pr)"
+    # an issue that already has a linked PR (gh stub: #999) must NOT re-open one
+    if recover_stranded_branch_pr 999 codex/strand >/dev/null; then
+      die "self-test: recovery must skip when a linked PR already exists"
+    fi
+    # a dirty worktree must never be auto-recovered
+    printf 'dirty\n' >dirty.txt
+    if recover_stranded_branch_pr 888 codex/strand >/dev/null; then
+      die "self-test: a dirty worktree must not trigger recovery"
+    fi
+    rm -f dirty.txt
+  ) || exit 1
 
   # --- issue path-hint construction (#281) ---
   mkdir -p scripts .agents/state/outcomes
@@ -971,6 +1121,7 @@ else
 fi
 ensure_push_safe_origin "$AGENT_REPO_DIR"
 preflight_push_auth "$AGENT_REPO_DIR"
+preflight_claude_quota
 
 # Hold the session lock for the WHOLE run so the idle-shutdown timer never powers
 # the box off mid-session during claude-free gaps (offloaded builds, git ops).
@@ -1198,7 +1349,7 @@ run_one() {
   local issue="$1"
   echo "agent-run-issue: ===== issue #$issue =====" >&2
   local started_at finished_at status exit_code blocker before_candidates new_candidates outcome_head_branch route_file
-  local session_log session_result session_cost session_turns session_duration_ms session_id
+  local session_log session_result session_cost session_turns session_duration_ms session_id recovered_pr
   started_at=$(utc_now)
   post_started_comment "$issue" "$started_at"
   before_candidates=$(mktemp)
@@ -1317,6 +1468,19 @@ run_one() {
 
   finished_at=$(utc_now)
   outcome_head_branch=$(git symbolic-ref --short HEAD 2>/dev/null || printf 'DETACHED')
+
+  # If we are about to record a failure but the session pushed a clean, PR-less
+  # agent branch (cap/timeout struck between push and `gh pr create`), auto-open
+  # a draft PR so the validated work is surfaced, not silently stranded (#319).
+  # The recovered PR then shows up in the outcome record's discovered PRs.
+  if [[ $status == failure ]]; then
+    recovered_pr=$(recover_stranded_branch_pr "$issue" "$outcome_head_branch") || recovered_pr=""
+    if [[ -n $recovered_pr ]]; then
+      blocker="${blocker} | auto-opened recovery draft PR ${recovered_pr} for the pushed-but-PR-less branch ${outcome_head_branch} (work was stranded by the cap/timeout before 'gh pr create')"
+      echo "agent-run-issue: issue #$issue auto-opened recovery draft PR ${recovered_pr} for stranded branch ${outcome_head_branch}" >&2
+    fi
+  fi
+
   new_learning_candidates "$before_candidates" "$new_candidates"
   compute_route_decision "$route_file"
   record_issue_outcome "$issue" "$status" "$started_at" "$finished_at" "$exit_code" "$blocker" "$new_candidates" "$outcome_head_branch" "$route_file" \
