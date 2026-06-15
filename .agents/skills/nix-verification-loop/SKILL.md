@@ -22,6 +22,10 @@ packages, deploy wiring, secrets boundaries, or generated data in this repo.
    expecting Nix to see them.
 3. Prefer the narrow check first, then widen only when the touched surface justifies it.
 4. Report any skipped validation explicitly with the reason.
+5. For a wider tier (`hosts`, `package all`, `heavy`, `cve-reports`), consider
+   running it via a subagent that redirects output to a file and returns only
+   the exit status and tail — this keeps the noisy build entirely out of the
+   main session's transcript instead of relying on truncation alone.
 
 ## Guardrails
 

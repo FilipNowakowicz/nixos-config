@@ -40,3 +40,7 @@ bash .agents/repo-map/scripts/query.sh waybar theme switch
 - Do not add repo-map output to normal summaries unless it explains a decision.
 - Keep query terms specific; vague terms like `config` or `module` produce weak
   routing.
+- If the routed files don't resolve the question and broader exploration is
+  still needed (many greps/reads across unfamiliar areas), prefer dispatching
+  an Explore subagent and bringing back only its conclusion, rather than
+  letting many raw search results accumulate in this session's transcript.
