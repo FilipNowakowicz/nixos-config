@@ -1,7 +1,13 @@
 # E2E tests for the observability profile.
 # Test 1: Alloy -> Loki pipeline (unauthenticated local stack).
 # Test 2: Prometheus remoteWrite with basic auth (verifies auth header is sent).
-{ nixpkgs, system }:
+# Test 3: OTLP trace pipeline -> Tempo (verifies span is stored and queryable).
+# Test 4: Prometheus remoteWrite -> local Mimir (verifies metric is queryable).
+{
+  nixpkgs,
+  system,
+  inputs,
+}:
 let
   pkgs = import nixpkgs { inherit system; };
 in
@@ -10,6 +16,10 @@ in
 }).runTest
   {
     name = "profile-observability";
+
+    # backends.nix pins Tempo via inputs.nixpkgs-tempo-2105; thread inputs into
+    # all nodes so the overlay resolves when obs_tempo builds its closure.
+    node.specialArgs = { inherit inputs; };
 
     nodes = {
       # Local LGTM stack — Alloy ships journal logs to Loki.
@@ -75,6 +85,38 @@ in
 
           environment.systemPackages = [ pkgs.curl ];
         };
+
+      # OTLP trace pipeline: otel-collector receives spans and forwards to local Tempo.
+      obs_tempo =
+        { ... }:
+        {
+          imports = [ ../../modules/nixos/profiles/observability ];
+
+          profiles.observability = {
+            enable = true;
+            tempo.enable = true;
+            collectors.traces.enable = true;
+          };
+
+          environment.systemPackages = [ pkgs.curl ];
+        };
+
+      # Local Mimir: Prometheus remote-writes scraped metrics to the local Mimir instance.
+      obs_mimir =
+        { ... }:
+        {
+          imports = [ ../../modules/nixos/profiles/observability ];
+
+          profiles.observability = {
+            enable = true;
+            mimir.enable = true;
+            collectors.metrics.enable = true;
+            # remoteWriteURL defaults to null; with mimir.enable, Prometheus
+            # remote-writes to the local Mimir instance at 127.0.0.1:9009.
+          };
+
+          environment.systemPackages = [ pkgs.curl ];
+        };
     };
 
     testScript = ''
@@ -112,6 +154,46 @@ in
       obs_auth.succeed(
           "auth=$(grep -m1 '^Authorization: Basic ' /tmp/stub/last-request | awk '{print $3}' | tr -d '\\r'); "
           "test \"$(printf '%s' \"$auth\" | base64 -d)\" = 'telemetry:test-secret'"
+      )
+
+      # ── Test 3: OTLP trace pipeline -> Tempo ──────────────────────────────
+      obs_tempo.start()
+      obs_tempo.wait_for_unit("tempo.service")
+      obs_tempo.wait_for_unit("opentelemetry-collector.service")
+
+      obs_tempo.wait_until_succeeds("curl -fsS http://127.0.0.1:3200/ready", timeout=30)
+
+      # Push a span with a known trace ID through the OTLP HTTP receiver.
+      # wait_until_succeeds retries until the otel-collector port is accepting connections.
+      obs_tempo.wait_until_succeeds(
+          "curl -fsS -X POST http://127.0.0.1:14318/v1/traces"
+          " -H 'Content-Type: application/json'"
+          " -d '{\"resourceSpans\":[{\"resource\":{\"attributes\":["
+          "{\"key\":\"service.name\",\"value\":{\"stringValue\":\"test\"}}]},"
+          "\"scopeSpans\":[{\"spans\":[{\"traceId\":\"aabbccddeeff00112233445566778899\","
+          "\"spanId\":\"0011223344556677\",\"name\":\"tempo-e2e-marker\","
+          "\"kind\":1,\"startTimeUnixNano\":\"1000000000\","
+          "\"endTimeUnixNano\":\"2000000000\",\"status\":{}}]}]}]}'",
+          timeout=30,
+      )
+
+      obs_tempo.wait_until_succeeds(
+          "curl -fsS http://127.0.0.1:3200/api/traces/aabbccddeeff00112233445566778899"
+          " | grep -q 'tempo-e2e-marker'",
+          timeout=90,
+      )
+
+      # ── Test 4: Prometheus remoteWrite -> local Mimir ─────────────────────
+      obs_mimir.start()
+      obs_mimir.wait_for_unit("mimir.service")
+      obs_mimir.wait_for_unit("prometheus.service")
+
+      obs_mimir.wait_until_succeeds("curl -fsS http://127.0.0.1:9009/ready", timeout=60)
+
+      obs_mimir.wait_until_succeeds(
+          "curl -fsS 'http://127.0.0.1:9009/prometheus/api/v1/query?query=up'"
+          " | grep -q '\"job\"'",
+          timeout=90,
       )
     '';
   }

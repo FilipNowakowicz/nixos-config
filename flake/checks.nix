@@ -691,7 +691,7 @@ in
       inherit nixpkgs system;
     };
     profile-observability = import ../tests/nixos/profile-observability.nix {
-      inherit nixpkgs system;
+      inherit nixpkgs system inputs;
     };
     profile-hardening = import ../tests/nixos/profile-hardening.nix {
       inherit nixpkgs system;

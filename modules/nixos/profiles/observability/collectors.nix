@@ -612,9 +612,8 @@ in
         "alloy/config.alloy".text = alloyConfig;
       };
 
-      system.activationScripts.exportSystemMetadata.text = lib.mkIf cfg.collectors.metrics.enable "${
-        mkPromScript
-        {
+      system.activationScripts.exportSystemMetadata = lib.mkIf cfg.collectors.metrics.enable {
+        text = "${mkPromScript {
           name = "system_metadata.prom";
           lines = [
             "nixos_system_activated_at_seconds $(${pkgs.coreutils}/bin/date +%s)"
@@ -622,8 +621,8 @@ in
           ++ lib.optionals (config.system.configurationRevision != null) [
             ''nixos_system_revision_info{revision="${config.system.configurationRevision}"} 1''
           ];
-        }
-      }";
+        }}";
+      };
 
       systemd = {
         tmpfiles.rules = lib.mkIf cfg.collectors.metrics.enable [
