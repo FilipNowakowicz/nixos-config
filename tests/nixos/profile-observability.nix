@@ -6,7 +6,6 @@
 {
   nixpkgs,
   system,
-  inputs,
 }:
 let
   pkgs = import nixpkgs { inherit system; };
@@ -16,10 +15,6 @@ in
 }).runTest
   {
     name = "profile-observability";
-
-    # backends.nix pins Tempo via inputs.nixpkgs-tempo-2105; thread inputs into
-    # all nodes so the overlay resolves when obs_tempo builds its closure.
-    node.specialArgs = { inherit inputs; };
 
     nodes = {
       # Local LGTM stack — Alloy ships journal logs to Loki.
