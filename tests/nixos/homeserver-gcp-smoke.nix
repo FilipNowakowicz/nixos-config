@@ -5,7 +5,6 @@
 {
   nixpkgs,
   system,
-  inputs,
   ...
 }:
 let
@@ -25,11 +24,6 @@ in
 }).runTest
   {
     name = "homeserver-gcp-smoke";
-
-    # The observability profile's backends.nix pins Tempo via the `inputs`
-    # module arg (inputs.nixpkgs-tempo-2105); thread it into the node so the
-    # tempo overlay can resolve when the system closure is actually built.
-    node.specialArgs = { inherit inputs; };
 
     nodes.server =
       { pkgs, lib, ... }:
@@ -178,6 +172,11 @@ in
       "server.wait_for_unit(\"grafana.service\")"
       "server.wait_for_unit(\"prometheus.service\")"
       "server.wait_for_unit(\"opentelemetry-collector.service\")"
+      # Tempo 3.x monolithic boot regression guard (issue #252/#267): the
+      # live-store/backend-scheduler pipeline must reach active with its
+      # WAL/marker dirs redirected onto StateDirectory, and serve OTLP.
+      "server.wait_for_unit(\"tempo.service\")"
+      "server.wait_for_open_port(4317)"
       "server.wait_for_unit(\"prometheus-blackbox-exporter.service\")"
       "server.wait_for_unit(\"smoke-test-grafana-auth.service\")"
       "server.wait_for_unit(\"nginx.service\")"
