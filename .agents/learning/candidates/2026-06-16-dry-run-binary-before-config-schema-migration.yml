@@ -1,0 +1,13 @@
+schema: learning-candidate/v1
+id: 2026-06-16-dry-run-binary-before-config-schema-migration
+date: 2026-06-16
+expires: 2026-12-16
+status: open
+
+route: promote-skill
+best_form: skill
+
+evidence: [pr-#335, "modules/nixos/profiles/observability/backends.nix tempo.settings 3.x rewrite verified by nix build of inputs.nixpkgs.legacyPackages tempo (3.0.1) then tempo -config.file=cand.yaml -target=all"]
+observation: "major-version config-schema migrations (e.g. Tempo 2.x->3.x in backends.nix) are validated fastest by building the exact nixpkgs binary and dry-running the candidate YAML (parse + brief boot) BEFORE editing the Nix module; this confirmed exact 3.x keys (live_store/block_builder/backend_scheduler.provider.compaction.compaction.block_retention) and disproved the assumed Kafka requirement for monolithic target=all, where docs/issue text were stale/wrong"
+proposed_upgrade: "add a step to nix-verification-loop (or a new note) for service config-schema bumps: nix build the package from the flake's nixpkgs input, run the binary against the candidate config to confirm keys parse, then edit the module — cheaper and more authoritative than docs or a full closure build"
+type: behavior-upgrade
