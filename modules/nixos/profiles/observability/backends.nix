@@ -1,22 +1,10 @@
 {
   config,
   lib,
-  pkgs,
-  inputs,
   ...
 }:
 let
   cfg = config.profiles.observability;
-
-  # Tempo 3.0 restructured its config schema (the `compactor` key used below
-  # no longer exists) and made the monolithic "all" target depend on a Kafka
-  # broker for its new live-store/ingest path. Stay on the last version whose
-  # config shape matches `tempo.settings` below until that migration is
-  # evaluated (see issue #252 and its follow-up).
-  tempoPkgs = import inputs.nixpkgs-tempo-2105 {
-    inherit (pkgs) system;
-    config.allowUnfree = true;
-  };
 in
 {
   options.profiles.observability = {
@@ -26,14 +14,6 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # The tempo NixOS module hardcodes pkgs.tempo with no package override
-    # option, so pin it via overlay.
-    nixpkgs.overlays = lib.optional cfg.tempo.enable (
-      _final: _prev: {
-        inherit (tempoPkgs) tempo;
-      }
-    );
-
     services = {
       loki = lib.mkIf cfg.loki.enable {
         enable = true;
@@ -95,8 +75,26 @@ in
               wal.path = "/var/lib/tempo/wal";
             };
           };
-          # 7-day trace retention — traces are short-lived diagnostic data.
-          compactor.compaction.block_retention = "168h";
+          # Tempo 3.x runs the monolithic `target: all` through a new
+          # live-store / block-builder / backend-scheduler pipeline (the old
+          # top-level `compactor` block is gone). It does NOT require Kafka in
+          # monolithic mode — the distributor pushes spans in-process to the
+          # live-store, which serves recent queries and flushes blocks to the
+          # `storage.trace` backend above. These components default their WAL
+          # and marker dirs under a hardcoded `/var/tempo`, which the `tempo`
+          # service user (StateDirectory=/var/lib/tempo) cannot create, so
+          # redirect each onto the state dir.
+          live_store = {
+            wal.path = "/var/lib/tempo/live-store/traces";
+            shutdown_marker_dir = "/var/lib/tempo/live-store/shutdown-marker";
+          };
+          block_builder.wal.path = "/var/lib/tempo/block-builder/traces";
+          backend_scheduler = {
+            local_work_path = "/var/lib/tempo/backend-scheduler";
+            # 7-day trace retention — traces are short-lived diagnostic data.
+            # Replaces the 2.x `compactor.compaction.block_retention`.
+            provider.compaction.compaction.block_retention = "168h";
+          };
         };
       };
 

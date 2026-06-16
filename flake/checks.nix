@@ -685,7 +685,7 @@ in
 
   ciTestsFor = system: {
     homeserver-gcp-smoke = import ../tests/nixos/homeserver-gcp-smoke.nix {
-      inherit nixpkgs system inputs;
+      inherit nixpkgs system;
     };
     profile-security = import ../tests/nixos/profile-security.nix {
       inherit nixpkgs system;
