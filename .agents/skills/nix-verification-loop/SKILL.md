@@ -110,3 +110,13 @@ host-denylist derived from `lib/hosts.nix`) and `tests/lib/mini-fleet-flake.nix`
   another ShellCheck-clean construction) and interpolate that variable. Run
   `nix fmt -- --fail-on-change` and ShellCheck together (not just one) before
   pushing a shell-script change to confirm both pass.
+- **Dry-run the real binary against candidate config before a config-schema
+  migration.** For a service config-schema bump (e.g. the Tempo 2.x->3.x
+  rewrite in `modules/nixos/profiles/observability/backends.nix`, PR #335),
+  `nix build` the exact package from the flake's `nixpkgs` input and run the
+  binary directly against the candidate config
+  (`tempo -config.file=cand.yaml -target=all`) before editing the Nix module.
+  This confirms the new schema's exact keys parse and is cheaper and more
+  authoritative than docs or a full closure build — it disproved a stale
+  assumed requirement (Kafka for monolithic `target=all`) that the upstream
+  docs/issue text got wrong.

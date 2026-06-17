@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-14-shellcheck-backtick-treefmt-loop
 date: 2026-06-14
 expires: 2026-12-14
-status: open
+status: promoted
 route: promote-skill
 best_form: skill
 evidence: [PR-#310 lint failed on ShellCheck SC2016 for literal backtick regex/test strings; local `nix fmt -- --fail-on-change` rewrote escaped-backtick double-quoted strings back to single-quoted literals; final fix used `local backtick=$'\x60'` and passed `nix fmt -- --fail-on-change`, ShellCheck, and `bash scripts/validate.sh docs`]
