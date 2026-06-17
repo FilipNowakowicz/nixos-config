@@ -407,6 +407,60 @@ EOF
   printf '%s\n' "$pr_url"
 }
 
+# Guard the per-issue `sync_base` reset: a timed-out/SIGTERM'd inner session
+# can leave edited-but-uncommitted files in the worktree (no branch, no
+# stash) when the NEXT issue's `git reset --hard origin/$BASE_BRANCH` runs —
+# previously an unrecoverable data loss (#338). If the worktree is dirty,
+# commit it as a WIP commit onto the current branch (a fresh
+# wip/preserved-<timestamp> branch if currently on $BASE_BRANCH, since a WIP
+# commit must never land on the base branch itself), push it, and print the
+# branch name so the caller can record it. Prints nothing when the worktree
+# is already clean. Best-effort: never fails the caller (sync_base still
+# proceeds to reset even if preservation itself cannot push).
+preserve_dirty_tree_before_reset() {
+  local dirty_count current_branch target_branch
+  dirty_count=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+  [[ ${dirty_count:-0} -gt 0 ]] || return 0
+
+  current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || printf 'DETACHED')
+  if [[ -n $current_branch && $current_branch != "$BASE_BRANCH" && $current_branch != DETACHED ]]; then
+    target_branch="$current_branch"
+  else
+    target_branch="wip/preserved-$(date -u +%Y%m%dT%H%M%SZ)"
+    git checkout -q -b "$target_branch" 2>/dev/null || git checkout -q "$target_branch" 2>/dev/null || return 1
+  fi
+
+  echo "agent-run-issue: dirty worktree (branch=$current_branch) detected before reset; committing WIP to $target_branch" >&2
+  git add -A
+  if ! git commit -q -m "WIP: preserved by agent-run-issue before reset (uncommitted work safety net)"; then
+    echo "agent-run-issue: WARNING: WIP commit failed despite dirty status; falling back to git stash" >&2
+    if git stash push -u -m "agent-run-issue preserved before reset" >/dev/null 2>&1; then
+      printf 'stash:%s\n' "$(git stash list | head -1 | sed 's/:.*//')"
+      return 0
+    fi
+    echo "agent-run-issue: ERROR: failed to preserve dirty worktree via commit or stash" >&2
+    return 1
+  fi
+
+  if git push -q -u origin "$target_branch" 2>/dev/null; then
+    printf '%s\n' "$target_branch"
+  else
+    echo "agent-run-issue: WARNING: push of preserved branch $target_branch failed; WIP commit kept on the local branch only" >&2
+    printf '%s\n' "$target_branch"
+  fi
+}
+
+sync_base() {
+  echo "agent-run-issue: syncing $BASE_BRANCH with origin ..." >&2
+  SYNC_PRESERVED_REF=$(preserve_dirty_tree_before_reset) || SYNC_PRESERVED_REF=""
+  if [[ -n $SYNC_PRESERVED_REF ]]; then
+    echo "agent-run-issue: preserved a prior dirty worktree before reset: $SYNC_PRESERVED_REF" >&2
+  fi
+  git fetch origin --prune
+  git checkout "$BASE_BRANCH"
+  git reset --hard "origin/$BASE_BRANCH"
+}
+
 # Resolve a path-ish token from issue prose to an existing repo path, or print
 # nothing. Strips trailing prose punctuation and reduces a glob mention
 # (".agents/state/outcomes/*.json") to its longest existing leading directory.
@@ -854,6 +908,62 @@ EOF
     rm -f dirty.txt
   ) || exit 1
 
+  # --- sync_base preserves a dirty tree instead of destroying it (#338) ---
+  local sync_origin sync_repo
+  sync_origin="$tmp/sync-origin.git"
+  sync_repo="$tmp/sync-repo"
+  git init -q --bare "$sync_origin"
+  git init -q "$sync_repo"
+  git -C "$sync_repo" checkout -q -b main
+  git -C "$sync_repo" config user.email test@example.invalid
+  git -C "$sync_repo" config user.name 'Agent Runner Test'
+  git -C "$sync_repo" remote add origin "$sync_origin"
+  printf 'seed\n' >"$sync_repo/README.md"
+  git -C "$sync_repo" add README.md
+  git -C "$sync_repo" commit -q -m seed
+  git -C "$sync_repo" push -q origin main
+  [[ $BASE_BRANCH == main ]] ||
+    die "self-test: sync_base regression assumes the default BASE_BRANCH=main (got: $BASE_BRANCH)"
+  (
+    cd "$sync_repo"
+
+    # Case 1: dirty tree on a feature branch (the issue-320 evidence shape) —
+    # the WIP commit lands on that same branch and is pushed.
+    git checkout -q -b issue-320-test
+    printf 'leftover work\n' >>README.md
+    sync_base
+    [[ -z $(git status --porcelain) ]] ||
+      die "self-test: sync_base must leave a clean worktree after preserving"
+    [[ $(git symbolic-ref --short HEAD) == main ]] ||
+      die "self-test: sync_base must land back on BASE_BRANCH"
+    [[ $SYNC_PRESERVED_REF == issue-320-test ]] ||
+      die "self-test: expected SYNC_PRESERVED_REF=issue-320-test (got: $SYNC_PRESERVED_REF)"
+    git show issue-320-test:README.md | grep -q 'leftover work' ||
+      die "self-test: preserved branch must contain the dirty README.md edit"
+    git ls-remote --heads origin issue-320-test | grep -q issue-320-test ||
+      die "self-test: preserved branch must be pushed to origin"
+
+    # Case 2: dirty tree directly on BASE_BRANCH — must NOT WIP-commit onto
+    # BASE_BRANCH itself; a fresh wip/preserved-* branch is created instead.
+    printf 'leftover on main\n' >>README.md
+    sync_base
+    [[ -z $(git status --porcelain) ]] ||
+      die "self-test: sync_base must leave a clean worktree (BASE_BRANCH case)"
+    [[ $(git symbolic-ref --short HEAD) == main ]] ||
+      die "self-test: sync_base must land back on BASE_BRANCH (BASE_BRANCH case)"
+    [[ $SYNC_PRESERVED_REF == wip/preserved-* ]] ||
+      die "self-test: expected a wip/preserved-* branch when BASE_BRANCH itself was dirty (got: $SYNC_PRESERVED_REF)"
+    git show "$SYNC_PRESERVED_REF:README.md" | grep -q 'leftover on main' ||
+      die "self-test: wip/preserved-* branch must contain the dirty edit"
+    [[ $(git rev-parse main) == $(git rev-parse origin/main) ]] ||
+      die "self-test: BASE_BRANCH must still match origin after preservation+reset"
+
+    # Case 3: clean worktree — sync_base must not create any preservation ref.
+    sync_base
+    [[ -z $SYNC_PRESERVED_REF ]] ||
+      die "self-test: a clean worktree must not produce a SYNC_PRESERVED_REF (got: $SYNC_PRESERVED_REF)"
+  ) || exit 1
+
   # --- issue path-hint construction (#281) ---
   mkdir -p scripts .agents/state/outcomes
   : >scripts/validate.sh
@@ -1138,13 +1248,6 @@ utc_now() {
   date -u '+%Y-%m-%dT%H:%M:%SZ'
 }
 
-sync_base() {
-  echo "agent-run-issue: syncing $BASE_BRANCH with origin ..." >&2
-  git fetch origin --prune
-  git checkout "$BASE_BRANCH"
-  git reset --hard "origin/$BASE_BRANCH"
-}
-
 snapshot_learning_candidates() {
   local output="$1"
   if [[ -d .agents/learning/candidates ]]; then
@@ -1268,6 +1371,7 @@ EOF
 }
 
 LAST_OUTCOME_PATH=""
+SYNC_PRESERVED_REF=""
 
 record_issue_outcome() {
   local issue="$1"
@@ -1284,6 +1388,7 @@ record_issue_outcome() {
   local session_turns="${12:-}"
   local session_duration_ms="${13:-}"
   local session_id="${14:-}"
+  local preserved_ref="${15:-$SYNC_PRESERVED_REF}"
 
   LAST_OUTCOME_PATH=""
   if [[ ! -x .agents/scripts/agent-record-outcome ]]; then
@@ -1303,6 +1408,9 @@ record_issue_outcome() {
   [[ -n $session_duration_ms ]] && session_args+=(--session-duration-ms "$session_duration_ms")
   [[ -n $session_id ]] && session_args+=(--session-id "$session_id")
 
+  local preserved_args=()
+  [[ -n $preserved_ref ]] && preserved_args=(--preserved-ref "$preserved_ref")
+
   if outcome_path=$(
     .agents/scripts/agent-record-outcome \
       --issue "$issue" \
@@ -1317,7 +1425,8 @@ record_issue_outcome() {
       --head-branch "$head_branch" \
       --output-dir "$AGENT_OUTCOME_DIR" \
       "${route_args[@]}" \
-      "${session_args[@]}"
+      "${session_args[@]}" \
+      "${preserved_args[@]}"
   ); then
     LAST_OUTCOME_PATH="$outcome_path"
     echo "agent-run-issue: recorded outcome: $outcome_path" >&2

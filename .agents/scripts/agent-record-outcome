@@ -27,6 +27,9 @@ Options:
   --session-turns <n>               Session turn count.
   --session-duration-ms <n>         Session duration in milliseconds.
   --session-id <id>                 Inner Claude session id.
+  --preserved-ref <ref>              Branch (or "stash:<ref>") that a prior
+                                     dirty worktree was preserved to before
+                                     this run's base-branch reset.
   --output-dir <path>               Output directory (default: .agents/state/outcomes).
   --dry-run                         Print JSON instead of writing a file.
   --self-test                       Run a local smoke test and exit.
@@ -137,6 +140,7 @@ write_outcome() {
   local pr_numbers_file="${13}"
   local route_file="${14}"
   local review_file="${15}"
+  local preserved_ref="${16:-}"
 
   [[ $issue =~ ^[0-9]+$ ]] || die "--issue must be a positive integer"
   [[ $issue -gt 0 ]] || die "--issue must be a positive integer"
@@ -201,6 +205,7 @@ write_outcome() {
       --argjson route "$route_json" \
       --argjson review "$review_json" \
       --argjson session "$session_json" \
+      --arg preserved_ref "$preserved_ref" \
       '{
         schema: $schema,
         id: $id,
@@ -219,7 +224,8 @@ write_outcome() {
         blocker: $blocker
       } + (if $route == null then {} else {route: $route} end)
         + (if $review == null then {} else {review: $review} end)
-        + (if $session == null then {} else {session: $session} end)'
+        + (if $session == null then {} else {session: $session} end)
+        + (if $preserved_ref == "" then {} else {preserved_dirty_tree_ref: $preserved_ref} end)'
   )
 
   printf '%s\n' "$outcome" | jq -e \
@@ -450,6 +456,47 @@ EOF
   )
   printf '%s\n' "$json" | jq -e '(has("review") | not)' >/dev/null
 
+  # --preserved-ref embeds preserved_dirty_tree_ref; omitting it adds nothing.
+  json=$(
+    PATH="$bin:$PATH" \
+      "$script_path" \
+      --issue 1 \
+      --status success \
+      --base-branch main \
+      --repo-dir "$repo" \
+      --started-at '2026-01-01T00:00:00Z' \
+      --finished-at '2026-01-01T00:01:00Z' \
+      --exit-code 0 \
+      --blocker '' \
+      --learning-candidates-file "$candidates" \
+      --output-dir "$out" \
+      --head-branch 'codex/test-outcome-pr' \
+      --pr-number 42 \
+      --preserved-ref 'wip/preserved-2026-01-01T000000Z' \
+      --dry-run
+  )
+  printf '%s\n' "$json" | jq -e \
+    '.preserved_dirty_tree_ref == "wip/preserved-2026-01-01T000000Z"' >/dev/null
+
+  json=$(
+    PATH="$bin:$PATH" \
+      "$script_path" \
+      --issue 1 \
+      --status success \
+      --base-branch main \
+      --repo-dir "$repo" \
+      --started-at '2026-01-01T00:00:00Z' \
+      --finished-at '2026-01-01T00:01:00Z' \
+      --exit-code 0 \
+      --blocker '' \
+      --learning-candidates-file "$candidates" \
+      --output-dir "$out" \
+      --head-branch 'codex/test-outcome-pr' \
+      --pr-number 42 \
+      --dry-run
+  )
+  printf '%s\n' "$json" | jq -e '(has("preserved_dirty_tree_ref") | not)' >/dev/null
+
   printf 'agent-record-outcome self-test passed\n'
 }
 
@@ -471,6 +518,7 @@ session_cost_usd=""
 session_turns=""
 session_duration_ms=""
 session_id=""
+preserved_ref=""
 output_dir="${AGENT_OUTCOME_DIR:-.agents/state/outcomes}"
 dry_run=0
 tmp_pr_numbers=""
@@ -559,6 +607,10 @@ while [[ $# -gt 0 ]]; do
     session_id="${2:?--session-id needs a value}"
     shift 2
     ;;
+  --preserved-ref)
+    preserved_ref="${2:?--preserved-ref needs a value}"
+    shift 2
+    ;;
   --output-dir)
     output_dir="${2:?--output-dir needs a value}"
     shift 2
@@ -591,4 +643,4 @@ finished_at="${finished_at:-$(utc_now)}"
 
 write_outcome "$issue" "$status" "$base_branch" "$repo_dir" "$started_at" \
   "$finished_at" "$exit_code" "$blocker" "$candidates_file" "$output_dir" "$dry_run" \
-  "$pr_head_branch" "${tmp_pr_numbers:-/dev/null}" "$route_file" "$review_file"
+  "$pr_head_branch" "${tmp_pr_numbers:-/dev/null}" "$route_file" "$review_file" "$preserved_ref"
