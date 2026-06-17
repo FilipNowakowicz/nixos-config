@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-13-workflow-file-push-needs-pat-scope
 date: 2026-06-13
 expires: 2026-12-13
-status: open
+status: promoted
 
 route: promote-doc
 best_form: doc

@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-15-worktree-subagent-leaves-primary-checkout-on-foreign-branch
 date: 2026-06-15
 expires: 2026-12-15
-status: open
+status: promoted
 
 route: promote-doc
 best_form: doc

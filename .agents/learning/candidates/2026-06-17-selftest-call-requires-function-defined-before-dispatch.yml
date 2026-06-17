@@ -1,0 +1,17 @@
+schema: learning-candidate/v1
+id: 2026-06-17-selftest-call-requires-function-defined-before-dispatch
+date: 2026-06-17
+expires: 2026-12-17
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [pr-#343, "scripts/agent-run-issue.sh: added self-test coverage inside self_test() for a new sync_base call; running `bash scripts/agent-run-issue.sh --self-test` failed with 'scripts/agent-run-issue.sh: line 922: sync_base: command not found' because sync_base() was defined further down the file, after the `if [[ $self_test == 1 ]]; then self_test; exit 0; fi` dispatch line that invokes self_test(); fixed by moving sync_base()'s definition above that dispatch block"]
+observation: in this repo's --self-test-dispatching scripts (scripts/agent-run-issue.sh, .agents/scripts/agent-record-outcome), bash executes top-to-bottom, so a function self_test() calls must already be defined (its own name() { ... } statement executed) before the self-test dispatch line runs it — not merely appear later in the file for the normal run path, which only reaches those definitions much further down.
+proposed_upgrade: add a note (nix-verification-loop or a shell-authoring section) that when adding self-test coverage for a function in one of these scripts, check whether that function is defined before the `if [[ $self_test == 1 ]]; then self_test; exit 0; fi` dispatch line; if not, move its definition above the dispatch block rather than assuming bash function order is irrelevant.
+type: workflow-gotcha
+dedupe_key: shell:selftest-dispatch-requires-callee-defined-before-it
+triggers: [--self-test, self_test(), "command not found", scripts/agent-run-issue.sh, .agents/scripts/agent-record-outcome]
+targets: [.agents/skills/nix-verification-loop/SKILL.md]
+risk: stale if these scripts' self-test dispatch pattern is restructured
