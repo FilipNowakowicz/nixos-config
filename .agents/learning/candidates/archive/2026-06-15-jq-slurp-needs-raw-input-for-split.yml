@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-15-jq-slurp-needs-raw-input-for-split
 date: 2026-06-15
 expires: 2026-09-15
-status: open
+status: superseded
 
 route: implement-fix
 best_form: none

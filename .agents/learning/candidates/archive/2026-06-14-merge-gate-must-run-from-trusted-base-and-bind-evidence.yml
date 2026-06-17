@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-14-merge-gate-must-run-from-trusted-base-and-bind-evidence
 date: 2026-06-14
 expires: 2026-12-14
-status: open
+status: superseded
 route: implement-fix
 best_form: test
 evidence: ["pr-#290 review (epic #284): agent-merge-gate resolved agent-route/agent-policy-eval/agent-review-evidence-check from the SAME checkout it was gating, so a PR editing those workflow scripts could weaken the classifier that decides the PR is low-risk, then --enable native auto-merge (CI-gated but risk-gate bypassed)", "same gate validated evidence schema + .result==approved but never checked evidence.pr against --pr; reviewer reproduced decision==auto using evidence for PR 999 on docs-only paths"]

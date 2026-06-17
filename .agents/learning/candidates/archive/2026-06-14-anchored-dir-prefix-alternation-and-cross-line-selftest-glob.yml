@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-14-anchored-dir-prefix-alternation-and-cross-line-selftest-glob
 date: 2026-06-14
 expires: 2026-12-14
-status: open
+status: superseded
 route: implement-fix
 best_form: test
 evidence: ["pr-#290", ".agents/governance.yaml protected rule was ^(...|\\.agents/scripts/|\\.claude/hooks/|...)$ — files UNDER those dirs classified low/unprotected by agent-policy-eval; verified `.agents/scripts/agent-merge-gate` returned requires_human_review=false before fix", "agent-policy-eval self-test asserted protected paths with `[[ $out == *$'\\n'\"$p\"$'\\t'*$'\\t'true$'\\t'* ]]` which matched a LATER true row across newlines, masking the bug (green CI)"]

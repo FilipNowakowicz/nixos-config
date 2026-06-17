@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-14-review-stage-matches-only-first-line-of-wrapped-criteria
 date: 2026-06-14
 expires: 2026-12-14
-status: open
+status: superseded
 route: implement-fix
 best_form: test
 evidence: ["pr-#294 review: agent-review-stage check failed 'N acceptance criterion/criteria have no matching evidence' for two wrapped bullets while hand-authoring .agents/state/review/issue-293-pr-294.json", ".agents/scripts/agent-review-stage extract_acceptance_criteria awk emits only the first physical line of a multi-line '## Acceptance criteria' bullet"]

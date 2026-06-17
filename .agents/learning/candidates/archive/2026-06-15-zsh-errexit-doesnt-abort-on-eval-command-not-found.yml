@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-15-zsh-errexit-doesnt-abort-on-eval-command-not-found
 date: 2026-06-15
 expires: 2026-12-15
-status: open
+status: superseded
 
 route: promote-doc
 best_form: doc

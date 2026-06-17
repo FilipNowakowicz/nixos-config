@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-13-observability-profile-test-misses-tempo-mimir
 date: 2026-06-13
 expires: 2026-09-13
-status: open
+status: superseded
 
 route: implement-fix
 best_form: test

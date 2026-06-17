@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-14-runner-strands-completed-work-when-cap-hits-before-pr
 date: 2026-06-14
 expires: 2026-12-14
-status: open
+status: superseded
 
 route: implement-fix
 best_form: test

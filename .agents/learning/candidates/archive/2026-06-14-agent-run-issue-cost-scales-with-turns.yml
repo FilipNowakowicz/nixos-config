@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-14-agent-run-issue-cost-scales-with-turns
 date: 2026-06-14
 expires: 2026-09-12
-status: open
+status: superseded
 
 route: implement-fix
 best_form: test

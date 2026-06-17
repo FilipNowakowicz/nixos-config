@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-15-uncommitted-work-destroyed-by-next-issue-reset
 date: 2026-06-15
 expires: 2026-12-15
-status: open
+status: superseded
 
 route: implement-fix
 best_form: test
