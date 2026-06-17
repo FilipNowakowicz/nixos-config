@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-13-agent-runner-preflight-claude-quota
 date: 2026-06-13
 expires: 2026-09-11
-status: open
+status: superseded
 route: implement-fix
 best_form: test
 evidence: [issue-#259 outcome .agents/state/outcomes/2026-06-13T11:32:49Z-issue-259-failure.json recorded failure after the session log returned "You've hit your session limit"; agent-session output showed no PR was opened before the 429 rate_limit_event]

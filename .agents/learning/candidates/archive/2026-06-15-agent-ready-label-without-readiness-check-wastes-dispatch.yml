@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-15-agent-ready-label-without-readiness-check-wastes-dispatch
 date: 2026-06-15
 expires: 2026-12-15
-status: open
+status: superseded
 
 route: promote-doc
 best_form: doc

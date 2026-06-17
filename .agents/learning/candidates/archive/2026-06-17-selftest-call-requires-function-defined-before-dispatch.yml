@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-17-selftest-call-requires-function-defined-before-dispatch
 date: 2026-06-17
 expires: 2026-12-17
-status: open
+status: superseded
 
 route: promote-doc
 best_form: doc

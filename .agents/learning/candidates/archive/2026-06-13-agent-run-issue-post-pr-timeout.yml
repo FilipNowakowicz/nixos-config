@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-13-agent-run-issue-post-pr-timeout
 date: 2026-06-13
 expires: 2026-09-11
-status: open
+status: superseded
 route: implement-fix
 best_form: test
 evidence: [issue-#257 outcome .agents/state/outcomes/2026-06-13T11:18:11Z-issue-257-failure.json recorded exit_code 124 after PR #271 was already opened; session log .agents/state/sessions/2026-06-13T11:03:08Z-issue-257.log shows commit 78a82d6 pushed and gh pr create returned https://github.com/FilipNowakowicz/nixos-config/pull/271 before timeout during learning capture]
