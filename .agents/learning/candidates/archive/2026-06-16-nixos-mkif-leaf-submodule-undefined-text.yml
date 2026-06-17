@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-16-nixos-mkif-leaf-submodule-undefined-text
 date: 2026-06-16
 expires: 2027-06-16
-status: open
+status: promoted
 
 route: promote-doc
 best_form: doc
@@ -10,8 +10,7 @@ best_form: doc
 evidence: [pr-#334, modules/nixos/profiles/observability/collectors.nix:615-626 before fix]
 observation: setting a required sub-option conditionally (`system.activationScripts.exportSystemMetadata.text = lib.mkIf false "..."`) registers the submodule entry in the NixOS module system even though the leaf definition is filtered out; any access to `.text` then throws "option ... was accessed but has no value defined". pre-existed silently because no metrics-disabled node was in the profile-observability test.
 proposed_upgrade: add a note to CLAUDE.md (or a shared module-authoring note) — when guarding an option that lives inside a submodule type, apply `lib.mkIf` at the attribute level (`attr = lib.mkIf cond { ... }`) not at a required leaf (`attr.leaf = lib.mkIf cond ...`); the latter creates an empty submodule instance that breaks evaluation.
-
-# type: repo-fix
-# dedupe_key: nix-modules:mkif-leaf-creates-empty-submodule
-# triggers: [system.activationScripts, lib.mkIf, submodule, required option]
-# targets: [CLAUDE.md, modules/nixos/profiles/observability/collectors.nix]
+type: repo-fix
+dedupe_key: nix-modules:mkif-leaf-creates-empty-submodule
+triggers: [system.activationScripts, lib.mkIf, submodule, required option]
+targets: [CLAUDE.md, modules/nixos/profiles/observability/collectors.nix]

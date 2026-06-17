@@ -182,3 +182,14 @@ See [`docs/security.md`](docs/security.md) for the full secrets/exposure model.
 - Prefer Home Manager for user-level config over system-level.
 - Keep things declarative — avoid imperative workarounds.
 - Flag anything that might cause issues on rebuild.
+- When guarding an option inside a NixOS submodule type with `lib.mkIf`,
+  apply it at the attribute level (`attr = lib.mkIf cond { ... }`), not on a
+  required leaf (`attr.leaf = lib.mkIf cond ...`). The latter still registers
+  an empty submodule instance even though the leaf definition is filtered
+  out, so any later access to that undefined required leaf throws an
+  "accessed but has no value defined" error (see
+  `modules/nixos/profiles/observability/collectors.nix`'s
+  `exportSystemMetadata`, fixed in PR #334). A profile test node with the
+  guarded feature disabled — e.g. `tests/nixos/profile-observability.nix`'s
+  `obs` node, which doesn't enable `collectors.metrics` — already builds the
+  closure and would catch a regression of this shape.

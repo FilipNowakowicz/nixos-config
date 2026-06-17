@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-16-dry-run-binary-before-config-schema-migration
 date: 2026-06-16
 expires: 2026-12-16
-status: open
+status: promoted
 
 route: promote-skill
 best_form: skill
