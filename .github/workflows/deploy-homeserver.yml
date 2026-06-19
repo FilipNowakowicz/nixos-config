@@ -125,6 +125,7 @@ jobs:
       - name: Resolve self-deploy hostnames locally
         run: |
           set -euo pipefail
+          PATH="/run/current-system/sw/bin:/etc/profiles/per-user/user/bin:$PATH"
           tmp_hosts="$(mktemp)"
           awk '
             $0 !~ /(^|[[:space:]])(homeserver-gcp|homeserver-gcp[.]tail90fc7a[.]ts[.]net)([[:space:]]|$)/ {
