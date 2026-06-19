@@ -122,6 +122,18 @@ jobs:
       # node24 in lib/externals, so a node20 action (checkout@v4) fails to exec.
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
+      - name: Resolve self-deploy hostnames locally
+        run: |
+          set -euo pipefail
+          tmp_hosts="$(mktemp)"
+          awk '
+            $0 !~ /(^|[[:space:]])(homeserver-gcp|homeserver-gcp[.]tail90fc7a[.]ts[.]net)([[:space:]]|$)/ {
+              print
+            }
+          ' /etc/hosts >"$tmp_hosts"
+          printf '%s\n' '127.0.0.1 homeserver-gcp homeserver-gcp.tail90fc7a.ts.net' >>"$tmp_hosts"
+          sudo install -m 0644 "$tmp_hosts" /etc/hosts
+
       - name: Deploy homeserver-gcp
         # The validate job already ran the flake checks on GitHub-hosted
         # runners. Repeating them inside deploy-rs OOM-thrashes the 4 GB host.
