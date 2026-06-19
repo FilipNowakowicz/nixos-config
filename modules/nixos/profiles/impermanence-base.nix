@@ -72,6 +72,7 @@ in
       boot.initrd.systemd.initrdBin = [
         pkgs.btrfs-progs
         pkgs.findutils
+        pkgs.gnused
       ];
 
       boot.initrd.systemd.services.rollback-root = {

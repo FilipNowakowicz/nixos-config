@@ -155,6 +155,25 @@ let
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
 
+  rollbackRootInitrdToolsAvailable = {
+    name = "rollback-root initrd tools are available";
+    check =
+      cfg:
+      let
+        rollbackEnabled = cfg.profiles.impermanence.rollbackRoot.enable or false;
+        initrdBinNames = map lib.getName (cfg.boot.initrd.systemd.initrdBin or [ ]);
+        requiredTools = [
+          "btrfs-progs"
+          "findutils"
+          "gnused"
+        ];
+        missingTools = lib.filter (tool: !(builtins.elem tool initrdBinNames)) requiredTools;
+      in
+      mkResult (
+        !rollbackEnabled || missingTools == [ ]
+      ) "rollback-root.service needs initrdBin package(s): ${lib.concatStringsSep ", " missingTools}";
+  };
+
   homeserverGcpB2BackupUsesCriticalPolicy = {
     name = "homeserver-gcp B2 backup uses critical policy";
     check =
@@ -199,6 +218,7 @@ let
   commonSystemInvariants = [
     invariants.hasStateVersion
     nixpkgsRegistryPinnedToFlakeInput
+    rollbackRootInitrdToolsAvailable
     {
       name = "impermanent hosts have matching disko config";
       check = invariants.checkImpermanentHostHasDiskoConfig;
