@@ -1,0 +1,55 @@
+name: TS Recover homeserver
+
+# Transient incident-recovery helper. The homeserver-gcp tailnet device was
+# deleted/deauthorized and the box is unreachable over the tailnet, but its
+# self-hosted runner is still connected outbound to GitHub. This job runs ON the
+# box via that runner to mint a fresh pre-authorized auth key and re-join the
+# tailnet with `tailscale up --reset`. Remove after recovery.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - nixos
+      - homeserver-gcp
+      - homeserver-deploy
+    timeout-minutes: 10
+    env:
+      TS_API_KEY: ${{ secrets.TAILSCALE_API_KEY }}
+      TS_TAILNET: ${{ secrets.TAILSCALE_TAILNET }}
+    steps:
+      - name: Mint fresh auth key and re-join tailnet
+        run: |
+          set -euo pipefail
+          export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/user/bin:$PATH"
+
+          echo "=== minting pre-authorized tagged auth key ==="
+          resp="$(curl -fsSL -u "$TS_API_KEY:" \
+            "https://api.tailscale.com/api/v2/tailnet/$TS_TAILNET/keys" \
+            -H 'Content-Type: application/json' \
+            --data '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":false,"preauthorized":true,"tags":["tag:server"]}}},"expirySeconds":600,"description":"incident recovery homeserver-gcp"}')" || {
+              echo "key mint request failed"; exit 1; }
+          key="$(printf '%s' "$resp" | grep -oE '"key":"tskey-[^"]+"' | head -1 | sed 's/^"key":"//; s/"$//')"
+          if [ -z "$key" ]; then
+            echo "could not parse minted key from response:"
+            printf '%s\n' "$resp" | sed 's/tskey-[A-Za-z0-9-]*/tskey-<redacted>/g'
+            exit 1
+          fi
+          echo "::add-mask::$key"
+          echo "minted key ok (masked)"
+
+          echo "=== tailscale up --reset ==="
+          sudo /run/current-system/sw/bin/tailscale up --reset \
+            --auth-key="$key" --hostname=homeserver-gcp --timeout=90s
+
+          echo "=== status ==="
+          /run/current-system/sw/bin/tailscale status || true
+          echo "=== ipv4 ==="
+          /run/current-system/sw/bin/tailscale ip -4 || true
