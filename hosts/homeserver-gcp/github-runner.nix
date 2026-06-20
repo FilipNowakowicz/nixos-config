@@ -36,6 +36,16 @@
   systemd.services.github-runner-homeserver-deploy = {
     wants = [ "sops-install-secrets.service" ];
     after = [ "sops-install-secrets.service" ];
+
+    # Self-deploy bootstrap: the deploy workflow runs *inside* this runner unit,
+    # so when its own activation reaches `switch-to-configuration` and that switch
+    # stops/restarts this unit, the runner (and the deploy job it hosts) is
+    # SIGKILLed mid-switch — the job dies with exit 130 ("runner has received a
+    # shutdown signal") and the activation half-applies. `restartIfChanged = false`
+    # leaves the running runner untouched across a switch; it picks up its own
+    # unit changes on the next reboot or manual `systemctl restart`, which is the
+    # standard pattern for a runner that deploys the host it lives on.
+    restartIfChanged = false;
   };
 
   # The deploy workflow runs from a runner on this host and reaches the host

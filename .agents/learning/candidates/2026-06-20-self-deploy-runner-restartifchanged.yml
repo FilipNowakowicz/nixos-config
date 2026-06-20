@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-06-20-self-deploy-runner-restartifchanged
+date: 2026-06-20
+expires: 2026-12-20
+status: open
+
+route: promote-doc
+best_form: invariant
+
+evidence: [hosts/homeserver-gcp/github-runner.nix:36, "gh runs 27846132207/27833490987/27832410467: deploy ends 'stopping ... github-runner-homeserver-deploy.service' then exit 130 'runner has received a shutdown signal'"]
+observation: a self-hosted github-runner that activates the host it lives on is SIGKILLed mid-switch when switch-to-configuration stops/restarts its own unit; the deploy job (a child of the unit) dies exit 130 and activation half-applies. fix is restartIfChanged=false on the runner unit.
+proposed_upgrade: add lib/invariants.nix assert that any github-runner unit deploying its own host carries restartIfChanged=false; or document the pattern in hosts/homeserver-gcp/CLAUDE.md gotchas.
+type: repo-fix
+dedupe_key: homeserver-gcp:self-deploy-runner-killed-mid-switch
+triggers: [hosts/homeserver-gcp/github-runner.nix, "deploy-homeserver.yml exit 130"]
+targets: [hosts/homeserver-gcp/github-runner.nix, lib/invariants.nix]
