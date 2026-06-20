@@ -75,7 +75,11 @@ let
       };
       tailscale = {
         tag = "server";
-        ip4 = "100.103.234.89";
+        # Re-registered to .88 after a forced tailnet re-join on 2026-06-21
+        # (the .89 device was deleted upstream; Tailscale assigns the lowest
+        # free IP, and .88 < .89, so .89 is unreclaimable). The tailnet global
+        # DNS nameserver override was repointed to .88 to match.
+        ip4 = "100.103.234.88";
         acceptFrom.workstation = [
           22
           443

@@ -176,6 +176,15 @@ in
       enable = true;
       openFirewall = true;
       authKeyFile = config.sops.secrets.tailscale_auth_key.path;
+      # `--reset` makes the boot-time `tailscale up` normalize every pref to the
+      # declared set instead of reconciling against persisted on-disk prefs.
+      # Without it, any drift in /var/lib/tailscale (e.g. a stale RouteAll /
+      # Hostname pref) makes `tailscale up` abort with "changing settings
+      # requires mentioning all non-default flags", so tailscaled-autoconnect
+      # fails, the node never joins, SSH (tailnet-only) is unreachable, and the
+      # off-box heartbeat fires — exactly the 2026-06-21 outage. Resetting on
+      # every autoconnect keeps this host purely declarative and self-healing.
+      extraUpFlags = [ "--reset" ];
     };
 
     systemd-failure-notify = {
