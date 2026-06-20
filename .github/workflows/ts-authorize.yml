@@ -1,0 +1,41 @@
+name: TS Authorize device
+
+# Transient operational helper: authorize a tailnet device via the Tailscale API
+# using the existing tailnet-management secrets. Added for incident recovery
+# (homeserver-gcp deauthorized); remove after use.
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: device hostname to authorize
+        default: homeserver-gcp
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authorize device via Tailscale API
+        env:
+          TS_API_KEY: ${{ secrets.TAILSCALE_API_KEY }}
+          TS_TAILNET: ${{ secrets.TAILSCALE_TAILNET }}
+          DEVICE: ${{ inputs.device }}
+        run: |
+          set -euo pipefail
+          devices="$(curl -fsSL -u "$TS_API_KEY:" \
+            "https://api.tailscale.com/api/v2/tailnet/$TS_TAILNET/devices")"
+          echo "=== tailnet devices (hostname / authorized) ==="
+          echo "$devices" | jq -r '.devices[] | "\(.hostname)\t\(.name)\tauthorized=\(.authorized)"'
+          id="$(echo "$devices" | jq -r --arg d "$DEVICE" \
+            '.devices[] | select((.hostname==$d) or (.name|startswith($d+"."))) | .id' | head -1)"
+          echo "=== resolved device id: ${id:-<none>} ==="
+          if [ -z "$id" ]; then echo "device '$DEVICE' not found"; exit 1; fi
+          curl -fsSL -u "$TS_API_KEY:" -X POST \
+            "https://api.tailscale.com/api/v2/device/$id/authorized" \
+            -H 'Content-Type: application/json' \
+            --data '{"authorized": true}'
+          echo "=== POSTed authorized=true for $id ==="
