@@ -1,14 +1,16 @@
-name: TS Authorize device
+name: TS Fix DNS nameserver
 
-# Transient operational helper: authorize a tailnet device via the Tailscale API
-# using the existing tailnet-management secrets. Added for incident recovery
-# (homeserver-gcp deauthorized); remove after use.
+# Transient incident-recovery helper: the homeserver-gcp AdGuard resolver moved
+# from 100.103.234.89 to 100.103.234.88 after a forced tailnet re-registration,
+# but the tailnet global nameserver override still points at the dead .89,
+# breaking DNS tailnet-wide (and the homeserver's own heartbeat). Repoint it.
+# Remove after recovery.
 on:
   workflow_dispatch:
     inputs:
-      device:
-        description: device hostname to authorize
-        default: homeserver-gcp
+      nameserver:
+        description: new global nameserver IP
+        default: 100.103.234.88
         required: true
         type: string
 
@@ -16,26 +18,24 @@ permissions:
   contents: read
 
 jobs:
-  authorize:
+  fix-dns:
     runs-on: ubuntu-latest
     steps:
-      - name: Authorize device via Tailscale API
+      - name: Repoint tailnet global nameserver
         env:
           TS_API_KEY: ${{ secrets.TAILSCALE_API_KEY }}
           TS_TAILNET: ${{ secrets.TAILSCALE_TAILNET }}
-          DEVICE: ${{ inputs.device }}
+          NS: ${{ inputs.nameserver }}
         run: |
           set -euo pipefail
-          devices="$(curl -fsSL -u "$TS_API_KEY:" \
-            "https://api.tailscale.com/api/v2/tailnet/$TS_TAILNET/devices")"
-          echo "=== tailnet devices (hostname / authorized) ==="
-          echo "$devices" | jq -r '.devices[] | "\(.hostname)\t\(.name)\tauthorized=\(.authorized)"'
-          id="$(echo "$devices" | jq -r --arg d "$DEVICE" \
-            '.devices[] | select((.hostname==$d) or (.name|startswith($d+"."))) | .id' | head -1)"
-          echo "=== resolved device id: ${id:-<none>} ==="
-          if [ -z "$id" ]; then echo "device '$DEVICE' not found"; exit 1; fi
+          echo "=== current nameservers ==="
+          curl -fsSL -u "$TS_API_KEY:" \
+            "https://api.tailscale.com/api/v2/tailnet/$TS_TAILNET/dns/nameservers" | jq .
+          echo "=== setting nameservers to [$NS] ==="
           curl -fsSL -u "$TS_API_KEY:" -X POST \
-            "https://api.tailscale.com/api/v2/device/$id/authorized" \
+            "https://api.tailscale.com/api/v2/tailnet/$TS_TAILNET/dns/nameservers" \
             -H 'Content-Type: application/json' \
-            --data '{"authorized": true}'
-          echo "=== POSTed authorized=true for $id ==="
+            --data "{\"dns\":[\"$NS\"]}" | jq .
+          echo "=== confirm ==="
+          curl -fsSL -u "$TS_API_KEY:" \
+            "https://api.tailscale.com/api/v2/tailnet/$TS_TAILNET/dns/nameservers" | jq .
