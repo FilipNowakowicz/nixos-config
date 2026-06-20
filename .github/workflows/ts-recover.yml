@@ -45,11 +45,16 @@ jobs:
           echo "::add-mask::$key"
           echo "minted key ok (masked)"
 
-          echo "=== tailscale up --reset ==="
-          sudo /run/current-system/sw/bin/tailscale up --reset \
-            --auth-key="$key" --hostname=homeserver-gcp --timeout=90s
+          # The runner unit runs with NoNewPrivileges=true, so sudo cannot
+          # escalate inside the job. Escalate through a loopback sshd session
+          # (the self-deploy key authorizes user@127.0.0.1, same path deploy-rs
+          # uses); loopback is exempt from the tailscale0-only SSH firewall.
+          SSH="ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 user@127.0.0.1"
+
+          echo "=== tailscale up --reset (via loopback sudo) ==="
+          $SSH "sudo /run/current-system/sw/bin/tailscale up --reset --auth-key='$key' --hostname=homeserver-gcp --timeout=90s"
 
           echo "=== status ==="
-          /run/current-system/sw/bin/tailscale status || true
+          $SSH "/run/current-system/sw/bin/tailscale status" || true
           echo "=== ipv4 ==="
-          /run/current-system/sw/bin/tailscale ip -4 || true
+          $SSH "/run/current-system/sw/bin/tailscale ip -4" || true
