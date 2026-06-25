@@ -124,6 +124,44 @@ rec {
         "deploy target(s) missing tailnetFQDN or tailscale metadata: ${formatList offenders}"
     );
 
+  # AdGuard on homeserver-gcp (tag:server) is the tailnet-wide global DNS
+  # nameserver, so any tailnet host whose tag is not admitted to it on port 53
+  # has NO working external resolver — name resolution times out silently. This
+  # recurred twice (gcp-agent, then gcp-builder, whose offloaded builds stalled
+  # on cache.nixos.org). Guard against a third recurrence: every tag declared by
+  # an active host in the registry must appear in the DNS server's
+  # tailscale.acceptFrom with port 53, unless explicitly exempted.
+  adguardDnsServerHostName = "homeserver-gcp";
+  adguardDnsPort = 53;
+  # tag:server is homeserver-gcp's own tag: it *is* the AdGuard host and
+  # resolves locally, so it neither needs nor grants itself a :53 inbound rule.
+  adguardDnsGrantExemptTags = [ "server" ];
+
+  checkTailnetTagsHaveAdguardDnsGrant =
+    hostRegistry:
+    let
+      dnsServer = hostRegistry.${adguardDnsServerHostName} or { };
+      acceptFrom = dnsServer.tailscale.acceptFrom or { };
+      tagGranted = tag: builtins.elem adguardDnsPort (acceptFrom.${tag} or [ ]);
+      declaredTags = uniqueSorted (
+        lib.concatMap (
+          hostMeta:
+          lib.optional (
+            (hostMeta.status or null) == "active" && (hostMeta.tailscale.tag or null) != null
+          ) hostMeta.tailscale.tag
+        ) (builtins.attrValues hostRegistry)
+      );
+      missing = lib.filter (
+        tag: !(builtins.elem tag adguardDnsGrantExemptTags) && !(tagGranted tag)
+      ) declaredTags;
+    in
+    mkResult (missing == [ ]) (
+      if missing == [ ] then
+        "every active tailnet tag is admitted to AdGuard DNS (port ${toString adguardDnsPort}) or explicitly exempt"
+      else
+        "tailnet tag(s) missing AdGuard DNS (port ${toString adguardDnsPort}) grant in ${adguardDnsServerHostName}.tailscale.acceptFrom: ${formatList missing}"
+    );
+
   collectDiskoMountpoints =
     value:
     if builtins.isAttrs value then
