@@ -211,6 +211,9 @@ in
     // invariantChecks
     // {
       pre-commit = preCommitCheck;
+      lib-dashboards = import ../tests/lib/dashboards.nix {
+        inherit nixpkgs system;
+      };
       lib-generators = import ../tests/lib/generators.nix {
         inherit nixpkgs system;
       };

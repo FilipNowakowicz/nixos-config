@@ -10,6 +10,35 @@ credible from a clean clone.
 
 ---
 
+## Status (2026-06-25)
+
+The reusable surface is largely shipped. Tracks 1–4 below are done unless noted:
+
+- **Track 1 (modules):** promoted as flake outputs with docs and fixture tests —
+  `nixosModules.services-hardened`, `observability-stack`, `observability-client`,
+  `profiles-base`/`-desktop`/`-security`; `homeModules.runtime-theme`, `neovim`,
+  `profiles-base`/`-desktop`, `profiles-workflow-packs`.
+- **Track 1 (lib):** the three #127 "promote" candidates are done —
+  `lib/dashboards.nix` and `lib/generators.nix` are now the `flake.lib.dashboards`
+  / `flake.lib.generators` outputs with clean-clone boundary tests
+  (`lib-dashboards`, `lib-generators`) and a public doc
+  ([`docs/modules/lib-helpers.md`](modules/lib-helpers.md));
+  `home/profiles/desktop-runtime.nix` is documented as the `runtime-theme`
+  "what to theme" contract and pinned by the `theme-module` check.
+- **Track 2 (clean clone):** `nix run .#doctor` exists (golden-tested via
+  `lib-doctor`), alongside `inventory-json` / `tailscale-acl` apps and committed
+  sanitized samples under `docs/samples/`.
+- **Track 3 (example fleet):** [`examples/mini-fleet`](../examples/mini-fleet)
+  exists (workstation + server hosts) importing only flake outputs, with the
+  `lib-mini-fleet-flake` static check and `mini-fleet-example-fixture`.
+- **Track 4 (artifacts) + README:** the front page leads with the reusable-module
+  table, a "what to copy first" section, and `nix run .#doctor`.
+
+Remaining is distribution work (launch post, GitHub topics) and ongoing "keep it
+green from a clean clone" maintenance, not new extraction engineering.
+
+---
+
 ## Positioning
 
 The strongest public story is not "my dotfiles". It is:
@@ -289,9 +318,20 @@ Of 9 candidates surveyed: **3 promote** (`lib/dashboards.nix`,
 reference** (`control-center`, the Hyprland/Waybar scripts, the shared host
 baseline profiles, `gcp-builder`), and **2 reject** (the pubkey lists, and
 `workflow-packs` as a _new_ candidate — it is already an existing output).
-The three promote candidates are small, identifier-free, pure-function/list
-modules whose boundary tests are cheap `nix eval` fixtures — a good shape for
-follow-up scoped issues linked back to #122.
+
+**Done (2026-06-25).** All three promote candidates landed:
+
+- `lib/dashboards.nix` → `flake.lib.dashboards`, with the `lib-dashboards`
+  clean-clone boundary test (imports the bare file with stock `nixpkgs.lib`).
+- `lib/generators.nix` → `flake.lib.generators`, covered by the existing
+  `lib-generators` / `lib-generators-structured` boundary tests.
+- `home/profiles/desktop-runtime.nix` → documented as the `runtime-theme`
+  "what to theme" contract, with the exact package list pinned by the
+  `theme-module` check (`testRuntimeThemeContract`); both consumers import the
+  one file, so the install list and switcher inputs cannot drift.
+
+The two lib helpers share a public doc:
+[`docs/modules/lib-helpers.md`](modules/lib-helpers.md).
 
 ## Star Growth Checklist
 
@@ -317,9 +357,15 @@ Distribution work:
 
 ## Current Next Moves
 
-1. Add import examples for `services-hardened` and `runtime-theme`.
-2. Add a fake `examples/mini-fleet` only after the examples would validate.
-3. Make `doctor` the main public entrypoint and ensure its output is friendly to
-   someone who does not know the private fleet.
-4. Keep host configs personal and documented as reference implementations rather
+The engineering moves from the original plan have landed (see
+[Status](#status-2026-06-25)): import examples for the reusable modules,
+`examples/mini-fleet`, and `doctor` as the public entrypoint all exist. What
+remains is distribution and upkeep, not new module work:
+
+1. Write one concise launch post showing the architecture (not a generic
+   "dotfiles" announcement), and pin the discoverable GitHub topics listed under
+   [Distribution work](#star-growth-checklist).
+2. Keep `nix run .#doctor` and the clean-clone checks green from a fresh clone;
+   turn repeated visitor questions into docs or tests rather than one-off replies.
+3. Keep host configs personal and documented as reference implementations rather
    than pretending they are copy-paste deploy targets.

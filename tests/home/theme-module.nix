@@ -106,6 +106,22 @@ let
       expected = true;
     };
 
+    # `home/profiles/desktop-runtime.nix` is the single shared list of
+    # theme-reloaded Wayland UI packages, consumed by BOTH the desktop install
+    # list (home/profiles/desktop.nix) and this module's themeSwitch
+    # runtimeInputs (home/theme/module.nix). Pin its exact contents so the
+    # documented `runtime-theme` "what to theme" contract cannot silently drift;
+    # both consumers import this same file, so the two lists stay identical by
+    # construction and this assertion guards the shared source itself.
+    testRuntimeThemeContract = {
+      expr = map (p: p.pname) (import ../../home/profiles/desktop-runtime.nix { inherit pkgs; });
+      expected = [
+        "kitty"
+        "waybar"
+        "swaybg"
+      ];
+    };
+
     # The docs/theme.md `homeModules.runtime-theme` example — overriding
     # `themeDir`/`activeFile` for a stranger's own dotfiles repo, evaluated
     # against nixpkgs only with no `hosts/` import — must evaluate and

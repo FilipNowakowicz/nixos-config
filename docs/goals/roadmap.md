@@ -11,9 +11,9 @@ Host-specific MacBook follow-ups live in
 
 ## Active Candidates
 
-| Area   | Item                      | Why active now                                                                                                                  |
-| :----- | :------------------------ | :------------------------------------------------------------------------------------------------------------------------------ |
-| Public | Public adoption packaging | The repo is being positioned as reusable public NixOS infrastructure, tracked in [`public-adoption.md`](../public-adoption.md). |
+| Area   | Item                      | Why active now                                                                                                                                                                                          |
+| :----- | :------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Public | Public adoption packaging | Reusable-module engineering (Tracks 1–4) is **done** as of 2026-06-25; only distribution (launch post, GitHub topics) and clean-clone upkeep remain. See [`public-adoption.md`](../public-adoption.md). |
 
 ---
 

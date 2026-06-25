@@ -232,6 +232,17 @@
           description = "Python dev shell with uv, ruff, and basedpyright";
         };
 
+        # ── Reusable pure-function libraries ────────────────────────────────
+        # Identifier-free helper libraries that evaluate with stock
+        # `nixpkgs.lib` and no fleet context, so they can be imported into a
+        # separate flake. Boundary tests (`lib-dashboards`, `lib-generators`)
+        # prove they build outside the personal host assembly. See
+        # `docs/modules/lib-helpers.md`.
+        lib = {
+          dashboards = import ./lib/dashboards.nix;
+          generators = import ./lib/generators.nix { inherit lib; };
+        };
+
         # ── Modules ─────────────────────────────────────────────────────────
         nixosModules = {
           observability-stack = import ./modules/nixos/profiles/observability;
