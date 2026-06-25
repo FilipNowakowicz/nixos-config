@@ -1,0 +1,13 @@
+schema: learning-candidate/v1
+id: 2026-06-21-tailscale-autoconnect-reset
+date: 2026-06-21
+expires: 2026-12-21
+status: open
+route: promote-doc
+best_form: doc
+evidence: ["hosts/homeserver-gcp/default.nix services.tailscale.extraUpFlags=[\"--reset\"] (6c87d72)", "serial console: tailscaled-autoconnect-start Error: changing settings via 'tailscale up' requires mentioning all non-default flags; suggested 'tailscale up --auth-key=... --accept-routes --hostname=homeserver-gcp'", "nixpkgs tailscaled-autoconnect-start runs `tailscale up --auth-key ... ${extraUpFlags}` only in NeedsLogin/NeedsMachineAuth/Stopped states"]
+observation: On a tailnet-only-SSH host, tailscaled-autoconnect runs `tailscale up` without --reset; drifted persisted prefs (RouteAll/Hostname in /var/lib/tailscale/tailscaled.state) make boot-time up abort with "changing settings requires mentioning all non-default flags", so the node never joins, SSH is unreachable, and the dead-man heartbeat fires (2026-06-21 homeserver-gcp outage).
+proposed_upgrade: Document (and consider an assertion) that any host whose SSH is tailscale0-only should set services.tailscale.extraUpFlags=["--reset"] so autoconnect normalizes prefs declaratively and cannot self-wedge on pref drift.
+type: repo-fix
+dedupe_key: tailscale:autoconnect-pref-drift-wedge-no-reset
+targets: [hosts/homeserver-gcp/default.nix, docs/operations.md, lib/invariants.nix]
