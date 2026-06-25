@@ -218,7 +218,8 @@ def act_keep_awake(on):
         if _inhibit_proc is None or _inhibit_proc.poll() is not None:
             try:
                 _inhibit_proc = subprocess.Popen(
-                    ["systemd-inhibit", "--what=idle:sleep",
+                    ["systemd-inhibit",
+                     "--what=handle-lid-switch:idle:sleep",
                      "--who=Control Center", "--why=Keep Awake",
                      "--mode=block", "sleep", "infinity"],
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
