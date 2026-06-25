@@ -239,6 +239,7 @@
         # prove they build outside the personal host assembly. See
         # `docs/modules/lib-helpers.md`.
         lib = {
+          acl = aclGen;
           dashboards = import ./lib/dashboards.nix;
           generators = import ./lib/generators.nix { inherit lib; };
         };

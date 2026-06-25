@@ -1,9 +1,10 @@
-# `lib.dashboards` and `lib.generators`
+# `lib.acl`, `lib.dashboards`, and `lib.generators`
 
-Two small, identifier-free pure-function libraries exposed as flake outputs so
-they can be reused without importing any `hosts/` assembly. Neither references a
-hostname, key, age identity, disk ID, or any other private value; both evaluate
-with stock `nixpkgs.lib` and nothing else.
+Three small, identifier-free pure-function libraries exposed as flake outputs so
+they can be reused without importing any `hosts/` assembly. None references a
+hostname, key, age identity, disk ID, or any other private value; all evaluate
+with stock `nixpkgs.lib` and nothing else (`lib.acl` operates only on the
+registry attrset you pass it).
 
 ```nix
 # flake.nix
@@ -13,6 +14,7 @@ with stock `nixpkgs.lib` and nothing else.
   outputs =
     { nixos-fleet, ... }:
     let
+      acl = nixos-fleet.lib.acl;
       dash = nixos-fleet.lib.dashboards;
       gen = nixos-fleet.lib.generators;
     in
@@ -94,13 +96,47 @@ DSL — keep one-off behavior in `extraConfig` rather than expanding it. The All
 renderer covers the component/attribute/block subset this fleet emits, not the
 entire River grammar.
 
+## `lib.acl` — Tailscale ACLs from a host registry
+
+`lib.acl.mkAcl` derives a complete Tailscale ACL (`{ tagOwners; acls; }`) from a
+host-registry attrset: each host's `tailscale.tag` becomes a tag owner, and its
+`tailscale.acceptFrom` relationships become tag-to-tag `tag:src -> tag:dst:port`
+rules. Rules are tag-to-tag (not per-FQDN) so new nodes join the right group
+automatically, and it fails fast at eval if an `acceptFrom` references a tag no
+host carries. Imported as a function of `{ lib }`; the flake output is already
+applied with `nixpkgs.lib`.
+
+```nix
+let
+  acl = nixos-fleet.lib.acl;
+in
+builtins.toJSON (acl.mkAcl {
+  laptop.tailscale.tag = "workstation";
+  server.tailscale = {
+    tag = "server";
+    acceptFrom.workstation = [ 22 443 ];
+  };
+})
+```
+
+This is the same generator behind `nix run .#tailscale-acl`; see
+[`docs/tailscale-acl.md`](../tailscale-acl.md) for the full registry/ACL model
+and [`docs/samples/tailscale-acl.sample.json`](../samples/tailscale-acl.sample.json)
+for a committed sanitized output.
+
+**Non-goals.** It emits only `tagOwners` and tag-to-tag `acls` plus one
+break-glass `autogroup:admin` rule — no per-node ACLs, SSH rules, or
+autogroups beyond admin. Express anything outside that shape directly in your
+own `acl.hujson`.
+
 ## Clean-clone validation
 
-Both libraries have boundary tests that import the bare file with stock
-`nixpkgs.lib` and assert output shape, proving they evaluate with zero fleet
-context:
+Each library has a boundary test that imports the bare file with stock
+`nixpkgs.lib` (and, for `acl`, a synthetic `example.ts.net` registry) and asserts
+output shape, proving they evaluate with zero fleet context:
 
 ```bash
+nix build .#checks.x86_64-linux.lib-acl
 nix build .#checks.x86_64-linux.lib-dashboards
 nix build .#checks.x86_64-linux.lib-generators
 ```
@@ -110,4 +146,5 @@ You can also inspect the live outputs directly:
 ```bash
 nix eval --json .#lib.dashboards.gridPos --apply 'f: f {}'
 nix eval .#lib.generators.toAlloyHCL --apply 'f: f []'
+nix run .#tailscale-acl   # lib.acl.mkAcl over this fleet's registry
 ```

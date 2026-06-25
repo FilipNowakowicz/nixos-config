@@ -25,6 +25,9 @@ The reusable surface is largely shipped. Tracks 1–4 below are done unless note
   ([`docs/modules/lib-helpers.md`](modules/lib-helpers.md));
   `home/profiles/desktop-runtime.nix` is documented as the `runtime-theme`
   "what to theme" contract and pinned by the `theme-module` check.
+  `lib/acl.nix` (the Tailscale ACL generator behind `nix run .#tailscale-acl`)
+  was promoted the same way — `flake.lib.acl`, covered by the existing `lib-acl`
+  boundary test and documented alongside the other two helpers.
 - **Track 2 (clean clone):** `nix run .#doctor` exists (golden-tested via
   `lib-doctor`), alongside `inventory-json` / `tailscale-acl` apps and committed
   sanitized samples under `docs/samples/`.
