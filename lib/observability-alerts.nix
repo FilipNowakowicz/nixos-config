@@ -11,12 +11,12 @@
 #   ResticRestoreCanaryStale — restore canary older than 2 d
 #   RestoreDrillStale — full-service restore drill older than ~100 d (quarterly + buffer)
 #   HeartbeatPingStale — external heartbeat ping older than 15 min
-#   VulnixScanStale   — no successful scan in 26 h (daily + 2 h buffer)
 #
-# Note: the live host intentionally exports only vulnix scan freshness, not CVE
-# counts. Raw NVD/CPE matches produce version churn and name-collision noise on
-# deployed generations; the authoritative CVE signal is the CI/current-closure
-# `scripts/validate.sh cve-reports` run.
+# Note: CVE scanning is intentionally CI-only. vulnix loads the full NVD dataset
+# (~3 GB RSS) which OOMs the 3.8 GB homeserver-gcp host; the authoritative,
+# gating CVE signal is the scheduled `.github/workflows/cve-scan.yml` run
+# (`scripts/validate.sh cve-reports`), which scans the flake-built closures with
+# real advisories + severity. No live-host vulnix scan or freshness alert exists.
 #   LynisScoreLow     — hardening index < 60 for 0 m
 #   LynisScanStale    — no successful audit in 26 h (daily + 2 h buffer)
 #   BlackboxProbeFailed — blackbox HTTP probe failing for 5 min
@@ -119,16 +119,6 @@
             annotations = {
               summary = "Lynis audit stale on {{ $labels.instance }}";
               description = "Last audit {{ $value | printf \"%.1f\" }}h ago (threshold: 26h). Check lynis-audit.service logs.";
-            };
-          }
-          {
-            alert = "VulnixScanStale";
-            expr = "(time() - vulnix_scan_timestamp_seconds) / 3600 > 26";
-            for = "0m";
-            labels.severity = "warning";
-            annotations = {
-              summary = "Vulnix scan stale on {{ $labels.instance }}";
-              description = "Last CVE scan {{ $value | printf \"%.1f\" }}h ago (threshold: 26h). Check vulnix-scan.service logs.";
             };
           }
           {

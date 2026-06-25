@@ -487,28 +487,6 @@ in
             ];
           })
           (dash.statPanel {
-            id = 34;
-            title = "Vulnix Scan Age · gcp";
-            ds = dash.mimirDS;
-            gridPos = dash.gridPos {
-              x = 20;
-              y = 34;
-              w = 4;
-              h = 5;
-            };
-            decimals = 0;
-            colorMode = "none";
-            graphMode = "none";
-            unit = "h";
-            thresholds = invThresholds 26 48;
-            targets = [
-              (dash.target {
-                expr = "(time() - vulnix_scan_timestamp_seconds) / 3600";
-                legendFormat = "age";
-              })
-            ];
-          })
-          (dash.statPanel {
             id = 35;
             title = "Restore Drill Age (d) · gcp";
             ds = dash.mimirDS;
