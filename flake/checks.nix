@@ -217,6 +217,7 @@ let
 
   commonSystemInvariants = [
     invariants.hasStateVersion
+    invariants.tailscaleAutoconnectNormalizesPrefs
     nixpkgsRegistryPinnedToFlakeInput
     rollbackRootInitrdToolsAvailable
     {

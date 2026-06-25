@@ -447,6 +447,26 @@ rec {
     check = cfg: require (cfg.system.stateVersion != null) "system.stateVersion must be set";
   };
 
+  # A host that joins the tailnet headlessly via an auth key runs `tailscale up`
+  # at every boot through tailscaled-autoconnect. Without --reset, drifted
+  # persisted prefs make that `up` abort ("changing settings via 'tailscale up'
+  # requires mentioning all non-default flags"), so the node never joins and a
+  # tailnet-only-SSH/DNS host goes dark (2026-06-21 homeserver-gcp outage; the
+  # same wedge latent on gcp-builder/gcp-agent until they too set --reset).
+  # Interactive hosts (no authKeyFile) never autoconnect and are exempt.
+  tailscaleAutoconnectNormalizesPrefs = {
+    name = "tailscale auth-key autoconnect normalizes prefs with --reset";
+    check =
+      cfg:
+      let
+        ts = cfg.services.tailscale;
+        autoconnect = (ts.enable or false) && (ts.authKeyFile or null) != null;
+        hasReset = builtins.elem "--reset" (ts.extraUpFlags or [ ]);
+      in
+      require (!autoconnect || hasReset)
+        "services.tailscale.extraUpFlags must contain \"--reset\" on auth-key autoconnect hosts so boot-time `tailscale up` normalizes prefs and cannot self-wedge on pref drift";
+  };
+
   sshHostsEnforceHardenedFail2ban = {
     name = "SSH hosts enforce hardened fail2ban";
     check = cfg: if !cfg.services.openssh.enable then true else checkHardenedFail2ban cfg;
