@@ -80,16 +80,22 @@ let
         # free IP, and .88 < .89, so .89 is unreclaimable). The tailnet global
         # DNS nameserver override was repointed to .88 to match.
         ip4 = "100.103.234.88";
-        acceptFrom.workstation = [
-          22
-          443
-          53 # AdGuard DNS
-          3001 # AdGuard web UI
-        ];
-        # gcp-agent has no other resolver: AdGuard is the tailnet-wide global
-        # nameserver, so without this `gh`/`claude` on gcp-agent cannot
-        # resolve any external hostname (DNS queries time out).
-        acceptFrom.agent = [ 53 ];
+        acceptFrom = {
+          workstation = [
+            22
+            443
+            53 # AdGuard DNS
+            3001 # AdGuard web UI
+          ];
+          # gcp-agent has no other resolver: AdGuard is the tailnet-wide global
+          # nameserver, so without this `gh`/`claude` on gcp-agent cannot
+          # resolve any external hostname (DNS queries time out).
+          agent = [ 53 ];
+          # gcp-builder is in the same bind: AdGuard is its only resolver, so
+          # without DNS it cannot resolve cache.nixos.org and every offloaded
+          # closure build stalls on cache lookups. Grant tag:builder -> :53.
+          builder = [ 53 ];
+        };
       };
       deploy.sshUser = "user";
     };
