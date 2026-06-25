@@ -8,6 +8,42 @@ let
   pkgs = nixpkgs.legacyPackages.${system};
   invariants = import ../../lib/invariants.nix { inherit lib pkgs; };
 
+  # The real host registry, so the AdGuard DNS-grant invariant is validated
+  # against live data in merge-gate: a newly-added tagged host that forgets its
+  # :53 grant fails this test, not a silent DNS outage on the new host.
+  realHostRegistry = import ../../lib/hosts.nix;
+
+  # Synthetic registry for the AdGuard DNS-grant invariant: homeserver-gcp
+  # (tag:server, exempt) admits workstation and builder on :53; the inactive
+  # `legacy` host is excluded by the status filter.
+  dnsGrantRegistry = {
+    main = {
+      status = "active";
+      tailscale.tag = "workstation";
+    };
+    homeserver-gcp = {
+      status = "active";
+      tailscale = {
+        tag = "server";
+        acceptFrom = {
+          workstation = [
+            22
+            53
+          ];
+          builder = [ 53 ];
+        };
+      };
+    };
+    gcp-builder = {
+      status = "active";
+      tailscale.tag = "builder";
+    };
+    old = {
+      status = "inactive";
+      tailscale.tag = "legacy";
+    };
+  };
+
   sampleResults = invariants.evaluateAssertions [
     {
       name = "bool checks remain supported";
@@ -385,6 +421,33 @@ let
           }
         )).message;
       expected = "deploy target(s) missing tailnetFQDN or tailscale metadata: mac";
+    };
+
+    # Validates the live registry: homeserver-gcp must admit every active tag
+    # (workstation, builder, agent) on :53, with tag:server exempt as the
+    # AdGuard host itself. Catches a newly-added tagged host that forgets DNS.
+    tailnetTagsHaveAdguardDnsGrantPassesOnRealRegistry = {
+      expr = (invariants.checkTailnetTagsHaveAdguardDnsGrant realHostRegistry).passed;
+      expected = true;
+    };
+
+    tailnetTagsHaveAdguardDnsGrantPasses = {
+      expr = (invariants.checkTailnetTagsHaveAdguardDnsGrant dnsGrantRegistry).passed;
+      expected = true;
+    };
+
+    tailnetTagsHaveAdguardDnsGrantRejectsUngrantedTag = {
+      expr =
+        (invariants.checkTailnetTagsHaveAdguardDnsGrant (
+          dnsGrantRegistry
+          // {
+            gcp-agent = {
+              status = "active";
+              tailscale.tag = "agent";
+            };
+          }
+        )).message;
+      expected = "tailnet tag(s) missing AdGuard DNS (port 53) grant in homeserver-gcp.tailscale.acceptFrom: agent";
     };
 
     impermanentHostsHaveDiskoConfigPasses = {
