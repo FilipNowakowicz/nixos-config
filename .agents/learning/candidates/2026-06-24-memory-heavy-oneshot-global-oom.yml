@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-06-24-memory-heavy-oneshot-global-oom
+date: 2026-06-24
+expires: 2027-06-24
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [pr-#354, "hosts/homeserver-gcp/audits.nix vulnix-scan ran MemoryMax=infinity, peaked 2.97GB RSS on 3.8GB host", "journalctl -k: oom-kill task_memcg=/system.slice/vulnix-scan.service (Jun22+Jun25)"]
+observation: unconstrained memory-heavy oneshot/timer maintenance unit (vulnix ~3GB NVD load) on a sub-4GB host triggers a GLOBAL oom-killer + swap-storm (load avg ~47) that cascades into unrelated unit failures (tailscale-cert timeout, heartbeat miss, grafana context-deadline) — masquerading as independent faults during triage.
+proposed_upgrade: doc/checklist note (docs/operations.md or host CLAUDE.md) — heavy CVE/scan/index oneshots on RAM-constrained hosts either run off-host (CI/builder) or carry MemoryMax + MemorySwapMax + OOMScoreAdjust so a runaway is contained to its own cgroup instead of going global; consider a profile-test/invariant flagging maintenance oneshots without MemoryMax on hosts under a RAM threshold.
+type: repo-fix
+dedupe_key: systemd:memory-heavy-oneshot-unconstrained-on-small-host
+triggers: [adding systemd oneshot/timer maintenance service, vulnix, host with <4GB RAM, OOM triage]

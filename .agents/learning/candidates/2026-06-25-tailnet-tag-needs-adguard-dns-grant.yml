@@ -1,0 +1,17 @@
+schema: learning-candidate/v1
+id: 2026-06-25-tailnet-tag-needs-adguard-dns-grant
+date: 2026-06-25
+expires: 2026-12-25
+status: open
+
+route: implement-fix
+best_form: invariant
+
+evidence: [pr-#355, "lib/hosts.nix homeserver-gcp.acceptFrom granted :53 to workstation+agent but not builder", "live gcp-builder: getent hosts cache.nixos.org fails, TCP/53 to 100.103.234.88 blocked, offloaded builds stall as 'interrupted by the user'", "prior fix acceptFrom.agent=[53] for same symptom on gcp-agent"]
+observation: AdGuard on homeserver-gcp (tag:server) is the tailnet-wide global DNS nameserver, so any tailnet host whose tag lacks an acceptFrom.<tag>=[53] grant to tag:server has NO working resolver — all external name resolution times out silently. Recurred: gcp-agent hit it, was fixed, then gcp-builder hit the identical wall (offloaded nix builds stall on cache.nixos.org).
+proposed_upgrade: add lib/invariants.nix assertion — every host with a tailscale tag must appear in homeserver-gcp.tailscale.acceptFrom with port 53 (or be explicitly exempted), so a newly-added tailnet host can't silently lose DNS. Self-validates via merge-gate and prevents a third recurrence.
+type: repo-fix
+dedupe_key: tailscale:tailnet-tag-missing-adguard-dns-grant
+recurrence: 2
+triggers: [adding a host to lib/hosts.nix tailscale registry, on-demand GCP host, offloaded build stall, DNS timeout on tailnet host]
+targets: [lib/hosts.nix, lib/invariants.nix, tests/lib/invariants.nix]
