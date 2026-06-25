@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-20-self-deploy-runner-restartifchanged
 date: 2026-06-20
 expires: 2026-12-20
-status: open
+status: promoted
 
 route: promote-doc
 best_form: invariant

@@ -626,6 +626,37 @@ let
         (checkMainSudoExtraRules (mainSudoExtraRulesGood ++ [ mainSudoAgentMaintenanceRule ])).message;
       expected = "expected exactly 1 agent maintenance allowlist rule, got 2";
     };
+
+    homeserverDeployRunnerConfigPasses = {
+      expr =
+        (invariants.homeserverDeployRunnerRegistrationGcRunbookMatchesConfig.check {
+          systemd.services.github-runner-homeserver-deploy = {
+            serviceConfig.StateDirectory = "github-runner/homeserver-deploy";
+            restartIfChanged = false;
+          };
+        }).passed;
+      expected = true;
+    };
+
+    homeserverDeployRunnerConfigRejectsRestartIfChanged = {
+      expr =
+        (invariants.homeserverDeployRunnerRegistrationGcRunbookMatchesConfig.check {
+          systemd.services.github-runner-homeserver-deploy = {
+            serviceConfig.StateDirectory = "github-runner/homeserver-deploy";
+            restartIfChanged = true;
+          };
+        }).message;
+      expected = "systemd.services.github-runner-homeserver-deploy.restartIfChanged must be false (the self-deploy runner is SIGKILLed mid switch-to-configuration otherwise, half-applying activation with exit 130)";
+    };
+
+    homeserverDeployRunnerConfigRejectsDefaultRestartIfChanged = {
+      expr =
+        (invariants.homeserverDeployRunnerRegistrationGcRunbookMatchesConfig.check {
+          systemd.services.github-runner-homeserver-deploy.serviceConfig.StateDirectory =
+            "github-runner/homeserver-deploy";
+        }).message;
+      expected = "systemd.services.github-runner-homeserver-deploy.restartIfChanged must be false (the self-deploy runner is SIGKILLed mid switch-to-configuration otherwise, half-applying activation with exit 130)";
+    };
   };
 in
 if failures == [ ] then
