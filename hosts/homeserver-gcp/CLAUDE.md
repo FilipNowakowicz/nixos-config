@@ -189,3 +189,16 @@ failed-unit checks. It does not automate `main` workstation rollout.
   configure script then detects the PAT format and re-registers with
   `--pat`, minting a fresh registration token automatically — no token
   rotation needed for this recovery path.
+- **Memory-heavy maintenance oneshots must be contained** — this is a sub-4GB
+  host, so any heavy CVE/scan/index maintenance oneshot or timer (the vulnix NVD
+  load peaked ~3GB RSS) must **either** run off-host (CI or the `gcp-builder`)
+  **or** carry `MemoryMax` + `MemorySwapMax` + a positive `OOMScoreAdjust`. An
+  unconstrained unit (`MemoryMax=infinity`) lets a runaway breach RAM and
+  swap-storm into a **global** oom-killer (load avg ~47) instead of being
+  confined to its own cgroup. **Triage tell:** a cluster of simultaneous,
+  unrelated unit failures here (`tailscale-cert` timeout, heartbeat miss,
+  Grafana context-deadline) usually traces back to one unconstrained
+  memory-heavy unit hogging the box, **not** independent faults — check
+  `journalctl -k` for `oom-kill` before chasing each failing unit separately.
+  The concrete vulnix instance was fixed by dropping the on-host scan (PR #354);
+  the constraint rule generalizes to any future maintenance unit.

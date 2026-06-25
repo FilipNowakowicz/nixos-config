@@ -213,7 +213,6 @@ in
         lynis_ts="$(metric /var/lib/node-exporter-textfiles/lynis.prom lynis_scan_timestamp_seconds)"
         lynis_index="$(metric /var/lib/node-exporter-textfiles/lynis.prom lynis_hardening_index)"
         lynis_warnings="$(metric /var/lib/node-exporter-textfiles/lynis.prom lynis_warnings_total)"
-        vulnix_ts="$(metric /var/lib/node-exporter-textfiles/vulnix.prom vulnix_scan_timestamp_seconds)"
         homeserver_revision="$(cat /run/current-system/configuration-revision 2>/dev/null || true)"
         homeserver_activated_at="$(metric /var/lib/node-exporter-textfiles/system_metadata.prom nixos_system_activated_at_seconds)"
         main_system_revision="$(prometheus_query_label 'max by (revision) (nixos_system_revision_info{host="main"})' revision)"
@@ -264,7 +263,6 @@ in
           --arg resticBackupTimer "$(timer_state restic-backups-b2.timer)" \
           --arg resticCheckTimer "$(timer_state restic-check-b2.timer)" \
           --arg lynisTimer "$(timer_state lynis-audit.timer)" \
-          --arg vulnixTimer "$(timer_state vulnix-scan.timer)" \
           --argjson adguardActive "$(service_active_json adguardhome.service)" \
           --argjson nginxActive "$(service_active_json nginx.service)" \
           --argjson vaultwardenActive "$(service_active_json vaultwarden.service)" \
@@ -279,7 +277,6 @@ in
           --argjson lynisAge "$(age_json "$lynis_ts")" \
           --argjson lynisIndex "$(number_json "$lynis_index")" \
           --argjson lynisWarnings "$(number_json "$lynis_warnings")" \
-          --argjson vulnixAge "$(age_json "$vulnix_ts")" \
           --arg homeserverRevision "$homeserver_revision" \
           --argjson homeserverActivatedAt "$(number_json "$homeserver_activated_at")" \
           --arg mainRevision "$main_system_revision" \
@@ -328,10 +325,6 @@ in
                     ageSeconds: $lynisAge,
                     hardeningIndex: $lynisIndex,
                     warningsTotal: $lynisWarnings
-                  },
-                  vulnix: {
-                    timerState: $vulnixTimer,
-                    ageSeconds: $vulnixAge
                   }
                 }
               },

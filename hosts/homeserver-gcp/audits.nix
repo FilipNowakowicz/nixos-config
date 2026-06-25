@@ -65,43 +65,6 @@ in
           '';
         };
       };
-
-      vulnix-scan = {
-        description = "Vulnix scan freshness check for current system closure";
-        after = [ "network-online.target" ];
-        wants = [ "network-online.target" ];
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = pkgs.writeShellScript "vulnix-scan" ''
-            # --system scans /run/current-system; -j = JSON output
-            # NVD data is downloaded and cached in /var/cache/vulnix
-            # vulnix exit codes: 0 = clean, 2 = CVEs found, other = error.
-            # Live-host CVE counts are deliberately not exported: raw NVD/CPE
-            # matches create noisy version churn, while CI scans the flake-built
-            # closures and is the authoritative CVE gate.
-            json=$(${pkgs.vulnix}/bin/vulnix -S -j --cache-dir /var/cache/vulnix 2>/dev/null)
-            rc=$?
-            if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
-              echo "vulnix failed with exit code $rc" >&2
-              exit "$rc"
-            fi
-
-            # validate JSON — if vulnix errored, output won't parse and we abort
-            printf '%s' "$json" | ${pkgs.jq}/bin/jq -e 'type == "array"' >/dev/null || {
-              echo "vulnix produced invalid output" >&2; exit 1;
-            }
-
-            ${mkPromScript {
-              name = "vulnix.prom";
-              lines = [
-                "# HELP vulnix_scan_timestamp_seconds Unix timestamp of last successful scan"
-                "# TYPE vulnix_scan_timestamp_seconds gauge"
-                "vulnix_scan_timestamp_seconds $(${pkgs.coreutils}/bin/date +%s)"
-              ];
-            }}
-          '';
-        };
-      };
     };
 
     timers = {
@@ -109,15 +72,6 @@ in
         schedule = "daily";
         jitter = "1h";
       };
-
-      vulnix-scan = timer {
-        schedule = "daily";
-        jitter = "1h";
-      };
     };
-
-    tmpfiles.rules = [
-      "d /var/cache/vulnix 0750 root root -"
-    ];
   };
 }
