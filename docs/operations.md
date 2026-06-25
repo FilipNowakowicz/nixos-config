@@ -512,6 +512,17 @@ config now excludes. Trust the CI-equivalent commands — `nix fmt --
 re-`nix develop` (to regenerate the wrapper) or commit with `--no-verify` once
 those fresh checks pass; never use `--no-verify` to skip a real failure.
 
+The installed `.git/hooks/pre-commit` pins a specific `nix-store` path. After a
+`nix-collect-garbage` reaps that path, `git commit` in the primary checkout
+aborts with `/nix/store/...-pre-commit-<ver>/bin/pre-commit: No such file or
+directory` and leaves the commit unmade with files still staged. This is
+distinct from a fresh `/tmp` worktree that simply lacks a flake-generated
+`.pre-commit-config.yaml` — here the config exists, only the hook's binary
+path is dead. Re-run the commit through the dev shell — `nix develop -c git
+commit -m ...` — whose `shellHook` reinstalls the hook against a live store
+path and then runs the real checks. Do not reach for `--no-verify`: that skips
+real lint on `.nix` changes, which is forbidden in the primary checkout.
+
 ### Markdown Prose And Prettier
 
 Prettier (via `nix fmt`) rewrites bare underscores in Markdown prose into
