@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-24-memory-heavy-oneshot-global-oom
 date: 2026-06-24
 expires: 2027-06-24
-status: open
+status: promoted
 
 route: promote-doc
 best_form: doc
