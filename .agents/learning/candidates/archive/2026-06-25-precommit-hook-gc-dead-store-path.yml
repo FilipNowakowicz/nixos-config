@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-06-25-precommit-hook-gc-dead-store-path
+date: 2026-06-25
+expires: 2026-12-25
+status: promoted
+
+route: promote-doc
+best_form: doc
+
+evidence: ["primary checkout commit aborted with `/nix/store/bj6i9vl34cij5h0r165y40hrjqak0bmz-pre-commit-4.5.1/bin/pre-commit: No such file or directory` (HEAD unchanged, files left staged)", "same commit succeeded via `nix develop -c git commit` which printed `pre-commit installed at .git/hooks/pre-commit` then ran deadnix/statix/treefmt/secrets and committed"]
+observation: The installed `.git/hooks/pre-commit` pins a specific nix-store path; after that path is garbage-collected the hook execs a dead binary and `git commit` aborts in the primary checkout — distinct from the documented fresh-worktree case where `.pre-commit-config.yaml` is simply absent (here the config exists, the hook's binary path is dead).
+proposed_upgrade: Document that the fix is to run the commit through the dev shell (`nix develop -c git commit -m ...`), whose shellHook reinstalls the hook against a live store path and still runs the real checks — NOT `--no-verify`, which CLAUDE.md forbids for skipping real lint in the primary checkout.
+type: workflow-gotcha
+dedupe_key: pre-commit:hook-points-at-gc-dead-store-path
+triggers: [git commit fails with pre-commit No such file or directory, committing in primary checkout after nix gc]
+targets: [CLAUDE.md, docs/operations.md]
