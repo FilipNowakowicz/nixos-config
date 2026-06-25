@@ -11,9 +11,8 @@ Host-specific MacBook follow-ups live in
 
 ## Active Candidates
 
-| Area   | Item                      | Why active now                                                                                                                  |
-| :----- | :------------------------ | :------------------------------------------------------------------------------------------------------------------------------ |
-| Public | Public adoption packaging | The repo is being positioned as reusable public NixOS infrastructure, tracked in [`public-adoption.md`](../public-adoption.md). |
+None. Public-adoption packaging — the last active candidate — is complete; see
+[Settled / Won't-Do](#settled--wont-do).
 
 ---
 
@@ -84,6 +83,14 @@ DNS cannot solve cleanly.
 
 Recorded so they are not re-proposed.
 
+- **Public adoption packaging** — done (2026-06-26). The reusable-module
+  engineering (Tracks 1–4 in [`public-adoption.md`](../public-adoption.md))
+  shipped: `flake.lib.acl`/`dashboards`/`generators`, the `nixosModules.*` /
+  `homeModules.*` outputs with docs and boundary tests, the `doctor` clean-clone
+  entrypoint, and `examples/mini-fleet`. The only remaining item — a one-off
+  launch post / announcement — is a personal distribution task, **not** a config
+  goal, so it is intentionally not tracked here. `public-adoption.md` stays as
+  the reference plan; reopen only if a new reusable extraction candidate appears.
 - **Migrate Neovim to `programs.neovim`** — won't-do. The bespoke `my.neovim`
   module has language packs, a Lua-config generator, and per-language LSP/DAP
   wiring. It already installs config declaratively via `xdg.configFile."nvim"`

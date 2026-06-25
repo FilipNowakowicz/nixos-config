@@ -110,5 +110,16 @@ Importing the module activates it and adds `theme-switch` to `home.packages`
 neovim/GTK colorscheme intent is exposed through the internal
 `themes._activeThemeColors` / `themes._activeThemeColorscheme` options.
 
+### What it reloads (`desktop-runtime.nix`)
+
+`theme-switch` regenerates and live-reloads a fixed set of Wayland UI tools:
+**kitty**, **waybar**, and **swaybg**. That list lives in one place,
+[`home/profiles/desktop-runtime.nix`](../home/profiles/desktop-runtime.nix), and
+is imported by both the module's `theme-switch` `runtimeInputs` and the desktop
+install list (`home/profiles/desktop.nix`), so the packages you install and the
+packages the switcher reloads cannot drift. If you adopt `runtime-theme` on the
+same stack, install these packages too; the no-drift contract is pinned by the
+`theme-module` check (`testRuntimeThemeContract`).
+
 Out of scope for now (still coupled to this exact desktop): per-app enable
 toggles and a generic, app-agnostic template interface.
