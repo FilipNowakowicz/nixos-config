@@ -450,6 +450,47 @@ let
       expected = "tailnet tag(s) missing AdGuard DNS (port 53) grant in homeserver-gcp.tailscale.acceptFrom: agent";
     };
 
+    # Auth-key autoconnect host (enable + authKeyFile) must carry --reset.
+    tailscaleAutoconnectNormalizesPrefsPassesWithReset = {
+      expr =
+        (invariants.tailscaleAutoconnectNormalizesPrefs.check {
+          services.tailscale = {
+            enable = true;
+            authKeyFile = "/var/lib/tailscale-authkey";
+            extraUpFlags = [
+              "--advertise-tags=tag:builder"
+              "--reset"
+            ];
+          };
+        }).passed;
+      expected = true;
+    };
+
+    tailscaleAutoconnectNormalizesPrefsRejectsMissingReset = {
+      expr =
+        (invariants.tailscaleAutoconnectNormalizesPrefs.check {
+          services.tailscale = {
+            enable = true;
+            authKeyFile = "/var/lib/tailscale-authkey";
+            extraUpFlags = [ "--advertise-tags=tag:builder" ];
+          };
+        }).passed;
+      expected = false;
+    };
+
+    # Interactive host (no authKeyFile) never autoconnects, so it is exempt.
+    tailscaleAutoconnectNormalizesPrefsExemptsInteractiveHost = {
+      expr =
+        (invariants.tailscaleAutoconnectNormalizesPrefs.check {
+          services.tailscale = {
+            enable = true;
+            authKeyFile = null;
+            extraUpFlags = [ ];
+          };
+        }).passed;
+      expected = true;
+    };
+
     impermanentHostsHaveDiskoConfigPasses = {
       expr = (invariants.checkImpermanentHostHasDiskoConfig impermanentConfig).passed;
       expected = true;

@@ -110,7 +110,15 @@ in
       enable = true;
       openFirewall = true;
       authKeyFile = "/var/lib/tailscale-authkey";
-      extraUpFlags = [ "--advertise-tags=tag:agent" ];
+      # --reset so each boot-time `tailscale up` (tailscaled-autoconnect)
+      # normalizes every pref to default and cannot self-wedge on drifted
+      # persisted prefs ("changing settings requires mentioning all non-default
+      # flags"), which would leave this tailnet-only-SSH host unreachable. The
+      # advertised tag is mentioned explicitly, so --reset preserves it.
+      extraUpFlags = [
+        "--advertise-tags=tag:agent"
+        "--reset"
+      ];
     };
 
     journald.extraConfig = ''
