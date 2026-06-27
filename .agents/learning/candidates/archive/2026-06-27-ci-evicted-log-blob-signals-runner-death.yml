@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-06-27-ci-evicted-log-blob-signals-runner-death
+date: 2026-06-27
+expires: 2026-12-27
+status: promoted
+route: implement-fix
+best_form: ci-gate
+evidence: [pr-#361-packages-reclaim-disk-and-safeguards-gate, pr-#360-packages-job-BlobNotFound]
+observation: A failed CI job whose log blob is gone (BlobNotFound) while sibling jobs in the same run keep intact logs is the signature of abnormal runner death (disk-full/OOM), not a Nix/build error; GitHub finalizes a job log only on clean exit. PR #360 packages died ~49min into the installer-ISO build (BlobNotFound) yet `scripts/validate.sh package all` rebuilt clean locally on the same flake.lock.
+proposed_upgrade: Promoted in PR #361 - scripts/check-ci-build-safeguards.sh asserts every heavy build job (validate.sh package|host) carries timeout-minutes + the Reclaim-runner-disk-space step, wired into the changes job. Diagnostic heuristic (rebuild locally to tell infra from regression) left as session knowledge.
+type: workflow-gotcha
+dedupe_key: ci:evicted-log-blob-runner-death
+triggers: [github-actions-job-failure-no-log, .github/workflows/nix.yml, scripts/validate.sh-package-all]
+targets: [.github/workflows/nix.yml, scripts/check-ci-build-safeguards.sh]
