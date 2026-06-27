@@ -6,8 +6,8 @@ LOCK_PATH = "/tmp/control-center.lock"
 VIEWS = ("home", "wifi", "bluetooth", "vpn", "dnd", "volume", "microphone")
 
 PANEL_MARGIN = 12
-PANEL_PADDING = 12
-PANEL_CONTENT_WIDTH = 400
+PANEL_PADDING = 9
+PANEL_CONTENT_WIDTH = 308
 PANEL_TOTAL_WIDTH = PANEL_CONTENT_WIDTH + (PANEL_PADDING * 2) + 2
 
 FAST_STATE_KEYS = (

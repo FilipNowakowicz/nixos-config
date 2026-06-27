@@ -30,7 +30,7 @@ move_workspaces_to() {
 case "${1:-auto}" in
 auto)
   if wait_for_external; then
-    hyprctl keyword monitor "${external_output},preferred,0x0,1"
+    hyprctl keyword monitor "${external_output},highrr,0x0,1"
     move_workspaces_to "${external_output}"
     hyprctl keyword monitor "${internal_output},disable"
   else
@@ -39,7 +39,7 @@ auto)
   fi
   ;;
 external)
-  hyprctl keyword monitor "${external_output},preferred,0x0,1"
+  hyprctl keyword monitor "${external_output},highrr,0x0,1"
   move_workspaces_to "${external_output}"
   hyprctl keyword monitor "${internal_output},disable"
   ;;
@@ -47,7 +47,7 @@ laptop)
   hyprctl keyword monitor "${internal_output},preferred,0x0,1"
   move_workspaces_to "${internal_output}"
   if external_connected; then
-    hyprctl keyword monitor "${external_output},preferred,1920x0,1"
+    hyprctl keyword monitor "${external_output},highrr,1920x0,1"
   fi
   ;;
 *)

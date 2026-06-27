@@ -11,24 +11,40 @@ window#waybar {
   color: @text;
 }
 
-/* ── Pill base ────────────────────────────────────────── */
+/* ── Single centered pill ─────────────────────────────────
+   All modules live in modules-center, so styling that one box
+   gives a single solid pill (not three islands). It floats over
+   the top edge only while the bar is revealed (auto-hide). */
+.modules-center {
+  background: alpha(@bg, 0.88);
+  border-radius: 13px;
+  border: 1px solid alpha(@amber, 0.28);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
+  margin: 4px 0;
+  padding: 0 6px;
+}
 
+/* Per-module spacing inside the pill. */
 #workspaces,
 #clock,
-.modules-right {
-  background: alpha(@bg, 0.92);
-  border-radius: 12px;
-  margin: 6px 3px;
-  border: 1px solid alpha(@orange, 0.3);
-  /* Overlay bar: lift the pills off whatever window sits behind them so the
-     text stays readable over any background. */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+#custom-weather,
+#network,
+#pulseaudio,
+#battery,
+#tray,
+#custom-anchor {
+  padding: 0 9px;
+}
+
+/* ── Separators ───────────────────────────────────────── */
+#custom-sep {
+  color: alpha(@text, 0.18);
+  padding: 0 2px;
 }
 
 /* ── Workspaces ───────────────────────────────────────── */
-
 #workspaces {
-  padding: 0 4px;
+  padding: 0 6px;
 }
 
 #workspaces button {
@@ -55,32 +71,51 @@ window#waybar {
 }
 
 /* ── Clock ────────────────────────────────────────────── */
-
 #clock {
-  padding: 0 18px;
   font-size: 13px;
   font-weight: 500;
 }
 
-/* ── Anchor pill ──────────────────────────────────────── */
+/* ── Status modules ───────────────────────────────────── */
+#custom-weather,
+#network,
+#pulseaudio,
+#battery {
+  color: @text;
+}
 
+#battery.warning {
+  color: @amber;
+}
+
+#battery.critical {
+  color: @orange;
+}
+
+#pulseaudio.muted {
+  color: alpha(@text, 0.4);
+}
+
+#network.disconnected {
+  color: alpha(@text, 0.4);
+}
+
+/* ── Anchor (control-center trigger) ──────────────────── */
 #custom-anchor {
-  padding: 0 10px;
   font-size: 13px;
   letter-spacing: 2px;
-  transition: border-color 240ms ease;
+  transition: color 240ms ease;
 }
 
 #custom-anchor.glow {
-  border-color: alpha(@amber, 0.42);
+  color: @amber;
 }
 
 #custom-anchor.warn-glow {
-  border-color: alpha(@orange, 0.5);
+  color: @orange;
 }
 
 /* ── Tray / chevron ───────────────────────────────────── */
-
 #custom-chevron {
   padding: 0 6px 0 10px;
   color: @text;

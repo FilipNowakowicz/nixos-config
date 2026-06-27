@@ -84,10 +84,16 @@ class ControlCenter(
 
         Gtk4LayerShell.init_for_window(self.win)
         Gtk4LayerShell.set_layer(self.win, Gtk4LayerShell.Layer.OVERLAY)
-        Gtk4LayerShell.set_anchor(self.win, Gtk4LayerShell.Edge.TOP, True)
-        Gtk4LayerShell.set_anchor(self.win, Gtk4LayerShell.Edge.RIGHT, True)
-        Gtk4LayerShell.set_margin(self.win, Gtk4LayerShell.Edge.TOP, PANEL_MARGIN)
-        Gtk4LayerShell.set_margin(self.win, Gtk4LayerShell.Edge.RIGHT, PANEL_MARGIN)
+        # Anchor every edge so the surface spans the whole output. The region
+        # outside the panel is a transparent light-dismiss backdrop (the
+        # macOS/Windows flyout pattern); the panel is pinned to the top-right.
+        for _edge in (
+            Gtk4LayerShell.Edge.TOP,
+            Gtk4LayerShell.Edge.BOTTOM,
+            Gtk4LayerShell.Edge.LEFT,
+            Gtk4LayerShell.Edge.RIGHT,
+        ):
+            Gtk4LayerShell.set_anchor(self.win, _edge, True)
         Gtk4LayerShell.set_keyboard_mode(
             self.win, Gtk4LayerShell.KeyboardMode.ON_DEMAND
         )
@@ -115,8 +121,27 @@ class ControlCenter(
         outer.set_name("panel")
         outer.set_size_request(PANEL_TOTAL_WIDTH, -1)
         outer.append(self.stack)
+        # Pin the panel to the top-right corner within the full-output surface.
+        outer.set_halign(Gtk.Align.END)
+        outer.set_valign(Gtk.Align.START)
+        outer.set_margin_top(PANEL_MARGIN)
+        outer.set_margin_end(PANEL_MARGIN)
 
-        self.win.set_child(outer)
+        # Transparent backdrop filling the rest of the surface: a click anywhere
+        # outside the panel dismisses it (light dismiss). Stays behind the panel
+        # via Gtk.Overlay, so panel clicks are unaffected.
+        backdrop = Gtk.Box()
+        backdrop.set_hexpand(True)
+        backdrop.set_vexpand(True)
+        dismiss = Gtk.GestureClick()
+        dismiss.connect("released", self._on_backdrop_click)
+        backdrop.add_controller(dismiss)
+
+        overlay = Gtk.Overlay()
+        overlay.set_child(backdrop)
+        overlay.add_overlay(outer)
+
+        self.win.set_child(overlay)
         if self._visible:
             self.win.present()
         else:
@@ -136,6 +161,10 @@ class ControlCenter(
     def _on_close_request(self, *_args):
         self._hide_window()
         return True
+
+    def _on_backdrop_click(self, _gesture, _n_press, _x, _y):
+        # Click outside the panel (on the transparent backdrop) = light dismiss.
+        self._hide_window()
 
     def _on_shutdown(self, *_args):
         if self._fast_poll_id:

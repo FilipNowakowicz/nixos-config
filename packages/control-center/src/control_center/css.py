@@ -29,7 +29,7 @@ def build_css(colors):
     #panel {{
         min-width: {PANEL_CONTENT_WIDTH}px;
         padding: {PANEL_PADDING}px;
-        border-radius: 20px;
+        border-radius: 15px;
         border: 1px solid {rgba(orange, 0.28)};
         background: linear-gradient(180deg,
             {rgba(bg, 0.985)} 0%,
@@ -74,8 +74,8 @@ def build_css(colors):
 
     /* Tile grid */
     .tile {{
-        padding: 12px;
-        border-radius: 13px;
+        padding: 9px;
+        border-radius: 10px;
         border: 1px solid {rgba(orange, 0.18)};
         background: rgba(255, 255, 255, 0.02);
         color: {rgba(text, 0.88)};
@@ -88,12 +88,12 @@ def build_css(colors):
     }}
     .tile-icon {{ margin-bottom: 4px; }}
     .tile-glyph {{
-        min-width: 42px; min-height: 42px;
+        min-width: 32px; min-height: 32px;
         padding: 0;
-        border-radius: 9px;
+        border-radius: 8px;
         background: rgba(255, 255, 255, 0.05);
         color: {rgba(text, 0.78)};
-        font-size: 14px;
+        font-size: 13px;
     }}
     .tile.on .tile-glyph {{
         background: {rgba(amber, 0.22)};
@@ -101,8 +101,8 @@ def build_css(colors):
     }}
     .tile-chevron {{ color: {rgba(text, 0.34)}; font-size: 11px; }}
     .tile.on .tile-chevron {{ color: {rgba(amber, 0.85)}; }}
-    .tile-title {{ font-size: 12.5px; font-weight: 600; }}
-    .tile-sub {{ color: {rgba(text, 0.46)}; font-size: 10.5px; }}
+    .tile-title {{ font-size: 12px; font-weight: 600; }}
+    .tile-sub {{ color: {rgba(text, 0.46)}; font-size: 10px; }}
     .tile.on .tile-sub {{ color: {rgba(amber, 0.86)}; }}
     .tile-badge {{
         padding: 2px 6px;
@@ -116,8 +116,8 @@ def build_css(colors):
 
     /* Generic surface + sections */
     .surface {{
-        padding: 12px;
-        border-radius: 14px;
+        padding: 9px;
+        border-radius: 11px;
         border: 1px solid {rgba(orange, 0.18)};
         background: rgba(255, 255, 255, 0.03);
     }}
@@ -139,7 +139,7 @@ def build_css(colors):
     .section-action:hover {{ color: {rgba(text, 1.0)}; }}
 
     /* Sliders */
-    .slider-row {{ margin: 0; min-width: 376px; }}
+    .slider-row {{ margin: 0; min-width: 284px; }}
     .glyph-btn {{
         min-width: 26px; min-height: 26px;
         padding: 0;

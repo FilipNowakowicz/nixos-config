@@ -159,12 +159,19 @@ in
 
       (writeShellApplication {
         name = "waybar-toggle";
+        runtimeInputs = with pkgs; [ coreutils ];
+        text = builtins.readFile ../../files/scripts/waybar-toggle.sh;
+      })
+
+      (writeShellApplication {
+        name = "waybar-autohide";
         runtimeInputs = with pkgs; [
           hyprland
           procps
-          gnugrep
+          gawk
+          coreutils
         ];
-        text = builtins.readFile ../../files/scripts/waybar-toggle.sh;
+        text = builtins.readFile ../../files/scripts/waybar-autohide.sh;
       })
 
       (writeShellApplication {
