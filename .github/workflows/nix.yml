@@ -92,6 +92,9 @@ jobs:
       - name: Validate cache config consistency
         run: bash scripts/check-cache-config.sh
 
+      - name: Validate CI build-job safeguards
+        run: bash scripts/check-ci-build-safeguards.sh
+
   eval:
     needs: [push-policy, changes]
     if: needs.changes.outputs.run_eval == 'true'
