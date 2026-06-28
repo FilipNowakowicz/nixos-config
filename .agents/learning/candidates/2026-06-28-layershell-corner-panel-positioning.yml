@@ -1,0 +1,17 @@
+schema: learning-candidate/v1
+id: 2026-06-28-layershell-corner-panel-positioning
+date: 2026-06-28
+expires: 2026-12-28
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [pr-#363, commit-f0892b1]
+observation: For a gtk4-layer-shell corner panel (control-center), anchoring all four edges to get a full-output surface and positioning the panel with GTK halign/valign inside a Gtk.Overlay opened it off the left edge (xywh 0 0 200 200). Reverting to a content-sized surface anchored only TOP+RIGHT with layer-shell margins placed it correctly top-right (xywh 1492 12 ...). Click-outside dismiss then needs a focus mechanism, not a full-surface backdrop — an ON_DEMAND Gtk.EventControllerFocus 'leave' handler (armed ~250ms after present to ignore the focus bounce) works with the small surface.
+proposed_upgrade: Note in the control-center package docs/README that corner layer-shell panels use an opposite-edge-pair-free anchor (e.g. TOP+RIGHT) + layer-shell margins for placement, and focus-leave for light dismiss; a full-output 4-edge surface positioned by GTK alignment mispositions the panel.
+type: repo-fix
+dedupe_key: control-center:layershell-corner-panel-positioning
+triggers: [packages/control-center/src/control_center/app.py, Gtk4LayerShell.set_anchor, light-dismiss]
+targets: [packages/control-center/README.md, packages/control-center/src/control_center/app.py]
+risk: low-narrow-to-one-package
