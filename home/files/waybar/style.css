@@ -27,12 +27,8 @@ window#waybar {
 /* Per-module spacing inside the pill. */
 #workspaces,
 #clock,
-#custom-weather,
-#network,
 #pulseaudio,
-#battery,
-#tray,
-#custom-anchor {
+#battery {
   padding: 0 9px;
 }
 
@@ -77,8 +73,6 @@ window#waybar {
 }
 
 /* ── Status modules ───────────────────────────────────── */
-#custom-weather,
-#network,
 #pulseaudio,
 #battery {
   color: @text;
@@ -94,35 +88,4 @@ window#waybar {
 
 #pulseaudio.muted {
   color: alpha(@text, 0.4);
-}
-
-#network.disconnected {
-  color: alpha(@text, 0.4);
-}
-
-/* ── Anchor (control-center trigger) ──────────────────── */
-#custom-anchor {
-  font-size: 13px;
-  letter-spacing: 2px;
-  transition: color 240ms ease;
-}
-
-#custom-anchor.glow {
-  color: @amber;
-}
-
-#custom-anchor.warn-glow {
-  color: @orange;
-}
-
-/* ── Tray / chevron ───────────────────────────────────── */
-#custom-chevron {
-  padding: 0 6px 0 10px;
-  color: @text;
-  opacity: 0.4;
-  font-size: 13px;
-}
-
-#tray {
-  padding: 0 8px 0 4px;
 }
