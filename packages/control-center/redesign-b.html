@@ -1,0 +1,1222 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Control Center — B-family (slider studies)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --bg: 10, 10, 10;
+        --brown: 42, 42, 42;
+        --orange: 136, 136, 136;
+        --amber: 204, 204, 204;
+        --text: 232, 232, 232;
+        --warn: 232, 137, 32;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        font-family: "Inter", sans-serif;
+        font-size: 12px;
+        color: rgb(var(--text));
+        background:
+          radial-gradient(
+            ellipse at 20% 0%,
+            rgba(var(--amber), 0.06) 0%,
+            transparent 45%
+          ),
+          radial-gradient(
+            ellipse at 85% 10%,
+            rgba(var(--orange), 0.08) 0%,
+            transparent 40%
+          ),
+          #0b0b0d;
+        min-height: 100vh;
+        padding: 28px 24px 60px;
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+        pointer-events: none;
+        z-index: 0;
+      }
+      .page-head {
+        position: relative;
+        z-index: 1;
+        max-width: 1500px;
+        margin: 0 auto 26px;
+      }
+      .page-head h1 {
+        font-size: 18px;
+        font-weight: 700;
+      }
+      .page-head p {
+        margin-top: 6px;
+        max-width: 760px;
+        line-height: 1.55;
+        color: rgba(var(--text), 0.55);
+        font-size: 12.5px;
+      }
+      .rail {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 30px;
+        justify-content: center;
+        align-items: flex-start;
+        max-width: 1500px;
+        margin: 0 auto;
+      }
+      .col {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        width: 332px;
+      }
+      .col-cap {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 0 2px;
+      }
+      .col-cap .tag {
+        align-self: flex-start;
+        padding: 3px 9px;
+        border-radius: 999px;
+        background: rgba(var(--amber), 0.12);
+        border: 1px solid rgba(var(--amber), 0.3);
+        color: rgb(var(--amber));
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      .col-cap .name {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .col-cap .note {
+        color: rgba(var(--text), 0.5);
+        font-size: 11px;
+        line-height: 1.5;
+      }
+
+      svg.ic {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.85;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex: 0 0 auto;
+        display: block;
+      }
+      svg.ic.sm {
+        width: 13px;
+        height: 13px;
+      }
+      svg.ic.lg {
+        width: 19px;
+        height: 19px;
+      }
+      button {
+        appearance: none;
+        border: none;
+        outline: none;
+        font-family: inherit;
+        cursor: pointer;
+        color: inherit;
+        background: none;
+      }
+      .batt {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        width: 20px;
+        height: 10px;
+        border: 1.25px solid currentColor;
+        border-radius: 3px;
+        padding: 1.2px;
+      }
+      .batt::after {
+        content: "";
+        position: absolute;
+        right: -3px;
+        top: 2.6px;
+        width: 1.8px;
+        height: 4px;
+        background: currentColor;
+        border-radius: 0 1px 1px 0;
+      }
+      .batt > i {
+        display: block;
+        height: 100%;
+        background: currentColor;
+        border-radius: 1px;
+      }
+
+      /* ── shared panel chrome (all B-family) ─────────────── */
+      .panel {
+        border-radius: 18px;
+        border: 1px solid rgba(var(--orange), 0.26);
+        background: linear-gradient(
+          180deg,
+          rgba(var(--bg), 0.96) 0%,
+          rgba(var(--brown), 0.92) 100%
+        );
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        box-shadow:
+          0 24px 56px rgba(0, 0, 0, 0.4),
+          inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 13px;
+      }
+
+      /* toggle grid (shared) */
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+      .tile {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        padding: 11px 6px 9px;
+        border-radius: 11px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(var(--orange), 0.14);
+        transition: background 130ms ease;
+      }
+      .tile:hover {
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .tile .ti {
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.07);
+        color: rgba(var(--text), 0.72);
+      }
+      .tile .tl {
+        font-size: 11px;
+        font-weight: 600;
+        color: rgba(var(--text), 0.82);
+        line-height: 1.1;
+      }
+      .tile .ts {
+        font-size: 9px;
+        color: rgba(var(--text), 0.4);
+        line-height: 1.1;
+        max-width: 92px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .tile.on {
+        background: rgba(var(--amber), 0.14);
+        border-color: rgba(var(--amber), 0.42);
+      }
+      .tile.on .ti {
+        background: rgb(var(--amber));
+        color: #111;
+      }
+      .tile.on .tl {
+        color: rgb(var(--amber));
+      }
+      .tile.on .ts {
+        color: rgba(var(--amber), 0.8);
+      }
+
+      .sec {
+        color: rgba(var(--text), 0.4);
+        font-size: 9.5px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      /* power segment (shared) */
+      .seg {
+        display: flex;
+        gap: 3px;
+        padding: 3px;
+        border-radius: 11px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(var(--orange), 0.14);
+      }
+      .seg button {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        padding: 6px 4px;
+        border-radius: 8px;
+        font-size: 10.5px;
+        font-weight: 500;
+        color: rgba(var(--text), 0.6);
+      }
+      .seg button.active {
+        background: rgba(var(--amber), 0.16);
+        color: rgb(var(--amber));
+        box-shadow: inset 0 0 0 1px rgba(var(--amber), 0.32);
+      }
+
+      /* media (shared) */
+      .media {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 10px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(var(--orange), 0.14);
+      }
+      .art {
+        width: 38px;
+        height: 38px;
+        border-radius: 9px;
+        flex: 0 0 auto;
+        background: linear-gradient(
+          135deg,
+          rgba(var(--amber), 0.6),
+          rgba(var(--orange), 0.7)
+        );
+      }
+      .media-txt {
+        min-width: 0;
+        flex: 1;
+      }
+      .media-title {
+        font-size: 12px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .media-sub {
+        font-size: 10px;
+        color: rgba(var(--text), 0.5);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .media-ctl {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        color: rgba(var(--text), 0.85);
+      }
+      .media-ctl button {
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .media-ctl button:hover {
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      /* footer bar (shared) */
+      .foot {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(var(--orange), 0.16);
+        color: rgba(var(--text), 0.7);
+      }
+      .foot .fbat {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12px;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+      }
+      .foot .fbat small {
+        color: rgba(var(--text), 0.42);
+        font-size: 10px;
+      }
+      .foot .fbtns {
+        margin-left: auto;
+        display: flex;
+        gap: 4px;
+      }
+      .foot .fbtns button {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: rgba(var(--text), 0.7);
+      }
+      .foot .fbtns button:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: rgb(var(--text));
+      }
+      .foot .fbtns button.danger:hover {
+        color: rgb(var(--warn));
+      }
+
+      /* =========================================================
+         SLIDER STUDY 1 — Capsule (glyph rides inside the fill)
+         ========================================================= */
+      .s1 {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .cap {
+        position: relative;
+        height: 36px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.07);
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+      }
+      .cap .capfill {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        background: linear-gradient(
+          90deg,
+          rgba(var(--amber), 0.5),
+          rgba(var(--text), 0.85)
+        );
+      }
+      .cap .capic {
+        position: relative;
+        z-index: 2;
+        width: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: rgba(10, 10, 10, 0.9);
+      }
+      .cap .caplbl {
+        position: relative;
+        z-index: 2;
+        font-size: 11px;
+        font-weight: 600;
+        color: rgba(10, 10, 10, 0.82);
+      }
+      .cap .capval {
+        position: relative;
+        z-index: 2;
+        margin-left: auto;
+        padding-right: 13px;
+        font-size: 11px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: rgba(var(--text), 0.66);
+      }
+
+      /* =========================================================
+         SLIDER STUDY 2 — Boxed card, thick track + knob
+         ========================================================= */
+      .s2 {
+        padding: 11px 12px;
+        border-radius: 13px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(var(--orange), 0.14);
+        display: flex;
+        flex-direction: column;
+        gap: 13px;
+      }
+      .s2row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .s2row .s2i {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(var(--text), 0.74);
+        flex: 0 0 auto;
+      }
+      .s2track {
+        position: relative;
+        flex: 1;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.1);
+      }
+      .s2track .s2f {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        border-radius: 999px;
+        background: linear-gradient(
+          90deg,
+          rgba(var(--amber), 0.55),
+          rgba(var(--text), 0.9)
+        );
+      }
+      .s2track .s2k {
+        position: absolute;
+        top: 50%;
+        width: 16px;
+        height: 16px;
+        margin-top: -8px;
+        transform: translateX(-50%);
+        border-radius: 999px;
+        background: #fff;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+      }
+      .s2row .s2v {
+        width: 32px;
+        text-align: right;
+        font-size: 11px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: rgba(var(--text), 0.62);
+      }
+
+      /* =========================================================
+         SLIDER STUDY 3 — Stepped segments (level-meter style)
+         ========================================================= */
+      .s3 {
+        display: flex;
+        flex-direction: column;
+        gap: 11px;
+      }
+      .s3row {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+      }
+      .s3row .s3i {
+        color: rgba(var(--text), 0.72);
+        flex: 0 0 auto;
+      }
+      .steps {
+        flex: 1;
+        display: flex;
+        gap: 3px;
+      }
+      .steps i {
+        flex: 1;
+        height: 14px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.1);
+      }
+      .steps i.f {
+        background: linear-gradient(
+          180deg,
+          rgb(var(--amber)),
+          rgba(var(--amber), 0.55)
+        );
+      }
+      .s3row .s3v {
+        width: 32px;
+        text-align: right;
+        font-size: 11px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: rgba(var(--text), 0.62);
+      }
+
+      /* =========================================================
+         SLIDER STUDY 4 — Minimal labeled (no knob, flat fill)
+         ========================================================= */
+      .s4 {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .s4row {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .s4top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .s4top .s4i {
+        color: rgba(var(--text), 0.66);
+      }
+      .s4top .s4l {
+        font-size: 11px;
+        font-weight: 500;
+        color: rgba(var(--text), 0.78);
+      }
+      .s4top .s4aux {
+        font-size: 10px;
+        color: rgba(var(--text), 0.42);
+      }
+      .s4top .s4v {
+        margin-left: auto;
+        font-size: 11px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: rgba(var(--text), 0.6);
+      }
+      .s4bar {
+        position: relative;
+        height: 4px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.1);
+      }
+      .s4bar .s4f {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        border-radius: 999px;
+        background: rgb(var(--amber));
+      }
+    </style>
+  </head>
+  <body>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      style="display: none"
+      aria-hidden="true"
+    >
+      <defs>
+        <symbol id="i-wifi" viewBox="0 0 24 24">
+          <path d="M12 20h.01" />
+          <path d="M2 8.82a15 15 0 0 1 20 0" />
+          <path d="M5 12.86a10 10 0 0 1 14 0" />
+          <path d="M8.5 16.43a5 5 0 0 1 7 0" />
+        </symbol>
+        <symbol id="i-bluetooth" viewBox="0 0 24 24">
+          <path d="m7 7 10 10-5 5V2l5 5L7 17" />
+        </symbol>
+        <symbol id="i-shield" viewBox="0 0 24 24">
+          <path
+            d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+          />
+          <path d="m9 12 2 2 4-4" />
+        </symbol>
+        <symbol id="i-bell-off" viewBox="0 0 24 24">
+          <path d="M10.27 21a2 2 0 0 0 3.46 0" />
+          <path
+            d="M17 17H4a1 1 0 0 1-.74-1.67C4.59 13.96 6 12.5 6 8a6 6 0 0 1 .26-1.74"
+          />
+          <path d="m2 2 20 20" />
+          <path d="M8.67 3.01A6 6 0 0 1 18 8c0 2.69.77 4.65 1.71 6.05" />
+        </symbol>
+        <symbol id="i-volume" viewBox="0 0 24 24">
+          <path d="M11 5 6 9H2v6h4l5 4z" />
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+        </symbol>
+        <symbol id="i-mic" viewBox="0 0 24 24">
+          <rect x="9" y="2" width="6" height="11" rx="3" />
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+          <line x1="12" x2="12" y1="19" y2="22" />
+        </symbol>
+        <symbol id="i-sun" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2" />
+          <path d="M12 20v2" />
+          <path d="m4.93 4.93 1.41 1.41" />
+          <path d="m17.66 17.66 1.41 1.41" />
+          <path d="M2 12h2" />
+          <path d="M20 12h2" />
+          <path d="m6.34 17.66-1.41 1.41" />
+          <path d="m19.07 4.93-1.41 1.41" />
+        </symbol>
+        <symbol id="i-moon" viewBox="0 0 24 24">
+          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+        </symbol>
+        <symbol id="i-coffee" viewBox="0 0 24 24">
+          <path d="M10 2v2" />
+          <path d="M14 2v2" />
+          <path
+            d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"
+          />
+          <path d="M6 2v2" />
+        </symbol>
+        <symbol id="i-leaf" viewBox="0 0 24 24">
+          <path
+            d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"
+          />
+          <path d="M2 21c0-3 1.85-5.36 5.08-6" />
+        </symbol>
+        <symbol id="i-gauge" viewBox="0 0 24 24">
+          <path d="m12 14 4-4" />
+          <path d="M3.34 19a10 10 0 1 1 17.32 0" />
+        </symbol>
+        <symbol id="i-zap" viewBox="0 0 24 24">
+          <path
+            d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"
+          />
+        </symbol>
+        <symbol id="i-palette" viewBox="0 0 24 24">
+          <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
+          <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+          <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
+          <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+          <path
+            d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.27-.38-.62-.38-1A1.5 1.5 0 0 1 14.23 17H16a6 6 0 0 0 6-6c0-4.97-4.5-9-10-9z"
+          />
+        </symbol>
+        <symbol id="i-lock" viewBox="0 0 24 24">
+          <rect width="18" height="11" x="3" y="11" rx="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </symbol>
+        <symbol id="i-power" viewBox="0 0 24 24">
+          <path d="M12 2v10" />
+          <path d="M18.4 6.6a9 9 0 1 1-12.77.04" />
+        </symbol>
+        <symbol id="i-sleep" viewBox="0 0 24 24">
+          <path d="M14 4h6l-6 8h6" />
+          <path d="M4 10h4l-4 6h4" />
+        </symbol>
+        <symbol id="i-play" viewBox="0 0 24 24">
+          <polygon
+            points="6 3 20 12 6 21 6 3"
+            fill="currentColor"
+            stroke="none"
+          />
+        </symbol>
+        <symbol id="i-skip-back" viewBox="0 0 24 24">
+          <polygon
+            points="19 20 9 12 19 4 19 20"
+            fill="currentColor"
+            stroke="none"
+          />
+          <line x1="5" x2="5" y1="19" y2="5" />
+        </symbol>
+        <symbol id="i-skip-forward" viewBox="0 0 24 24">
+          <polygon
+            points="5 4 15 12 5 20 5 4"
+            fill="currentColor"
+            stroke="none"
+          />
+          <line x1="19" x2="19" y1="5" y2="19" />
+        </symbol>
+        <symbol id="i-settings" viewBox="0 0 24 24">
+          <path
+            d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+          />
+          <circle cx="12" cy="12" r="3" />
+        </symbol>
+        <symbol id="i-edit" viewBox="0 0 24 24">
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+        </symbol>
+      </defs>
+    </svg>
+
+    <div class="page-head">
+      <h1>Control Center — B-family · slider studies</h1>
+      <p>
+        All four share the same Windows-11 toggle grid, power segment, media
+        card, and footer bar (battery + theme / lock / sleep / power). Only the
+        slider block changes — that's the part to choose. Active tiles now carry
+        a small sub-label so the SSID / device still shows.
+      </p>
+    </div>
+
+    <div class="rail">
+      <!-- ════ B1 — Capsule sliders ════ -->
+      <div class="col">
+        <div class="col-cap">
+          <span class="tag">B1</span>
+          <span class="name">Capsule sliders</span>
+          <span class="note"
+            >Tall filled pills; the icon + label ride inside the fill, value
+            trails on the right. Most tactile, reads like a button.</span
+          >
+        </div>
+        <div class="panel">
+          <div class="grid">
+            <button class="tile on">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-wifi" /></svg></span
+              ><span class="tl">Wi-Fi</span><span class="ts">Mehr Licht</span>
+            </button>
+            <button class="tile on">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-bluetooth" /></svg></span
+              ><span class="tl">Bluetooth</span
+              ><span class="ts">XM5 · 80%</span>
+            </button>
+            <button class="tile on">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-shield" /></svg></span
+              ><span class="tl">VPN</span><span class="ts">Tailscale</span>
+            </button>
+            <button class="tile">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-bell-off" /></svg></span
+              ><span class="tl">Focus</span><span class="ts">Off</span>
+            </button>
+            <button class="tile">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-coffee" /></svg></span
+              ><span class="tl">Awake</span><span class="ts">Off</span>
+            </button>
+            <button class="tile">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-moon" /></svg></span
+              ><span class="tl">Night</span><span class="ts">Off</span>
+            </button>
+          </div>
+          <div class="s1">
+            <div class="cap">
+              <span class="capfill" style="width: 62%"></span
+              ><span class="capic"
+                ><svg class="ic sm"><use href="#i-volume" /></svg></span
+              ><span class="caplbl">Volume</span><span class="capval">62%</span>
+            </div>
+            <div class="cap">
+              <span class="capfill" style="width: 80%"></span
+              ><span class="capic"
+                ><svg class="ic sm"><use href="#i-sun" /></svg></span
+              ><span class="caplbl">Brightness</span
+              ><span class="capval">80%</span>
+            </div>
+            <div class="cap">
+              <span class="capfill" style="width: 45%"></span
+              ><span class="capic"
+                ><svg class="ic sm"><use href="#i-mic" /></svg></span
+              ><span class="caplbl">Mic</span><span class="capval">45%</span>
+            </div>
+          </div>
+          <div class="seg">
+            <button>
+              <svg class="ic sm"><use href="#i-leaf" /></svg>Saver</button
+            ><button class="active">
+              <svg class="ic sm"><use href="#i-gauge" /></svg>Balanced</button
+            ><button>
+              <svg class="ic sm"><use href="#i-zap" /></svg>Perf
+            </button>
+          </div>
+          <div class="media">
+            <div class="art"></div>
+            <div class="media-txt">
+              <div class="media-title">Svefn-g-englar</div>
+              <div class="media-sub">Sigur Rós — Spotify</div>
+            </div>
+            <div class="media-ctl">
+              <button>
+                <svg class="ic sm"><use href="#i-skip-back" /></svg></button
+              ><button>
+                <svg class="ic"><use href="#i-play" /></svg></button
+              ><button>
+                <svg class="ic sm"><use href="#i-skip-forward" /></svg>
+              </button>
+            </div>
+          </div>
+          <div class="foot">
+            <span class="fbat"
+              ><span class="batt"><i style="width: 60%"></i></span>60%
+              <small>· 3:42 · 54°</small></span
+            ><span class="fbtns"
+              ><button title="Theme">
+                <svg class="ic sm"><use href="#i-palette" /></svg></button
+              ><button title="Lock">
+                <svg class="ic sm"><use href="#i-lock" /></svg></button
+              ><button title="Sleep">
+                <svg class="ic sm"><use href="#i-sleep" /></svg></button
+              ><button class="danger" title="Power">
+                <svg class="ic sm"><use href="#i-power" /></svg></button
+            ></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ B2 — Boxed thick track ════ -->
+      <div class="col">
+        <div class="col-cap">
+          <span class="tag">B2</span>
+          <span class="name">Boxed track + knob</span>
+          <span class="note"
+            >Sliders grouped in one card, thick 8px track, prominent draggable
+            knob, value on the right. Familiar and obvious.</span
+          >
+        </div>
+        <div class="panel">
+          <div class="grid">
+            <button class="tile on">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-wifi" /></svg></span
+              ><span class="tl">Wi-Fi</span><span class="ts">Mehr Licht</span>
+            </button>
+            <button class="tile on">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-bluetooth" /></svg></span
+              ><span class="tl">Bluetooth</span
+              ><span class="ts">XM5 · 80%</span>
+            </button>
+            <button class="tile on">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-shield" /></svg></span
+              ><span class="tl">VPN</span><span class="ts">Tailscale</span>
+            </button>
+            <button class="tile">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-bell-off" /></svg></span
+              ><span class="tl">Focus</span><span class="ts">Off</span>
+            </button>
+            <button class="tile">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-coffee" /></svg></span
+              ><span class="tl">Awake</span><span class="ts">Off</span>
+            </button>
+            <button class="tile">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-moon" /></svg></span
+              ><span class="tl">Night</span><span class="ts">Off</span>
+            </button>
+          </div>
+          <div class="s2">
+            <div class="s2row">
+              <span class="s2i"
+                ><svg class="ic sm"><use href="#i-volume" /></svg
+              ></span>
+              <div class="s2track">
+                <span class="s2f" style="width: 62%"></span
+                ><span class="s2k" style="left: 62%"></span>
+              </div>
+              <span class="s2v">62%</span>
+            </div>
+            <div class="s2row">
+              <span class="s2i"
+                ><svg class="ic sm"><use href="#i-sun" /></svg
+              ></span>
+              <div class="s2track">
+                <span class="s2f" style="width: 80%"></span
+                ><span class="s2k" style="left: 80%"></span>
+              </div>
+              <span class="s2v">80%</span>
+            </div>
+            <div class="s2row">
+              <span class="s2i"
+                ><svg class="ic sm"><use href="#i-mic" /></svg
+              ></span>
+              <div class="s2track">
+                <span class="s2f" style="width: 45%"></span
+                ><span class="s2k" style="left: 45%"></span>
+              </div>
+              <span class="s2v">45%</span>
+            </div>
+          </div>
+          <div class="seg">
+            <button>
+              <svg class="ic sm"><use href="#i-leaf" /></svg>Saver</button
+            ><button class="active">
+              <svg class="ic sm"><use href="#i-gauge" /></svg>Balanced</button
+            ><button>
+              <svg class="ic sm"><use href="#i-zap" /></svg>Perf
+            </button>
+          </div>
+          <div class="media">
+            <div class="art"></div>
+            <div class="media-txt">
+              <div class="media-title">Svefn-g-englar</div>
+              <div class="media-sub">Sigur Rós — Spotify</div>
+            </div>
+            <div class="media-ctl">
+              <button>
+                <svg class="ic sm"><use href="#i-skip-back" /></svg></button
+              ><button>
+                <svg class="ic"><use href="#i-play" /></svg></button
+              ><button>
+                <svg class="ic sm"><use href="#i-skip-forward" /></svg>
+              </button>
+            </div>
+          </div>
+          <div class="foot">
+            <span class="fbat"
+              ><span class="batt"><i style="width: 60%"></i></span>60%
+              <small>· 3:42 · 54°</small></span
+            ><span class="fbtns"
+              ><button title="Theme">
+                <svg class="ic sm"><use href="#i-palette" /></svg></button
+              ><button title="Lock">
+                <svg class="ic sm"><use href="#i-lock" /></svg></button
+              ><button title="Sleep">
+                <svg class="ic sm"><use href="#i-sleep" /></svg></button
+              ><button class="danger" title="Power">
+                <svg class="ic sm"><use href="#i-power" /></svg></button
+            ></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ B3 — Stepped segments ════ -->
+      <div class="col">
+        <div class="col-cap">
+          <span class="tag">B3</span>
+          <span class="name">Stepped segments</span>
+          <span class="note"
+            >Level-meter look — discrete blocks fill left-to-right. Distinctive
+            and "system panel"; less precise to drag, great at a glance.</span
+          >
+        </div>
+        <div class="panel">
+          <div class="grid">
+            <button class="tile on">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-wifi" /></svg></span
+              ><span class="tl">Wi-Fi</span><span class="ts">Mehr Licht</span>
+            </button>
+            <button class="tile on">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-bluetooth" /></svg></span
+              ><span class="tl">Bluetooth</span
+              ><span class="ts">XM5 · 80%</span>
+            </button>
+            <button class="tile on">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-shield" /></svg></span
+              ><span class="tl">VPN</span><span class="ts">Tailscale</span>
+            </button>
+            <button class="tile">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-bell-off" /></svg></span
+              ><span class="tl">Focus</span><span class="ts">Off</span>
+            </button>
+            <button class="tile">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-coffee" /></svg></span
+              ><span class="tl">Awake</span><span class="ts">Off</span>
+            </button>
+            <button class="tile">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-moon" /></svg></span
+              ><span class="tl">Night</span><span class="ts">Off</span>
+            </button>
+          </div>
+          <div class="s3">
+            <div class="s3row">
+              <svg class="ic s3i"><use href="#i-volume" /></svg>
+              <div class="steps" data-fill="6"></div>
+              <span class="s3v">62%</span>
+            </div>
+            <div class="s3row">
+              <svg class="ic s3i"><use href="#i-sun" /></svg>
+              <div class="steps" data-fill="8"></div>
+              <span class="s3v">80%</span>
+            </div>
+            <div class="s3row">
+              <svg class="ic s3i"><use href="#i-mic" /></svg>
+              <div class="steps" data-fill="4"></div>
+              <span class="s3v">45%</span>
+            </div>
+          </div>
+          <div class="seg">
+            <button>
+              <svg class="ic sm"><use href="#i-leaf" /></svg>Saver</button
+            ><button class="active">
+              <svg class="ic sm"><use href="#i-gauge" /></svg>Balanced</button
+            ><button>
+              <svg class="ic sm"><use href="#i-zap" /></svg>Perf
+            </button>
+          </div>
+          <div class="media">
+            <div class="art"></div>
+            <div class="media-txt">
+              <div class="media-title">Svefn-g-englar</div>
+              <div class="media-sub">Sigur Rós — Spotify</div>
+            </div>
+            <div class="media-ctl">
+              <button>
+                <svg class="ic sm"><use href="#i-skip-back" /></svg></button
+              ><button>
+                <svg class="ic"><use href="#i-play" /></svg></button
+              ><button>
+                <svg class="ic sm"><use href="#i-skip-forward" /></svg>
+              </button>
+            </div>
+          </div>
+          <div class="foot">
+            <span class="fbat"
+              ><span class="batt"><i style="width: 60%"></i></span>60%
+              <small>· 3:42 · 54°</small></span
+            ><span class="fbtns"
+              ><button title="Theme">
+                <svg class="ic sm"><use href="#i-palette" /></svg></button
+              ><button title="Lock">
+                <svg class="ic sm"><use href="#i-lock" /></svg></button
+              ><button title="Sleep">
+                <svg class="ic sm"><use href="#i-sleep" /></svg></button
+              ><button class="danger" title="Power">
+                <svg class="ic sm"><use href="#i-power" /></svg></button
+            ></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ B4 — Minimal labeled ════ -->
+      <div class="col">
+        <div class="col-cap">
+          <span class="tag">B4</span>
+          <span class="name">Minimal labeled</span>
+          <span class="note"
+            >Label + value on top, thin flat fill below, no knob. Calmest and
+            most compact; closest to plain Settings rows.</span
+          >
+        </div>
+        <div class="panel">
+          <div class="grid">
+            <button class="tile on">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-wifi" /></svg></span
+              ><span class="tl">Wi-Fi</span><span class="ts">Mehr Licht</span>
+            </button>
+            <button class="tile on">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-bluetooth" /></svg></span
+              ><span class="tl">Bluetooth</span
+              ><span class="ts">XM5 · 80%</span>
+            </button>
+            <button class="tile on">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-shield" /></svg></span
+              ><span class="tl">VPN</span><span class="ts">Tailscale</span>
+            </button>
+            <button class="tile">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-bell-off" /></svg></span
+              ><span class="tl">Focus</span><span class="ts">Off</span>
+            </button>
+            <button class="tile">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-coffee" /></svg></span
+              ><span class="tl">Awake</span><span class="ts">Off</span>
+            </button>
+            <button class="tile">
+              <span class="ti"
+                ><svg class="ic lg"><use href="#i-moon" /></svg></span
+              ><span class="tl">Night</span><span class="ts">Off</span>
+            </button>
+          </div>
+          <div class="s4">
+            <div class="s4row">
+              <div class="s4top">
+                <svg class="ic sm s4i"><use href="#i-volume" /></svg
+                ><span class="s4l">Volume</span
+                ><span class="s4aux">· Speakers</span
+                ><span class="s4v">62%</span>
+              </div>
+              <div class="s4bar">
+                <span class="s4f" style="width: 62%"></span>
+              </div>
+            </div>
+            <div class="s4row">
+              <div class="s4top">
+                <svg class="ic sm s4i"><use href="#i-sun" /></svg
+                ><span class="s4l">Brightness</span
+                ><span class="s4aux">· Auto</span><span class="s4v">80%</span>
+              </div>
+              <div class="s4bar">
+                <span class="s4f" style="width: 80%"></span>
+              </div>
+            </div>
+            <div class="s4row">
+              <div class="s4top">
+                <svg class="ic sm s4i"><use href="#i-mic" /></svg
+                ><span class="s4l">Microphone</span
+                ><span class="s4aux">· Internal</span
+                ><span class="s4v">45%</span>
+              </div>
+              <div class="s4bar">
+                <span class="s4f" style="width: 45%"></span>
+              </div>
+            </div>
+          </div>
+          <div class="seg">
+            <button>
+              <svg class="ic sm"><use href="#i-leaf" /></svg>Saver</button
+            ><button class="active">
+              <svg class="ic sm"><use href="#i-gauge" /></svg>Balanced</button
+            ><button>
+              <svg class="ic sm"><use href="#i-zap" /></svg>Perf
+            </button>
+          </div>
+          <div class="media">
+            <div class="art"></div>
+            <div class="media-txt">
+              <div class="media-title">Svefn-g-englar</div>
+              <div class="media-sub">Sigur Rós — Spotify</div>
+            </div>
+            <div class="media-ctl">
+              <button>
+                <svg class="ic sm"><use href="#i-skip-back" /></svg></button
+              ><button>
+                <svg class="ic"><use href="#i-play" /></svg></button
+              ><button>
+                <svg class="ic sm"><use href="#i-skip-forward" /></svg>
+              </button>
+            </div>
+          </div>
+          <div class="foot">
+            <span class="fbat"
+              ><span class="batt"><i style="width: 60%"></i></span>60%
+              <small>· 3:42 · 54°</small></span
+            ><span class="fbtns"
+              ><button title="Theme">
+                <svg class="ic sm"><use href="#i-palette" /></svg></button
+              ><button title="Lock">
+                <svg class="ic sm"><use href="#i-lock" /></svg></button
+              ><button title="Sleep">
+                <svg class="ic sm"><use href="#i-sleep" /></svg></button
+              ><button class="danger" title="Power">
+                <svg class="ic sm"><use href="#i-power" /></svg></button
+            ></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Build the stepped meters (B3): 14 blocks each. data-fill is 0–10.
+      document.querySelectorAll(".steps").forEach((el) => {
+        const total = 14;
+        const lit = Math.round((parseInt(el.dataset.fill, 10) / 10) * total);
+        for (let i = 0; i < total; i++) {
+          const b = document.createElement("i");
+          if (i < lit) b.classList.add("f");
+          el.appendChild(b);
+        }
+      });
+    </script>
+  </body>
+</html>
