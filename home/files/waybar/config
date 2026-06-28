@@ -6,17 +6,23 @@
     "margin-top": 6,
     "spacing": 0,
 
-    "modules-left": [
+    "modules-left": [],
+    "modules-center": [
         "hyprland/workspaces",
         "custom/sep",
         "clock",
+        "custom/rspace",
         "battery"
     ],
-    "modules-center": [],
     "modules-right": [],
 
     "custom/sep": {
         "format": "│",
+        "tooltip": false
+    },
+
+    "custom/rspace": {
+        "format": " ",
         "tooltip": false
     },
 

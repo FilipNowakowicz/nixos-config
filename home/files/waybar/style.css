@@ -11,19 +11,23 @@ window#waybar {
   color: @text;
 }
 
-/* ── Single offset pill ───────────────────────────────────
-   One solid pill (all modules in modules-left). Instead of auto-
-   centring the whole pill, it's left-anchored and shifted right by a
-   fixed margin so the clock's date dot lands at screen centre — the
-   pill stays tight (no balancing gap); the empty space is outside it.
-   The margin is tuned to the fixed-width workspaces + time block. */
-.modules-left {
+/* ── Single pill, centred on the dot ──────────────────────
+   All modules in modules-center so it's one pill that auto-centres on
+   screen. A balancing spacer (custom/rspace) makes the right half of
+   the pill as wide as the left, so the clock's date dot sits at the
+   pill's centre — and therefore at screen centre. */
+.modules-center {
   background: alpha(@bg, 0.98);
   border-radius: 13px;
   border: 1px solid alpha(@amber, 0.28);
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
-  margin: 4px 0 4px 592px;
+  margin: 4px 0;
   padding: 0 6px;
+}
+
+/* Balancing spacer: tuned so left-of-dot == right-of-dot. */
+#custom-rspace {
+  min-width: 310px;
 }
 
 /* Per-module spacing inside the pill. */
