@@ -2,7 +2,6 @@
     "layer": "top",
     "position": "top",
     "exclusive": false,
-    "start_hidden": true,
     "height": 38,
     "margin-top": 6,
     "spacing": 0,
