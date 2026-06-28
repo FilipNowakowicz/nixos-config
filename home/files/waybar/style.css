@@ -32,10 +32,13 @@ window#waybar {
   padding: 0 9px;
 }
 
-/* ── Separators ───────────────────────────────────────── */
-#custom-sep {
-  color: alpha(@text, 0.18);
-  padding: 0 2px;
+/* ── Centering spacer ─────────────────────────────────────
+   Pushes the volume/battery cluster to the pill's right edge so the
+   clock sits at the geometric centre of the pill (and therefore at
+   screen centre, since the pill auto-centres). min-width is tuned to
+   balance the fixed-width workspaces block on the left. */
+#custom-rspace {
+  min-width: 132px;
 }
 
 /* ── Workspaces ───────────────────────────────────────── */
