@@ -6,16 +6,16 @@
     "margin-top": 6,
     "spacing": 0,
 
-    "modules-left": [],
+    "modules-left": [
+        "hyprland/workspaces"
+    ],
     "modules-center": [
-        "hyprland/workspaces",
-        "custom/sep",
-        "clock",
-        "custom/sep",
+        "clock"
+    ],
+    "modules-right": [
         "pulseaudio",
         "battery"
     ],
-    "modules-right": [],
 
     "hyprland/workspaces": {
         "format": "{name}",
@@ -64,7 +64,7 @@
         "format": "{icon} {capacity}%",
         "format-charging": "󰂄 {capacity}%",
         "format-plugged": "󰚥 {capacity}%",
-        "format-icons": ["󰂎", "󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"],
+        "format-icons": ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"],
         "tooltip-format": "{timeTo} · {power}W"
     }
 }
