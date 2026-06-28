@@ -11,13 +11,11 @@ window#waybar {
   color: @text;
 }
 
-/* ── Pills ────────────────────────────────────────────────
-   Three zones (workspaces left, clock centred on screen, status
-   right), each its own pill. They float over the top edge only
-   while the bar is revealed (auto-hide). */
-.modules-left,
-.modules-center,
-.modules-right {
+/* ── Single centered pill ─────────────────────────────────
+   All modules live in modules-center, so styling that one box
+   gives a single solid pill (not three islands). It floats over
+   the top edge only while the bar is revealed (auto-hide). */
+.modules-center {
   background: alpha(@bg, 0.98);
   border-radius: 13px;
   border: 1px solid alpha(@amber, 0.28);
@@ -26,12 +24,18 @@ window#waybar {
   padding: 0 6px;
 }
 
-/* Per-module spacing inside a pill. */
+/* Per-module spacing inside the pill. */
 #workspaces,
 #clock,
 #pulseaudio,
 #battery {
   padding: 0 9px;
+}
+
+/* ── Separators ───────────────────────────────────────── */
+#custom-sep {
+  color: alpha(@text, 0.18);
+  padding: 0 2px;
 }
 
 /* ── Workspaces ───────────────────────────────────────── */

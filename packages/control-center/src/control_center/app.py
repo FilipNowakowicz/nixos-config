@@ -55,6 +55,7 @@ class ControlCenter(
         self.initial_view = initial_view
         self._current_view = initial_view
         self._visible = not start_hidden
+        self._dismiss_armed = False
         self.colors = colors
         self._css_provider = None
         self.state = state
@@ -84,16 +85,16 @@ class ControlCenter(
 
         Gtk4LayerShell.init_for_window(self.win)
         Gtk4LayerShell.set_layer(self.win, Gtk4LayerShell.Layer.OVERLAY)
-        # Anchor every edge so the surface spans the whole output. The region
-        # outside the panel is a transparent light-dismiss backdrop (the
-        # macOS/Windows flyout pattern); the panel is pinned to the top-right.
-        for _edge in (
-            Gtk4LayerShell.Edge.TOP,
-            Gtk4LayerShell.Edge.BOTTOM,
-            Gtk4LayerShell.Edge.LEFT,
-            Gtk4LayerShell.Edge.RIGHT,
-        ):
-            Gtk4LayerShell.set_anchor(self.win, _edge, True)
+        # Pin a content-sized surface to the top-right corner. Anchoring only
+        # TOP+RIGHT keeps the surface the size of the panel (a full-output
+        # surface positioned by GTK alignment placed it off-screen instead).
+        Gtk4LayerShell.set_anchor(self.win, Gtk4LayerShell.Edge.TOP, True)
+        Gtk4LayerShell.set_anchor(self.win, Gtk4LayerShell.Edge.RIGHT, True)
+        Gtk4LayerShell.set_margin(self.win, Gtk4LayerShell.Edge.TOP, PANEL_MARGIN)
+        Gtk4LayerShell.set_margin(self.win, Gtk4LayerShell.Edge.RIGHT, PANEL_MARGIN)
+        # ON_DEMAND keyboard: the panel takes focus while open (so Escape works),
+        # and clicking another window moves focus away — the focus-leave handler
+        # then dismisses it (light dismiss, the macOS/Windows flyout behaviour).
         Gtk4LayerShell.set_keyboard_mode(
             self.win, Gtk4LayerShell.KeyboardMode.ON_DEMAND
         )
@@ -102,6 +103,10 @@ class ControlCenter(
         key = Gtk.EventControllerKey()
         key.connect("key-pressed", self._on_key)
         self.win.add_controller(key)
+
+        focus = Gtk.EventControllerFocus()
+        focus.connect("leave", self._on_focus_leave)
+        self.win.add_controller(focus)
 
         self.stack = Gtk.Stack()
         self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT)
@@ -121,29 +126,11 @@ class ControlCenter(
         outer.set_name("panel")
         outer.set_size_request(PANEL_TOTAL_WIDTH, -1)
         outer.append(self.stack)
-        # Pin the panel to the top-right corner within the full-output surface.
-        outer.set_halign(Gtk.Align.END)
-        outer.set_valign(Gtk.Align.START)
-        outer.set_margin_top(PANEL_MARGIN)
-        outer.set_margin_end(PANEL_MARGIN)
 
-        # Transparent backdrop filling the rest of the surface: a click anywhere
-        # outside the panel dismisses it (light dismiss). Stays behind the panel
-        # via Gtk.Overlay, so panel clicks are unaffected.
-        backdrop = Gtk.Box()
-        backdrop.set_hexpand(True)
-        backdrop.set_vexpand(True)
-        dismiss = Gtk.GestureClick()
-        dismiss.connect("released", self._on_backdrop_click)
-        backdrop.add_controller(dismiss)
-
-        overlay = Gtk.Overlay()
-        overlay.set_child(backdrop)
-        overlay.add_overlay(outer)
-
-        self.win.set_child(overlay)
+        self.win.set_child(outer)
         if self._visible:
             self.win.present()
+            GLib.timeout_add(250, self._arm_dismiss)
         else:
             self.win.set_visible(False)
 
@@ -162,9 +149,16 @@ class ControlCenter(
         self._hide_window()
         return True
 
-    def _on_backdrop_click(self, _gesture, _n_press, _x, _y):
-        # Click outside the panel (on the transparent backdrop) = light dismiss.
-        self._hide_window()
+    def _on_focus_leave(self, _ctrl):
+        # Focus left the panel (the user clicked another window) = light dismiss.
+        # _dismiss_armed gates out the spurious focus bounce right after present
+        # so the panel can't dismiss itself the instant it opens.
+        if self._visible and self._dismiss_armed:
+            self._hide_window()
+
+    def _arm_dismiss(self):
+        self._dismiss_armed = True
+        return False  # one-shot
 
     def _on_shutdown(self, *_args):
         if self._fast_poll_id:
@@ -194,7 +188,9 @@ class ControlCenter(
         if self.win is None:
             return
         self._visible = True
+        self._dismiss_armed = False
         self.win.present()
+        GLib.timeout_add(250, self._arm_dismiss)
         self._write_presence()
         self._tick_fast()
         self._tick_slow()
@@ -203,6 +199,7 @@ class ControlCenter(
         if self.win is None:
             return
         self._visible = False
+        self._dismiss_armed = False
         self.win.set_visible(False)
         self._write_presence()
 
