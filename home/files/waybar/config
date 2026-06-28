@@ -8,11 +8,17 @@
 
     "modules-left": [
         "hyprland/workspaces",
+        "custom/sep",
         "clock",
         "battery"
     ],
     "modules-center": [],
     "modules-right": [],
+
+    "custom/sep": {
+        "format": "│",
+        "tooltip": false
+    },
 
     "hyprland/workspaces": {
         "format": "{name}",
@@ -41,8 +47,8 @@
             "warning": 20,
             "critical": 10
         },
-        "format": "{icon} {capacity}%",
-        "format-charging": "󰂄 {capacity}%",
+        "format": "<span alpha='28000'>│</span>  {icon} {capacity}%",
+        "format-charging": "<span alpha='28000'>│</span>  󰂄 {capacity}%",
         "format-plugged": "",
         "format-full": "",
         "format-icons": ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"],

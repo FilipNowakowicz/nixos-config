@@ -22,7 +22,7 @@ window#waybar {
   border-radius: 13px;
   border: 1px solid alpha(@amber, 0.28);
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
-  margin: 4px 0 4px 611px;
+  margin: 4px 0 4px 597px;
   padding: 0 6px;
 }
 
@@ -31,6 +31,12 @@ window#waybar {
 #clock,
 #battery {
   padding: 0 9px;
+}
+
+/* ── Separator (workspaces | time) ────────────────────── */
+#custom-sep {
+  color: alpha(@text, 0.18);
+  padding: 0 2px;
 }
 
 /* ── Workspaces ───────────────────────────────────────── */
