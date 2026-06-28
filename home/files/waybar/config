@@ -6,14 +6,12 @@
     "margin-top": 6,
     "spacing": 0,
 
-    "modules-left": [],
-    "modules-center": [
+    "modules-left": [
         "hyprland/workspaces",
         "clock",
-        "custom/rspace",
-        "pulseaudio",
         "battery"
     ],
+    "modules-center": [],
     "modules-right": [],
 
     "hyprland/workspaces": {
@@ -32,27 +30,10 @@
         "sort-by": "number"
     },
 
-    "custom/rspace": {
-        "format": " ",
-        "tooltip": false
-    },
-
     "clock": {
         "interval": 60,
         "format": "{:%H:%M <span alpha='9999'> · %a %d</span>}",
         "tooltip-format": "<tt><small>{calendar}</small></tt>"
-    },
-
-    "pulseaudio": {
-        "format": "{icon} {volume}%",
-        "format-muted": "󰝟",
-        "format-icons": {
-            "headphone": "󰋋",
-            "default": ["󰕿", "󰖀", "󰕾"]
-        },
-        "scroll-step": 5,
-        "on-click": "swayosd-client --output-volume mute-toggle",
-        "on-click-right": "pavucontrol"
     },
 
     "battery": {
@@ -62,6 +43,8 @@
         },
         "format": "{icon} {capacity}%",
         "format-charging": "󰂄 {capacity}%",
+        "format-plugged": "",
+        "format-full": "",
         "format-icons": ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"],
         "tooltip-format": "{timeTo} · {power}W"
     }
