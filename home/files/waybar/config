@@ -38,7 +38,7 @@
 
     "clock": {
         "interval": 60,
-        "format": "{:%H:%M <span alpha='9999'> · %a %d</span>}",
+        "format": "<span font_features='tnum=1'>{:%H:%M <span alpha='9999'> · %a %d</span>}</span>",
         "tooltip-format": "<tt><small>{calendar}</small></tt>"
     },
 

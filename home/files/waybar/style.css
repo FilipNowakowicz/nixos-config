@@ -22,7 +22,7 @@ window#waybar {
   border-radius: 13px;
   border: 1px solid alpha(@amber, 0.28);
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
-  margin: 4px 0 4px 597px;
+  margin: 4px 0 4px 592px;
   padding: 0 6px;
 }
 
