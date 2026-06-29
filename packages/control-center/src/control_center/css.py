@@ -55,7 +55,7 @@ def build_css(colors):
     /* Hairline section divider (L2 seamless layout) */
     .divider {{
         min-height: 1px;
-        background: {rgba(orange, 0.16)};
+        background: {rgba(orange, 0.26)};
     }}
 
     .panel-stack {{
@@ -110,7 +110,7 @@ def build_css(colors):
         font-size: 15px;
     }}
     .gtile.on .gtile-ic {{
-        background-color: {rgba(amber, 1.0)};
+        background-color: {rgba(amber, 0.82)};
         background-image: {bead};
         color: {rgba(bg, 1.0)};
     }}
@@ -491,7 +491,7 @@ def build_css(colors):
         min-width: 44px; min-height: 44px;
         padding: 0;
         border-radius: 999px;
-        background-color: {rgba(amber, 1.0)};
+        background-color: {rgba(amber, 0.82)};
         background-image: {bead};
         color: {rgba(bg, 1.0)};
         font-size: 18px;
@@ -521,7 +521,7 @@ def build_css(colors):
         min-width: 38px; min-height: 38px;
         padding: 0;
         border-radius: 999px;
-        background-color: {rgba(amber, 1.0)};
+        background-color: {rgba(amber, 0.82)};
         background-image: {bead};
         color: {rgba(bg, 1.0)};
         font-size: 16px;
