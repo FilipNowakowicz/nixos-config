@@ -33,7 +33,8 @@ def build_css(colors):
         color: {rgba(text, 0.92)};
     }}
     .tile-glyph, .glyph-btn, .chip-glyph, .icon-btn, .back-btn,
-    .hero-icon-wrap, .vpn-icon, .di-icon {{
+    .hero-icon-wrap, .vpn-icon, .di-icon,
+    .gtile-ic, .foot-btn, .foot-bat-glyph, .media-btn, .album-art-note {{
         font-family: "JetBrainsMono Nerd Font", "Inter", sans-serif;
     }}
     window {{ background: transparent; }}
@@ -180,14 +181,14 @@ def build_css(colors):
         background-image: {fill_sheen};
     }}
     .slider-knob {{
-        min-width: 16px; min-height: 16px;
-        margin-top: -4px;
-        margin-right: -2px;
+        min-width: 12px; min-height: 12px;
+        margin-top: -2px;
+        margin-right: -1px;
         border-radius: 999px;
         background: #ffffff;
         box-shadow:
-            0 0 0 2px rgba(0, 0, 0, 0.22),
-            0 1px 4px rgba(0, 0, 0, 0.55);
+            0 0 0 1px rgba(0, 0, 0, 0.18),
+            0 1px 3px rgba(0, 0, 0, 0.5);
     }}
     .slider-value {{
         min-width: 24px;
