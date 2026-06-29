@@ -1,17 +1,17 @@
 schema: learning-candidate/v1
 id: 2026-06-28-layershell-corner-panel-positioning
-date: 2026-06-28
-expires: 2026-12-28
+date: 2026-06-29
+expires: 2026-12-29
 status: open
 
 route: promote-doc
 best_form: doc
 
-evidence: [pr-#363, commit-f0892b1]
-observation: For a gtk4-layer-shell corner panel (control-center), anchoring all four edges to get a full-output surface and positioning the panel with GTK halign/valign inside a Gtk.Overlay opened it off the left edge (xywh 0 0 200 200). Reverting to a content-sized surface anchored only TOP+RIGHT with layer-shell margins placed it correctly top-right (xywh 1492 12 ...). Click-outside dismiss then needs a focus mechanism, not a full-surface backdrop — an ON_DEMAND Gtk.EventControllerFocus 'leave' handler (armed ~250ms after present to ignore the focus bounce) works with the small surface.
-proposed_upgrade: Note in the control-center package docs/README that corner layer-shell panels use an opposite-edge-pair-free anchor (e.g. TOP+RIGHT) + layer-shell margins for placement, and focus-leave for light dismiss; a full-output 4-edge surface positioned by GTK alignment mispositions the panel.
+evidence: [pr-#363, commit-29a5b09, commit-f0892b1]
+observation: A gtk4-layer-shell full-output surface (all four edges anchored + set_exclusive_zone(-1)) is the correct base for a corner panel with click-outside dismiss — but it silently collapses to a content-sized surface placed top-left (e.g. 414x608 @ 0,0 instead of 1920x1080) when the window has set_resizable(False); that single call, not the anchoring, was the earlier "opens off-screen" failure. With resizable left True it fills the output; pin the panel top-right via child halign=END/valign=START + margins, and dismiss on a Gtk.GestureClick on the transparent root whose handler hides the window unless panel.compute_bounds(root) contains the press (set that sequence DENIED so inner button/slider-drag gestures still win). A focus-leave (EventControllerFocus) dismiss is wrong under Hyprland focus-follows-mouse — it fires on hover, closing the panel when the cursor merely passes off it.
+proposed_upgrade: Note in the control-center README/app.py that the layer-shell panel uses a full-output 4-edge anchor + exclusive_zone(-1) with resizable=True (NOT set_resizable(False), which pins the surface to content size), child-alignment placement, and click-outside-bounds dismiss rather than focus-leave.
 type: repo-fix
 dedupe_key: control-center:layershell-corner-panel-positioning
-triggers: [packages/control-center/src/control_center/app.py, Gtk4LayerShell.set_anchor, light-dismiss]
+triggers: [packages/control-center/src/control_center/app.py, Gtk4LayerShell.set_anchor, set_resizable, click-outside-dismiss]
 targets: [packages/control-center/README.md, packages/control-center/src/control_center/app.py]
 risk: low-narrow-to-one-package
