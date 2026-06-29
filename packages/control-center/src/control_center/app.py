@@ -596,6 +596,11 @@ class ControlCenter(
         fill.set_size_request(0, -1)
         knob = Gtk.Box()
         knob.add_css_class("slider-knob")
+        # hexpand so the knob is allocated the fill's full width; halign=END then
+        # parks it at the fill's right edge (the value position). Without hexpand
+        # the horizontal box packs this single child at the start, so the knob
+        # would sit at the left of the track regardless of the slider value.
+        knob.set_hexpand(True)
         knob.set_halign(Gtk.Align.END)
         fill.append(knob)
         track.append(fill)
