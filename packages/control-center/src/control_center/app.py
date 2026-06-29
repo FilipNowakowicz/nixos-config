@@ -81,21 +81,27 @@ class ControlCenter(
 
         self.win = Gtk.ApplicationWindow(application=self)
         self.win.set_decorated(False)
-        self.win.set_resizable(False)
+        # Resizable must stay True: the four-edge-anchored layer surface needs
+        # to be stretched to fill the output. set_resizable(False) pins it to the
+        # content size, which breaks the full-surface click-outside catcher.
         self.win.connect("close-request", self._on_close_request)
 
         Gtk4LayerShell.init_for_window(self.win)
         Gtk4LayerShell.set_layer(self.win, Gtk4LayerShell.Layer.OVERLAY)
-        # Pin a content-sized surface to the top-right corner. Anchoring only
-        # TOP+RIGHT keeps the surface the size of the panel (a full-output
-        # surface positioned by GTK alignment placed it off-screen instead).
-        Gtk4LayerShell.set_anchor(self.win, Gtk4LayerShell.Edge.TOP, True)
-        Gtk4LayerShell.set_anchor(self.win, Gtk4LayerShell.Edge.RIGHT, True)
-        Gtk4LayerShell.set_margin(self.win, Gtk4LayerShell.Edge.TOP, PANEL_MARGIN)
-        Gtk4LayerShell.set_margin(self.win, Gtk4LayerShell.Edge.RIGHT, PANEL_MARGIN)
-        # ON_DEMAND keyboard: the panel takes focus while open (so Escape works),
-        # and clicking another window moves focus away — the focus-leave handler
-        # then dismisses it (light dismiss, the macOS/Windows flyout behaviour).
+        # Anchor all four edges so the layer surface fills the whole output, and
+        # extend over any exclusive zones (waybar) with exclusive_zone = -1. The
+        # panel itself is pinned top-right via child alignment + margins; the
+        # rest of the surface is transparent and exists only to catch a click
+        # *outside* the panel (click-to-dismiss). A panel-sized surface can't
+        # see outside clicks, and under focus-follows-mouse a focus-leave dismiss
+        # fires on hover — so we dismiss on an explicit outside click instead.
+        for _edge in (
+            Gtk4LayerShell.Edge.TOP, Gtk4LayerShell.Edge.RIGHT,
+            Gtk4LayerShell.Edge.BOTTOM, Gtk4LayerShell.Edge.LEFT,
+        ):
+            Gtk4LayerShell.set_anchor(self.win, _edge, True)
+        Gtk4LayerShell.set_exclusive_zone(self.win, -1)
+        # ON_DEMAND keyboard: the panel takes focus while open so Escape works.
         Gtk4LayerShell.set_keyboard_mode(
             self.win, Gtk4LayerShell.KeyboardMode.ON_DEMAND
         )
@@ -105,14 +111,14 @@ class ControlCenter(
         key.connect("key-pressed", self._on_key)
         self.win.add_controller(key)
 
-        focus = Gtk.EventControllerFocus()
-        focus.connect("leave", self._on_focus_leave)
-        self.win.add_controller(focus)
-
         self.stack = Gtk.Stack()
         self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT)
         self.stack.set_transition_duration(260)
         self.stack.set_size_request(PANEL_CONTENT_WIDTH, -1)
+        # Height follows the visible view, not the tallest one — otherwise the
+        # compact home view is padded down to the VPN view's height, leaving
+        # dead space at the bottom of the panel.
+        self.stack.set_vhomogeneous(False)
 
         self.stack.add_named(self._build_home_view(), "home")
         self.stack.add_named(self._build_wifi_view(), "wifi")
@@ -123,12 +129,43 @@ class ControlCenter(
         self.stack.add_named(self._build_microphone_view(), "microphone")
         self.stack.set_visible_child_name(self.initial_view)
 
-        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        outer.set_name("panel")
-        outer.set_size_request(PANEL_TOTAL_WIDTH, -1)
-        outer.append(self.stack)
+        panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        panel.set_name("panel")
+        panel.set_size_request(PANEL_TOTAL_WIDTH, -1)
+        panel.set_halign(Gtk.Align.END)
+        panel.set_valign(Gtk.Align.START)
+        panel.set_margin_top(PANEL_MARGIN)
+        panel.set_margin_end(PANEL_MARGIN)
+        panel.append(self.stack)
 
-        self.win.set_child(outer)
+        # Transparent full-surface root: pins the panel top-right and dismisses
+        # the window when a click lands outside the panel's bounds.
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        root.set_name("cc-root")
+        root.set_hexpand(True)
+        root.set_vexpand(True)
+        root.append(panel)
+
+        outside = Gtk.GestureClick()
+        outside.set_button(0)  # listen on any button
+
+        def _on_outside_press(gesture, _n_press, x, y):
+            ok, rect = panel.compute_bounds(root)
+            inside = ok and (
+                rect.origin.x <= x <= rect.origin.x + rect.size.width
+                and rect.origin.y <= y <= rect.origin.y + rect.size.height
+            )
+            if inside:
+                # Bow out so the panel's own buttons / slider-drag gestures
+                # own the press; never compete with inner widgets.
+                gesture.set_state(Gtk.EventSequenceState.DENIED)
+                return
+            if self._visible and self._dismiss_armed:
+                self._hide_window()
+        outside.connect("pressed", _on_outside_press)
+        root.add_controller(outside)
+
+        self.win.set_child(root)
         if self._visible:
             self.win.present()
             GLib.timeout_add(250, self._arm_dismiss)
@@ -149,13 +186,6 @@ class ControlCenter(
     def _on_close_request(self, *_args):
         self._hide_window()
         return True
-
-    def _on_focus_leave(self, _ctrl):
-        # Focus left the panel (the user clicked another window) = light dismiss.
-        # _dismiss_armed gates out the spurious focus bounce right after present
-        # so the panel can't dismiss itself the instant it opens.
-        if self._visible and self._dismiss_armed:
-            self._hide_window()
 
     def _arm_dismiss(self):
         self._dismiss_armed = True

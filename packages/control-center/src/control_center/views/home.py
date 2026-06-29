@@ -280,10 +280,20 @@ class HomeViewMixin:
                 act_switch_theme(n)
             card.connect("clicked", _on_theme_pick)
         revealer.set_child(picker)
+        # Collapsed by default — keep it out of the layout entirely so the box
+        # doesn't reserve its inter-child spacing below the footer (dead space).
+        revealer.set_visible(False)
         view.append(revealer)
+
+        def _on_revealed(_r, _p):
+            if not revealer.get_reveal_child():
+                revealer.set_visible(False)
+        revealer.connect("notify::child-revealed", _on_revealed)
 
         def _on_theme(_b):
             opened = not revealer.get_reveal_child()
+            if opened:
+                revealer.set_visible(True)
             revealer.set_reveal_child(opened)
             self._set_class(theme_btn, "on", opened)
         theme_btn.connect("clicked", _on_theme)

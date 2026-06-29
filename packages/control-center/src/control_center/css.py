@@ -94,7 +94,8 @@ def build_css(colors):
         font-size: 15px;
     }}
     .gtile.on .gtile-ic {{
-        background: {rgba(amber, 1.0)};
+        background: linear-gradient(135deg,
+            {rgba(amber, 1.0)} 0%, {rgba(orange, 0.9)} 100%);
         color: {rgba(bg, 1.0)};
     }}
     .gtile-l {{
@@ -466,7 +467,8 @@ def build_css(colors):
         min-width: 44px; min-height: 44px;
         padding: 0;
         border-radius: 999px;
-        background: {rgba(amber, 1.0)};
+        background: linear-gradient(135deg,
+            {rgba(amber, 1.0)} 0%, {rgba(orange, 0.9)} 100%);
         color: {rgba(bg, 1.0)};
         font-size: 18px;
     }}
@@ -495,7 +497,8 @@ def build_css(colors):
         min-width: 38px; min-height: 38px;
         padding: 0;
         border-radius: 999px;
-        background: {rgba(amber, 1.0)};
+        background: linear-gradient(135deg,
+            {rgba(amber, 1.0)} 0%, {rgba(orange, 0.9)} 100%);
         color: {rgba(bg, 1.0)};
         font-size: 16px;
     }}
