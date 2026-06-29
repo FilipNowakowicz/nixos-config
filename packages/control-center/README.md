@@ -87,9 +87,3 @@ light), `nm-connection-editor`, `blueman-manager`, `pavucontrol`, and `kitty`
 The capability layer is covered by
 [`tests/packages/control-center-capabilities.nix`](../../tests/packages/control-center-capabilities.nix),
 which runs without GTK because `capabilities.py` is deliberately stdlib-only.
-
-## Demo
-
-[`launcher-preview.html`](launcher-preview.html) is a static HTML mock of the
-panel layout, kept only as supporting visual material. It is not the project
-pitch and is not wired into the build.

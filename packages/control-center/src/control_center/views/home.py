@@ -135,6 +135,18 @@ class HomeViewMixin:
             act_toggle_source_mute()
         mic_s.glyph_btn.connect("clicked", _on_mute_source)
 
+        # Secondary-click the device icon to open its detail view (output/input
+        # picker). The redesign dropped the old aux buttons that linked there, so
+        # right-click restores the entry point without adding visual clutter;
+        # left-click stays quick-mute.
+        def _nav_secondary(widget, view_name):
+            gesture = Gtk.GestureClick()
+            gesture.set_button(3)  # right mouse button
+            gesture.connect("pressed", lambda *_a, v=view_name: self.go_to(v))
+            widget.add_controller(gesture)
+        _nav_secondary(vol_s.glyph_btn, "volume")
+        _nav_secondary(mic_s.glyph_btn, "microphone")
+
         view.append(self._divider())
 
         # ── Power profile ──
