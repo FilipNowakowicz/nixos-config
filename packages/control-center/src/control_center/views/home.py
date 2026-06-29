@@ -444,14 +444,17 @@ class HomeViewMixin:
             # Now playing
             n = s["now_playing"]
             if n["title"]:
+                # Show the album-art tile only while something is playing; when
+                # idle the empty framed box reads as misplaced clutter, so we
+                # hide the whole overlay and let "Nothing playing" stand alone.
+                art_overlay.set_visible(True)
                 self._set_class(art_fallback, "idle", False)
                 art_note.set_visible(False)
                 np_title.set_label(self._short(n["title"], 30))
                 parts = [p for p in [n["artist"], n["player"]] if p]
                 np_artist.set_label(self._short(" — ".join(parts), 34))
             else:
-                self._set_class(art_fallback, "idle", True)
-                art_note.set_visible(True)
+                art_overlay.set_visible(False)
                 np_title.set_label("Nothing playing")
                 np_artist.set_label("")
             play_btn.set_label(
@@ -486,9 +489,8 @@ class HomeViewMixin:
             meta_parts = []
             if bat["status"] == "Charging":
                 meta_parts.append(f"{bat['time_str']}")
-            elif bat["status"] == "Full":
-                meta_parts.append("full")
-            elif bat["time_str"]:
+            elif bat["status"] != "Full" and bat["time_str"]:
+                # "Full" needs no label — the 100% readout already says it.
                 meta_parts.append(bat["time_str"])
             if s["cpu_temp"] is not None:
                 meta_parts.append(f"{s['cpu_temp']}°")

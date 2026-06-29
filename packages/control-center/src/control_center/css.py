@@ -336,17 +336,17 @@ def build_css(colors):
     .np-artist {{ color: {rgba(text, 0.5)}; font-size: 10px; }}
     .np-player {{ color: {rgba(text, 0.28)}; font-size: 9px; }}
     .media-btn {{
-        min-width: 28px; min-height: 28px;
+        min-width: 32px; min-height: 32px;
         padding: 0;
         border-radius: 999px;
         border: none;
         background: transparent;
         color: {rgba(text, 0.85)};
-        font-size: 13px;
+        font-size: 16px;
         box-shadow: none;
     }}
     .media-btn:hover {{ background: rgba(255, 255, 255, 0.08); }}
-    .media-btn.primary {{ font-size: 16px; }}
+    .media-btn.primary {{ font-size: 20px; }}
 
     /* Footer (battery readout + power actions) */
     .foot {{ color: {rgba(text, 0.7)}; }}
@@ -361,13 +361,13 @@ def build_css(colors):
     }}
     .foot-bat-meta {{ color: {rgba(text, 0.48)}; font-size: 10px; }}
     .foot-btn {{
-        min-width: 33px; min-height: 33px;
+        min-width: 34px; min-height: 34px;
         padding: 0;
         border-radius: 8px;
         border: none;
         background: transparent;
         color: {rgba(text, 0.8)};
-        font-size: 14px;
+        font-size: 16px;
         box-shadow: none;
     }}
     .foot-btn:hover {{
