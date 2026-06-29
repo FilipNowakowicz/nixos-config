@@ -38,7 +38,10 @@ Without these the panel still launches, but the corresponding surface is empty:
 
 Bluetooth, power profile, and media (MPRIS) state are read over D-Bus, so they
 degrade to an empty/idle panel when the relevant service is not running rather
-than erroring.
+than erroring. Now Playing only tracks the MPRIS sources listed in
+`NOW_PLAYING_ALLOW` (`constants.py`) — Spotify by default, so browser/video tabs
+(YouTube, etc.) don't hijack the media row; add players there or set it to `()`
+to track whatever is playing.
 
 ### Optional integrations
 

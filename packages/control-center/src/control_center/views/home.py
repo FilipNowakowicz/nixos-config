@@ -177,6 +177,9 @@ class HomeViewMixin:
         np = self._box(Gtk.Orientation.HORIZONTAL, spacing=11, css="nowplaying")
         art_fallback = Gtk.Box()
         art_fallback.add_css_class("album-art")
+        art_note = self._center_icon(self._label(G["music"], "album-art-note", xalign=0.5))
+        art_note.set_hexpand(True)
+        art_fallback.append(art_note)
         art_pic = Gtk.Picture()
         art_pic.add_css_class("album-art-pic")
         art_pic.set_content_fit(Gtk.ContentFit.COVER)
@@ -423,10 +426,14 @@ class HomeViewMixin:
             # Now playing
             n = s["now_playing"]
             if n["title"]:
+                self._set_class(art_fallback, "idle", False)
+                art_note.set_visible(False)
                 np_title.set_label(self._short(n["title"], 30))
                 parts = [p for p in [n["artist"], n["player"]] if p]
                 np_artist.set_label(self._short(" — ".join(parts), 34))
             else:
+                self._set_class(art_fallback, "idle", True)
+                art_note.set_visible(True)
                 np_title.set_label("Nothing playing")
                 np_artist.set_label("")
             play_btn.set_label(

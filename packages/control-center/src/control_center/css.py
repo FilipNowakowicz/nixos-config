@@ -13,6 +13,19 @@ def build_css(colors):
     def rgba(rgb, a):
         return f"rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {a})"
 
+    # Luminance "bead" sheen — a light top-left highlight fading to a soft
+    # bottom shadow. Layered over a solid accent colour it adds depth in any
+    # theme (a hue gradient is invisible when the palette is desaturated).
+    bead = (
+        "linear-gradient(150deg, rgba(255,255,255,0.32) 0%, "
+        "rgba(255,255,255,0.04) 44%, rgba(0,0,0,0.16) 100%)"
+    )
+    # Horizontal-bar variant for slider fills (glossy top, shaded bottom).
+    fill_sheen = (
+        "linear-gradient(180deg, rgba(255,255,255,0.26) 0%, "
+        "rgba(255,255,255,0.0) 55%, rgba(0,0,0,0.18) 100%)"
+    )
+
     return f"""
     * {{
         font-family: "Inter", "JetBrainsMono Nerd Font", sans-serif;
@@ -30,7 +43,9 @@ def build_css(colors):
         padding: {PANEL_PADDING}px;
         border-radius: 16px;
         border: 1px solid {rgba(orange, 0.26)};
-        background: {rgba(bg, 0.985)};
+        background-color: {rgba(bg, 0.985)};
+        background-image: linear-gradient(180deg,
+            rgba(255, 255, 255, 0.028) 0%, rgba(255, 255, 255, 0.0) 24%);
         box-shadow:
             0 28px 60px rgba(0, 0, 0, 0.55),
             inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -84,7 +99,7 @@ def build_css(colors):
         box-shadow: none;
     }}
     .gtile:hover {{ background: rgba(255, 255, 255, 0.05); }}
-    .gtile.on {{ background: {rgba(amber, 0.13)}; }}
+    .gtile.on {{ background: {rgba(amber, 0.09)}; }}
     .gtile-ic {{
         min-width: 34px; min-height: 34px;
         padding: 0;
@@ -94,8 +109,8 @@ def build_css(colors):
         font-size: 15px;
     }}
     .gtile.on .gtile-ic {{
-        background: linear-gradient(135deg,
-            {rgba(amber, 1.0)} 0%, {rgba(orange, 0.9)} 100%);
+        background-color: {rgba(amber, 1.0)};
+        background-image: {bead};
         color: {rgba(bg, 1.0)};
     }}
     .gtile-l {{
@@ -161,14 +176,18 @@ def build_css(colors):
     .slider-fill {{
         min-height: 8px;
         border-radius: 999px;
-        background: {rgba(amber, 1.0)};
+        background-color: {rgba(amber, 1.0)};
+        background-image: {fill_sheen};
     }}
     .slider-knob {{
         min-width: 16px; min-height: 16px;
         margin-top: -4px;
+        margin-right: -2px;
         border-radius: 999px;
         background: #ffffff;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+        box-shadow:
+            0 0 0 2px rgba(0, 0, 0, 0.22),
+            0 1px 4px rgba(0, 0, 0, 0.55);
     }}
     .slider-value {{
         min-width: 24px;
@@ -300,10 +319,14 @@ def build_css(colors):
     .album-art {{
         min-width: 38px; min-height: 38px;
         border-radius: 9px;
-        background: linear-gradient(135deg,
-            {rgba(amber, 1.0)} 0%,
-            {rgba(orange, 0.85)} 100%);
+        background-color: {rgba(amber, 1.0)};
+        background-image: {bead};
     }}
+    .album-art.idle {{
+        background-color: {rgba(text, 0.06)};
+        background-image: none;
+    }}
+    .album-art-note {{ color: {rgba(text, 0.34)}; font-size: 16px; }}
     .album-art-pic {{
         min-width: 38px; min-height: 38px;
         border-radius: 9px;
@@ -335,15 +358,15 @@ def build_css(colors):
         color: {rgba(amber, 1.0)};
         font-size: 15px;
     }}
-    .foot-bat-meta {{ color: {rgba(text, 0.42)}; font-size: 10px; }}
+    .foot-bat-meta {{ color: {rgba(text, 0.48)}; font-size: 10px; }}
     .foot-btn {{
-        min-width: 32px; min-height: 32px;
+        min-width: 33px; min-height: 33px;
         padding: 0;
         border-radius: 8px;
         border: none;
         background: transparent;
-        color: {rgba(text, 0.7)};
-        font-size: 13px;
+        color: {rgba(text, 0.8)};
+        font-size: 14px;
         box-shadow: none;
     }}
     .foot-btn:hover {{
@@ -467,8 +490,8 @@ def build_css(colors):
         min-width: 44px; min-height: 44px;
         padding: 0;
         border-radius: 999px;
-        background: linear-gradient(135deg,
-            {rgba(amber, 1.0)} 0%, {rgba(orange, 0.9)} 100%);
+        background-color: {rgba(amber, 1.0)};
+        background-image: {bead};
         color: {rgba(bg, 1.0)};
         font-size: 18px;
     }}
@@ -497,8 +520,8 @@ def build_css(colors):
         min-width: 38px; min-height: 38px;
         padding: 0;
         border-radius: 999px;
-        background: linear-gradient(135deg,
-            {rgba(amber, 1.0)} 0%, {rgba(orange, 0.9)} 100%);
+        background-color: {rgba(amber, 1.0)};
+        background-image: {bead};
         color: {rgba(bg, 1.0)};
         font-size: 16px;
     }}

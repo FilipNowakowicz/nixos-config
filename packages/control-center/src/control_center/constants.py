@@ -5,6 +5,12 @@ LOCK_PATH = "/tmp/control-center.lock"
 
 VIEWS = ("home", "wifi", "bluetooth", "vpn", "dnd", "volume", "microphone")
 
+# Now Playing only tracks MPRIS players whose bus name contains one of these
+# (case-insensitive) substrings. Default: Spotify only, so browser/video tabs
+# (YouTube in Firefox/Chromium, etc.) never hijack the media row. Add more
+# players here (e.g. "mpd", "vlc") or set to () to track whatever is playing.
+NOW_PLAYING_ALLOW = ("spotify",)
+
 PANEL_MARGIN = 12
 PANEL_PADDING = 9
 PANEL_CONTENT_WIDTH = 308
@@ -70,6 +76,7 @@ G = {
     "skip_forward": "󰒭",
     "live_dot": "●",
     "battery_charging": "󰂄",
+    "music": "󰝚",
 }
 
 # Discharging battery glyphs by 10% step (index 0 = empty … 10 = full).

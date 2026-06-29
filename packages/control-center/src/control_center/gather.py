@@ -11,6 +11,7 @@ from gi.repository import Gio, GLib
 from . import actions
 from ._proc import _run
 from .capabilities import capabilities
+from .constants import NOW_PLAYING_ALLOW
 
 
 def _nmcli_split(line):
@@ -531,6 +532,14 @@ def gather_now_playing():
         return state
 
     players = [n for n in names if n.startswith("org.mpris.MediaPlayer2.")]
+    # Only track allowlisted sources (default: Spotify) so browser/video tabs
+    # — YouTube in Firefox/Chromium, etc. — never hijack Now Playing. An empty
+    # NOW_PLAYING_ALLOW tracks whatever is playing (legacy behaviour).
+    if NOW_PLAYING_ALLOW:
+        players = [
+            n for n in players
+            if any(tag in n.lower() for tag in NOW_PLAYING_ALLOW)
+        ]
     if not players:
         return state
 

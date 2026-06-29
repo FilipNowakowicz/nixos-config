@@ -588,7 +588,9 @@ class ControlCenter(
         track = Gtk.Box()
         track.add_css_class("slider-track")
         track.set_hexpand(True)
-        track.set_overflow(Gtk.Overflow.HIDDEN)
+        # No overflow:hidden here — it would clip the 16px knob down to the 8px
+        # track height. The fill is rounded (border-radius) so it stays tidy
+        # without clipping, and the knob is free to protrude as a real handle.
         fill = Gtk.Box()
         fill.add_css_class("slider-fill")
         fill.set_size_request(0, -1)
