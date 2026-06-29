@@ -6,7 +6,6 @@ from .theme import h2rgb
 
 def build_css(colors):
     bg = h2rgb(colors.get("bg", DEFAULTS["bg"]))
-    brown = h2rgb(colors.get("brown", DEFAULTS["brown"]))
     orange = h2rgb(colors.get("orange", DEFAULTS["orange"]))
     amber = h2rgb(colors.get("amber", DEFAULTS["amber"]))
     text = h2rgb(colors.get("text", DEFAULTS["text"]))
@@ -29,14 +28,18 @@ def build_css(colors):
     #panel {{
         min-width: {PANEL_CONTENT_WIDTH}px;
         padding: {PANEL_PADDING}px;
-        border-radius: 15px;
-        border: 1px solid {rgba(orange, 0.28)};
-        background: linear-gradient(180deg,
-            {rgba(bg, 0.985)} 0%,
-            {rgba(brown, 0.955)} 100%);
+        border-radius: 16px;
+        border: 1px solid {rgba(orange, 0.26)};
+        background: {rgba(bg, 0.985)};
         box-shadow:
-            0 24px 56px rgba(0, 0, 0, 0.35),
-            inset 0 1px 0 rgba(255, 255, 255, 0.03);
+            0 28px 60px rgba(0, 0, 0, 0.55),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }}
+
+    /* Hairline section divider (L2 seamless layout) */
+    .divider {{
+        min-height: 1px;
+        background: {rgba(orange, 0.16)};
     }}
 
     .panel-stack {{
@@ -61,65 +64,60 @@ def build_css(colors):
         min-width: 28px; min-height: 28px;
         padding: 0 6px;
         border-radius: 8px;
-        border: 1px solid {rgba(orange, 0.18)};
-        background: rgba(255, 255, 255, 0.04);
+        border: none;
+        background: {rgba(text, 0.06)};
         color: {rgba(text, 0.8)};
         font-size: 16px;
         box-shadow: none;
     }}
     .back-btn:hover {{
-        background: rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.10);
         color: {rgba(text, 1.0)};
     }}
 
-    /* Tile grid */
-    .tile {{
-        padding: 9px;
-        border-radius: 10px;
-        border: 1px solid {rgba(orange, 0.18)};
-        background: rgba(255, 255, 255, 0.02);
-        color: {rgba(text, 0.88)};
+    /* Borderless toggle grid (3×2) — circular icon badges */
+    .gtile {{
+        padding: 10px 6px 8px;
+        border-radius: 11px;
+        border: none;
+        background: transparent;
         box-shadow: none;
     }}
-    .tile:hover {{ background: rgba(255, 255, 255, 0.05); }}
-    .tile.on {{
-        border-color: {rgba(amber, 0.45)};
-        background: {rgba(amber, 0.10)};
-    }}
-    .tile-icon {{ margin-bottom: 4px; }}
-    .tile-glyph {{
-        min-width: 32px; min-height: 32px;
+    .gtile:hover {{ background: rgba(255, 255, 255, 0.05); }}
+    .gtile.on {{ background: {rgba(amber, 0.13)}; }}
+    .gtile-ic {{
+        min-width: 34px; min-height: 34px;
         padding: 0;
-        border-radius: 8px;
-        background: rgba(255, 255, 255, 0.05);
-        color: {rgba(text, 0.78)};
-        font-size: 13px;
-    }}
-    .tile.on .tile-glyph {{
-        background: {rgba(amber, 0.22)};
-        color: {rgba(amber, 1.0)};
-    }}
-    .tile-chevron {{ color: {rgba(text, 0.34)}; font-size: 11px; }}
-    .tile.on .tile-chevron {{ color: {rgba(amber, 0.85)}; }}
-    .tile-title {{ font-size: 12px; font-weight: 600; }}
-    .tile-sub {{ color: {rgba(text, 0.46)}; font-size: 10px; }}
-    .tile.on .tile-sub {{ color: {rgba(amber, 0.86)}; }}
-    .tile-badge {{
-        padding: 2px 6px;
         border-radius: 999px;
-        background: {rgba(amber, 0.15)};
-        color: {rgba(amber, 1.0)};
-        font-size: 9px;
-        font-weight: 600;
-        letter-spacing: 0.06em;
+        background: {rgba(text, 0.08)};
+        color: {rgba(text, 0.72)};
+        font-size: 15px;
     }}
+    .gtile.on .gtile-ic {{
+        background: {rgba(amber, 1.0)};
+        color: {rgba(bg, 1.0)};
+    }}
+    .gtile-l {{
+        font-size: 11px;
+        font-weight: 600;
+        color: {rgba(text, 0.82)};
+    }}
+    .gtile.on .gtile-l {{ color: {rgba(amber, 1.0)}; }}
+    .gtile-s {{ font-size: 9px; color: {rgba(text, 0.42)}; }}
+    .gtile.on .gtile-s {{ color: {rgba(amber, 0.82)}; }}
 
     /* Generic surface + sections */
     .surface {{
-        padding: 9px;
+        padding: 10px;
         border-radius: 11px;
-        border: 1px solid {rgba(orange, 0.18)};
-        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid {rgba(orange, 0.14)};
+        background: {rgba(text, 0.03)};
+    }}
+    /* Slider blocks ride bare on the panel, like the home sliders. */
+    .slider-block {{
+        padding: 2px 0;
+        border: none;
+        background: transparent;
     }}
     .section-label {{ margin-bottom: 4px; margin-top: 4px; }}
     .section-text, .section-label label {{
@@ -138,42 +136,43 @@ def build_css(colors):
     }}
     .section-action:hover {{ color: {rgba(text, 1.0)}; }}
 
-    /* Sliders */
+    /* Sliders (B2 — boxed thick track + square icon + value) */
     .slider-row {{ margin: 0; min-width: 284px; }}
     .glyph-btn {{
-        min-width: 26px; min-height: 26px;
+        min-width: 28px; min-height: 28px;
         padding: 0;
         border-radius: 8px;
         border: none;
-        background: rgba(255, 255, 255, 0.04);
-        color: {rgba(text, 0.78)};
+        background: {rgba(text, 0.06)};
+        color: {rgba(text, 0.74)};
         box-shadow: none;
     }}
     .glyph-btn:hover {{
-        background: rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.10);
         color: {rgba(text, 1.0)};
     }}
     .slider-track {{
-        min-height: 6px;
-        margin: 10px 0;
+        min-height: 8px;
+        margin: 9px 0;
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.08);
+        background: {rgba(text, 0.12)};
     }}
     .slider-fill {{
-        min-height: 6px;
+        min-height: 8px;
         border-radius: 999px;
-        background: linear-gradient(90deg,
-            {rgba(amber, 0.55)}, {rgba(text, 0.92)});
+        background: {rgba(amber, 1.0)};
     }}
     .slider-knob {{
-        min-width: 12px; min-height: 12px;
-        margin-top: -3px;
+        min-width: 16px; min-height: 16px;
+        margin-top: -4px;
         border-radius: 999px;
-        background: {rgba(text, 1.0)};
+        background: #ffffff;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
     }}
     .slider-value {{
         min-width: 24px;
-        color: {rgba(text, 0.66)};
+        font-weight: 600;
+        color: {rgba(text, 0.62)};
         font-size: 11px;
     }}
     .slider-aux {{
@@ -198,19 +197,19 @@ def build_css(colors):
 
     /* Segmented */
     .segmented {{
-        padding: 4px;
-        border-radius: 12px;
-        border: 1px solid {rgba(orange, 0.18)};
-        background: rgba(255, 255, 255, 0.04);
+        padding: 3px;
+        border-radius: 11px;
+        border: 1px solid {rgba(orange, 0.14)};
+        background: {rgba(text, 0.05)};
     }}
     .seg {{
-        padding: 6px 8px;
+        padding: 6px 4px;
         min-height: 26px;
-        border-radius: 9px;
+        border-radius: 8px;
         border: none;
         background: transparent;
-        color: {rgba(text, 0.62)};
-        font-size: 11px;
+        color: {rgba(text, 0.6)};
+        font-size: 10.5px;
         box-shadow: none;
     }}
     .seg:hover {{ color: {rgba(text, 1.0)}; }}
@@ -295,66 +294,82 @@ def build_css(colors):
         background: linear-gradient(90deg, #0d1830 0%, #d3ad7a 50%, #e0c290 100%);
     }}
 
-    /* Now playing */
-    .nowplaying {{
-        padding: 10px 12px;
-        border-radius: 13px;
-        border: 1px solid {rgba(orange, 0.16)};
-        background: rgba(255, 255, 255, 0.025);
-    }}
+    /* Now playing (bare media row) */
+    .nowplaying {{ padding: 4px 0; }}
     .album-art {{
-        min-width: 42px; min-height: 42px;
+        min-width: 38px; min-height: 38px;
         border-radius: 9px;
         background: linear-gradient(135deg,
-            {rgba(amber, 0.55)} 0%,
-            {rgba(orange, 0.7)} 100%);
+            {rgba(amber, 1.0)} 0%,
+            {rgba(orange, 0.85)} 100%);
     }}
     .album-art-pic {{
-        min-width: 42px; min-height: 42px;
+        min-width: 38px; min-height: 38px;
         border-radius: 9px;
     }}
-    .np-title {{ font-weight: 600; }}
-    .np-artist {{ color: {rgba(text, 0.54)}; font-size: 10.5px; }}
+    .np-title {{ font-weight: 600; font-size: 12px; }}
+    .np-artist {{ color: {rgba(text, 0.5)}; font-size: 10px; }}
     .np-player {{ color: {rgba(text, 0.28)}; font-size: 9px; }}
-
-    /* Stat grid + action row + icon buttons */
-    .stat-cell {{
-        padding: 10px 4px;
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.025);
-        border: 1px solid {rgba(orange, 0.16)};
+    .media-btn {{
+        min-width: 28px; min-height: 28px;
+        padding: 0;
+        border-radius: 999px;
+        border: none;
+        background: transparent;
+        color: {rgba(text, 0.85)};
+        font-size: 13px;
+        box-shadow: none;
     }}
-    .stat-value {{ font-size: 15px; font-weight: 600; }}
-    .stat-cell.accent .stat-value {{ color: {rgba(amber, 1.0)}; }}
-    .stat-label {{
-        color: {rgba(text, 0.46)};
-        font-size: 9px;
-        letter-spacing: 0.08em;
-    }}
+    .media-btn:hover {{ background: rgba(255, 255, 255, 0.08); }}
+    .media-btn.primary {{ font-size: 16px; }}
 
-    .action-row {{}}
+    /* Footer (battery readout + power actions) */
+    .foot {{ color: {rgba(text, 0.7)}; }}
+    .foot-bat {{
+        font-size: 12px;
+        font-weight: 500;
+        color: {rgba(text, 0.85)};
+    }}
+    .foot-bat-glyph {{
+        color: {rgba(amber, 1.0)};
+        font-size: 15px;
+    }}
+    .foot-bat-meta {{ color: {rgba(text, 0.42)}; font-size: 10px; }}
+    .foot-btn {{
+        min-width: 32px; min-height: 32px;
+        padding: 0;
+        border-radius: 8px;
+        border: none;
+        background: transparent;
+        color: {rgba(text, 0.7)};
+        font-size: 13px;
+        box-shadow: none;
+    }}
+    .foot-btn:hover {{
+        background: rgba(255, 255, 255, 0.08);
+        color: {rgba(text, 1.0)};
+    }}
+    .foot-btn.danger:hover {{ color: rgb(232, 137, 32); }}
+
+    /* Icon buttons (detail-view mute toggles) */
     .icon-btn {{
-        min-height: 38px;
+        min-width: 32px; min-height: 32px;
         padding: 0 8px;
-        border-radius: 9px;
-        border: 1px solid {rgba(orange, 0.18)};
-        background: rgba(255, 255, 255, 0.04);
+        border-radius: 8px;
+        border: none;
+        background: {rgba(text, 0.06)};
         color: {rgba(text, 0.74)};
         box-shadow: none;
         font-size: 14px;
     }}
     .icon-btn:hover {{
-        background: rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.10);
         color: {rgba(text, 1.0)};
     }}
-    .icon-btn.danger:hover {{
-        color: rgb(232, 137, 32);
-        border-color: rgba(232, 137, 32, 0.4);
-    }}
+    .icon-btn.danger:hover {{ color: rgb(232, 137, 32); }}
     .icon-btn.primary {{
-        background: {rgba(amber, 0.18)};
-        color: {rgba(amber, 1.0)};
-        border-color: {rgba(amber, 0.4)};
+        background: {rgba(amber, 1.0)};
+        color: {rgba(bg, 1.0)};
     }}
 
     /* Switch */
@@ -380,12 +395,12 @@ def build_css(colors):
         background: {rgba(amber, 1.0)};
     }}
 
-    /* Drawer list + items */
+    /* Drawer list + items — seamless, riding bare on the panel surface */
     .drawer-list {{
-        padding: 6px;
-        border-radius: 13px;
-        border: 1px solid {rgba(orange, 0.18)};
-        background: rgba(255, 255, 255, 0.03);
+        padding: 0;
+        border-radius: 11px;
+        border: none;
+        background: transparent;
     }}
     .drawer-item {{
         padding: 8px;
@@ -394,8 +409,8 @@ def build_css(colors):
         background: transparent;
         box-shadow: none;
     }}
-    .drawer-item:hover {{ background: rgba(255, 255, 255, 0.04); }}
-    .drawer-item.active {{ background: {rgba(amber, 0.10)}; }}
+    .drawer-item:hover {{ background: rgba(255, 255, 255, 0.05); }}
+    .drawer-item.active {{ background: {rgba(amber, 0.12)}; }}
     .drawer-item.subtle .di-name {{ color: {rgba(text, 0.6)}; }}
     .di-icon {{
         color: {rgba(text, 0.78)};
@@ -422,39 +437,37 @@ def build_css(colors):
 
     .drawer-row {{
         padding: 10px;
-        border-radius: 13px;
-        border: 1px solid {rgba(orange, 0.18)};
-        background: rgba(255, 255, 255, 0.025);
+        border-radius: 11px;
+        border: 1px solid {rgba(orange, 0.14)};
+        background: {rgba(text, 0.03)};
     }}
     .drawer-select {{
         padding: 5px 9px;
         border-radius: 8px;
         border: none;
-        background: rgba(255, 255, 255, 0.05);
+        background: {rgba(text, 0.06)};
         color: {rgba(text, 0.78)};
         font-size: 11px;
         box-shadow: none;
     }}
     .drawer-select:hover {{
-        background: rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.10);
         color: {rgba(text, 1.0)};
     }}
 
-    /* Hero card (detail views) */
+    /* Hero card (detail views) — flat, hairline rim, circular icon badge */
     .hero-card {{
-        padding: 14px;
-        border-radius: 14px;
-        border: 1px solid {rgba(amber, 0.32)};
-        background: linear-gradient(135deg,
-            {rgba(amber, 0.14)} 0%,
-            {rgba(amber, 0.04)} 100%);
+        padding: 13px;
+        border-radius: 13px;
+        border: 1px solid {rgba(amber, 0.26)};
+        background: {rgba(amber, 0.10)};
     }}
     .hero-icon-wrap {{
         min-width: 44px; min-height: 44px;
         padding: 0;
-        border-radius: 12px;
-        background: {rgba(amber, 0.22)};
-        color: {rgba(amber, 1.0)};
+        border-radius: 999px;
+        background: {rgba(amber, 1.0)};
+        color: {rgba(bg, 1.0)};
         font-size: 18px;
     }}
     .hero-title {{ font-weight: 600; font-size: 13px; }}
@@ -473,21 +486,21 @@ def build_css(colors):
     /* VPN sections */
     .vpn-section {{
         padding: 12px;
-        border-radius: 14px;
-        border: 1px solid {rgba(orange, 0.18)};
-        background: rgba(255, 255, 255, 0.025);
+        border-radius: 13px;
+        border: 1px solid {rgba(orange, 0.14)};
+        background: {rgba(text, 0.03)};
     }}
     .vpn-section.off {{ opacity: 0.62; }}
     .vpn-icon {{
         min-width: 38px; min-height: 38px;
         padding: 0;
-        border-radius: 11px;
-        background: {rgba(amber, 0.18)};
-        color: {rgba(amber, 1.0)};
+        border-radius: 999px;
+        background: {rgba(amber, 1.0)};
+        color: {rgba(bg, 1.0)};
         font-size: 16px;
     }}
     .vpn-section.off .vpn-icon {{
-        background: rgba(255, 255, 255, 0.05);
+        background: {rgba(text, 0.08)};
         color: {rgba(text, 0.5)};
     }}
     .vpn-name {{ font-weight: 600; font-size: 13px; }}
@@ -495,8 +508,8 @@ def build_css(colors):
     .vpn-stat {{
         padding: 8px;
         border-radius: 10px;
-        background: rgba(255, 255, 255, 0.025);
-        border: 1px solid {rgba(orange, 0.14)};
+        background: {rgba(text, 0.04)};
+        border: 1px solid {rgba(orange, 0.12)};
     }}
     .vpn-stat-cell {{ padding: 4px 2px; }}
     .vpn-stat-value {{ font-size: 12px; font-weight: 600; }}
@@ -517,33 +530,29 @@ def build_css(colors):
     .level-meter {{
         padding: 12px;
         min-height: 64px;
-        border-radius: 12px;
-        border: 1px solid {rgba(orange, 0.16)};
-        background: rgba(255, 255, 255, 0.025);
+        border-radius: 11px;
+        border: 1px solid {rgba(orange, 0.14)};
+        background: {rgba(text, 0.03)};
     }}
     .meter-bar {{
         min-width: 6px;
         background: {rgba(text, 0.16)};
         border-radius: 2px;
     }}
-    .meter-bar.active {{
-        background: linear-gradient(180deg,
-            {rgba(amber, 1.0)} 0%,
-            {rgba(amber, 0.55)} 100%);
-    }}
+    .meter-bar.active {{ background: {rgba(amber, 1.0)}; }}
 
     /* Ghost button (footer of detail views) */
     .ghost-btn {{
         padding: 9px 12px;
         border-radius: 11px;
-        border: 1px solid {rgba(orange, 0.2)};
-        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid {rgba(orange, 0.14)};
+        background: {rgba(text, 0.03)};
         color: {rgba(text, 0.74)};
         font-size: 11px;
         box-shadow: none;
     }}
     .ghost-btn:hover {{
-        background: rgba(255, 255, 255, 0.05);
+        background: rgba(255, 255, 255, 0.06);
         color: {rgba(text, 1.0)};
     }}
     """

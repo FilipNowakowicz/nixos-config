@@ -69,4 +69,10 @@ G = {
     "skip_back": "󰒮",
     "skip_forward": "󰒭",
     "live_dot": "●",
+    "battery_charging": "󰂄",
 }
+
+# Discharging battery glyphs by 10% step (index 0 = empty … 10 = full).
+BATTERY_LEVELS = (
+    "󰂎", "󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹",
+)

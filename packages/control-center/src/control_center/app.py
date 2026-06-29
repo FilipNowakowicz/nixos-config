@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from gi.repository import Gdk, GLib, Gtk, Gtk4LayerShell, Pango
 
 from .constants import (
+    BATTERY_LEVELS,
     FAST_STATE_KEYS,
     G,
     PANEL_CONTENT_WIDTH,
@@ -480,6 +481,11 @@ class ControlCenter(
                 box.add_css_class(c)
         return box
 
+    def _divider(self):
+        d = Gtk.Box()
+        d.add_css_class("divider")
+        return d
+
     def _section_label(self, text, action=None, action_cb=None):
         row = self._box(Gtk.Orientation.HORIZONTAL, css="section-label")
         row.append(self._label(text, "section-text"))
@@ -601,6 +607,13 @@ class ControlCenter(
         if not name:
             return "—"
         return name if len(name) <= n else name[: n - 1] + "…"
+
+    @staticmethod
+    def _battery_glyph(percent, charging=False):
+        if charging:
+            return G["battery_charging"]
+        idx = max(0, min(10, round((percent or 0) / 10)))
+        return BATTERY_LEVELS[idx]
 
     @staticmethod
     def _wifi_glyph(signal_pct):
