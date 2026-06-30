@@ -348,6 +348,11 @@ def build_css(colors):
     }}
     .media-btn:hover {{ background: rgba(255, 255, 255, 0.08); }}
     .media-btn.primary {{ font-size: 23px; }}
+    /* The size class sits on the button, so font-size only reaches the glyph
+       by inheritance — which the GTK theme's direct `button label` rule
+       overrides. Set it on the label node so it actually applies. */
+    .media-btn label {{ font-size: 19px; }}
+    .media-btn.primary label {{ font-size: 23px; }}
 
     /* Footer (battery readout + power actions) */
     .foot {{ color: {rgba(text, 0.7)}; padding: 0 4px; }}
@@ -371,6 +376,7 @@ def build_css(colors):
         font-size: 18px;
         box-shadow: none;
     }}
+    .foot-btn label {{ font-size: 18px; }}  /* see .media-btn label note */
     .foot-btn:hover {{
         background: rgba(255, 255, 255, 0.08);
         color: {rgba(text, 1.0)};

@@ -38,20 +38,8 @@ class HomeViewMixin:
         dnd_available = caps.get("dnd", True)
         view = self._box(Gtk.Orientation.VERTICAL, spacing=12, css="panel-stack")
 
-        # ── Header ──
-        header = self._box(Gtk.Orientation.HORIZONTAL, css="panel-header")
-        title = self._box(Gtk.Orientation.HORIZONTAL, spacing=8, css="panel-title")
-        title.append(self._label(G["live_dot"], "live-dot"))
-        title.append(self._label("Control Center"))
-        header.append(title)
-        header.append(Gtk.Box(hexpand=True))
-        meta = self._label("", "panel-meta", xalign=1)
-        header.append(meta)
-        view.append(header)
-
-        view.append(self._divider())
-
         # ── 3×2 toggle grid (borderless, circular icon badges) ──
+        # (No header row: the panel opens straight into the toggle grid.)
         # Per-glyph vertical nudge (Pango baseline rise, in Pango units ≈ 1024
         # per px) — some Nerd Font icons are bottom/top-heavy so they don't sit
         # centred in the circular badge even with xalign/yalign 0.5. Persists
@@ -182,7 +170,8 @@ class HomeViewMixin:
                 act_set_power_profile(k)
             btn.connect("clicked", _on_pp)
 
-        view.append(self._divider())
+        media_divider = self._divider()
+        view.append(media_divider)
 
         # ── Now playing (bare media row) ──
         def media_btn(glyph, primary=False):
@@ -335,8 +324,6 @@ class HomeViewMixin:
 
         # ── Refresh ──
         def refresh(s):
-            meta.set_label(f"{s.get('hostname', '')} · {s.get('time', '')}")
-
             # Wi-Fi tile
             w = s["wifi"]
             if not w["enabled"]:
@@ -443,35 +430,23 @@ class HomeViewMixin:
             for name, card in theme_cards.items():
                 self._set_class(card, "active-theme", name == active_theme)
 
-            # Now playing
+            # Now playing — the whole row (and its divider) only exists while
+            # a player has a track; otherwise it is hidden entirely so the
+            # panel ends at the footer with no empty media affordance.
             n = s["now_playing"]
-            if n["title"]:
+            playing = bool(n["title"])
+            media_divider.set_visible(playing)
+            np.set_visible(playing)
+            if playing:
                 self._set_class(art_fallback, "idle", False)
                 art_note.set_visible(False)
-                self._set_class(np_title, "np-empty", False)
-                np_title.set_xalign(0)  # real titles read left-aligned
                 np_title.set_label(self._short(n["title"], 30))
                 np_artist.set_visible(True)
                 parts = [p for p in [n["artist"], n["player"]] if p]
                 np_artist.set_label(self._short(" — ".join(parts), 34))
-            else:
-                # Keep the music-icon tile as a calm idle affordance; soften the
-                # placeholder text (np-empty) and centre it across the middle so
-                # it reads as a quiet status line rather than a heavy title
-                # crammed against the tile.
-                self._set_class(art_fallback, "idle", True)
-                art_note.set_visible(True)
-                self._set_class(np_title, "np-empty", True)
-                np_title.set_xalign(0.5)
-                np_title.set_label("Nothing playing")
-                # Hide (not just blank) the artist line — an empty label still
-                # reserves a row, which pushes the centered title above the
-                # tile/icon midline.
-                np_artist.set_label("")
-                np_artist.set_visible(False)
-            play_btn.set_label(
-                G["pause"] if n["status"] == "Playing" else G["play"]
-            )
+                play_btn.set_label(
+                    G["pause"] if n["status"] == "Playing" else G["play"]
+                )
 
             # Album art
             art_url = n.get("art_url", "")
