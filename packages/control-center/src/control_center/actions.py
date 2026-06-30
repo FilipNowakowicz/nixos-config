@@ -188,6 +188,8 @@ def act_lock():
 
 
 def act_suspend():
+    # Release the keep-awake inhibitor so the explicit suspend is never blocked.
+    act_keep_awake(False)
     _fire(["systemctl", "suspend"])
 
 

@@ -1,8 +1,15 @@
-"""Home view: tile grid, sliders, power profile, quick toggles, now playing, stats."""
+"""Home view: tile grid, sliders, power profile, now playing, footer.
+
+Layout follows the L2 "seamless" redesign — borderless tiles and bare sliders
+on one flat surface separated by hairline dividers, a 3×2 toggle grid, B2
+sliders, the power segment, a bare media row, and a consolidated footer that
+carries the battery readout plus the theme/lock/sleep/power actions.
+"""
 
 import os
+from types import SimpleNamespace
 
-from gi.repository import Gtk
+from gi.repository import Gtk, Pango
 
 from .. import actions
 from ..actions import (
@@ -28,48 +35,88 @@ class HomeViewMixin:
         caps = self.state.get("caps", {})
         brightness_available = caps.get("brightness", True)
         night_light_available = caps.get("night_light", True)
+        dnd_available = caps.get("dnd", True)
         view = self._box(Gtk.Orientation.VERTICAL, spacing=12, css="panel-stack")
 
-        # Header
-        header = self._box(Gtk.Orientation.HORIZONTAL, css="panel-header")
-        title = self._box(Gtk.Orientation.HORIZONTAL, spacing=8, css="panel-title")
-        live = self._label(G["live_dot"], "live-dot")
-        title.append(live)
-        title.append(self._label("Control Center"))
-        header.append(title)
-        header.append(Gtk.Box(hexpand=True))
-        meta = self._label("", "panel-meta", xalign=1)
-        header.append(meta)
-        view.append(header)
+        # ── 3×2 toggle grid (borderless, circular icon badges) ──
+        # (No header row: the panel opens straight into the toggle grid.)
+        # Per-glyph vertical nudge (Pango baseline rise, in Pango units ≈ 1024
+        # per px) — some Nerd Font icons are bottom/top-heavy so they don't sit
+        # centred in the circular badge even with xalign/yalign 0.5. Persists
+        # across set_label() since the attribute spans the whole run.
+        def _rise(label, units):
+            if not units:
+                return
 
-        # Tile grid 2×2
-        wifi_t = self._tile("Wi-Fi", view="wifi")
-        bt_t = self._tile("Bluetooth", view="bluetooth")
-        vpn_t = self._tile("VPN", view="vpn")
-        dnd_t = self._tile("Do Not Disturb", view="dnd")
+            def apply(*_a):
+                attrs = Pango.AttrList()
+                attrs.insert(Pango.attr_rise_new(units))
+                label.set_attributes(attrs)
+            apply()
+            # Refresh re-sets these glyphs via set_label(), which drops the
+            # attribute list — reapply the rise whenever the text changes.
+            label.connect("notify::label", apply)
+
+        def mk_tile(glyph, label, view_name=None, rise=0):
+            btn = Gtk.Button()
+            btn.add_css_class("gtile")
+            inner = self._box(Gtk.Orientation.VERTICAL, spacing=6)
+            inner.set_halign(Gtk.Align.CENTER)
+            ic = self._center_icon(self._label(glyph, "gtile-ic", xalign=0.5))
+            _rise(ic, rise)
+            inner.append(ic)
+            lbl = self._label(label, "gtile-l", xalign=0.5)
+            sub = self._label("", "gtile-s", xalign=0.5)
+            sub.set_ellipsize(Pango.EllipsizeMode.END)
+            sub.set_max_width_chars(12)
+            inner.append(lbl)
+            inner.append(sub)
+            btn.set_child(inner)
+            if view_name:
+                btn.connect("clicked", lambda _b, v=view_name: self.go_to(v))
+            return SimpleNamespace(widget=btn, glyph=ic, title=lbl, sub=sub)
+
+        wifi_t = mk_tile(G["wifi"], "Wi-Fi", view_name="wifi", rise=2600)
+        bt_t = mk_tile(G["bluetooth"], "Bluetooth", view_name="bluetooth", rise=-900)
+        vpn_t = mk_tile(G["shield"], "VPN", view_name="vpn")
+        focus_t = mk_tile(G["bell_off"], "Focus", view_name="dnd")
+        awake_t = mk_tile(G["coffee"], "Awake")
+        night_t = mk_tile(G["moon"], "Night")
+        night_t.widget.set_sensitive(night_light_available)
 
         grid = Gtk.Grid(
-            column_homogeneous=True, column_spacing=8, row_spacing=8
+            column_homogeneous=True, column_spacing=7, row_spacing=4,
         )
         grid.add_css_class("tile-grid")
-        grid.attach(wifi_t.widget, 0, 0, 1, 1)
-        grid.attach(bt_t.widget, 1, 0, 1, 1)
-        grid.attach(vpn_t.widget, 0, 1, 1, 1)
-        grid.attach(dnd_t.widget, 1, 1, 1, 1)
+        for i, t in enumerate([wifi_t, bt_t, vpn_t]):
+            grid.attach(t.widget, i, 0, 1, 1)
+        for i, t in enumerate([focus_t, awake_t, night_t]):
+            grid.attach(t.widget, i, 1, 1, 1)
         view.append(grid)
 
-        # Sliders
-        vol_s = self._slider_row(
-            G["volume"], aux_label="Speakers ›", aux_view="volume",
-        )
-        brt_s = self._slider_row(G["sun"], aux_label="Auto")
-        mic_s = self._slider_row(
-            G["mic"], aux_label="Internal ›", aux_view="microphone",
-        )
-        sliders = self._box(
-            Gtk.Orientation.VERTICAL, spacing=12,
-            css=["surface", "slider-block"],
-        )
+        def _on_awake(_b):
+            want = not self.effective("keep_awake", self.state.get("keep_awake", False))
+            self._pending_set("keep_awake", want, ttl_s=4)
+            self._set_class(awake_t.widget, "on", want)
+            awake_t.sub.set_label("On" if want else "Off")
+            act_keep_awake(want)
+        awake_t.widget.connect("clicked", _on_awake)
+
+        def _on_night(_b):
+            want = not self.effective("night_light", self.state.get("night_light", False))
+            self._pending_set("night_light", want, ttl_s=4)
+            self._set_class(night_t.widget, "on", want)
+            night_t.sub.set_label("On" if want else "Off")
+            act_night_light(want)
+        night_t.widget.connect("clicked", _on_night)
+
+        view.append(self._divider())
+
+        # ── B2 sliders (bare) ──
+        vol_s = self._slider_row(G["volume"])
+        brt_s = self._slider_row(G["sun"])
+        mic_s = self._slider_row(G["mic"])
+        sliders = self._box(Gtk.Orientation.VERTICAL, spacing=12)
         sliders.append(vol_s.widget)
         sliders.append(brt_s.widget)
         sliders.append(mic_s.widget)
@@ -81,6 +128,7 @@ class HomeViewMixin:
         else:
             brt_s.widget.set_sensitive(False)
         self._bind_slider(mic_s, act_set_source_volume)
+
         def _on_mute_sink(_b):
             self._pending_set("audio.sink_muted",
                               not self.state["audio"]["sink_muted"], ttl_s=2)
@@ -93,55 +141,136 @@ class HomeViewMixin:
             act_toggle_source_mute()
         mic_s.glyph_btn.connect("clicked", _on_mute_source)
 
-        # Power profile
-        view.append(self._section_label("Power Profile", action="Detailed"))
+        # Secondary-click the device icon to open its detail view (output/input
+        # picker). The redesign dropped the old aux buttons that linked there, so
+        # right-click restores the entry point without adding visual clutter;
+        # left-click stays quick-mute.
+        def _nav_secondary(widget, view_name):
+            gesture = Gtk.GestureClick()
+            gesture.set_button(3)  # right mouse button
+            gesture.connect("pressed", lambda *_a, v=view_name: self.go_to(v))
+            widget.add_controller(gesture)
+        _nav_secondary(vol_s.glyph_btn, "volume")
+        _nav_secondary(mic_s.glyph_btn, "microphone")
+
+        view.append(self._divider())
+
+        # ── Power profile ──
         pp = self._segmented(
             [(G["leaf"], "Saver"), (G["gauge"], "Balanced"),
-             (G["zap"], "Performance")],
+             (G["zap"], "Perf")],
         )
         view.append(pp.widget)
         pp_keys = ["power-saver", "balanced", "performance"]
-
         for key, btn in zip(pp_keys, pp.buttons):
             def _on_pp(_b, k=key):
                 self._pending_set("power_profile", k, ttl_s=3)
-                # Optimistic visual flip
                 for kk, bb in zip(pp_keys, pp.buttons):
                     self._set_class(bb, "active", kk == k)
                 act_set_power_profile(k)
             btn.connect("clicked", _on_pp)
 
-        # Quick toggles + theme picker
-        view.append(self._section_label("Quick Toggles", action="Edit"))
-        chip_row = self._box(Gtk.Orientation.HORIZONTAL, spacing=6, css="chip-row")
-        ka_chip = self._chip(G["coffee"], "Keep Awake")
-        nl_chip = self._chip(G["moon"], "Night Light")
-        nl_chip.set_sensitive(night_light_available)
-        theme_chip = self._chip(G["palette"], "Theme", css="theme-trigger")
-        chip_row.append(ka_chip)
-        chip_row.append(nl_chip)
-        chip_row.append(theme_chip)
-        view.append(chip_row)
+        media_divider = self._divider()
+        view.append(media_divider)
 
-        def _on_keep_awake(b):
-            # _chip auto-toggle already flipped .on; read new desired state
-            want = b.has_css_class("on")
-            self._pending_set("keep_awake", want, ttl_s=4)
-            act_keep_awake(want)
-        ka_chip.connect("clicked", _on_keep_awake)
+        # ── Now playing (bare media row) ──
+        def media_btn(glyph, primary=False):
+            b = Gtk.Button(label=glyph)
+            b.add_css_class("media-btn")
+            if primary:
+                b.add_css_class("primary")
+            return b
 
-        def _on_night_light(b):
-            want = b.has_css_class("on")
-            self._pending_set("night_light", want, ttl_s=4)
-            act_night_light(want)
-        nl_chip.connect("clicked", _on_night_light)
+        np = self._box(Gtk.Orientation.HORIZONTAL, spacing=11, css="nowplaying")
+        art_fallback = Gtk.Box()
+        art_fallback.add_css_class("album-art")
+        art_note = self._center_icon(self._label(G["music"], "album-art-note", xalign=0.5))
+        art_note.set_hexpand(True)
+        art_fallback.append(art_note)
+        art_pic = Gtk.Picture()
+        art_pic.add_css_class("album-art-pic")
+        art_pic.set_content_fit(Gtk.ContentFit.COVER)
+        art_pic.set_visible(False)
+        art_overlay = Gtk.Overlay()
+        art_overlay.set_size_request(38, 38)
+        art_overlay.set_child(art_fallback)
+        art_overlay.add_overlay(art_pic)
+        np.append(art_overlay)
+        track = self._box(Gtk.Orientation.VERTICAL, spacing=2)
+        track.set_hexpand(True)
+        track.set_valign(Gtk.Align.CENTER)
+        np_title = self._label("", "np-title")
+        np_title.set_ellipsize(Pango.EllipsizeMode.END)
+        np_title.set_xalign(0)
+        np_artist = self._label("", "np-artist")
+        np_artist.set_ellipsize(Pango.EllipsizeMode.END)
+        np_artist.set_xalign(0)
+        track.append(np_title)
+        track.append(np_artist)
+        np.append(track)
+        ctrl = self._box(Gtk.Orientation.HORIZONTAL, spacing=2)
+        ctrl.set_valign(Gtk.Align.CENTER)
+        skip_back_btn = media_btn(G["skip_back"])
+        play_btn = media_btn(G["play"], primary=True)
+        skip_fwd_btn = media_btn(G["skip_forward"])
+        ctrl.append(skip_back_btn)
+        ctrl.append(play_btn)
+        ctrl.append(skip_fwd_btn)
+        np.append(ctrl)
+        view.append(np)
 
-        # Theme picker (revealer)
+        skip_back_btn.connect(
+            "clicked",
+            lambda _b: act_mpris(self.state["now_playing"]["player"], "Previous"),
+        )
+        play_btn.connect(
+            "clicked",
+            lambda _b: act_mpris(self.state["now_playing"]["player"], "PlayPause"),
+        )
+        skip_fwd_btn.connect(
+            "clicked",
+            lambda _b: act_mpris(self.state["now_playing"]["player"], "Next"),
+        )
+
+        view.append(self._divider())
+
+        # ── Footer (battery readout + power actions) ──
+        def foot_btn(glyph, danger=False):
+            b = Gtk.Button(label=glyph)
+            b.add_css_class("foot-btn")
+            if danger:
+                b.add_css_class("danger")
+            return b
+
+        foot = self._box(Gtk.Orientation.HORIZONTAL, spacing=10, css="foot")
+        bat_left = self._box(Gtk.Orientation.HORIZONTAL, spacing=6)
+        bat_glyph = self._label("", "foot-bat-glyph")
+        bat_pct = self._label("", "foot-bat")
+        bat_meta = self._label("", "foot-bat-meta")
+        bat_left.append(bat_glyph)
+        bat_left.append(bat_pct)
+        bat_left.append(bat_meta)
+        foot.append(bat_left)
+        foot.append(Gtk.Box(hexpand=True))
+        fbtns = self._box(Gtk.Orientation.HORIZONTAL, spacing=4)
+        theme_btn = foot_btn(G["palette"])
+        lock_btn = foot_btn(G["lock"])
+        sleep_btn = foot_btn(G["sleep"])
+        power_btn = foot_btn(G["power"], danger=True)
+        for b in (theme_btn, lock_btn, sleep_btn, power_btn):
+            fbtns.append(b)
+        foot.append(fbtns)
+        view.append(foot)
+
+        lock_btn.connect("clicked", lambda _b: (act_lock(), self.quit()))
+        sleep_btn.connect("clicked", lambda _b: (self.quit(), act_suspend()))
+        power_btn.connect("clicked", lambda _b: (self.quit(), act_poweroff()))
+
+        # ── Theme picker (revealed from the footer theme button) ──
         revealer = Gtk.Revealer()
         revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_DOWN)
         revealer.set_transition_duration(260)
-        picker = Gtk.Grid(column_homogeneous=True, column_spacing=6,
-                          row_spacing=6)
+        picker = Gtk.Grid(column_homogeneous=True, column_spacing=6, row_spacing=6)
         picker.add_css_class("theme-picker")
         themes = [
             ("mono-mesh", "Mono Mesh"),
@@ -169,115 +298,32 @@ class HomeViewMixin:
             theme_cards[name] = card
 
             def _on_theme_pick(_b, n=name):
-                # Theme switch triggers a rebuild; can take a few seconds.
                 self._pending_set("active_theme", n, ttl_s=20)
                 for nn, cc in theme_cards.items():
                     self._set_class(cc, "active-theme", nn == n)
                 act_switch_theme(n)
             card.connect("clicked", _on_theme_pick)
         revealer.set_child(picker)
+        # Collapsed by default — keep it out of the layout entirely so the box
+        # doesn't reserve its inter-child spacing below the footer (dead space).
+        revealer.set_visible(False)
         view.append(revealer)
+
+        def _on_revealed(_r, _p):
+            if not revealer.get_reveal_child():
+                revealer.set_visible(False)
+        revealer.connect("notify::child-revealed", _on_revealed)
 
         def _on_theme(_b):
             opened = not revealer.get_reveal_child()
-            revealer.set_reveal_child(opened)
             if opened:
-                theme_chip.add_css_class("expanded")
-            else:
-                theme_chip.remove_css_class("expanded")
-        theme_chip.connect("clicked", _on_theme)
-
-        # Now playing
-        view.append(self._section_label("Now Playing"))
-
-        np = self._box(Gtk.Orientation.HORIZONTAL, spacing=12, css="nowplaying")
-        art_fallback = Gtk.Box()
-        art_fallback.add_css_class("album-art")
-        art_pic = Gtk.Picture()
-        art_pic.add_css_class("album-art-pic")
-        art_pic.set_content_fit(Gtk.ContentFit.COVER)
-        art_pic.set_visible(False)
-        art_overlay = Gtk.Overlay()
-        art_overlay.set_size_request(42, 42)
-        art_overlay.set_child(art_fallback)
-        art_overlay.add_overlay(art_pic)
-        np.append(art_overlay)
-        track = self._box(Gtk.Orientation.VERTICAL, spacing=2)
-        track.set_hexpand(True)
-        np_title = self._label("", "np-title")
-        np_artist = self._label("", "np-artist")
-        np_player = self._label("", "np-player")
-        track.append(np_title)
-        track.append(np_artist)
-        track.append(np_player)
-        np.append(track)
-        ctrl = self._box(Gtk.Orientation.HORIZONTAL, spacing=4)
-        skip_back_btn = self._icon_btn(G["skip_back"])
-        ctrl.append(skip_back_btn)
-        play_btn = self._icon_btn(G["play"])
-        play_btn.add_css_class("primary")
-        ctrl.append(play_btn)
-        skip_fwd_btn = self._icon_btn(G["skip_forward"])
-        ctrl.append(skip_fwd_btn)
-        np.append(ctrl)
-        view.append(np)
-
-        skip_back_btn.connect(
-            "clicked",
-            lambda _b: act_mpris(self.state["now_playing"]["player"], "Previous"),
-        )
-        play_btn.connect(
-            "clicked",
-            lambda _b: act_mpris(self.state["now_playing"]["player"], "PlayPause"),
-        )
-        skip_fwd_btn.connect(
-            "clicked",
-            lambda _b: act_mpris(self.state["now_playing"]["player"], "Next"),
-        )
-
-        # Stat grid (battery, remaining, cpu)
-        stats = Gtk.Grid(column_homogeneous=True, column_spacing=6)
-        stats.add_css_class("stat-grid")
-        bat_cell = self._box(Gtk.Orientation.VERTICAL, css="stat-cell")
-        bat_cell.add_css_class("accent")
-        bat_value = self._label("", "stat-value", xalign=0.5)
-        bat_cell.append(bat_value)
-        bat_cell.append(self._label("battery", "stat-label", xalign=0.5))
-        stats.attach(bat_cell, 0, 0, 1, 1)
-
-        rem_cell = self._box(Gtk.Orientation.VERTICAL, css="stat-cell")
-        rem_value = self._label("", "stat-value", xalign=0.5)
-        rem_cell.append(rem_value)
-        rem_label = self._label("remaining", "stat-label", xalign=0.5)
-        rem_cell.append(rem_label)
-        stats.attach(rem_cell, 1, 0, 1, 1)
-
-        cpu_cell = self._box(Gtk.Orientation.VERTICAL, css="stat-cell")
-        cpu_value = self._label("", "stat-value", xalign=0.5)
-        cpu_cell.append(cpu_value)
-        cpu_cell.append(self._label("cpu", "stat-label", xalign=0.5))
-        stats.attach(cpu_cell, 2, 0, 1, 1)
-        view.append(stats)
-
-        # Action row
-        action_row = Gtk.Grid(column_homogeneous=True, column_spacing=6)
-        action_row.add_css_class("action-row")
-        lock_btn = self._icon_btn(G["lock"])
-        sleep_btn = self._icon_btn(G["sleep"])
-        power_btn = self._icon_btn(G["power"], danger=True)
-        action_row.attach(lock_btn, 0, 0, 1, 1)
-        action_row.attach(sleep_btn, 1, 0, 1, 1)
-        action_row.attach(power_btn, 2, 0, 1, 1)
-        view.append(action_row)
-
-        lock_btn.connect("clicked", lambda _b: (act_lock(), self.quit()))
-        sleep_btn.connect("clicked", lambda _b: (self.quit(), act_suspend()))
-        power_btn.connect("clicked", lambda _b: (self.quit(), act_poweroff()))
+                revealer.set_visible(True)
+            revealer.set_reveal_child(opened)
+            self._set_class(theme_btn, "on", opened)
+        theme_btn.connect("clicked", _on_theme)
 
         # ── Refresh ──
         def refresh(s):
-            meta.set_label(f"{s.get('hostname', '')} · {s.get('time', '')}")
-
             # Wi-Fi tile
             w = s["wifi"]
             if not w["enabled"]:
@@ -286,12 +332,11 @@ class HomeViewMixin:
                 self._set_class(wifi_t.widget, "on", False)
             elif w["connected"] and w["ssid"]:
                 wifi_t.glyph.set_label(self._wifi_glyph(w["signal_pct"]))
-                band = f" · {w['band']}" if w["band"] else ""
-                wifi_t.sub.set_label(self._short(f"{w['ssid']}{band}", 30))
+                wifi_t.sub.set_label(self._short(w["ssid"], 14))
                 self._set_class(wifi_t.widget, "on", True)
             else:
                 wifi_t.glyph.set_label(G["wifi"])
-                wifi_t.sub.set_label("Not connected")
+                wifi_t.sub.set_label("Off")
                 self._set_class(wifi_t.widget, "on", False)
 
             # Bluetooth tile
@@ -304,14 +349,11 @@ class HomeViewMixin:
                 bt_t.glyph.set_label(G["bluetooth_on"])
                 bat = b["primary"].get("battery")
                 bat_s = f" · {bat}%" if bat is not None else ""
-                bt_t.sub.set_label(
-                    self._short(f"{b['primary']['alias']}{bat_s}", 30)
-                )
+                bt_t.sub.set_label(self._short(f"{b['primary']['alias']}{bat_s}", 14))
                 self._set_class(bt_t.widget, "on", True)
             else:
                 bt_t.glyph.set_label(G["bluetooth_on"])
-                n = len(b["devices"])
-                bt_t.sub.set_label(f"On · {n} paired")
+                bt_t.sub.set_label(f"{len(b['devices'])} paired")
                 self._set_class(bt_t.widget, "on", True)
 
             # VPN tile
@@ -322,31 +364,44 @@ class HomeViewMixin:
             mv = s["mullvad"]
             ts_on = ts_cap and ts["enabled"]
             mv_on = mv_cap and mv["connected"]
-            active = (1 if ts_on else 0) + (1 if mv_on else 0)
             vpn_t.glyph.set_label(G["shield"])
             if not ts_cap and not mv_cap:
-                vpn_t.sub.set_label("Not installed")
-            elif ts_on and ts["ip"]:
-                vpn_t.sub.set_label(f"Tailscale · {ts['ip']}")
+                vpn_t.sub.set_label("n/a")
+            elif ts_on and mv_on:
+                vpn_t.sub.set_label("TS + MV")
+            elif ts_on:
+                vpn_t.sub.set_label("Tailscale")
             elif mv_on:
-                vpn_t.sub.set_label(f"Mullvad · {mv['city'] or mv['country']}")
+                vpn_t.sub.set_label(self._short(mv["city"] or mv["country"] or "Mullvad", 14))
             else:
                 vpn_t.sub.set_label("Off")
-            self._set_class(vpn_t.widget, "on", active > 0)
-            vpn_t.badge.set_visible(False)
+            self._set_class(vpn_t.widget, "on", ts_on or mv_on)
 
-            # DND tile
+            # Focus tile (Do Not Disturb)
             d = s["dnd"]
-            dnd_t.glyph.set_label(G["bell_off"])
-            if not caps.get("dnd", True):
-                dnd_t.sub.set_label("Not installed")
-                self._set_class(dnd_t.widget, "on", False)
+            focus_t.glyph.set_label(G["bell_off"])
+            if not dnd_available:
+                focus_t.sub.set_label("n/a")
+                self._set_class(focus_t.widget, "on", False)
             elif d["enabled"]:
-                dnd_t.sub.set_label(f"On · {d['mode']}")
-                self._set_class(dnd_t.widget, "on", True)
+                focus_t.sub.set_label(d["mode"] or "On")
+                self._set_class(focus_t.widget, "on", True)
             else:
-                dnd_t.sub.set_label("Off · all notifications")
-                self._set_class(dnd_t.widget, "on", False)
+                focus_t.sub.set_label("Off")
+                self._set_class(focus_t.widget, "on", False)
+
+            # Awake / Night toggle tiles
+            awake_on = self.effective("keep_awake", s.get("keep_awake", False))
+            self._set_class(awake_t.widget, "on", awake_on)
+            awake_t.sub.set_label("On" if awake_on else "Off")
+
+            if not night_light_available:
+                night_t.sub.set_label("n/a")
+                self._set_class(night_t.widget, "on", False)
+            else:
+                night_on = self.effective("night_light", s.get("night_light", False))
+                self._set_class(night_t.widget, "on", night_on)
+                night_t.sub.set_label("On" if night_on else "Off")
 
             # Sliders
             a = s["audio"]
@@ -356,57 +411,42 @@ class HomeViewMixin:
                 if self.effective("audio.sink_muted", a["sink_muted"])
                 else G["volume"]
             )
-            if vol_s.aux:
-                vol_s.aux_label.set_label(f"{self._short(a['sink_name'], 11)} ›")
             if brightness_available:
                 self._set_slider_polled(brt_s, s["brightness"]["percent"])
-                if brt_s.aux:
-                    brt_s.aux_label.set_label("Auto")
-            elif brt_s.aux:
-                brt_s.aux_label.set_label("n/a")
             self._set_slider_polled(mic_s, a["source_volume_pct"])
             mic_s.glyph_btn.set_label(
                 G["mic_off"]
                 if self.effective("audio.source_muted", a["source_muted"])
                 else G["mic"]
             )
-            if mic_s.aux:
-                mic_s.aux_label.set_label(f"{self._short(a['source_name'], 11)} ›")
 
             # Power profile (respect optimistic pending)
             profile = self.effective("power_profile", s["power_profile"])
             for key, btn in zip(pp_keys, pp.buttons):
                 self._set_class(btn, "active", key == profile)
 
-            # Quick toggle chips
-            self._set_class(
-                ka_chip, "on",
-                self.effective("keep_awake", s.get("keep_awake", False)),
-            )
-            self._set_class(
-                nl_chip, "on",
-                night_light_available
-                and self.effective("night_light", s.get("night_light", False)),
-            )
-
             # Theme cards (pending until rebuild completes)
             active_theme = self.effective("active_theme", s.get("active_theme", ""))
             for name, card in theme_cards.items():
                 self._set_class(card, "active-theme", name == active_theme)
 
-            # Now playing
+            # Now playing — the whole row (and its divider) only exists while
+            # a player has a track; otherwise it is hidden entirely so the
+            # panel ends at the footer with no empty media affordance.
             n = s["now_playing"]
-            if n["title"]:
-                np_title.set_label(self._short(n["title"], 36))
-                parts = [p for p in [n["artist"], n["album"]] if p]
-                np_artist.set_label(self._short(" — ".join(parts), 50))
-            else:
-                np_title.set_label("Nothing playing")
-                np_artist.set_label("")
-            play_btn.set_label(
-                G["pause"] if n["status"] == "Playing" else G["play"]
-            )
-            np_player.set_label(n["player"] or "")
+            playing = bool(n["title"])
+            media_divider.set_visible(playing)
+            np.set_visible(playing)
+            if playing:
+                self._set_class(art_fallback, "idle", False)
+                art_note.set_visible(False)
+                np_title.set_label(self._short(n["title"], 30))
+                np_artist.set_visible(True)
+                parts = [p for p in [n["artist"], n["player"]] if p]
+                np_artist.set_label(self._short(" — ".join(parts), 34))
+                play_btn.set_label(
+                    G["pause"] if n["status"] == "Playing" else G["play"]
+                )
 
             # Album art
             art_url = n.get("art_url", "")
@@ -428,22 +468,20 @@ class HomeViewMixin:
             else:
                 art_pic.set_visible(False)
 
-            # Stats
+            # Footer battery
             bat = s["battery"]
-            bat_value.set_label(f"{bat['percent']}%")
+            charging = bat["status"] in ("Charging", "Full")
+            bat_glyph.set_label(self._battery_glyph(bat["percent"], charging))
+            bat_pct.set_label(f"{bat['percent']}%")
+            meta_parts = []
             if bat["status"] == "Charging":
-                rem_value.set_label(bat["time_str"])
-                rem_label.set_label("until full")
-            elif bat["status"] == "Full":
-                rem_value.set_label("full")
-                rem_label.set_label("plugged in")
-            else:
-                rem_value.set_label(bat["time_str"])
-                rem_label.set_label("remaining")
+                meta_parts.append(f"{bat['time_str']}")
+            elif bat["status"] != "Full" and bat["time_str"]:
+                # "Full" needs no label — the 100% readout already says it.
+                meta_parts.append(bat["time_str"])
             if s["cpu_temp"] is not None:
-                cpu_value.set_label(f"{s['cpu_temp']}°")
-            else:
-                cpu_value.set_label("—")
+                meta_parts.append(f"{s['cpu_temp']}°")
+            bat_meta.set_label(("· " + " · ".join(meta_parts)) if meta_parts else "")
 
         self._refreshers.append(refresh)
         refresh(self.state)

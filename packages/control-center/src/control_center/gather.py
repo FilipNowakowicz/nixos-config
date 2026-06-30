@@ -11,6 +11,7 @@ from gi.repository import Gio, GLib
 from . import actions
 from ._proc import _run
 from .capabilities import capabilities
+from .constants import NOW_PLAYING_ALLOW
 
 
 def _nmcli_split(line):
@@ -406,7 +407,10 @@ def gather_dnd():
         modes = [m.strip() for m in out.splitlines() if m.strip()]
         # makoctl mode prints current modes, one per line ("default", or
         # extra modes when stacked). Active when any non-default mode set.
-        active = [m for m in modes if m and m != "default"]
+        # "cc-open" is this panel's own transient re-anchor mode (added while
+        # the panel is open, see app._set_mako_mode) — it isn't DND, so ignore
+        # it or opening the panel would light up its own DND indicator.
+        active = [m for m in modes if m and m not in ("default", "cc-open")]
         mode = active[0] if active else (modes[0] if modes else "default")
         return {"mode": mode, "enabled": bool(active)}
     return {"mode": "default", "enabled": False}
@@ -531,6 +535,14 @@ def gather_now_playing():
         return state
 
     players = [n for n in names if n.startswith("org.mpris.MediaPlayer2.")]
+    # Only track allowlisted sources (default: Spotify) so browser/video tabs
+    # — YouTube in Firefox/Chromium, etc. — never hijack Now Playing. An empty
+    # NOW_PLAYING_ALLOW tracks whatever is playing (legacy behaviour).
+    if NOW_PLAYING_ALLOW:
+        players = [
+            n for n in players
+            if any(tag in n.lower() for tag in NOW_PLAYING_ALLOW)
+        ]
     if not players:
         return state
 

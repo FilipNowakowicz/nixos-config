@@ -11,24 +11,90 @@ window#waybar {
   color: @text;
 }
 
-/* ── Pill base ────────────────────────────────────────── */
+/* ── Fixed-width centred box pins the date dot to screen centre ──
+   modules-center is auto-centred in the window by its own width. We give it a
+   FIXED width (min-width) equal to 2× the distance from the pill's left edge to
+   the clock's date dot. The content packs from the left, so:
 
+     • the box is always centred  → its centre is screen-centre;
+     • everything left of the dot (workspaces · sep · time) is constant width,
+       so the dot lands at exactly box-width/2 = screen-centre;
+     • anything added on the RIGHT (battery, future widgets) eats into the
+       trailing slack inside the fixed box — the box width never changes, so the
+       dot never moves. No spacer, no script, no per-item tuning.
+
+   The trailing slack is INVISIBLE: the pill background is painted on the content
+   modules below, never on this box (which is transparent), so the painted pill
+   ends at the last widget's rounded edge. min-width reserves layout space only.
+
+   WP = 701px, from a measured dot at x=350.5px from the pill's left edge. It's
+   logical px and the box auto-centres per output, so it holds on any monitor /
+   scale. Only change it if the LEFT side (workspaces/time) changes width. */
+.modules-center {
+  background: transparent;
+  margin: 4px 0;
+  min-width: 720px;
+}
+
+/* Connected pill across the content modules. Vertical borders only on the
+   ends; matching backgrounds + shared top/bottom borders make the widgets
+   read as one continuous pill. */
 #workspaces,
+#custom-sep,
 #clock,
-.modules-right {
-  background: alpha(@bg, 0.92);
-  border-radius: 12px;
-  margin: 6px 3px;
-  border: 1px solid alpha(@orange, 0.3);
-  /* Overlay bar: lift the pills off whatever window sits behind them so the
-     text stays readable over any background. */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+#battery {
+  background: alpha(@bg, 0.98);
+  border-top: 1px solid alpha(@amber, 0.28);
+  border-bottom: 1px solid alpha(@amber, 0.28);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
+}
+
+#workspaces {
+  border-left: 1px solid alpha(@amber, 0.28);
+  border-radius: 13px 0 0 13px;
+}
+
+#clock {
+  border-right: 1px solid alpha(@amber, 0.28);
+  border-radius: 0 13px 13px 0;
+}
+
+/* Battery is appended right after the clock, joining the same pill. It only
+   renders while charging or discharging (empty when full/plugged, absent on
+   the desktop). Whether it's shown or hidden, it just fills more or less of the
+   fixed box's trailing slack, so it never moves the dot. It carries the pill's
+   rounded right end; the negative left margin tucks it under the clock's
+   rounded corner so there's no notch where the two meet. Future right-side
+   widgets append after it the same way. */
+#battery {
+  border-right: 1px solid alpha(@amber, 0.28);
+  border-radius: 0 13px 13px 0;
+  /* -13 margin tucks under the clock's rounded corner; +13 left padding puts
+     the content back where it would sit. */
+  margin-left: -13px;
+  padding: 0 11px 0 13px;
+}
+
+/* Per-module spacing inside the pill. */
+#clock {
+  padding: 0 9px;
+}
+
+/* ── Separator (workspaces | time) ────────────────────── */
+#custom-sep {
+  color: alpha(@text, 0.18);
+  padding: 0 2px;
 }
 
 /* ── Workspaces ───────────────────────────────────────── */
-
+/* Extra left padding gives the rounded pill end breathing room (clock's
+   right padding mirrors it). */
 #workspaces {
-  padding: 0 4px;
+  padding: 0 6px 0 11px;
+}
+
+#clock {
+  padding-right: 11px;
 }
 
 #workspaces button {
@@ -55,39 +121,25 @@ window#waybar {
 }
 
 /* ── Clock ────────────────────────────────────────────── */
-
 #clock {
-  padding: 0 18px;
   font-size: 13px;
   font-weight: 500;
 }
 
-/* ── Anchor pill ──────────────────────────────────────── */
-
-#custom-anchor {
-  padding: 0 10px;
-  font-size: 13px;
-  letter-spacing: 2px;
-  transition: border-color 240ms ease;
-}
-
-#custom-anchor.glow {
-  border-color: alpha(@amber, 0.42);
-}
-
-#custom-anchor.warn-glow {
-  border-color: alpha(@orange, 0.5);
-}
-
-/* ── Tray / chevron ───────────────────────────────────── */
-
-#custom-chevron {
-  padding: 0 6px 0 10px;
+/* ── Status modules ───────────────────────────────────── */
+#pulseaudio,
+#battery {
   color: @text;
-  opacity: 0.4;
-  font-size: 13px;
 }
 
-#tray {
-  padding: 0 8px 0 4px;
+#battery.warning {
+  color: @amber;
+}
+
+#battery.critical {
+  color: @orange;
+}
+
+#pulseaudio.muted {
+  color: alpha(@text, 0.4);
 }

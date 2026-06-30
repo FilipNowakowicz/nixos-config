@@ -8,6 +8,7 @@ and are mixed in here.
 
 import os
 import signal
+import subprocess
 import threading
 import time
 from types import SimpleNamespace
@@ -15,6 +16,7 @@ from types import SimpleNamespace
 from gi.repository import Gdk, GLib, Gtk, Gtk4LayerShell, Pango
 
 from .constants import (
+    BATTERY_LEVELS,
     FAST_STATE_KEYS,
     G,
     PANEL_CONTENT_WIDTH,
@@ -55,11 +57,13 @@ class ControlCenter(
         self.initial_view = initial_view
         self._current_view = initial_view
         self._visible = not start_hidden
+        self._dismiss_armed = False
         self.colors = colors
         self._css_provider = None
         self.state = state
         self.win = None
         self.stack = None
+        self._revealer = None
         self._refreshers = []
         self._fast_poll_id = 0
         self._slow_poll_id = 0
@@ -79,15 +83,27 @@ class ControlCenter(
 
         self.win = Gtk.ApplicationWindow(application=self)
         self.win.set_decorated(False)
-        self.win.set_resizable(False)
+        # Resizable must stay True: the four-edge-anchored layer surface needs
+        # to be stretched to fill the output. set_resizable(False) pins it to the
+        # content size, which breaks the full-surface click-outside catcher.
         self.win.connect("close-request", self._on_close_request)
 
         Gtk4LayerShell.init_for_window(self.win)
         Gtk4LayerShell.set_layer(self.win, Gtk4LayerShell.Layer.OVERLAY)
-        Gtk4LayerShell.set_anchor(self.win, Gtk4LayerShell.Edge.TOP, True)
-        Gtk4LayerShell.set_anchor(self.win, Gtk4LayerShell.Edge.RIGHT, True)
-        Gtk4LayerShell.set_margin(self.win, Gtk4LayerShell.Edge.TOP, PANEL_MARGIN)
-        Gtk4LayerShell.set_margin(self.win, Gtk4LayerShell.Edge.RIGHT, PANEL_MARGIN)
+        # Anchor all four edges so the layer surface fills the whole output, and
+        # extend over any exclusive zones (waybar) with exclusive_zone = -1. The
+        # panel itself is pinned top-right via child alignment + margins; the
+        # rest of the surface is transparent and exists only to catch a click
+        # *outside* the panel (click-to-dismiss). A panel-sized surface can't
+        # see outside clicks, and under focus-follows-mouse a focus-leave dismiss
+        # fires on hover — so we dismiss on an explicit outside click instead.
+        for _edge in (
+            Gtk4LayerShell.Edge.TOP, Gtk4LayerShell.Edge.RIGHT,
+            Gtk4LayerShell.Edge.BOTTOM, Gtk4LayerShell.Edge.LEFT,
+        ):
+            Gtk4LayerShell.set_anchor(self.win, _edge, True)
+        Gtk4LayerShell.set_exclusive_zone(self.win, -1)
+        # ON_DEMAND keyboard: the panel takes focus while open so Escape works.
         Gtk4LayerShell.set_keyboard_mode(
             self.win, Gtk4LayerShell.KeyboardMode.ON_DEMAND
         )
@@ -101,6 +117,10 @@ class ControlCenter(
         self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT)
         self.stack.set_transition_duration(260)
         self.stack.set_size_request(PANEL_CONTENT_WIDTH, -1)
+        # Height follows the visible view, not the tallest one — otherwise the
+        # compact home view is padded down to the VPN view's height, leaving
+        # dead space at the bottom of the panel.
+        self.stack.set_vhomogeneous(False)
 
         self.stack.add_named(self._build_home_view(), "home")
         self.stack.add_named(self._build_wifi_view(), "wifi")
@@ -111,14 +131,60 @@ class ControlCenter(
         self.stack.add_named(self._build_microphone_view(), "microphone")
         self.stack.set_visible_child_name(self.initial_view)
 
-        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        outer.set_name("panel")
-        outer.set_size_request(PANEL_TOTAL_WIDTH, -1)
-        outer.append(self.stack)
+        # Entrance animation: a CROSSFADE revealer fades the panel content in on
+        # every show. CROSSFADE (not a slide) keeps the panel at full size during
+        # the transition, so the click-outside bounds stay correct and there's no
+        # layout jump; the surface-level drop is handled by the compositor's
+        # `animation = layers` rule (see hyprland.conf). Toggled via _reveal_panel
+        # on show and reset to hidden on hide so the next show re-animates.
+        self._revealer = Gtk.Revealer()
+        self._revealer.set_transition_type(Gtk.RevealerTransitionType.CROSSFADE)
+        self._revealer.set_transition_duration(240)
+        self._revealer.set_child(self.stack)
+        self._revealer.set_reveal_child(False)
 
-        self.win.set_child(outer)
+        panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        panel.set_name("panel")
+        panel.set_size_request(PANEL_TOTAL_WIDTH, -1)
+        panel.set_halign(Gtk.Align.END)
+        panel.set_valign(Gtk.Align.START)
+        panel.set_margin_top(PANEL_MARGIN)
+        panel.set_margin_end(PANEL_MARGIN)
+        panel.append(self._revealer)
+
+        # Transparent full-surface root: pins the panel top-right and dismisses
+        # the window when a click lands outside the panel's bounds.
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        root.set_name("cc-root")
+        root.set_hexpand(True)
+        root.set_vexpand(True)
+        root.append(panel)
+
+        outside = Gtk.GestureClick()
+        outside.set_button(0)  # listen on any button
+
+        def _on_outside_press(gesture, _n_press, x, y):
+            ok, rect = panel.compute_bounds(root)
+            inside = ok and (
+                rect.origin.x <= x <= rect.origin.x + rect.size.width
+                and rect.origin.y <= y <= rect.origin.y + rect.size.height
+            )
+            if inside:
+                # Bow out so the panel's own buttons / slider-drag gestures
+                # own the press; never compete with inner widgets.
+                gesture.set_state(Gtk.EventSequenceState.DENIED)
+                return
+            if self._visible and self._dismiss_armed:
+                self._hide_window()
+        outside.connect("pressed", _on_outside_press)
+        root.add_controller(outside)
+
+        self.win.set_child(root)
         if self._visible:
             self.win.present()
+            GLib.timeout_add(10, self._reveal_panel)
+            GLib.timeout_add(250, self._arm_dismiss)
+            self._set_mako_mode(True)
         else:
             self.win.set_visible(False)
 
@@ -137,6 +203,32 @@ class ControlCenter(
         self._hide_window()
         return True
 
+    def _arm_dismiss(self):
+        self._dismiss_armed = True
+        return False  # one-shot
+
+    def _reveal_panel(self):
+        # Flip the revealer open one tick after present() so the CROSSFADE
+        # actually animates (a value set while the surface maps is treated as
+        # the initial state and plays no transition).
+        if self._revealer is not None:
+            self._revealer.set_reveal_child(True)
+        return False  # one-shot
+
+    def _set_mako_mode(self, on):
+        """Add/remove the mako `cc-open` mode so notifications re-anchor away
+        from the panel while it's open (see home/theme/mako-config.template).
+        Fire-and-forget: never block the UI or fail if mako isn't running."""
+        action = "-a" if on else "-r"
+        try:
+            subprocess.Popen(
+                ["makoctl", "mode", action, "cc-open"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            pass
+
     def _on_shutdown(self, *_args):
         if self._fast_poll_id:
             GLib.source_remove(self._fast_poll_id)
@@ -147,6 +239,9 @@ class ControlCenter(
         if self._theme_reload_signal_id:
             GLib.source_remove(self._theme_reload_signal_id)
             self._theme_reload_signal_id = 0
+        # Clear the notification re-anchor mode so a dying daemon doesn't leave
+        # notifications stuck in the bottom-right corner.
+        self._set_mako_mode(False)
         clear_state(os.getpid())
 
     def _on_key(self, _ctrl, keyval, _keycode, _state):
@@ -165,7 +260,12 @@ class ControlCenter(
         if self.win is None:
             return
         self._visible = True
+        self._dismiss_armed = False
+        self._revealer.set_reveal_child(False)
         self.win.present()
+        GLib.timeout_add(10, self._reveal_panel)
+        GLib.timeout_add(250, self._arm_dismiss)
+        self._set_mako_mode(True)
         self._write_presence()
         self._tick_fast()
         self._tick_slow()
@@ -174,7 +274,10 @@ class ControlCenter(
         if self.win is None:
             return
         self._visible = False
+        self._dismiss_armed = False
+        self._revealer.set_reveal_child(False)
         self.win.set_visible(False)
+        self._set_mako_mode(False)
         self._write_presence()
 
     def _on_ipc_toggle(self):
@@ -454,6 +557,11 @@ class ControlCenter(
                 box.add_css_class(c)
         return box
 
+    def _divider(self):
+        d = Gtk.Box()
+        d.add_css_class("divider")
+        return d
+
     def _section_label(self, text, action=None, action_cb=None):
         row = self._box(Gtk.Orientation.HORIZONTAL, css="section-label")
         row.append(self._label(text, "section-text"))
@@ -526,12 +634,25 @@ class ControlCenter(
         track = Gtk.Box()
         track.add_css_class("slider-track")
         track.set_hexpand(True)
-        track.set_overflow(Gtk.Overflow.HIDDEN)
+        # No overflow:hidden here — it would clip the 16px knob down to the 8px
+        # track height. The fill is rounded (border-radius) so it stays tidy
+        # without clipping, and the knob is free to protrude as a real handle.
         fill = Gtk.Box()
         fill.add_css_class("slider-fill")
         fill.set_size_request(0, -1)
+        # Pin the fill's own expand flag off: hexpand propagates UP from any
+        # child, so the knob's hexpand below would otherwise make the fill
+        # report as expandable and the track would stretch it to full width
+        # (every knob pinned to the far right, ignoring the value). With an
+        # explicit False the fill keeps its value-driven size_request width.
+        fill.set_hexpand(False)
         knob = Gtk.Box()
         knob.add_css_class("slider-knob")
+        # hexpand so the knob is allocated the fill's full content width;
+        # halign=END then parks it at the fill's right edge (the value
+        # position). Without hexpand the horizontal box packs this single child
+        # at the start, leaving the knob at the left regardless of value.
+        knob.set_hexpand(True)
         knob.set_halign(Gtk.Align.END)
         fill.append(knob)
         track.append(fill)
@@ -575,6 +696,13 @@ class ControlCenter(
         if not name:
             return "—"
         return name if len(name) <= n else name[: n - 1] + "…"
+
+    @staticmethod
+    def _battery_glyph(percent, charging=False):
+        if charging:
+            return G["battery_charging"]
+        idx = max(0, min(10, round((percent or 0) / 10)))
+        return BATTERY_LEVELS[idx]
 
     @staticmethod
     def _wifi_glyph(signal_pct):

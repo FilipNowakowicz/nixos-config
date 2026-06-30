@@ -130,6 +130,21 @@ let
     '';
   };
 
+  # Auto-hide controller for the waybar pill. Run as a systemd user service
+  # (below) rather than a Hyprland `exec-once` so a `home-manager switch`
+  # restarts it and it self-restarts on crash — `exec-once` only fires at
+  # login, so a rebuild would otherwise leave the watcher dead until relogin.
+  waybarAutohide = pkgs.writeShellApplication {
+    name = "waybar-autohide";
+    runtimeInputs = with pkgs; [
+      hyprland
+      procps
+      gawk
+      coreutils
+    ];
+    text = builtins.readFile ../../files/scripts/waybar-autohide.sh;
+  };
+
   waybarAnchor =
     let
       python = pkgs.python3;
@@ -159,13 +174,11 @@ in
 
       (writeShellApplication {
         name = "waybar-toggle";
-        runtimeInputs = with pkgs; [
-          hyprland
-          procps
-          gnugrep
-        ];
+        runtimeInputs = with pkgs; [ coreutils ];
         text = builtins.readFile ../../files/scripts/waybar-toggle.sh;
       })
+
+      waybarAutohide
 
       (writeShellApplication {
         name = "hypr-display-mode";
@@ -434,6 +447,22 @@ in
       Service = {
         Type = "oneshot";
         ExecStart = "${batteryNotify}/bin/battery-notify";
+      };
+      Install = {
+        WantedBy = [ "nixos-fake-graphical-session.target" ];
+      };
+    };
+
+    waybar-autohide = {
+      Unit = {
+        Description = "Auto-hide / hover-reveal controller for the waybar pill";
+        After = [ "nixos-fake-graphical-session.target" ];
+        PartOf = [ "nixos-fake-graphical-session.target" ];
+      };
+      Service = {
+        ExecStart = "${waybarAutohide}/bin/waybar-autohide";
+        Restart = "always";
+        RestartSec = 2;
       };
       Install = {
         WantedBy = [ "nixos-fake-graphical-session.target" ];

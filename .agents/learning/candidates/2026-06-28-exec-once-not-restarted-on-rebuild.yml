@@ -1,0 +1,17 @@
+schema: learning-candidate/v1
+id: 2026-06-28-exec-once-not-restarted-on-rebuild
+date: 2026-06-28
+expires: 2026-12-28
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [pr-#363, commit-36bdcfc, branch-codex/issue-362-graphical-ux]
+recurrence: 2 — independently re-hit 2026-06-29 with the `control-center --daemon` helper (also a hyprland.conf:16 exec-once): after `nh os switch` the profile launcher pointed at the new control-center store path but the in-memory daemon kept running the old build, so committed UI fixes (click-away dismiss, slider knob position) looked "reversed/not applied" until the daemon was manually killed and relaunched. Same root cause as the waybar-autohide occurrence, different helper.
+observation: Hyprland `exec-once` only fires at session login, so a `home-manager switch` (rebuild) never (re)starts a newly-added or changed exec-once helper — the waybar-autohide watcher stayed dead after rebuild and hover/SUPER+W did nothing until relogin; likewise the control-center daemon kept the pre-rebuild build in memory. Also waybar `start_hidden: true` parks the bar on the bottom layer (behind windows) at startup and needs two SIGUSR1 toggles to lift to the top layer. Note when restarting such a helper by hand: `pkill -f control_center` self-matches the shell running the command (its argv contains the token) and kills the invoking shell — kill by PID instead.
+proposed_upgrade: Document in hosts/main or docs/operations that long-running per-session helpers belong in `systemd.user.services` bound to nixos-fake-graphical-session.target (Restart=always), not Hyprland `exec-once`, so a rebuild restarts them and they survive crashes; reserve exec-once for one-shot startup commands.
+type: workflow-gotcha
+dedupe_key: hypr:exec-once-not-restarted-on-rebuild
+triggers: [home/files/hypr/hyprland.conf, home-manager switch, waybar-autohide]
+targets: [docs/operations.md, hosts/main/CLAUDE.md]

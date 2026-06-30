@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-06-29-control-center-headless-css-validation
+date: 2026-06-29
+expires: 2026-12-29
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [packages/control-center/src/control_center/__init__.py:17-import-gi, commit-ba7dc20]
+observation: control-center css.py/theme.py/constants.py are stdlib-only but `import control_center.css` triggers package __init__ which imports gi; plain `python3 -c` fails ModuleNotFoundError before any css renders.
+proposed_upgrade: To brace/selector-check build_css() headlessly (no GTK/Wayland), register a dummy `control_center` package module in sys.modules then importlib-load constants/theme/css as submodules, bypassing __init__; doc this in packages/control-center/README.md as the CSS smoke-check.
+type: workflow-gotcha
+triggers: [packages/control-center/src/control_center/css.py, headless-css-validation]
+targets: [packages/control-center/README.md]

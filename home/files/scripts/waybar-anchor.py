@@ -54,7 +54,10 @@ def main():
     dnd_out, dnd_ok = _run(["makoctl", "mode"])
     if dnd_ok:
         modes = [m.strip() for m in dnd_out.splitlines() if m.strip()]
-        if any(m != "default" for m in modes):
+        # "cc-open" is a transient mode the control-center daemon toggles to
+        # re-anchor notifications while its panel is open — it is not DND, so
+        # don't light the DND indicator for it.
+        if any(m not in ("default", "cc-open") for m in modes):
             indicators.append(f'<span color="{amber}">󰂛</span>')
             classes.append("dnd")
             severity = max(severity, 1)

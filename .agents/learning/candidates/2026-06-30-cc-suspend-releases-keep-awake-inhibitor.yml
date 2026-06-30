@@ -1,0 +1,17 @@
+schema: learning-candidate/v1
+id: 2026-06-30-cc-suspend-releases-keep-awake-inhibitor
+date: 2026-06-30
+expires: 2027-01-01
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [packages/control-center/src/control_center/actions.py:act_suspend, branch-codex/issue-362-graphical-ux]
+observation: CC keep-awake inhibitor uses --what=handle-lid-switch:idle:sleep --mode=block; the :sleep flag blocks explicit systemctl suspend too, so the footer sleep button was silently a no-op while Awake was on. Fix: call act_keep_awake(False) before _fire(["systemctl","suspend"]).
+proposed_upgrade: Document in packages/control-center/README.md (or an inline comment) that any CC action bypassing the keep-awake lock must call act_keep_awake(False) first because _fire is fire-and-forget with no implicit sequencing; extend the same prefix to reboot/hibernate if added later.
+
+# type: repo-fix
+# dedupe_key: control-center:suspend-blocked-by-keep-awake-inhibitor
+# triggers: [packages/control-center/src/control_center/actions.py, act_suspend, act_keep_awake, systemd-inhibit]
+# targets: [packages/control-center/README.md]
