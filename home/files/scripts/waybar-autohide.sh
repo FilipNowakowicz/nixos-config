@@ -14,8 +14,31 @@ mkdir -p "$STATE_DIR"
 
 REVEAL_PX=4 # cursor this close to the top edge reveals the bar
 KEEP_PX=52  # while shown, cursor below this retracts it (bar height + margin)
+HOT_W=720   # width of the top-edge reveal hot-zone, centred on each monitor.
+# Matches the waybar modules-center box (style.css min-width: 720px),
+# which is centred per output and contains the whole visible pill —
+# so the reveal only triggers over the bar's footprint, not the full
+# top edge. The keep-while-shown check stays width-agnostic so the
+# bar never retracts mid-use when the cursor tracks along it.
 POLL="0.12"
 RESYNC_EVERY=10 # reconcile internal state with the real bar every N ticks
+
+# Per-output geometry, refreshed on resync: parallel arrays of x-offset/width.
+MON_X=()
+MON_W=()
+load_monitors() {
+  MON_X=()
+  MON_W=()
+  local x w
+  while read -r x w; do
+    MON_X+=("$x")
+    MON_W+=("$w")
+  done < <(hyprctl monitors 2>/dev/null | awk '
+    $2 == "at" && $1 ~ /x[0-9.]+@/ {
+      split($1, res, "x"); split($3, off, "x")
+      print off[1] + 0, res[1] + 0
+    }')
+}
 
 waybar_pids() {
   ps -eo pid=,comm=,args= |
@@ -33,10 +56,29 @@ waybar_visible() {
     END { exit !found }'
 }
 
-cursor_y() {
+cursor_pos() {
   local pos
   pos=$(hyprctl cursorpos 2>/dev/null) || return 1
-  printf '%s\n' "${pos##*, }"
+  # cursorpos prints "X, Y"; emit "X Y".
+  printf '%s %s\n' "${pos%%,*}" "${pos##*, }"
+}
+
+# True when global cursor x falls inside the bar's centred hot-zone on whatever
+# monitor it currently sits over.
+in_hot_zone() {
+  local cx=$1 i mx mw w left right
+  for i in "${!MON_X[@]}"; do
+    mx=${MON_X[i]}
+    mw=${MON_W[i]}
+    ((cx >= mx && cx < mx + mw)) || continue
+    w=$HOT_W
+    ((w > mw)) && w=$mw
+    left=$((mx + (mw - w) / 2))
+    right=$((left + w))
+    ((cx >= left && cx <= right)) && return 0
+    return 1
+  done
+  return 1
 }
 
 signal_toggle() {
@@ -61,27 +103,34 @@ show_bar() {
 
 visible=false
 waybar_visible && visible=true
+load_monitors
 tick=0
 
 while true; do
-  if ! y=$(cursor_y); then
+  if ! read -r x y < <(cursor_pos); then
     sleep 0.5
     continue
   fi
 
-  # Periodically reconcile with the real bar state (theme reloads can re-hide it).
+  # Periodically reconcile with the real bar state (theme reloads can re-hide it)
+  # and re-read monitor geometry (outputs may have been added/removed/moved).
   if ((tick % RESYNC_EVERY == 0)); then
     visible=false
     waybar_visible && visible=true
+    load_monitors
   fi
   tick=$((tick + 1))
 
   if [[ -f $PIN_FILE ]]; then
     want=true
   elif $visible; then
+    # Keep-while-shown is width-agnostic: only the vertical position matters so
+    # the bar doesn't retract while the cursor tracks across it.
     [[ $y -le $KEEP_PX ]] && want=true || want=false
+  elif [[ $y -le $REVEAL_PX ]] && in_hot_zone "$x"; then
+    want=true
   else
-    [[ $y -le $REVEAL_PX ]] && want=true || want=false
+    want=false
   fi
 
   if $want && ! $visible; then
