@@ -63,7 +63,7 @@ def build_css(colors):
         min-width: {PANEL_CONTENT_WIDTH}px;
     }}
 
-    .panel-header {{ margin-bottom: 4px; }}
+    .panel-header {{ margin-bottom: 4px; padding: 0 4px; }}
     .panel-title {{ font-size: 13px; font-weight: 600; letter-spacing: 0.03em; }}
     .panel-title.with-back {{ font-size: 14px; }}
     .panel-meta {{ color: {rgba(text, 0.42)}; font-size: 10px;
@@ -337,20 +337,20 @@ def build_css(colors):
     .np-artist {{ color: {rgba(text, 0.5)}; font-size: 10px; }}
     .np-player {{ color: {rgba(text, 0.28)}; font-size: 9px; }}
     .media-btn {{
-        min-width: 32px; min-height: 32px;
+        min-width: 34px; min-height: 34px;
         padding: 0;
         border-radius: 999px;
         border: none;
         background: transparent;
         color: {rgba(text, 0.85)};
-        font-size: 16px;
+        font-size: 19px;
         box-shadow: none;
     }}
     .media-btn:hover {{ background: rgba(255, 255, 255, 0.08); }}
-    .media-btn.primary {{ font-size: 20px; }}
+    .media-btn.primary {{ font-size: 23px; }}
 
     /* Footer (battery readout + power actions) */
-    .foot {{ color: {rgba(text, 0.7)}; }}
+    .foot {{ color: {rgba(text, 0.7)}; padding: 0 4px; }}
     .foot-bat {{
         font-size: 12px;
         font-weight: 500;
@@ -362,13 +362,13 @@ def build_css(colors):
     }}
     .foot-bat-meta {{ color: {rgba(text, 0.48)}; font-size: 10px; }}
     .foot-btn {{
-        min-width: 34px; min-height: 34px;
+        min-width: 36px; min-height: 36px;
         padding: 0;
         border-radius: 8px;
         border: none;
         background: transparent;
         color: {rgba(text, 0.8)};
-        font-size: 16px;
+        font-size: 18px;
         box-shadow: none;
     }}
     .foot-btn:hover {{

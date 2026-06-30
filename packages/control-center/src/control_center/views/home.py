@@ -451,6 +451,7 @@ class HomeViewMixin:
                 self._set_class(np_title, "np-empty", False)
                 np_title.set_xalign(0)  # real titles read left-aligned
                 np_title.set_label(self._short(n["title"], 30))
+                np_artist.set_visible(True)
                 parts = [p for p in [n["artist"], n["player"]] if p]
                 np_artist.set_label(self._short(" — ".join(parts), 34))
             else:
@@ -463,7 +464,11 @@ class HomeViewMixin:
                 self._set_class(np_title, "np-empty", True)
                 np_title.set_xalign(0.5)
                 np_title.set_label("Nothing playing")
+                # Hide (not just blank) the artist line — an empty label still
+                # reserves a row, which pushes the centered title above the
+                # tile/icon midline.
                 np_artist.set_label("")
+                np_artist.set_visible(False)
             play_btn.set_label(
                 G["pause"] if n["status"] == "Playing" else G["play"]
             )
