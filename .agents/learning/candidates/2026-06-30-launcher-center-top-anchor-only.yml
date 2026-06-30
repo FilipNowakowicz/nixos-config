@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-30-launcher-center-top-anchor-only
 date: 2026-06-30
 expires: 2026-12-30
-status: open
+status: promoted
 
 route: promote-doc
 best_form: doc
