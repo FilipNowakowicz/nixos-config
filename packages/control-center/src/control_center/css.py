@@ -333,6 +333,7 @@ def build_css(colors):
         border-radius: 9px;
     }}
     .np-title {{ font-weight: 600; font-size: 12px; }}
+    .np-title.np-empty {{ font-weight: 500; color: {rgba(text, 0.42)}; }}
     .np-artist {{ color: {rgba(text, 0.5)}; font-size: 10px; }}
     .np-player {{ color: {rgba(text, 0.28)}; font-size: 9px; }}
     .media-btn {{
