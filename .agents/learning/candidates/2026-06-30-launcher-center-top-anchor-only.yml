@@ -1,0 +1,17 @@
+schema: learning-candidate/v1
+id: 2026-06-30-launcher-center-top-anchor-only
+date: 2026-06-30
+expires: 2026-12-30
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [commit-d8b5a9d-on-main, file:home/files/scripts/launcher.py:110-113]
+observation: Gtk4LayerShell horizontal centering requires LEFT=False AND RIGHT=False; the previous code set RIGHT=True with a monitor_w//2+offset margin to fake centering — this broke silently whenever the bar moved, because the offset was hardcoded to the old bar geometry
+proposed_upgrade: Add a note to the launcher source (or packages/control-center/README.md) that Gtk4LayerShell centers automatically when no horizontal anchor is set; never use a right-anchor+pixel-offset to fake centering
+
+type: workflow-gotcha
+dedupe_key: launcher:gtk4layershell-center-no-lr-anchors
+triggers: [home/files/scripts/launcher.py, Gtk4LayerShell.set_anchor, launcher positioning]
+targets: [home/files/scripts/launcher.py, packages/control-center/README.md]
