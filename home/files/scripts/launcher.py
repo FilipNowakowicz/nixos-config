@@ -132,6 +132,8 @@ class Launcher(Gtk.Application):
         self.entry.set_name('entry')
         self.entry.set_width_chars(20)
         self.entry.set_alignment(0.5)
+        self.entry.set_placeholder_text('run command…')
+        self.entry.set_focusable(False)
 
         pill = Gtk.Box()
         pill.set_name('pill')
@@ -145,7 +147,8 @@ class Launcher(Gtk.Application):
         win.add_controller(kc)
 
         win.present()
-        self.entry.grab_focus()
+        # No grab_focus() — the window-level key controller captures all input.
+        # Keeping focus off the entry lets GTK render the placeholder text.
 
     def _apply_position(self):
         # waybar: margin-top=6, height=38 → 44px footprint; add 8px gap = 52px
@@ -188,7 +191,7 @@ class Launcher(Gtk.Application):
         #entry, #entry > text {{
             background: transparent;
             color: rgba({tx[0]},{tx[1]},{tx[2]},1.0);
-            caret-color: rgba({am[0]},{am[1]},{am[2]},1.0);
+            caret-color: transparent;
             border: none;
             box-shadow: none;
             outline: none;
@@ -203,6 +206,9 @@ class Launcher(Gtk.Application):
             outline-width: 0px;
             box-shadow: none;
             border: none;
+        }}
+        entry placeholder {{
+            color: rgba({tx[0]},{tx[1]},{tx[2]},0.38);
         }}
         #entry selection, #entry > text selection {{
             background: transparent;

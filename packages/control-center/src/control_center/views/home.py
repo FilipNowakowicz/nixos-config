@@ -62,9 +62,18 @@ class HomeViewMixin:
             btn.add_css_class("gtile")
             inner = self._box(Gtk.Orientation.VERTICAL, spacing=6)
             inner.set_halign(Gtk.Align.CENTER)
-            ic = self._center_icon(self._label(glyph, "gtile-ic", xalign=0.5))
+            # Badge box owns the circle (background, border-radius, min-size).
+            # The inner label holds only the glyph, letting GTK center the text
+            # freely within the fixed circle rather than sizing the circle to
+            # fit the glyph's typographic bounding box.
+            badge = Gtk.Box()
+            badge.add_css_class("gtile-ic")
+            badge.set_halign(Gtk.Align.CENTER)
+            badge.set_valign(Gtk.Align.CENTER)
+            ic = self._center_icon(self._label(glyph, "gtile-glyph", xalign=0.5))
             _rise(ic, rise)
-            inner.append(ic)
+            badge.append(ic)
+            inner.append(badge)
             lbl = self._label(label, "gtile-l", xalign=0.5)
             sub = self._label("", "gtile-s", xalign=0.5)
             sub.set_ellipsize(Pango.EllipsizeMode.END)
@@ -246,9 +255,11 @@ class HomeViewMixin:
         bat_left = self._box(Gtk.Orientation.HORIZONTAL, spacing=6)
         bat_glyph = self._label("", "foot-bat-glyph")
         bat_pct = self._label("", "foot-bat")
+        temp_glyph = self._label("", "foot-bat-glyph")
         bat_meta = self._label("", "foot-bat-meta")
         bat_left.append(bat_glyph)
         bat_left.append(bat_pct)
+        bat_left.append(temp_glyph)
         bat_left.append(bat_meta)
         foot.append(bat_left)
         foot.append(Gtk.Box(hexpand=True))
@@ -480,8 +491,11 @@ class HomeViewMixin:
                 # "Full" needs no label — the 100% readout already says it.
                 meta_parts.append(bat["time_str"])
             if s["cpu_temp"] is not None:
-                meta_parts.append(f"{s['cpu_temp']}°")
-            bat_meta.set_label(("· " + " · ".join(meta_parts)) if meta_parts else "")
+                temp_glyph.set_label(f" {G['thermometer']}")
+                bat_meta.set_label(("· " + " · ".join(meta_parts) + " · " if meta_parts else "· ") + f"{s['cpu_temp']}°")
+            else:
+                temp_glyph.set_label("")
+                bat_meta.set_label(("· " + " · ".join(meta_parts)) if meta_parts else "")
 
         self._refreshers.append(refresh)
         refresh(self.state)

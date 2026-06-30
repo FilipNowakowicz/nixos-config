@@ -77,6 +77,7 @@ G = {
     "live_dot": "●",
     "battery_charging": "󰂄",
     "music": "󰝚",
+    "thermometer": "",  # U+F2C9, nf-fa-thermometer-2
 }
 
 # Discharging battery glyphs by 10% step (index 0 = empty … 10 = full).
