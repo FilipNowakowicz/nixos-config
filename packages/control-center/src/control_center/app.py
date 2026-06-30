@@ -594,12 +594,18 @@ class ControlCenter(
         fill = Gtk.Box()
         fill.add_css_class("slider-fill")
         fill.set_size_request(0, -1)
+        # Pin the fill's own expand flag off: hexpand propagates UP from any
+        # child, so the knob's hexpand below would otherwise make the fill
+        # report as expandable and the track would stretch it to full width
+        # (every knob pinned to the far right, ignoring the value). With an
+        # explicit False the fill keeps its value-driven size_request width.
+        fill.set_hexpand(False)
         knob = Gtk.Box()
         knob.add_css_class("slider-knob")
-        # hexpand so the knob is allocated the fill's full width; halign=END then
-        # parks it at the fill's right edge (the value position). Without hexpand
-        # the horizontal box packs this single child at the start, so the knob
-        # would sit at the left of the track regardless of the slider value.
+        # hexpand so the knob is allocated the fill's full content width;
+        # halign=END then parks it at the fill's right edge (the value
+        # position). Without hexpand the horizontal box packs this single child
+        # at the start, leaving the knob at the left regardless of value.
         knob.set_hexpand(True)
         knob.set_halign(Gtk.Align.END)
         fill.append(knob)
