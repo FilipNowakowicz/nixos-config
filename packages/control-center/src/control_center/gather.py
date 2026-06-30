@@ -407,7 +407,10 @@ def gather_dnd():
         modes = [m.strip() for m in out.splitlines() if m.strip()]
         # makoctl mode prints current modes, one per line ("default", or
         # extra modes when stacked). Active when any non-default mode set.
-        active = [m for m in modes if m and m != "default"]
+        # "cc-open" is this panel's own transient re-anchor mode (added while
+        # the panel is open, see app._set_mako_mode) — it isn't DND, so ignore
+        # it or opening the panel would light up its own DND indicator.
+        active = [m for m in modes if m and m not in ("default", "cc-open")]
         mode = active[0] if active else (modes[0] if modes else "default")
         return {"mode": mode, "enabled": bool(active)}
     return {"mode": "default", "enabled": False}
