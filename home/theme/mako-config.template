@@ -13,3 +13,12 @@ max-visible=5
 
 [mode=do-not-disturb]
 invisible=1
+
+# Re-anchor notifications to the opposite corner while the control-center panel
+# is open. The panel is a top-right OVERLAY-layer surface that sits above mako's
+# `top` layer and covers the whole top-right column, so a top-right notification
+# would be hidden behind it. The control-center daemon adds this mode on show and
+# removes it on hide (see packages/control-center). bottom-right is robust
+# regardless of the panel's (view-dependent) height.
+[mode=cc-open]
+anchor=bottom-right

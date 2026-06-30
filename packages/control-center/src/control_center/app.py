@@ -8,6 +8,7 @@ and are mixed in here.
 
 import os
 import signal
+import subprocess
 import threading
 import time
 from types import SimpleNamespace
@@ -62,6 +63,7 @@ class ControlCenter(
         self.state = state
         self.win = None
         self.stack = None
+        self._revealer = None
         self._refreshers = []
         self._fast_poll_id = 0
         self._slow_poll_id = 0
@@ -129,6 +131,18 @@ class ControlCenter(
         self.stack.add_named(self._build_microphone_view(), "microphone")
         self.stack.set_visible_child_name(self.initial_view)
 
+        # Entrance animation: a CROSSFADE revealer fades the panel content in on
+        # every show. CROSSFADE (not a slide) keeps the panel at full size during
+        # the transition, so the click-outside bounds stay correct and there's no
+        # layout jump; the surface-level drop is handled by the compositor's
+        # `animation = layers` rule (see hyprland.conf). Toggled via _reveal_panel
+        # on show and reset to hidden on hide so the next show re-animates.
+        self._revealer = Gtk.Revealer()
+        self._revealer.set_transition_type(Gtk.RevealerTransitionType.CROSSFADE)
+        self._revealer.set_transition_duration(240)
+        self._revealer.set_child(self.stack)
+        self._revealer.set_reveal_child(False)
+
         panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         panel.set_name("panel")
         panel.set_size_request(PANEL_TOTAL_WIDTH, -1)
@@ -136,7 +150,7 @@ class ControlCenter(
         panel.set_valign(Gtk.Align.START)
         panel.set_margin_top(PANEL_MARGIN)
         panel.set_margin_end(PANEL_MARGIN)
-        panel.append(self.stack)
+        panel.append(self._revealer)
 
         # Transparent full-surface root: pins the panel top-right and dismisses
         # the window when a click lands outside the panel's bounds.
@@ -168,7 +182,9 @@ class ControlCenter(
         self.win.set_child(root)
         if self._visible:
             self.win.present()
+            GLib.timeout_add(10, self._reveal_panel)
             GLib.timeout_add(250, self._arm_dismiss)
+            self._set_mako_mode(True)
         else:
             self.win.set_visible(False)
 
@@ -191,6 +207,28 @@ class ControlCenter(
         self._dismiss_armed = True
         return False  # one-shot
 
+    def _reveal_panel(self):
+        # Flip the revealer open one tick after present() so the CROSSFADE
+        # actually animates (a value set while the surface maps is treated as
+        # the initial state and plays no transition).
+        if self._revealer is not None:
+            self._revealer.set_reveal_child(True)
+        return False  # one-shot
+
+    def _set_mako_mode(self, on):
+        """Add/remove the mako `cc-open` mode so notifications re-anchor away
+        from the panel while it's open (see home/theme/mako-config.template).
+        Fire-and-forget: never block the UI or fail if mako isn't running."""
+        action = "-a" if on else "-r"
+        try:
+            subprocess.Popen(
+                ["makoctl", "mode", action, "cc-open"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            pass
+
     def _on_shutdown(self, *_args):
         if self._fast_poll_id:
             GLib.source_remove(self._fast_poll_id)
@@ -201,6 +239,9 @@ class ControlCenter(
         if self._theme_reload_signal_id:
             GLib.source_remove(self._theme_reload_signal_id)
             self._theme_reload_signal_id = 0
+        # Clear the notification re-anchor mode so a dying daemon doesn't leave
+        # notifications stuck in the bottom-right corner.
+        self._set_mako_mode(False)
         clear_state(os.getpid())
 
     def _on_key(self, _ctrl, keyval, _keycode, _state):
@@ -220,8 +261,11 @@ class ControlCenter(
             return
         self._visible = True
         self._dismiss_armed = False
+        self._revealer.set_reveal_child(False)
         self.win.present()
+        GLib.timeout_add(10, self._reveal_panel)
         GLib.timeout_add(250, self._arm_dismiss)
+        self._set_mako_mode(True)
         self._write_presence()
         self._tick_fast()
         self._tick_slow()
@@ -231,7 +275,9 @@ class ControlCenter(
             return
         self._visible = False
         self._dismiss_armed = False
+        self._revealer.set_reveal_child(False)
         self.win.set_visible(False)
+        self._set_mako_mode(False)
         self._write_presence()
 
     def _on_ipc_toggle(self):
