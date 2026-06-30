@@ -14,12 +14,17 @@ mkdir -p "$STATE_DIR"
 
 REVEAL_PX=4 # cursor this close to the top edge reveals the bar
 KEEP_PX=52  # while shown, cursor below this retracts it (bar height + margin)
-HOT_W=720   # width of the top-edge reveal hot-zone, centred on each monitor.
-# Matches the waybar modules-center box (style.css min-width: 720px),
-# which is centred per output and contains the whole visible pill —
-# so the reveal only triggers over the bar's footprint, not the full
-# top edge. The keep-while-shown check stays width-agnostic so the
-# bar never retracts mid-use when the cursor tracks along it.
+# Reveal hot-zone, sized to the VISIBLE pill rather than the whole bar surface.
+# The waybar surface spans the full output width, but only the centred
+# modules-center box (style.css min-width: 720px) holds content, and that box's
+# modules are left-packed — so the painted pill occupies just the left
+# BAR_PILL_W px of the box and the rest is transparent slack. Anchoring the
+# hot-zone to the pill (box-left .. box-left+BAR_PILL_W), not the full box, stops
+# the bar revealing when the cursor is over the invisible slack. Tune BAR_PILL_W
+# if the module set (workspaces/clock/battery) changes; the keep-while-shown
+# check stays width-agnostic so the bar never retracts mid-use.
+BAR_BOX_W=720  # modules-center box width (centred per output)
+BAR_PILL_W=500 # painted pill width within that box, measured from the box's left edge
 POLL="0.12"
 RESYNC_EVERY=10 # reconcile internal state with the real bar every N ticks
 
@@ -63,18 +68,21 @@ cursor_pos() {
   printf '%s %s\n' "${pos%%,*}" "${pos##*, }"
 }
 
-# True when global cursor x falls inside the bar's centred hot-zone on whatever
-# monitor it currently sits over.
+# True when global cursor x falls over the visible pill on whatever monitor it
+# currently sits over. The pill's left edge is the centred box's left edge; its
+# right edge is one pill-width further in (not the full box), so the transparent
+# slack on the right of the box doesn't trigger a reveal.
 in_hot_zone() {
-  local cx=$1 i mx mw w left right
+  local cx=$1 i mx mw box_w left right
   for i in "${!MON_X[@]}"; do
     mx=${MON_X[i]}
     mw=${MON_W[i]}
     ((cx >= mx && cx < mx + mw)) || continue
-    w=$HOT_W
-    ((w > mw)) && w=$mw
-    left=$((mx + (mw - w) / 2))
-    right=$((left + w))
+    box_w=$BAR_BOX_W
+    ((box_w > mw)) && box_w=$mw
+    left=$((mx + (mw - box_w) / 2))
+    right=$((left + BAR_PILL_W))
+    ((right > mx + mw)) && right=$((mx + mw))
     ((cx >= left && cx <= right)) && return 0
     return 1
   done
