@@ -449,16 +449,19 @@ class HomeViewMixin:
                 self._set_class(art_fallback, "idle", False)
                 art_note.set_visible(False)
                 self._set_class(np_title, "np-empty", False)
+                np_title.set_xalign(0)  # real titles read left-aligned
                 np_title.set_label(self._short(n["title"], 30))
                 parts = [p for p in [n["artist"], n["player"]] if p]
                 np_artist.set_label(self._short(" — ".join(parts), 34))
             else:
                 # Keep the music-icon tile as a calm idle affordance; soften the
-                # placeholder text (np-empty) so it reads as a quiet status line
-                # rather than a heavy track title.
+                # placeholder text (np-empty) and centre it across the middle so
+                # it reads as a quiet status line rather than a heavy title
+                # crammed against the tile.
                 self._set_class(art_fallback, "idle", True)
                 art_note.set_visible(True)
                 self._set_class(np_title, "np-empty", True)
+                np_title.set_xalign(0.5)
                 np_title.set_label("Nothing playing")
                 np_artist.set_label("")
             play_btn.set_label(
