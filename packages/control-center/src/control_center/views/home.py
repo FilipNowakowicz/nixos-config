@@ -40,31 +40,25 @@ class HomeViewMixin:
 
         # ── 3×2 toggle grid (borderless, circular icon badges) ──
         # (No header row: the panel opens straight into the toggle grid.)
-        # Per-glyph vertical nudge (Pango baseline rise, in Pango units ≈ 1024
-        # per px) — some Nerd Font icons are bottom/top-heavy so they don't sit
-        # centred in the circular badge even with xalign/yalign 0.5. Persists
-        # across set_label() since the attribute spans the whole run.
-        def _rise(label, units):
-            if not units:
-                return
-
-            def apply(*_a):
-                attrs = Pango.AttrList()
-                attrs.insert(Pango.attr_rise_new(units))
-                label.set_attributes(attrs)
-            apply()
-            # Refresh re-sets these glyphs via set_label(), which drops the
-            # attribute list — reapply the rise whenever the text changes.
-            label.connect("notify::label", apply)
-
-        def mk_tile(glyph, label, view_name=None, rise=0):
+        def mk_tile(glyph, label, view_name=None):
             btn = Gtk.Button()
             btn.add_css_class("gtile")
             inner = self._box(Gtk.Orientation.VERTICAL, spacing=6)
             inner.set_halign(Gtk.Align.CENTER)
-            ic = self._center_icon(self._label(glyph, "gtile-ic", xalign=0.5))
-            _rise(ic, rise)
-            inner.append(ic)
+            # Badge owns the circle (background, border-radius, min-size). A
+            # plain Gtk.Box only honours a child's halign/valign on the cross
+            # axis — centering on the box's main (packing) axis needs the
+            # child to be hexpand/vexpand, which a single fixed-size glyph
+            # isn't. Gtk.CenterBox centers its center widget on both axes
+            # unconditionally, so the glyph is centered in the fixed circle
+            # regardless of its own natural size.
+            badge = Gtk.CenterBox()
+            badge.add_css_class("gtile-ic")
+            badge.set_halign(Gtk.Align.CENTER)
+            badge.set_valign(Gtk.Align.CENTER)
+            ic = self._center_icon(self._label(glyph, "gtile-glyph", xalign=0.5))
+            badge.set_center_widget(ic)
+            inner.append(badge)
             lbl = self._label(label, "gtile-l", xalign=0.5)
             sub = self._label("", "gtile-s", xalign=0.5)
             sub.set_ellipsize(Pango.EllipsizeMode.END)
@@ -76,8 +70,8 @@ class HomeViewMixin:
                 btn.connect("clicked", lambda _b, v=view_name: self.go_to(v))
             return SimpleNamespace(widget=btn, glyph=ic, title=lbl, sub=sub)
 
-        wifi_t = mk_tile(G["wifi"], "Wi-Fi", view_name="wifi", rise=2600)
-        bt_t = mk_tile(G["bluetooth"], "Bluetooth", view_name="bluetooth", rise=-900)
+        wifi_t = mk_tile(G["wifi"], "Wi-Fi", view_name="wifi")
+        bt_t = mk_tile(G["bluetooth"], "Bluetooth", view_name="bluetooth")
         vpn_t = mk_tile(G["shield"], "VPN", view_name="vpn")
         focus_t = mk_tile(G["bell_off"], "Focus", view_name="dnd")
         awake_t = mk_tile(G["coffee"], "Awake")
@@ -246,9 +240,11 @@ class HomeViewMixin:
         bat_left = self._box(Gtk.Orientation.HORIZONTAL, spacing=6)
         bat_glyph = self._label("", "foot-bat-glyph")
         bat_pct = self._label("", "foot-bat")
+        temp_glyph = self._label("", "foot-bat-glyph")
         bat_meta = self._label("", "foot-bat-meta")
         bat_left.append(bat_glyph)
         bat_left.append(bat_pct)
+        bat_left.append(temp_glyph)
         bat_left.append(bat_meta)
         foot.append(bat_left)
         foot.append(Gtk.Box(hexpand=True))
@@ -480,8 +476,11 @@ class HomeViewMixin:
                 # "Full" needs no label — the 100% readout already says it.
                 meta_parts.append(bat["time_str"])
             if s["cpu_temp"] is not None:
-                meta_parts.append(f"{s['cpu_temp']}°")
-            bat_meta.set_label(("· " + " · ".join(meta_parts)) if meta_parts else "")
+                temp_glyph.set_label(f" {G['thermometer']}")
+                bat_meta.set_label(("· " + " · ".join(meta_parts) + " · " if meta_parts else "· ") + f"{s['cpu_temp']}°")
+            else:
+                temp_glyph.set_label("")
+                bat_meta.set_label(("· " + " · ".join(meta_parts)) if meta_parts else "")
 
         self._refreshers.append(refresh)
         refresh(self.state)

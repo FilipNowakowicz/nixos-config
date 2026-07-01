@@ -34,7 +34,7 @@ def build_css(colors):
     }}
     .tile-glyph, .glyph-btn, .chip-glyph, .icon-btn, .back-btn,
     .hero-icon-wrap, .vpn-icon, .di-icon,
-    .gtile-ic, .foot-btn, .foot-bat-glyph, .media-btn, .album-art-note {{
+    .gtile-ic, .gtile-glyph, .foot-btn, .foot-bat-glyph, .foot-bat-meta, .media-btn, .album-art-note {{
         font-family: "JetBrainsMono Nerd Font", "Inter", sans-serif;
     }}
     window {{ background: transparent; }}
@@ -48,7 +48,7 @@ def build_css(colors):
         background-image: linear-gradient(180deg,
             rgba(255, 255, 255, 0.028) 0%, rgba(255, 255, 255, 0.0) 24%);
         box-shadow:
-            0 28px 60px rgba(0, 0, 0, 0.55),
+            0 12px 32px rgba(0, 0, 0, 0.48),
             inset 0 1px 0 rgba(255, 255, 255, 0.05);
     }}
 
@@ -106,12 +106,18 @@ def build_css(colors):
         padding: 0;
         border-radius: 999px;
         background: {rgba(text, 0.08)};
+        transition: background-color 120ms ease, background-image 120ms ease;
+    }}
+    .gtile-glyph {{
         color: {rgba(text, 0.72)};
         font-size: 15px;
+        transition: color 120ms ease;
     }}
     .gtile.on .gtile-ic {{
         background-color: {rgba(amber, 0.82)};
         background-image: {bead};
+    }}
+    .gtile.on .gtile-glyph {{
         color: {rgba(bg, 1.0)};
     }}
     .gtile-l {{
@@ -156,12 +162,13 @@ def build_css(colors):
     /* Sliders (B2 — boxed thick track + square icon + value) */
     .slider-row {{ margin: 0; min-width: 284px; }}
     .glyph-btn {{
-        min-width: 28px; min-height: 28px;
+        min-width: 32px; min-height: 32px;
         padding: 0;
         border-radius: 8px;
         border: none;
         background: {rgba(text, 0.06)};
         color: {rgba(text, 0.74)};
+        font-size: 16px;
         box-shadow: none;
     }}
     .glyph-btn:hover {{
@@ -365,7 +372,7 @@ def build_css(colors):
         color: {rgba(amber, 1.0)};
         font-size: 15px;
     }}
-    .foot-bat-meta {{ color: {rgba(text, 0.48)}; font-size: 10px; }}
+    .foot-bat-meta {{ color: {rgba(text, 0.62)}; font-size: 10px; }}
     .foot-btn {{
         min-width: 36px; min-height: 36px;
         padding: 0;

@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-29-control-center-headless-css-validation
 date: 2026-06-29
 expires: 2026-12-29
-status: open
+status: promoted
 
 route: promote-doc
 best_form: doc

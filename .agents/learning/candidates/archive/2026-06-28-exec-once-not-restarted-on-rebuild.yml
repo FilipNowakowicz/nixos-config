@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-28-exec-once-not-restarted-on-rebuild
 date: 2026-06-28
 expires: 2026-12-28
-status: open
+status: promoted
 
 route: promote-doc
 best_form: doc

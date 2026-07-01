@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-07-01-control-center-daemon-not-restarted-by-switch
+date: 2026-07-01
+expires: 2027-01-01
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [packages/control-center/src/control_center/main.py:45-57-single-instance-toggle, branch:fix/launcher-centering-and-opacity]
+observation: control-center self-daemonizes via a pid/lock file (main.py acquire_lock/read_state) and toggles visibility on an already-alive pid via SIGUSR1 instead of ever re-exec'ing; `nh os switch`/`home-manager switch` only updates the store path for the *next* fresh launch, so a long-running daemon started before the switch keeps serving stale code indefinitely with no error. Confirmed live: a running daemon's /proc/PID/environ PYTHONPATH still pointed at the pre-fix control-center-0 store hash even after rebuilding and reopening the panel repeatedly; only `pkill -f control_center` (forcing a fresh spawn) made new code visible.
+proposed_upgrade: Document in packages/control-center/README.md (and cross-link from the nix-verification-loop or run skill) that verifying a control-center source change requires killing the existing daemon (`pkill -f control_center`) after rebuild, not just re-invoking the `control-center` binary — re-invoking a live instance just toggles it via IPC and never loads new code.
+type: workflow-gotcha
+triggers: [packages/control-center, control-center-verification]
+targets: [packages/control-center/README.md]
