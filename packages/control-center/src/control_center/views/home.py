@@ -40,7 +40,7 @@ class HomeViewMixin:
 
         # ── 3×2 toggle grid (borderless, circular icon badges) ──
         # (No header row: the panel opens straight into the toggle grid.)
-        def mk_tile(glyph, label, view_name=None):
+        def mk_tile(glyph, label, view_name=None, nudge_y=0):
             btn = Gtk.Button()
             btn.add_css_class("gtile")
             inner = self._box(Gtk.Orientation.VERTICAL, spacing=6)
@@ -57,6 +57,17 @@ class HomeViewMixin:
             badge.set_halign(Gtk.Align.CENTER)
             badge.set_valign(Gtk.Align.CENTER)
             ic = self._center_icon(self._label(glyph, "gtile-glyph", xalign=0.5))
+            if nudge_y:
+                # CenterBox centers the label's own layout box, but a font's
+                # ink isn't necessarily centered within that box — the
+                # wifi-strength glyphs sit visually high in their cell
+                # regardless. A Pango baseline-rise attribute (the previous
+                # approach here) has no visible effect in this GTK4/Pango
+                # stack — verified with a standalone test across a wide
+                # range of rise values, all rendering identically — so nudge
+                # with a plain top margin instead, which CenterBox does
+                # honour when sizing/centering the widget.
+                ic.set_margin_top(nudge_y)
             badge.set_center_widget(ic)
             inner.append(badge)
             lbl = self._label(label, "gtile-l", xalign=0.5)
@@ -70,7 +81,7 @@ class HomeViewMixin:
                 btn.connect("clicked", lambda _b, v=view_name: self.go_to(v))
             return SimpleNamespace(widget=btn, glyph=ic, title=lbl, sub=sub)
 
-        wifi_t = mk_tile(G["wifi"], "Wi-Fi", view_name="wifi")
+        wifi_t = mk_tile(G["wifi"], "Wi-Fi", view_name="wifi", nudge_y=7)
         bt_t = mk_tile(G["bluetooth"], "Bluetooth", view_name="bluetooth")
         vpn_t = mk_tile(G["shield"], "VPN", view_name="vpn")
         focus_t = mk_tile(G["bell_off"], "Focus", view_name="dnd")
@@ -477,7 +488,11 @@ class HomeViewMixin:
                 meta_parts.append(bat["time_str"])
             if s["cpu_temp"] is not None:
                 temp_glyph.set_label(f" {G['thermometer']}")
-                bat_meta.set_label(("· " + " · ".join(meta_parts) + " · " if meta_parts else "· ") + f"{s['cpu_temp']}°")
+                # No leading "· " here: the thermometer glyph itself already
+                # separates this from bat_pct, unlike the plain-text branch
+                # below where bat_meta is the first thing after "100%".
+                prefix = (" · ".join(meta_parts) + " · ") if meta_parts else ""
+                bat_meta.set_label(prefix + f"{s['cpu_temp']}°")
             else:
                 temp_glyph.set_label("")
                 bat_meta.set_label(("· " + " · ".join(meta_parts)) if meta_parts else "")
