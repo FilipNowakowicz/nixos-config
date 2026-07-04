@@ -90,3 +90,68 @@ light), `nm-connection-editor`, `blueman-manager`, `pavucontrol`, and `kitty`
 The capability layer is covered by
 [`tests/packages/control-center-capabilities.nix`](../../tests/packages/control-center-capabilities.nix),
 which runs without GTK because `capabilities.py` is deliberately stdlib-only.
+
+## Developer Notes
+
+### Layer-shell panel window (`app.py`)
+
+The panel uses a **full-output, 4-edge anchored** layer-shell surface with
+`set_exclusive_zone(-1)` (no reservation) so that the transparent root covers
+the whole output and a `Gtk.GestureClick` on the root can detect clicks outside
+the panel bounds. Two things must be true for this to work:
+
+- **Do not call `set_resizable(False)`** on the window. That single call
+  collapses the surface to content size (e.g. 414×608 instead of 1920×1080)
+  regardless of the 4-edge anchoring, placing it at the origin with no
+  transparent overlay. The panel's top-right placement is achieved via child
+  `halign=END` / `valign=START` + margins, not by constraining the window.
+- **Dismiss on click-outside-bounds, not focus-leave.** Under Hyprland's
+  focus-follows-mouse policy, `EventControllerFocus` fires whenever the cursor
+  moves off the panel widget, closing it on hover. Instead: in the
+  `GestureClick` handler on the transparent root, call
+  `panel.compute_bounds(root)` and dismiss only when the press point is outside
+  those bounds. Inner button/slider gestures remain unaffected because GTK
+  routes them through the normal event propagation tree.
+
+### Gtk4LayerShell centering (`home/files/scripts/launcher.py`)
+
+Gtk4LayerShell centers a surface automatically along any axis where **neither**
+anchor for that axis is set. To center a TOP-anchored surface horizontally,
+set `LEFT=False` and `RIGHT=False` — do not set `RIGHT=True` and add a
+`monitor_width // 2 + offset` right-margin to approximate center. That approach
+silently breaks whenever the bar geometry changes because the offset is
+hardcoded to a specific bar layout.
+
+### Releasing the keep-awake inhibitor before power actions (`actions.py`)
+
+The keep-awake inhibitor is started with `--what=handle-lid-switch:idle:sleep
+--mode=block`. The `:sleep` flag blocks `systemctl suspend` in addition to
+idle-triggered sleep, so any CC action that calls `systemctl suspend` (or
+`hibernate`/`reboot` if added later) must call `act_keep_awake(False)` first.
+`_fire` is fire-and-forget with no implicit sequencing — without an explicit
+release the inhibitor wins and the power action silently does nothing.
+
+### Headless CSS validation
+
+`css.py`, `theme.py`, and `constants.py` are stdlib-only, but importing
+`control_center.css` triggers the package `__init__`, which imports `gi` →
+`ModuleNotFoundError` in a headless environment. To smoke-check `build_css()`
+without GTK or a Wayland display, stub the parent package in `sys.modules`
+before loading the submodules:
+
+```python
+import sys, types, importlib.util, pathlib
+
+# Prevent __init__ (which imports gi) from running
+sys.modules['control_center'] = types.ModuleType('control_center')
+
+src = pathlib.Path('src/control_center')
+for name in ('constants', 'theme', 'css'):
+    spec = importlib.util.spec_from_file_location(
+        f'control_center.{name}', src / f'{name}.py')
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[f'control_center.{name}'] = mod
+    spec.loader.exec_module(mod)
+
+print(sys.modules['control_center.css'].build_css({}))
+```

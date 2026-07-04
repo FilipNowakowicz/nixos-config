@@ -98,7 +98,6 @@ class Launcher(Gtk.Application):
         self.typed = ''
         self._win = None
         self._waybar_state = None
-        self._monitor_w = None
         self.connect('activate', self._build)
 
     def _build(self, _):
@@ -110,15 +109,14 @@ class Launcher(Gtk.Application):
         Gtk4LayerShell.set_layer(win, Gtk4LayerShell.Layer.OVERLAY)
         Gtk4LayerShell.set_anchor(win, Gtk4LayerShell.Edge.TOP,    True)
         Gtk4LayerShell.set_anchor(win, Gtk4LayerShell.Edge.LEFT,   False)
+        Gtk4LayerShell.set_anchor(win, Gtk4LayerShell.Edge.RIGHT,  False)
         Gtk4LayerShell.set_anchor(win, Gtk4LayerShell.Edge.BOTTOM, False)
-        Gtk4LayerShell.set_margin(win, Gtk4LayerShell.Edge.TOP, 6)
         Gtk4LayerShell.set_exclusive_zone(win, -1)
 
         Gtk4LayerShell.set_keyboard_mode(win, Gtk4LayerShell.KeyboardMode.EXCLUSIVE)
         Gtk4LayerShell.set_namespace(win, 'launcher')
 
         self._win = win
-        self._monitor_w = Gdk.Display.get_default().get_monitors().get_item(0).get_geometry().width
         self._waybar_state = is_waybar_visible()
         self._apply_position()
         GLib.timeout_add(250, self._poll_waybar)
@@ -134,6 +132,8 @@ class Launcher(Gtk.Application):
         self.entry.set_name('entry')
         self.entry.set_width_chars(20)
         self.entry.set_alignment(0.5)
+        self.entry.set_placeholder_text('run command…')
+        self.entry.set_focusable(False)
 
         pill = Gtk.Box()
         pill.set_name('pill')
@@ -147,14 +147,13 @@ class Launcher(Gtk.Application):
         win.add_controller(kc)
 
         win.present()
-        self.entry.grab_focus()
+        # No grab_focus() — the window-level key controller captures all input.
+        # Keeping focus off the entry lets GTK render the placeholder text.
 
     def _apply_position(self):
-        if self._waybar_state:
-            Gtk4LayerShell.set_anchor(self._win, Gtk4LayerShell.Edge.RIGHT, True)
-            Gtk4LayerShell.set_margin(self._win, Gtk4LayerShell.Edge.RIGHT, self._monitor_w // 2 + 74)
-        else:
-            Gtk4LayerShell.set_anchor(self._win, Gtk4LayerShell.Edge.RIGHT, False)
+        # waybar: margin-top=6, height=38 → 44px footprint; add 8px gap = 52px
+        top_margin = 52 if self._waybar_state else 6
+        Gtk4LayerShell.set_margin(self._win, Gtk4LayerShell.Edge.TOP, top_margin)
 
     def _poll_waybar(self):
         current = is_waybar_visible()
@@ -183,7 +182,7 @@ class Launcher(Gtk.Application):
             box-shadow: none;
         }}
         #pill {{
-            background: rgba({bg[0]},{bg[1]},{bg[2]},0.75);
+            background: rgba({bg[0]},{bg[1]},{bg[2]},0.92);
             border-radius: 12px;
             border: 1px solid rgba({or_[0]},{or_[1]},{or_[2]},0.25);
             margin: 6px 3px;
@@ -192,7 +191,7 @@ class Launcher(Gtk.Application):
         #entry, #entry > text {{
             background: transparent;
             color: rgba({tx[0]},{tx[1]},{tx[2]},1.0);
-            caret-color: rgba({am[0]},{am[1]},{am[2]},1.0);
+            caret-color: transparent;
             border: none;
             box-shadow: none;
             outline: none;
@@ -207,6 +206,9 @@ class Launcher(Gtk.Application):
             outline-width: 0px;
             box-shadow: none;
             border: none;
+        }}
+        entry placeholder {{
+            color: rgba({tx[0]},{tx[1]},{tx[2]},0.38);
         }}
         #entry selection, #entry > text selection {{
             background: transparent;

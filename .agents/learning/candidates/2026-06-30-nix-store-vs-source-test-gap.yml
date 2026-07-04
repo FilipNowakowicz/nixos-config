@@ -1,0 +1,12 @@
+schema: learning-candidate/v1
+id: 2026-06-30-nix-store-vs-source-test-gap
+date: 2026-06-30
+expires: 2027-06-30
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [session-2026-06-30: edited home/files/scripts/launcher.py, tested via `launcher` binary in PATH, observed no change — binary is /nix/store/pssgxlvzi1r75fnw6221l3q6jqr1fm4z-launcher/bin/.launcher-wrapped, a stale store build; only `nh os switch --hostname main .` deploys edits]
+observation: home/files/scripts/* and packages/*/src/** edits are NOT live-testable until rebuild; the binaries in PATH ($HOME/.nix-profile or /etc/profiles/per-user/user/bin) point to the last built store path, so functional testing against the deployed binary silently runs old code
+proposed_upgrade: add a note to hosts/main/CLAUDE.md (or the relevant workflow section) that source edits under home/files/scripts/ and packages/ require `rebuild` before any live testing; suggest using `python3 /path/to/source.py` directly for quick iteration instead of the wrapper binary
