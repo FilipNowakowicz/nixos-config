@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-07-11-post-activation-health-check-race
+date: 2026-07-11
+expires: 2027-01-11
+status: promoted
+
+route: promote-doc
+best_form: doc
+
+evidence: [PR-#367, scripts/check-host-drift.sh]
+observation: scripts/check-host-drift.sh failed CI for homeserver-gcp with "missing listening TCP ports: expected 53" even though the preceding deploy-rs activation had already succeeded and confirmed. Journal timestamps showed AdGuardHome bound :53 about 150ms after systemd reported adguardhome.service started, and the drift-check probe ran in that exact gap (same-second timestamps in the run log vs journalctl). deploy-rs's activation confirmation only proves systemd accepted the new units, not that every dependent service finished its own startup work.
+proposed_upgrade: Document in docs/operations.md (deploy pipeline section) that any one-shot post-deploy health/smoke check inspecting live service state (listening port, socket, HTTP response) run immediately after an activation/restart confirmation should retry with backoff rather than fail on the first sample — "unit started" and "service finished startup" are different points in time. check-host-drift.sh now does this (5 attempts, 3s apart); apply the same pattern to any future post-deploy verification step added to a deploy workflow.
+type: workflow-gotcha
+triggers: [deploy-workflow, post-activation-check, check-host-drift.sh]
+targets: [docs/operations.md]
