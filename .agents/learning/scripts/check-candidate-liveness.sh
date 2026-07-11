@@ -4,13 +4,15 @@
 # Reviewers re-derived this by hand — git-archaeology each implement-fix
 # candidate to see whether the fix was already merged before promoting it. This
 # automates the cheap signals: commit SHAs in `evidence` that are ancestors of
-# HEAD, and PR numbers that GitHub reports as merged. It advises only; the
-# reviewer still decides (promote / superseded / reject). It never edits files.
+# HEAD, PR numbers that GitHub reports as merged, and branch:<name> tokens
+# resolved to a merged PR by head branch. It advises only; the reviewer still
+# decides (promote / superseded / reject). It never edits files.
 #
 # This repo squash-merges, so a pre-merge commit SHA is NOT an ancestor of main
-# after its PR lands — a "#NNN merged" reference is the more reliable signal.
-# Evidence that cites neither a SHA nor a PR yields NO SIGNAL: that is a capture
-# gap, not a clean bill of health, and still needs manual judgement.
+# after its PR lands, and neither is a branch tip — a "#NNN merged" reference
+# or a resolved branch:<name> is the more reliable signal. Evidence that cites
+# none of these yields NO SIGNAL: that is a capture gap, not a clean bill of
+# health, and still needs manual judgement.
 #
 # Usage:
 #   check-candidate-liveness.sh            # open candidates (the actionable set)
@@ -39,7 +41,14 @@ printf '\n'
 # Columns from index-candidates.sh:
 # 1 path 2 id 3 status 4 expires 5 type 6 route 7 best_form
 # 8 dedupe_key 9 triggers 10 targets 11 evidence
-tail -n +2 "$tmp" | while IFS=$'\t' read -r path id status _expires _type route best_form _dk _trig targets evidence; do
+#
+# Re-delimit on \037 (unit separator) before reading: `IFS=$'\t' read` still
+# treats tab as "IFS whitespace" (one of bash's space/tab/newline class), so
+# consecutive tabs collapse and every field after the first blank one (most
+# rows have an empty dedupe_key) silently shifts left -- targets ends up
+# holding evidence's value and evidence loses its own. \037 is not in that
+# whitespace class, so empty fields between two delimiters are preserved.
+tail -n +2 "$tmp" | tr '\t' '\037' | while IFS=$'\037' read -r path id status _expires _type route best_form _dk _trig targets evidence; do
   case "$filter" in
   __open__) [ "$status" = "open" ] || continue ;;
   all) ;;
@@ -68,6 +77,23 @@ tail -n +2 "$tmp" | while IFS=$'\t' read -r path id status _expires _type route 
       [ -n "$state" ] || continue
       signals+="    PR #${pr} -> ${state}\n"
       [ "$state" = "MERGED" ] && resolved=1
+    done
+  fi
+
+  # Branch tokens: branch:<name>. This repo squash-merges, so the branch tip
+  # is never an ancestor of HEAD even once merged -- ancestry can't resolve
+  # these the way commit SHAs are checked above. Look up a merged PR by head
+  # branch instead; gh matches on the recorded head ref even after the branch
+  # itself has been deleted.
+  if [ "$have_gh" -eq 1 ]; then
+    for br in $(printf '%s\n' "$evidence" | grep -oE 'branch:[A-Za-z0-9._/-]+' | sed 's/^branch://' | sort -u); do
+      pr=$(gh pr list --state merged --head "$br" --json number --jq '.[0].number' 2>/dev/null || true)
+      if [ -n "$pr" ] && [ "$pr" != "null" ]; then
+        signals+="    branch ${br} -> merged via PR #${pr}\n"
+        resolved=1
+      else
+        signals+="    branch ${br} -> no merged PR found for this head\n"
+      fi
     done
   fi
 

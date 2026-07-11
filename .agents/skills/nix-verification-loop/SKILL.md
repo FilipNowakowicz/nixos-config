@@ -90,6 +90,14 @@ host-denylist derived from `lib/hosts.nix`) and `tests/lib/mini-fleet-flake.nix`
   env, `cd <relative>` echoes the resolved path into the capture and corrupts
   it. Rewrite as `CDPATH='' cd -- …` — the guard is preserved and SC1007 stops
   firing.
+- **A source edit is not live until rebuilt.** Binaries in `PATH`
+  (`$HOME/.nix-profile`, `/etc/profiles/per-user/<user>/bin`) point at the last
+  built store path, so invoking the wrapper binary for `home/files/scripts/*`
+  or `packages/*/src/**` after editing the source silently runs the old build
+  with no error. Rebuild (`rebuild`/`nh os switch --hostname main .` or
+  `home-manager switch`) before testing against the installed command, or run
+  the interpreter directly against the source file (e.g. `python3
+path/to/script.py`) for quick iteration without a full rebuild.
 - **`nix build`/`flake check` only proves a transient unit's definition
   evaluates, not that systemd accepts it at runtime.** Sandbox/namespacing
   directives like `PrivateNetwork=` are service-only — `systemd-run --scope`

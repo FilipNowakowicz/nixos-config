@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-06-30-nix-store-vs-source-test-gap
 date: 2026-06-30
 expires: 2027-06-30
-status: open
+status: promoted
 
 route: promote-doc
 best_form: doc

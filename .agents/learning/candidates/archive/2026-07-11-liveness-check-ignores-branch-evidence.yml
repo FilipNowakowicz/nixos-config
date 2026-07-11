@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-07-11-liveness-check-ignores-branch-evidence
+date: 2026-07-11
+expires: 2027-01-11
+status: promoted
+
+route: implement-fix
+best_form: test
+
+evidence: [.agents/learning/scripts/check-candidate-liveness.sh:38-58, .agents/learning/candidates/archive/2026-07-01-control-center-daemon-not-restarted-by-switch.yml, commit-0b285da]
+observation: check-candidate-liveness.sh's row loop used `IFS=$'\t' read -r ... targets evidence` against a 12-column TSV. Tab is one of bash's "IFS whitespace" characters even when IFS is set to tab alone, so consecutive tabs collapse -- any row with a blank field before `targets`/`evidence` (almost every candidate: `dedupe_key` is optional and usually empty) silently shifted every later column left by one, so `targets` held the real `evidence` value and `evidence` held `recurrence`. That alone was enough to make every branch/SHA/PR grep run against the wrong string. Separately, the script also never parsed `branch:<name>` evidence tokens at all (only bare SHAs and `#NNN`), so the archived control-center candidate (evidence `branch:fix/launcher-centering-and-opacity`, already merged as commit 0b285da) reported "NO SIGNAL" for two independent reasons. Reproduced and fixed live: re-adding that archived candidate as `status: open` and running the script before/after showed the exact `targets`/`evidence` swap, then the correct `LIKELY RESOLVED` verdict once both were fixed.
+proposed_upgrade: 'Fixed in check-candidate-liveness.sh: (1) pipe the TSV through `tr ''\t'' ''\037''` and read with `IFS=$''\037''` so empty fields no longer collapse the column mapping; (2) add a branch-token resolver alongside the SHA/PR loops that parses `branch:<name>` evidence and resolves it via `gh pr list --state merged --head <name>` (ancestry can''t be used -- this repo squash-merges, so a merged branch tip is never an ancestor of HEAD).'
+type: workflow-gotcha
+triggers: [check-candidate-liveness.sh, review-learning-candidates]
+targets: [.agents/learning/scripts/check-candidate-liveness.sh]

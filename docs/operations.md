@@ -241,6 +241,15 @@ small homeserver. The deploy workflow points it at the activated
 `/etc/host-drift-inventory.json` file, avoiding Nix evaluation on the host
 entirely during post-deploy verification.
 
+`check-host-drift.sh` retries its live-state probe (5 attempts, 3s apart)
+instead of failing on the first sample: a deploy-rs activation confirmation
+only proves systemd accepted the new units, not that every dependent service
+has finished its own startup work, so a port/unit probe run immediately after
+can catch a service mid-startup (see PR #367, where AdGuardHome bound `:53`
+about 150ms after systemd reported the unit started). Apply the same
+retry-with-backoff pattern to any future one-shot post-deploy health check
+that inspects live service state (listening port, socket, HTTP response).
+
 Rollback is the normal deploy-rs rollback path during activation. If a bad
 generation is confirmed after activation, use the bootloader or
 `/run/current-system/bin/switch-to-configuration` rollback path over SSH, then

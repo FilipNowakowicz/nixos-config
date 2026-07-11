@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-07-01-control-center-daemon-not-restarted-by-switch
 date: 2026-07-01
 expires: 2027-01-01
-status: open
+status: superseded
 
 route: promote-doc
 best_form: doc
