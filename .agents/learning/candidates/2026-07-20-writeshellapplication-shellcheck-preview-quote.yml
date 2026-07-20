@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-07-20-writeshellapplication-shellcheck-preview-quote
+date: 2026-07-20
+expires: 2027-01-20
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [home/files/scripts/clipboard-pick.sh, home/users/user/home.nix:196-204]
+observation: pkgs.writeShellApplication runs shellcheck on the script text at build time with no severity floor, so even an info-level SC2016 (intentional single-quoted fzf --preview body meant to expand in fzf's own spawned shell, not the outer script) fails the derivation build; `bash -n` and a standalone `shellcheck file.sh` pass locally and mask this, only `nix build` of the actual writeShellApplication derivation reproduces the failure.
+proposed_upgrade: add a short note to docs/operations.md (or the nix-verification-loop skill) that scripts wrapped in writeShellApplication must be validated by building the derivation itself (or running shellcheck with no -S floor), not just `bash -n`/ad-hoc shellcheck, and that intentional non-expansion (fzf/tmux preview bodies, awk/perl one-liners) needs an explicit `# shellcheck disable=SC2016` rather than relying on severity filtering.
+
+# type: workflow-gotcha
+# targets: [docs/operations.md, .agents/skills/nix-verification-loop]
