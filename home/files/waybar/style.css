@@ -42,7 +42,8 @@ window#waybar {
 #workspaces,
 #custom-sep,
 #clock,
-#battery {
+#battery,
+#custom-weather {
   background: alpha(@bg, 0.98);
   border-top: 1px solid alpha(@amber, 0.28);
   border-bottom: 1px solid alpha(@amber, 0.28);
@@ -71,6 +72,18 @@ window#waybar {
   border-radius: 0 13px 13px 0;
   /* -13 margin tucks under the clock's rounded corner; +13 left padding puts
      the content back where it would sit. */
+  margin-left: -13px;
+  padding: 0 11px 0 13px;
+}
+
+/* Weather is the next right-side widget after battery, added the same way
+   battery's own comment above describes: it carries the pill's rounded right
+   end now, tucking under battery's rounded corner so there's no notch. It's
+   always rendered (unlike battery, which can go empty), so it's the stable
+   right end of the pill regardless of battery's visibility. */
+#custom-weather {
+  border-right: 1px solid alpha(@amber, 0.28);
+  border-radius: 0 13px 13px 0;
   margin-left: -13px;
   padding: 0 11px 0 13px;
 }
@@ -128,7 +141,8 @@ window#waybar {
 
 /* ── Status modules ───────────────────────────────────── */
 #pulseaudio,
-#battery {
+#battery,
+#custom-weather {
   color: @text;
 }
 

@@ -21,8 +21,12 @@ KEEP_PX=52  # while shown, cursor below this retracts it (bar height + margin)
 # BAR_PILL_W px of the box and the rest is transparent slack. Anchoring the
 # hot-zone to the pill (box-left .. box-left+BAR_PILL_W), not the full box, stops
 # the bar revealing when the cursor is over the invisible slack. Tune BAR_PILL_W
-# if the module set (workspaces/clock/battery) changes; the keep-while-shown
-# check stays width-agnostic so the bar never retracts mid-use.
+# if the module set (workspaces/clock/battery/weather) changes; the
+# keep-while-shown check stays width-agnostic so the bar never retracts
+# mid-use.
+# STALE: custom/weather was appended to modules-center (widens the pill) after
+# this value was last measured against a running session; re-measure and bump
+# it, otherwise the hover hot-zone undershoots the new right edge.
 BAR_BOX_W=720  # modules-center box width (centred per output)
 BAR_PILL_W=500 # painted pill width within that box, measured from the box's left edge
 POLL="0.12"

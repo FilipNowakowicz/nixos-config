@@ -11,7 +11,8 @@
         "hyprland/workspaces",
         "custom/sep",
         "clock",
-        "battery"
+        "battery",
+        "custom/weather"
     ],
     "modules-right": [],
 
@@ -53,5 +54,12 @@
         "format-full": "",
         "format-icons": ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"],
         "tooltip-format": "{timeTo} · {power}W"
+    },
+
+    "custom/weather": {
+        "exec": "waybar-weather",
+        "interval": 1800,
+        "format": "{}",
+        "tooltip": false
     }
 }
