@@ -289,7 +289,12 @@ in
   services = {
     sunshine = {
       enable = true;
-      autoStart = true;
+      # Paused while mac-companion work is on hold (docs/goals/macbook-goals.md).
+      # Note: the systemd.user.services.sunshine.wantedBy override below uses
+      # mkForce, which wins over this module's own `mkIf cfg.autoStart [...]`
+      # regardless of this flag — it must stay in sync with autoStart or this
+      # setting is a no-op.
+      autoStart = false;
       capSysAdmin = true;
       openFirewall = false;
     };
@@ -450,7 +455,9 @@ in
       sunshine = {
         after = lib.mkForce [ "nixos-fake-graphical-session.target" ];
         partOf = lib.mkForce [ "nixos-fake-graphical-session.target" ];
-        wantedBy = lib.mkForce [ "nixos-fake-graphical-session.target" ];
+        wantedBy = lib.mkForce (
+          lib.optionals config.services.sunshine.autoStart [ "nixos-fake-graphical-session.target" ]
+        );
         wants = lib.mkForce [ "nixos-fake-graphical-session.target" ];
       };
 
