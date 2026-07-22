@@ -168,7 +168,10 @@ in
     (with pkgs; [
       (writeShellApplication {
         name = "waybar-weather";
-        runtimeInputs = with pkgs; [ curl ];
+        runtimeInputs = with pkgs; [
+          curl
+          coreutils
+        ];
         text = builtins.readFile ../../files/scripts/waybar-weather.sh;
       })
 

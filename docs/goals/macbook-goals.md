@@ -111,6 +111,15 @@ that should not run Tailscale themselves.
 
 ## Roadmap
 
+**Status: paused (2026-07-23).** Companion-feature work (Syncthing pairing,
+Input Leap TLS, Moonlight pairing) is on hold; none of it is being actively
+pursued right now. `main`'s Sunshine service is correspondingly set to
+`autoStart = false` (`hosts/main/default.nix`) so it does not start
+automatically while this is paused — start it manually
+(`systemctl --user start sunshine`) if you need to stream ad hoc. Resume this
+roadmap, and flip `autoStart` back to `true`, when companion-device use
+picks back up.
+
 ### Active Decisions
 
 | Item                          | Acceptance / next decision                                                                                                                                                                |
