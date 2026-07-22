@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-07-23-mkforce-wantedby-overrides-mkif-autostart
+date: 2026-07-23
+expires: 2027-01-23
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [fc374ba, hosts/main/default.nix]
+observation: hosts/main/default.nix retargeted systemd.user.services.sunshine.wantedBy with lib.mkForce (to move it onto nixos-fake-graphical-session.target instead of upstream's graphical-session.target); the sunshine NixOS module itself sets wantedBy = mkIf cfg.autoStart [...] at normal priority, so the mkForce override unconditionally won regardless of cfg.autoStart's value. Flipping services.sunshine.autoStart to false alone would have been a silent no-op — the unit would still autostart. Fixed by making the override itself lib.optionals config.services.sunshine.autoStart [...] so the two stay coupled.
+proposed_upgrade: add a short note to docs/operations.md (or hosts/main/CLAUDE.md gotchas) that any lib.mkForce override of a systemd unit option (wantedBy/enable/etc.) that an upstream module conditions on its own cfg flag via mkIf must reference that same cfg flag (e.g. lib.mkForce (lib.optionals cfg.foo [...])) rather than hardcoding a literal list, or toggling the module's flag later becomes a silent no-op.
+
+# type: workflow-gotcha
+# targets: [docs/operations.md, hosts/main/CLAUDE.md]
