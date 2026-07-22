@@ -251,12 +251,14 @@ class HomeViewMixin:
         bat_left = self._box(Gtk.Orientation.HORIZONTAL, spacing=6)
         bat_glyph = self._label("", "foot-bat-glyph")
         bat_pct = self._label("", "foot-bat")
-        temp_glyph = self._label("", "foot-bat-glyph")
         bat_meta = self._label("", "foot-bat-meta")
+        temp_glyph = self._label("", "foot-bat-glyph")
+        temp_val = self._label("", "foot-bat-meta")
         bat_left.append(bat_glyph)
         bat_left.append(bat_pct)
-        bat_left.append(temp_glyph)
         bat_left.append(bat_meta)
+        bat_left.append(temp_glyph)
+        bat_left.append(temp_val)
         foot.append(bat_left)
         foot.append(Gtk.Box(hexpand=True))
         fbtns = self._box(Gtk.Orientation.HORIZONTAL, spacing=4)
@@ -486,16 +488,14 @@ class HomeViewMixin:
             elif bat["status"] != "Full" and bat["time_str"]:
                 # "Full" needs no label — the 100% readout already says it.
                 meta_parts.append(bat["time_str"])
+            bat_meta.set_label(("· " + " · ".join(meta_parts)) if meta_parts else "")
+
             if s["cpu_temp"] is not None:
                 temp_glyph.set_label(f" {G['thermometer']}")
-                # No leading "· " here: the thermometer glyph itself already
-                # separates this from bat_pct, unlike the plain-text branch
-                # below where bat_meta is the first thing after "100%".
-                prefix = (" · ".join(meta_parts) + " · ") if meta_parts else ""
-                bat_meta.set_label(prefix + f"{s['cpu_temp']}°")
+                temp_val.set_label(f"{s['cpu_temp']}°")
             else:
                 temp_glyph.set_label("")
-                bat_meta.set_label(("· " + " · ".join(meta_parts)) if meta_parts else "")
+                temp_val.set_label("")
 
         self._refreshers.append(refresh)
         refresh(self.state)
