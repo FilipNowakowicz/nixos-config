@@ -12,11 +12,17 @@
         "custom/sep",
         "clock",
         "battery",
+        "custom/sep2",
         "custom/weather"
     ],
     "modules-right": [],
 
     "custom/sep": {
+        "format": "│",
+        "tooltip": false
+    },
+
+    "custom/sep2": {
         "format": "│",
         "tooltip": false
     },

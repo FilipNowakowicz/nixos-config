@@ -43,6 +43,7 @@ window#waybar {
 #custom-sep,
 #clock,
 #battery,
+#custom-sep2,
 #custom-weather {
   background: alpha(@bg, 0.98);
   border-top: 1px solid alpha(@amber, 0.28);
@@ -76,16 +77,28 @@ window#waybar {
   padding: 0 11px 0 13px;
 }
 
-/* Weather is the next right-side widget after battery, added the same way
-   battery's own comment above describes: it carries the pill's rounded right
-   end now, tucking under battery's rounded corner so there's no notch. It's
-   always rendered (unlike battery, which can go empty), so it's the stable
-   right end of the pill regardless of battery's visibility. */
+/* custom-sep2 is a second "workspaces | time"-style divider, placed between
+   battery and weather so the two status blocks read as separate groups. It's
+   a distinct module id (not a second use of #custom-sep) purely so it can
+   carry its own tuck-under margin without moving the original separator
+   between workspaces and clock. It takes over the tuck-under job from
+   weather: it always renders (unlike battery), so it's the thing directly
+   after battery's rounded corner now, and hides it the same way battery hides
+   clock's. */
+#custom-sep2 {
+  margin-left: -13px;
+  /* +13 cancels the margin above; +2 is the same visual gap #custom-sep uses
+     on its left side. Right side matches #custom-sep's 2px too. */
+  padding: 0 2px 0 15px;
+}
+
+/* Weather is the pill's stable right end: always rendered (unlike battery),
+   so nothing needs to tuck under IT — it just needs the rounded corner and
+   its own comfortable padding after custom-sep2's trailing gap. */
 #custom-weather {
   border-right: 1px solid alpha(@amber, 0.28);
   border-radius: 0 13px 13px 0;
-  margin-left: -13px;
-  padding: 0 11px 0 13px;
+  padding: 0 11px 0 4px;
 }
 
 /* Per-module spacing inside the pill. */
@@ -93,9 +106,13 @@ window#waybar {
   padding: 0 9px;
 }
 
-/* ── Separator (workspaces | time) ────────────────────── */
-#custom-sep {
+/* ── Separators (workspaces | time, battery | weather) ───── */
+#custom-sep,
+#custom-sep2 {
   color: alpha(@text, 0.18);
+}
+
+#custom-sep {
   padding: 0 2px;
 }
 

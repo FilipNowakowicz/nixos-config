@@ -38,4 +38,6 @@ case "$condition_lower" in
 *) icon=$'' ;; # weather-na
 esac
 
-echo "$icon $temp"
+# Two spaces: the Nerd Font glyph's own advance width crowds a single space
+# against %t's leading sign (e.g. "+17°C"), reading as glued together.
+echo "$icon  $temp"
