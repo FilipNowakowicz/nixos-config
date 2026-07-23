@@ -145,6 +145,13 @@ in
       "/var/lib/vaultwarden/db.sqlite3"
       "/var/lib/vaultwarden/db.sqlite3-wal"
       "/var/lib/vaultwarden/db.sqlite3-shm"
+      # AdGuard's query log (90-day retention, tailnet-wide DNS traffic) is
+      # 289M+ and growing — it's the main driver behind the B2 storage-cap
+      # exhaustion that stopped backups on 2026-07-11. It's rewritten whole
+      # on every backup run, so restic can't dedup it between snapshots, and
+      # it isn't needed to restore AdGuard's actual state (filters, custom
+      # rules, client policy) — see restore-adguard.md.
+      "/var/lib/restic-staging/adguardhome/data/querylog.json"
     ];
     repositoryFile = config.sops.secrets.restic_repository.path;
     passwordFile = config.sops.secrets.restic_password.path;
