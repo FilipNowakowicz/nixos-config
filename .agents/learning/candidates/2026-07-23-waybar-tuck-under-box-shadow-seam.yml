@@ -1,0 +1,12 @@
+schema: learning-candidate/v1
+id: 2026-07-23-waybar-tuck-under-box-shadow-seam
+date: 2026-07-23
+expires: 2027-01-19
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [home/files/waybar/style.css:59-66,71-80]
+observation: waybar's pill uses a negative-margin "tuck-under" trick (module B slides -13px over module A's rounded corner to fake one continuous pill); this only hides A's flat background/border, not A's own box-shadow (26px blur), which bleeds past the 13px overlap and shows as a visible seam. Was invisible for #clock/#battery until #custom-sep2 was appended after them (weather module commit), first exposing the seam; user reported it as "waybar looks disconnected". Root-caused by hot-swapping the live running waybar's style.css and SIGUSR2-reloading (no restart) to bisect, confirmed via grim screenshots.
+proposed_upgrade: fix already applied (box-shadow:none added to #clock and #battery, the covered modules) with an inline comment explaining why. Reviewer: consider whether style.css's existing "extension point for future right-side widgets" comment block should explicitly state the rule (any module placed after a rounded+shadowed tuck-under target needs box-shadow:none on the covered side, not the covering side) so the next widget addition doesn't reintroduce this.
