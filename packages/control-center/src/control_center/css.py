@@ -25,6 +25,12 @@ def build_css(colors):
         "linear-gradient(180deg, rgba(255,255,255,0.26) 0%, "
         "rgba(255,255,255,0.0) 55%, rgba(0,0,0,0.18) 100%)"
     )
+    # `bead` is a white-on-white no-op over a white surface (its highlight
+    # stop and its base colour are the same #fff) — it only reads as depth
+    # over a saturated accent fill. The slider knob's own base IS white, so it
+    # needs an actual two-tone gradient instead: white top-left fading to a
+    # theme-grey shadow, so the ball reads as a sphere rather than a flat disc.
+    knob_sheen = f"linear-gradient(145deg, #ffffff 0%, #ffffff 40%, {rgba(text, 0.38)} 100%)"
 
     return f"""
     * {{
@@ -192,7 +198,8 @@ def build_css(colors):
         margin-top: -2px;
         margin-right: -1px;
         border-radius: 999px;
-        background: #ffffff;
+        background-color: #ffffff;
+        background-image: {knob_sheen};
         box-shadow:
             0 0 0 1px rgba(0, 0, 0, 0.18),
             0 1px 3px rgba(0, 0, 0, 0.5);

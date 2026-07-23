@@ -40,7 +40,7 @@ class HomeViewMixin:
 
         # ── 3×2 toggle grid (borderless, circular icon badges) ──
         # (No header row: the panel opens straight into the toggle grid.)
-        def mk_tile(glyph, label, view_name=None, nudge_y=0):
+        def mk_tile(glyph, label, view_name=None, nudge_y=0, nudge_x=0):
             btn = Gtk.Button()
             btn.add_css_class("gtile")
             inner = self._box(Gtk.Orientation.VERTICAL, spacing=6)
@@ -68,6 +68,22 @@ class HomeViewMixin:
                 # with a plain top margin instead, which CenterBox does
                 # honour when sizing/centering the widget.
                 ic.set_margin_top(nudge_y)
+            if nudge_x:
+                # Same trick on the horizontal axis: every glyph here (not
+                # just wifi's) renders with its ink a couple of px right of
+                # the circle's true center — measured directly off a live
+                # screenshot (pixel centroid of the icon vs. of the badge
+                # circle), not just eyeballed. A trailing margin shifts the
+                # centered box's content left by half the margin.
+                # Tried a fractional CSS margin (3.5px) to split the
+                # difference between two whole-px values that each looked
+                # slightly off in opposite directions — it rendered
+                # identically to the lower integer, confirming GTK quantizes
+                # margins to whole device pixels here, so fractional values
+                # buy nothing. Whole pixels are the real resolution limit;
+                # values below are the closest fit found live, eyeballed
+                # directly on the running panel, not derived from measurement.
+                ic.set_margin_end(nudge_x)
             badge.set_center_widget(ic)
             inner.append(badge)
             lbl = self._label(label, "gtile-l", xalign=0.5)
@@ -81,12 +97,12 @@ class HomeViewMixin:
                 btn.connect("clicked", lambda _b, v=view_name: self.go_to(v))
             return SimpleNamespace(widget=btn, glyph=ic, title=lbl, sub=sub)
 
-        wifi_t = mk_tile(G["wifi"], "Wi-Fi", view_name="wifi", nudge_y=7)
-        bt_t = mk_tile(G["bluetooth"], "Bluetooth", view_name="bluetooth")
-        vpn_t = mk_tile(G["shield"], "VPN", view_name="vpn")
-        focus_t = mk_tile(G["bell_off"], "Focus", view_name="dnd")
-        awake_t = mk_tile(G["coffee"], "Awake")
-        night_t = mk_tile(G["moon"], "Night")
+        wifi_t = mk_tile(G["wifi"], "Wi-Fi", view_name="wifi", nudge_y=2, nudge_x=5)
+        bt_t = mk_tile(G["bluetooth"], "Bluetooth", view_name="bluetooth", nudge_x=3)
+        vpn_t = mk_tile(G["shield"], "VPN", view_name="vpn", nudge_x=3)
+        focus_t = mk_tile(G["bell_off"], "Focus", view_name="dnd", nudge_x=5)
+        awake_t = mk_tile(G["coffee"], "Awake", nudge_x=5)
+        night_t = mk_tile(G["moon"], "Night", nudge_x=3)
         night_t.widget.set_sensitive(night_light_available)
 
         grid = Gtk.Grid(
@@ -491,7 +507,7 @@ class HomeViewMixin:
             bat_meta.set_label(("· " + " · ".join(meta_parts)) if meta_parts else "")
 
             if s["cpu_temp"] is not None:
-                temp_glyph.set_label(f" {G['thermometer']}")
+                temp_glyph.set_label(f"· {G['thermometer']}")
                 temp_val.set_label(f"{s['cpu_temp']}°")
             else:
                 temp_glyph.set_label("")

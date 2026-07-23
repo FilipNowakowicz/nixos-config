@@ -1,0 +1,12 @@
+schema: learning-candidate/v1
+id: 2026-07-23-control-center-live-iterate
+date: 2026-07-23
+expires: 2026-10-21
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [packages/control-center/default.nix:74-90 (installPhase/preFixup wrapper), packages/control-center/src/control_center/views/home.py mk_tile nudge_x/nudge_y, packages/control-center/src/control_center/css.py slider-knob bead sheen]
+observation: Fixing small GTK4 layout bugs (icon centering, missing separator, slider knob styling) in control-center by eyeballing screenshots was unreliable — a wifi-glyph nudge_y=7 already in the code turned out to overshoot once measured. Live desktop session (WAYLAND_DISPLAY set) let control-center run from edited source without a nix rebuild: extract the installed derivation's gappsWrapperArgs env (GDK_BACKEND, GTK4_LAYER_SHELL_LIB, GI_TYPELIB_PATH, GIO_EXTRA_MODULES, XDG_DATA_DIRS, GDK_PIXBUF_MODULE_FILE, PATH) plus the wrapped python3 path from the store's .control-center-wrapped script, then run that python3 -m control_center with PYTHONPATH=<repo>/packages/control-center/src prepended so edited source shadows the installed copy. grim screenshots + a PIL/numpy centroid measurement (badge circle bbox vs. icon ink bbox via connected-component labeling to exclude background) gave objective before/after pixel offsets instead of guessing — first attempt at nudge_x looked like it had zero effect and was actually just below measurement noise at that crop resolution, confirmed by retrying with a 6x exaggerated value.
+proposed_upgrade: Add a short "Developer Notes" entry to packages/control-center/README.md documenting the run-from-source-without-rebuild env recipe (derive from the installed derivation's wrapper script) and the grim+PIL centroid-measurement technique for verifying GTK pixel-level layout fixes instead of eyeballing screenshots.
