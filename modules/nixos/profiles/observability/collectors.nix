@@ -632,7 +632,10 @@ in
 
         services = {
           prometheus = lib.mkIf cfg.collectors.metrics.enable {
-            serviceConfig.SupplementaryGroups = ingestAuthGroups;
+            serviceConfig = {
+              SupplementaryGroups = ingestAuthGroups;
+              TimeoutStopSec = "10s";
+            };
           };
 
           prometheus-node-exporter = lib.mkIf cfg.collectors.metrics.enable {
@@ -643,7 +646,10 @@ in
           alloy = lib.mkIf cfg.collectors.logs.enable {
             after = lib.optionals cfg.loki.enable [ "loki.service" ];
             requires = lib.optionals cfg.loki.enable [ "loki.service" ];
-            serviceConfig.SupplementaryGroups = [ "systemd-journal" ] ++ ingestAuthGroups;
+            serviceConfig = {
+              SupplementaryGroups = [ "systemd-journal" ] ++ ingestAuthGroups;
+              TimeoutStopSec = "10s";
+            };
           };
 
           "opentelemetry-collector" =

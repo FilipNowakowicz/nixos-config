@@ -1,0 +1,12 @@
+schema: learning-candidate/v1
+id: 2026-07-23-shutdown-timeout-remote-flush-race
+date: 2026-07-23
+expires: 2027-01-23
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [modules/nixos/profiles/observability/collectors.nix:634-651, "journalctl --no-pager -o short-iso | grep \"prometheus.service: State 'stop-sigterm' timed out\"  (6 hits: 2026-05-16, 2026-05-30 x2, 2026-06-19 x2, 2026-07-17)"]
+observation: on main, prometheus.service/alloy.service retry-flush remoteWrite/loki targets over Tailscale on SIGTERM; tailscaled/NetworkManager/mullvad tear the tailnet down in parallel with no ordering, so the flush's DNS lookup fails and the service rides the default 90s TimeoutStopSec to a SIGKILL - confirmed recurring (6x since May) via journalctl -b -1 gap analysis, not a one-off. Fixed by setting TimeoutStopSec=10s on both units rather than adding cross-service stop-ordering.
+proposed_upgrade: add a short note to docs/operations.md (shutdown diagnostics) covering (1) how to spot this class of bug - journalctl -b -1, look for a multi-minute gap between "Stopping X" and the next log line, or grep for "State 'stop-sigterm' timed out" - and (2) the general pattern - any service that flushes/exports over a network path another unit tears down at shutdown (Tailscale, VPN, NetworkManager) should get an explicit short TimeoutStopSec rather than relying on stop-order across unrelated services.
