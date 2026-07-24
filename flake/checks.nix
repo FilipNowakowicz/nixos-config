@@ -181,6 +181,7 @@ let
       let
         backup = cfg.services.restic.backups.b2;
         expectedPruneOpts = [
+          "--group-by host"
           "--keep-daily 14"
           "--keep-weekly 8"
           "--keep-monthly 6"
