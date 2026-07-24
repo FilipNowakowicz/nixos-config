@@ -17,6 +17,10 @@ let
       tailscale = {
         tag = "server";
         acceptFrom.workstation = [ 22 ];
+        advertisedRoutes = [ "10.42.0.0/16" ];
+        acceptedRoutes = [ "10.43.0.0/16" ];
+        exitNodeCanProvide = true;
+        exitNodeUse = "gateway";
       };
       backup.class = "standard";
       homeManager = {
@@ -149,6 +153,7 @@ let
           closurePath
           openTCPPorts
           tailscaleTCPPorts
+          topology
           ;
         serviceRestic = host.services.restic;
         healthStatus = host.health.invariantStatus;
@@ -157,6 +162,15 @@ let
         closurePath = "/nix/store/00000000000000000000000000000000-alpha-system";
         openTCPPorts = [ 80 ];
         tailscaleTCPPorts = [ 22 ];
+        topology = {
+          aclTags = [ "tag:server" ];
+          advertisedRoutes = [ "10.42.0.0/16" ];
+          acceptedRoutes = [ "10.43.0.0/16" ];
+          exitNode = {
+            canProvide = true;
+            usesHost = "gateway";
+          };
+        };
         serviceRestic = true;
         healthStatus = "pass";
       };

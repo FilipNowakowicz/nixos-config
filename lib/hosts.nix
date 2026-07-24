@@ -12,6 +12,9 @@
 #     .ip4        — this host's stable 100.x.x.x Tailscale IPv4 address (per
 #                    node-key); used by consumers (e.g. AdGuard clients) that
 #                    need a literal IP rather than a resolvable FQDN
+#     .advertisedRoutes / .acceptedRoutes — optional explicit CIDR route lists
+#     .exitNodeCanProvide — optional capability flag; false when omitted
+#     .exitNodeUse — optional host name selected as this host's exit node
 #   homeManager — primary-user Home Manager mapping for this host
 #     .role     — entrypoint module under home/users/user
 #     .profiles — extra profile modules under home/profiles
