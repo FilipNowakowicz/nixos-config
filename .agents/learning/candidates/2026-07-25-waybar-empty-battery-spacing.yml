@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-07-25-waybar-empty-battery-spacing
+date: 2026-07-25
+expires: 2027-01-21
+status: open
+route: promote-doc
+best_form: doc
+evidence: [home/files/waybar/config:52-63, home/files/waybar/style.css:78-105, bash-scripts/validate.sh-flake-eval-pass]
+observation: Waybar format-full and format-plugged can render an empty battery module while its CSS padding still reserves layout width, breaking a negative-margin pill join before the weather module.
+proposed_upgrade: Document that empty-state Waybar modules must collapse padding or be otherwise zero-sized when participating in tuck-under pill layouts.
+type: behavior-upgrade
+dedupe_key: waybar:empty-module-tuck-under-spacing
+triggers: [waybar-module-order-change, waybar-pill-css-change]
+targets: [home/files/waybar/style.css]

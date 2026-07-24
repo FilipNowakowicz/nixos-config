@@ -87,6 +87,15 @@ window#waybar {
   box-shadow: none;
 }
 
+/* When AC/full, config.format-full and config.format-plugged intentionally
+   render no text. Remove the battery module's padding in those states too;
+   otherwise the empty module still leaves a gap between #clock and the
+   separator, exposing #clock's rounded end as a second pill. */
+#battery.full,
+#battery.plugged {
+  padding: 0;
+}
+
 /* custom-sep2 is a second "workspaces | time"-style divider, placed between
    battery and weather so the two status blocks read as separate groups. It's
    a distinct module id (not a second use of #custom-sep) purely so it can
