@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-07-24-backup-policy-invariant-drift
+date: 2026-07-24
+expires: 2026-10-22
+status: open
+route: implement-fix
+best_form: invariant
+evidence: [sha-2df70d6, sha-019590a, flake/checks.nix:183-208, modules/nixos/profiles/backup.nix:18-31]
+observation: A Restic prune policy gained --group-by host without its duplicated homeserver invariant being updated, causing the deploy validation gate to fail after merge.
+proposed_upgrade: Derive invariant expectations from one canonical retention-policy definition or add a focused check that keeps policy and invariant lists synchronized.
+type: policy-gap
+dedupe_key: backup:canonical-prune-policy-and-invariant-drift
+triggers: [restic-prune-policy, invariant-update]
+targets: [modules/nixos/profiles/backup.nix, flake/checks.nix]
