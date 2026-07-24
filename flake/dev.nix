@@ -21,7 +21,14 @@ let
   tailscaleAclPackage =
     pkgs.runCommand "tailscale-acl"
       {
-        aclJson = builtins.toJSON (aclGen.mkAcl hostRegistry);
+        # CI runners are external to the NixOS host registry, but use a
+        # pre-approved Tailscale tag to reach the homeserver over SSH.
+        aclJson = builtins.toJSON (
+          aclGen.mkAcl {
+            inherit hostRegistry;
+            externalTags = [ "ci" ];
+          }
+        );
         passAsFile = [ "aclJson" ];
       }
       ''

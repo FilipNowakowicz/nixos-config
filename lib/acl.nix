@@ -20,20 +20,21 @@ let
       )
     );
 
-  # Every acceptFrom source tag must be a tag that some host actually carries.
+  # Every acceptFrom source tag must be a tag that some host actually carries,
+  # except for explicitly supplied external tags (for example CI runners).
   # Otherwise mkAcl would emit `src = [ "tag:X" ]` for a tag absent from
   # tagOwners, which Tailscale rejects as an undefined tag — and the drift check
   # would only surface it on the next live apply. Fail fast at eval instead.
   assertSourceTagsDefined =
-    hostRegistry: value:
+    hostRegistry: externalTags: value:
     let
-      definedTags = collectTagNames hostRegistry;
+      definedTags = (collectTagNames hostRegistry) ++ externalTags;
       undefined = lib.filter (tag: !builtins.elem tag definedTags) (collectSourceTags hostRegistry);
     in
     if undefined == [ ] then
       value
     else
-      throw "lib/acl.nix: acceptFrom references undefined tag(s) ${builtins.toJSON undefined}; every source tag must be carried by some tailnet host (defined tags: ${builtins.toJSON definedTags})";
+      throw "lib/acl.nix: acceptFrom references undefined tag(s) ${builtins.toJSON undefined}; every source tag must be carried by some tailnet host or be explicitly declared external (defined tags: ${builtins.toJSON definedTags})";
 
   sortedUnique = values: builtins.sort builtins.lessThan (lib.unique values);
 
@@ -102,11 +103,15 @@ in
   # Hosts without a `tailscale` attribute are ignored.
   # Tag-to-tag:port rules are derived from acceptFrom relationships.
   # Serialize with builtins.toJSON to get acl.hujson content.
-  # Throws if any acceptFrom source tag is not carried by some tailnet host.
+  # Throws if any acceptFrom source tag is not carried by some tailnet host or
+  # listed in externalTags.
   mkAcl =
-    hostRegistry:
-    assertSourceTagsDefined hostRegistry {
-      tagOwners = mkTagOwners (collectTagNames hostRegistry);
+    {
+      hostRegistry,
+      externalTags ? [ ],
+    }:
+    assertSourceTagsDefined hostRegistry externalTags {
+      tagOwners = mkTagOwners (sortedUnique ((collectTagNames hostRegistry) ++ externalTags));
       acls = (mkTagAclRules hostRegistry) ++ [
         {
           # Deliberate break-glass access for tailnet admins.

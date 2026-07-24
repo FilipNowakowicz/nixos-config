@@ -98,6 +98,9 @@ let
           # without DNS it cannot resolve cache.nixos.org and every offloaded
           # closure build stalls on cache lookups. Grant tag:builder -> :53.
           builder = [ 53 ];
+          # External CI runners use a pre-approved tag and only need SSH for
+          # the homeserver's CI maintenance/deployment surface.
+          ci = [ 22 ];
         };
       };
       deploy.sshUser = "user";
