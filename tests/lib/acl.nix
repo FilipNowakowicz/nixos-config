@@ -75,7 +75,7 @@ let
     };
   };
 
-  result = acl.mkAcl testRegistry;
+  result = acl.mkAcl { hostRegistry = testRegistry; };
 
   failures = lib.runTests {
     testTagOwnersWorkstation = {
@@ -253,10 +253,12 @@ let
       expr =
         (builtins.tryEval (
           builtins.deepSeq (acl.mkAcl {
-            box = {
-              tailscale = {
-                tag = "server";
-                acceptFrom.ghost = [ 22 ];
+            hostRegistry = {
+              box = {
+                tailscale = {
+                  tag = "server";
+                  acceptFrom.ghost = [ 22 ];
+                };
               };
             };
           }) "ok"
@@ -269,13 +271,15 @@ let
       expr =
         (builtins.tryEval (
           builtins.deepSeq (acl.mkAcl {
-            jump = {
-              tailscale.tag = "admin";
-            };
-            server = {
-              tailscale = {
-                tag = "server";
-                acceptFrom.admin = [ 22 ];
+            hostRegistry = {
+              jump = {
+                tailscale.tag = "admin";
+              };
+              server = {
+                tailscale = {
+                  tag = "server";
+                  acceptFrom.admin = [ 22 ];
+                };
               };
             };
           }) "ok"
