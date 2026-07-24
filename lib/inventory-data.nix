@@ -91,6 +91,15 @@ let
       openUDPPorts = c.networking.firewall.allowedUDPPorts or [ ];
       tailscaleTCPPorts = tailscaleFirewall.allowedTCPPorts or [ ];
       tailscaleUDPPorts = tailscaleFirewall.allowedUDPPorts or [ ];
+      topology = {
+        aclTags = lib.optional (meta ? tailscale) "tag:${meta.tailscale.tag}";
+        advertisedRoutes = meta.tailscale.advertisedRoutes or [ ];
+        acceptedRoutes = meta.tailscale.acceptedRoutes or [ ];
+        exitNode = {
+          canProvide = meta.tailscale.exitNodeCanProvide or false;
+          usesHost = meta.tailscale.exitNodeUse or null;
+        };
+      };
       resticBackups = lib.mapAttrsToList (backupName: backup: {
         name = backupName;
         repository = backup.repository or null;

@@ -111,9 +111,25 @@ let
                 )
               )
               && (!cfg.tailscale ? ip4 || builtins.isString cfg.tailscale.ip4)
+              && (
+                !cfg.tailscale ? advertisedRoutes
+                || (
+                  builtins.isList cfg.tailscale.advertisedRoutes
+                  && builtins.all builtins.isString cfg.tailscale.advertisedRoutes
+                )
+              )
+              && (
+                !cfg.tailscale ? acceptedRoutes
+                || (
+                  builtins.isList cfg.tailscale.acceptedRoutes
+                  && builtins.all builtins.isString cfg.tailscale.acceptedRoutes
+                )
+              )
+              && (!cfg.tailscale ? exitNodeCanProvide || builtins.isBool cfg.tailscale.exitNodeCanProvide)
+              && (!cfg.tailscale ? exitNodeUse || builtins.isString cfg.tailscale.exitNodeUse)
             )
           )
-          "${name}.tailscale: expected tag string, optional acceptFrom attrset of ports (1-65535, TCP+UDP), and optional ip4 string"
+          "${name}.tailscale: expected tag string, optional acceptFrom ports, ip4, route lists, and exit-node metadata"
         )
         (ok
           (
