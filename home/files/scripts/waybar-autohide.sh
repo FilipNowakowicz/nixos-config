@@ -53,7 +53,7 @@ load_monitors() {
 
 waybar_pids() {
   ps -eo pid=,comm=,args= |
-    awk '$2 == ".waybar-wrapped" && $3 == "waybar" { print $1 }
+    awk '$2 == ".waybar-wrapped" && $3 ~ /(^|\/)waybar$/ { print $1 }
          $2 == "waybar" { print $1 }' | sort -n -u
 }
 
