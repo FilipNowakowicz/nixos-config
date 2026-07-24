@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-07-25-waybar-pid-matcher
+date: 2026-07-25
+expires: 2026-10-25
+status: open
+route: implement-fix
+best_form: test
+evidence: [home/files/scripts/waybar-autohide.sh:53-57, systemd-waybar-command-line]
+observation: waybar-autohide matched .waybar-wrapped only when argv[0] was exactly waybar, but systemd supplied the full Nix store path, so visibility signals were never sent.
+proposed_upgrade: add a focused regression check for PID discovery when Waybar is launched from a full store path.
+agent: codex
+type: repo-fix
+dedupe_key: waybar:full-path-pid-matcher
+triggers: [waybar-autohide, systemd, full-path-command]
+targets: [home/files/scripts/waybar-autohide.sh, tests]
+risk: a stale matcher silently leaves the bar permanently visible or hidden.
