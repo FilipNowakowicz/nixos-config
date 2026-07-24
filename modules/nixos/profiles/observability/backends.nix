@@ -141,6 +141,16 @@ in
             instance_addr = "127.0.0.1";
             kvstore.store = "inmemory";
           };
+          # The query-frontend advertises its own address to the scheduler
+          # (so the scheduler can push finished query results back) via
+          # frontend.address, auto-detected from frontend.instance_interface_names
+          # (default [ens4, tailscale0] on this host) when unset. That picks
+          # ens4's address, but server.grpc_listen_address is 127.0.0.1-only,
+          # so the scheduler's callback gets connection-refused and every
+          # query times out ("no data" in Grafana) even though ingestion
+          # keeps working. Same class of bug as the rings above, just on the
+          # frontend rather than a sharding ring.
+          frontend.address = "127.0.0.1";
           # Use the read-only `local` backend, not `filesystem`. The filesystem
           # object-store backend expects rule groups written through the ruler
           # API in its own object layout and will not parse human-provisioned

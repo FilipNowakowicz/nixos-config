@@ -1,0 +1,12 @@
+schema: learning-candidate/v1
+id: 2026-07-23-mimir-frontend-address-autodetect
+date: 2026-07-23
+expires: 2027-01-23
+status: open
+
+route: promote-doc
+best_form: doc
+
+evidence: [modules/nixos/profiles/observability/backends.nix:120-152, `mimir -config.file=<path> -print.config` output showing `frontend.instance_interface_names: [ens4, tailscale0]` and `frontend.address: ""`, journalctl -u mimir `msg="error notifying frontend about finished query" frontend=10.154.0.8:9095`, fix verified live via `curl http://127.0.0.1:9009/prometheus/api/v1/query?query=up` (30s timeout -> 200 in ~11ms)]
+observation: backends.nix already documents "every ring needs instance_addr=127.0.0.1 because Mimir auto-detects the GCE interface" but only applied it to sharding rings; `frontend.address` has the identical GCE-interface-autodetection failure mode but is not a ring and was missed, breaking all Grafana/Mimir queries ("no data") while ingestion kept working, which masked the cause. First fix attempt targeted `query_scheduler.ring.instance_addr`, which had zero effect because this deployment's `query_scheduler.service_discovery_mode` defaults to `dns` not `ring` (that ring block is unused). `mimir -print.config` (resolved effective config, not the input yaml) was what actually surfaced both the wrong assumption and the correct fix location.
+proposed_upgrade: add a note near the existing instance_addr comment in backends.nix (or docs/architecture.md) that Mimir has multiple independent GCE-interface-autodetection points beyond sharding rings (frontend.address at minimum), and that `mimir -config.file=<path> -print.config` is the fast way to find which resolved config block owns a bad auto-detected address before guessing based on which port a connection-refused error mentions.
