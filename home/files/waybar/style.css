@@ -56,9 +56,16 @@ window#waybar {
   border-radius: 13px 0 0 13px;
 }
 
+/* box-shadow: none overrides the shared rule above. #clock's rounded right
+   corner gets hidden under #battery (or #custom-sep2, when battery is
+   absent) via a -13px tuck-under margin — but that margin only covers the
+   flat background/border, not the 26px-blur box-shadow, which bleeds past
+   the 13px overlap and shows as a visible seam at the join. Same reasoning
+   applies to #battery below, which gets tucked under by #custom-sep2. */
 #clock {
   border-right: 1px solid alpha(@amber, 0.28);
   border-radius: 0 13px 13px 0;
+  box-shadow: none;
 }
 
 /* Battery is appended right after the clock, joining the same pill. It only
@@ -75,6 +82,9 @@ window#waybar {
      the content back where it would sit. */
   margin-left: -13px;
   padding: 0 11px 0 13px;
+  /* See the #clock comment: its own rounded right corner is tucked under by
+     #custom-sep2, so it needs the same box-shadow removal. */
+  box-shadow: none;
 }
 
 /* custom-sep2 is a second "workspaces | time"-style divider, placed between
