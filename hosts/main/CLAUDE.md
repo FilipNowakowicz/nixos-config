@@ -229,13 +229,21 @@ In the anonymous specialisation all three mechanisms are removed and
 - **Old roots are not normal backups**; they are local forensic rollback artifacts retained for 30 days.
 - **Anonymous specialisation is a boot target, not a runtime switch**; booting it fresh is the correct path — attempting to reach it via `nixos-specialise` mid-session does not teardown running services correctly.
 - **Whonix VMs require Gateway before Workstation**; starting Workstation without a running Gateway leaves it without a Tor route.
-- **`exec-once` helpers are not restarted on rebuild.** Hyprland `exec-once`
-  fires only at session login, so `nh os switch` / `home-manager switch` leaves
-  any changed helper running its pre-rebuild binary. Long-running per-session
-  processes (the control-center daemon, the waybar-autohide watcher, etc.)
-  belong in `systemd.user.services` bound to
-  `nixos-fake-graphical-session.target` with `Restart=always` so a rebuild
-  automatically starts the new build. Reserve `exec-once` for true one-shot
-  startup commands. When restarting such a helper by hand: `pkill -f
+- **`exec-once` helpers are not restarted on rebuild, or after a crash.**
+  Hyprland `exec-once` fires only at session login, so `nh os switch` /
+  `home-manager switch` leaves any changed helper running its pre-rebuild
+  binary — and if the process dies for any other reason, nothing brings it
+  back either, since `exec-once` has no `Restart=`. Waybar itself hit the
+  crash case: `journalctl --user -u waybar` showed it periodically dying with
+  "Error reading events from display: Broken pipe", correlating with
+  `nixos-switch`/`switch-to-configuration` runs elsewhere on the system (a
+  session-adjacent service restart, e.g. ACPI/DisplayLink, apparently severs
+  the Wayland connection) — not, as first suspected, with charger/AC events.
+  Long-running per-session processes — any GUI/Wayland client, not just
+  background helper scripts (the control-center daemon, the waybar-autohide
+  watcher, waybar itself) — belong in `systemd.user.services` bound to
+  `nixos-fake-graphical-session.target` with `Restart=always` so both a
+  rebuild and a crash self-heal. Reserve `exec-once` for true one-shot startup
+  commands. When restarting such a helper by hand: `pkill -f
 control_center` self-matches the shell running the command (its argv contains
   the token) — kill by PID instead.

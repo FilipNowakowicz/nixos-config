@@ -1,0 +1,21 @@
+schema: learning-candidate/v1
+id: 2026-07-25-waybar-exec-once-crash-no-restart
+date: 2026-07-25
+expires: 2027-01-25
+status: promoted
+
+route: promote-doc
+best_form: doc
+
+evidence: [commit-3ea2c07, home/users/user/home.nix:459-476, home/files/hypr/hyprland.conf:11-16, journalctl--user--u-waybar]
+observation: waybar ran via bare Hyprland exec-once, so a crash left it dead until relogin (no Restart=). journalctl --user -u waybar showed periodic "Error reading events from display: Broken pipe" deaths correlating with nixos-switch/switch-to-configuration runs (session-adjacent system service restarts, e.g. ACPI/DisplayLink, apparently sever the Wayland connection), not with charger/AC events as first suspected. Fixed by converting to systemd.user.services.waybar (Restart=always, bound to nixos-fake-graphical-session.target), same pattern already used for waybar-autohide per the promoted 2026-06-28-exec-once-not-restarted-on-rebuild lesson. Verified live: kill -9 the waybar PID, systemd restarted it in ~2s. Red herring during diagnosis: nixpkgs' waybar package ships its own disabled share/systemd/user/waybar.service (WantedBy=graphical-session.target), unrelated to this repo's setup.
+proposed_upgrade: extend the existing exec-once-not-restarted-on-rebuild doc/guidance to cover crash-resilience, not just rebuild-restart: any Hyprland exec-once launching a long-running GUI/Wayland client (not just background helper scripts) should be audited for silent-death-with-no-restart, since nixos-switch itself can sever a client's Wayland connection mid-session.
+
+type: workflow-gotcha
+dedupe_key: hypr:exec-once-wayland-client-crash-no-restart
+triggers: [home/files/hypr/hyprland.conf, waybar, nixos-switch]
+targets: [docs/operations.md, home/files/hypr/hyprland.conf]
+resolution: extended the exec-once gotcha bullet in hosts/main/CLAUDE.md to
+  cover crash-with-no-restart (not just rebuild-restart), naming waybar's
+  Wayland-connection-severed case and generalizing "long-running per-session
+  processes" to any GUI/Wayland client, not just background helper scripts.
