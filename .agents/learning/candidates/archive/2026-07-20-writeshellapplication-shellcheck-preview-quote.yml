@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-07-20-writeshellapplication-shellcheck-preview-quote
 date: 2026-07-20
 expires: 2027-01-20
-status: open
+status: promoted
 
 route: promote-doc
 best_form: doc
@@ -13,3 +13,8 @@ proposed_upgrade: add a short note to docs/operations.md (or the nix-verificatio
 
 # type: workflow-gotcha
 # targets: [docs/operations.md, .agents/skills/nix-verification-loop]
+
+resolution: added a "writeShellApplication Scripts Need a Real Build, Not
+  Just Shellcheck" subsection to docs/operations.md's Formatting And Hooks
+  section covering both the build-vs-bash-n gap and the disable-comment
+  guidance.
