@@ -38,7 +38,13 @@ window#waybar {
 
 /* Connected pill across the content modules. Vertical borders only on the
    ends; matching backgrounds + shared top/bottom borders make the widgets
-   read as one continuous pill. */
+   read as one continuous pill.
+
+   RULE FOR ADDING A NEW RIGHTMOST MODULE: a negative-margin tuck-under only
+   hides the covered module's flat background/border, not its box-shadow
+   (the blur bleeds past the overlap and shows as a seam) — so box-shadow:
+   none goes on the module being COVERED, not the one doing the covering.
+   See the #clock and #battery comments below for the worked examples. */
 #workspaces,
 #custom-sep,
 #clock,
