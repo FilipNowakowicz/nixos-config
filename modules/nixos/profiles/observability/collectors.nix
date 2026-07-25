@@ -631,6 +631,12 @@ in
         ];
 
         services = {
+          # Short TimeoutStopSec: both units retry-flush their remoteWrite/loki
+          # targets over Tailscale on SIGTERM, but on main the tailnet can be
+          # torn down in parallel by tailscaled/NetworkManager/mullvad with no
+          # ordering guarantee, so the flush's DNS lookup can hang and ride the
+          # default 90s timeout to a SIGKILL. See docs/operations.md's shutdown
+          # diagnostics note for how to spot this class of bug.
           prometheus = lib.mkIf cfg.collectors.metrics.enable {
             serviceConfig = {
               SupplementaryGroups = ingestAuthGroups;

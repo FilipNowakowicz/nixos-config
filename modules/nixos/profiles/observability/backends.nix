@@ -149,7 +149,12 @@ in
           # so the scheduler's callback gets connection-refused and every
           # query times out ("no data" in Grafana) even though ingestion
           # keeps working. Same class of bug as the rings above, just on the
-          # frontend rather than a sharding ring.
+          # frontend rather than a sharding ring. There are likely other
+          # independent auto-detection points beyond rings and this one;
+          # `mimir -config.file=<path> -print.config` prints the fully
+          # resolved config (not the input yaml) and is the fast way to find
+          # which block owns a bad auto-detected address before guessing
+          # based on which port a connection-refused error mentions.
           frontend.address = "127.0.0.1";
           # Use the read-only `local` backend, not `filesystem`. The filesystem
           # object-store backend expects rule groups written through the ruler

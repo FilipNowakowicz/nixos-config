@@ -105,6 +105,27 @@ sudo efibootmgr -b 0003 -B
 Only delete EFI entries after confirming `BootCurrent` and the entry title with
 `bootctl status` or `efibootmgr`.
 
+### Shutdown diagnostics: services that time out stopping
+
+Spot this class of bug with:
+
+```bash
+journalctl -b -1 --no-pager | rg 'State .stop-sigterm. timed out'
+```
+
+or by scanning `journalctl -b -1` for a multi-minute gap between "Stopping
+X.service..." and the next log line — that gap is the default 90s
+`TimeoutStopSec` running out before a SIGKILL.
+
+General pattern: any service that flushes or exports over a network path torn
+down by another unit at shutdown (Tailscale, a VPN, NetworkManager) should get
+an explicit short `TimeoutStopSec` rather than relying on stop-ordering across
+unrelated units — there's no ordering guarantee between, say, `tailscaled`
+tearing down and a service's shutdown-time flush needing DNS over it. `main`'s
+`prometheus`/`alloy` services hit exactly this (6 timeouts over 2 months
+before being fixed with `TimeoutStopSec = "10s"`); see
+`modules/nixos/profiles/observability/collectors.nix`.
+
 ## Homeserver GCE Snapshots
 
 `infra/main.tf` attaches a daily GCE snapshot schedule to the
@@ -531,6 +552,24 @@ path is dead. Re-run the commit through the dev shell — `nix develop -c git
 commit -m ...` — whose `shellHook` reinstalls the hook against a live store
 path and then runs the real checks. Do not reach for `--no-verify`: that skips
 real lint on `.nix` changes, which is forbidden in the primary checkout.
+
+### writeShellApplication Scripts Need a Real Build, Not Just Shellcheck
+
+`pkgs.writeShellApplication` runs ShellCheck on the script text at build time
+with no severity floor, so even an info-level warning (e.g. `SC2016` on an
+intentional single-quoted body meant to expand in a _different_ shell, like an
+`fzf --preview` command or an `awk`/`perl` one-liner) fails the derivation.
+`bash -n script.sh` and a standalone `shellcheck script.sh` both pass locally
+and mask this — only building the actual `writeShellApplication` derivation
+reproduces the failure:
+
+```bash
+nix build '.#checks.x86_64-linux.<name>'   # or the package/home.nix target that wraps it
+```
+
+For an intentional non-expansion, add an explicit
+`# shellcheck disable=SC2016` at the site rather than relying on severity
+filtering — there isn't one here.
 
 ### Markdown Prose And Prettier
 
