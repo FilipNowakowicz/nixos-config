@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-07-25-waybar-empty-battery-spacing
 date: 2026-07-25
 expires: 2027-01-21
-status: open
+status: superseded
 route: promote-doc
 best_form: doc
 evidence: [home/files/waybar/config:52-63, home/files/waybar/style.css:78-105, bash-scripts/validate.sh-flake-eval-pass]
@@ -12,3 +12,4 @@ type: behavior-upgrade
 dedupe_key: waybar:empty-module-tuck-under-spacing
 triggers: [waybar-module-order-change, waybar-pill-css-change]
 targets: [home/files/waybar/style.css]
+resolution: home/files/waybar/style.css already has `#battery.full, #battery.plugged { padding: 0; }` with a comment explaining exactly this. No separate doc needed.

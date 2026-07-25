@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-07-25-waybar-pid-matcher
 date: 2026-07-25
 expires: 2026-10-25
-status: open
+status: superseded
 route: implement-fix
 best_form: test
 evidence: [home/files/scripts/waybar-autohide.sh:53-57, systemd-waybar-command-line]
@@ -14,3 +14,7 @@ dedupe_key: waybar:full-path-pid-matcher
 triggers: [waybar-autohide, systemd, full-path-command]
 targets: [home/files/scripts/waybar-autohide.sh, tests]
 risk: a stale matcher silently leaves the bar permanently visible or hidden.
+resolution: commit 3308f42 already changed the matcher from `$3 == "waybar"` to
+  `$3 ~ /(^|\/)waybar$/`, fixing the full-store-path case. No bash-test harness
+  exists yet for these scripts, so a dedicated regression test isn't added now;
+  revisit if such infra appears for other scripts.

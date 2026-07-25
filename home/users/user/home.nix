@@ -456,6 +456,28 @@ in
       };
     };
 
+    # A `nixos-switch` restarts session-adjacent system services (ACPI,
+    # DisplayLink, etc.) and that's occasionally enough to sever waybar's
+    # Wayland connection ("Error reading events from display: Broken pipe").
+    # As a bare Hyprland `exec-once`, a crash like that left the bar dead
+    # until the next relogin. Running it as a systemd unit instead means any
+    # crash — from a rebuild or otherwise — self-heals in a couple seconds.
+    waybar = {
+      Unit = {
+        Description = "Highly customizable Wayland bar (Home Manager-managed)";
+        After = [ "nixos-fake-graphical-session.target" ];
+        PartOf = [ "nixos-fake-graphical-session.target" ];
+      };
+      Service = {
+        ExecStart = "${pkgs.waybar}/bin/waybar";
+        Restart = "always";
+        RestartSec = 2;
+      };
+      Install = {
+        WantedBy = [ "nixos-fake-graphical-session.target" ];
+      };
+    };
+
     waybar-autohide = {
       Unit = {
         Description = "Auto-hide / hover-reveal controller for the waybar pill";

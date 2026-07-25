@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-07-23-mkforce-wantedby-overrides-mkif-autostart
 date: 2026-07-23
 expires: 2027-01-23
-status: open
+status: superseded
 
 route: promote-doc
 best_form: doc
@@ -13,3 +13,8 @@ proposed_upgrade: add a short note to docs/operations.md (or hosts/main/CLAUDE.m
 
 # type: workflow-gotcha
 # targets: [docs/operations.md, hosts/main/CLAUDE.md]
+
+resolution: hosts/main/default.nix:293-296 already carries an inline comment
+  explaining this exact gotcha (mkForce wantedBy must stay coupled to
+  cfg.autoStart), and the fix (lib.optionals config.services.sunshine.autoStart)
+  is already in place. No separate doc entry needed.
