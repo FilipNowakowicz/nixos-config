@@ -57,6 +57,18 @@ bill of health (the evidence just lacks a pointer); judge it from evidence and
 targets. Treat an `implement-fix` candidate as "is a fix still needed?", never
 as "a fix is owed" — the fix is often already in tree.
 
+**LIKELY RESOLVED only proves the evidence commits landed, not that the
+candidate's `proposed_upgrade` was fully realized.** A commit can patch the
+reported symptom while leaving a described structural/systemic fix (e.g. "stop
+duplicating this list — derive it from one source") undone. For any
+`implement-fix` candidate whose `proposed_upgrade` asks for something beyond a
+value/config fix, diff the current code against that specific ask before
+marking `superseded` — don't rely on the verdict alone. (Caught live on
+`2026-07-24-backup-policy-invariant-drift`: the evidence commits had already
+fixed the missing `--group-by host`, but `flake/checks.nix` still hand-duplicated
+`backup.nix`'s prune-policy list instead of sharing one source, exactly what the
+candidate asked to fix.)
+
 For everything that still needs action:
 
 - `implement-fix`: implement the repo fix, or leave it as explicit backlog if

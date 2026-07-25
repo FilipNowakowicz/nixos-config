@@ -180,13 +180,9 @@ let
       cfg:
       let
         backup = cfg.services.restic.backups.b2;
-        expectedPruneOpts = [
-          "--group-by host"
-          "--keep-daily 14"
-          "--keep-weekly 8"
-          "--keep-monthly 6"
-          "--keep-yearly 2"
-        ];
+        # Same source modules/nixos/profiles/backup.nix uses, so this can't
+        # drift out of sync with the policy that's actually applied.
+        expectedPruneOpts = (import ../lib/backup-policy.nix).critical;
         pathCheck = requirePaths backup.paths [
           "/var/lib/vaultwarden"
           "/var/lib/grafana"
