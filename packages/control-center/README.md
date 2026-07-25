@@ -155,3 +155,29 @@ for name in ('constants', 'theme', 'css'):
 
 print(sys.modules['control_center.css'].build_css({}))
 ```
+
+### Iterating on GTK layout without a Nix rebuild
+
+Eyeballing screenshots to fix small layout bugs (icon centering, a slider
+knob a few px off) is unreliable — measure instead.
+
+**Run edited source live, no rebuild.** From an active Wayland session
+(`WAYLAND_DISPLAY` set), the installed derivation already has everything
+`control-center` needs wired up via `wrapGAppsHook4`'s `gappsWrapperArgs` in
+`default.nix`'s `preFixup` — `GDK_BACKEND`, `GTK4_LAYER_SHELL_LIB`, plus the
+hook's own `GI_TYPELIB_PATH`/`GIO_EXTRA_MODULES`/`XDG_DATA_DIRS`/
+`GDK_PIXBUF_MODULE_FILE`. Read those off the installed wrapper script
+(`$out/bin/control-center`, or find the real wrapped binary via `nix build
+'.#control-center' && cat result/bin/control-center`), then run the _wrapped_
+binary directly (`result/bin/.control-center-wrapped` or the store path it
+execs) with `PYTHONPATH=<repo>/packages/control-center/src` prepended so
+edited source shadows the installed copy. No `nix build` needed per
+iteration.
+
+**Measure, don't eyeball.** `grim` a screenshot, then use PIL/numpy to find
+an objective pixel offset instead of judging by looking — e.g. connected-
+component labeling to get the icon's ink bounding box separately from the
+badge circle's, then compare centroids. A `nudge_x`/`nudge_y` change that
+looks like it did nothing may just be below the crop resolution's
+measurement noise — retry with a several-x exaggerated value to confirm the
+knob has any effect before trusting a "no effect" reading.
