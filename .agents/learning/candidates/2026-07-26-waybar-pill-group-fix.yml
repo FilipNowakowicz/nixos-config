@@ -1,0 +1,19 @@
+schema: learning-candidate/v1
+id: 2026-07-26-waybar-pill-group-fix
+date: 2026-07-26
+expires: 2027-01-26
+status: promoted
+
+route: promote-doc
+best_form: doc
+
+evidence: [commit-97b3534, home/files/waybar/config, home/files/waybar/style.css]
+observation: waybar's pill faked one continuous bar by painting matching background/border/box-shadow separately on each of #workspaces/#custom-sep/#clock/#battery/#custom-sep2/#custom-weather and tucking them under each other with negative margins (already fixed one seam bug this way in #374). This was the third user-reported "pill splits into two pieces" recurrence: #workspaces' child button count changes dynamically (persistent-workspaces churn on workspace focus/create/destroy), so its independently-tracked background/box-shadow could visibly desync mid-relayout from its neighbors, rendering as two disconnected pill fragments. Reproduced live by hot-swapping the running instance's config/style (as the archived 2026-07-23 tuck-under-seam candidate also did) and forcing workspace switches with hyprctl; confirmed fixed by wrapping all six modules in waybar's native "group/pill" and moving the background/border/box-shadow to the single #pill wrapper, deleting all tuck-under margins. Verified via grim screenshots before/after and after forcing workspace churn.
+proposed_upgrade: no further action needed on this specific bug — it's structurally eliminated (one wrapper widget, one paint, nothing left to desync). Worth a doc note if another waybar module gets a per-module background/shadow again in the future, generalizing this as "any waybar pill/segmented-bar look should use group/<name> + a single wrapper selector, not per-module backgrounds stitched with tuck-under margins" so the next widget addition doesn't reintroduce the same bug class.
+resolution: fixed directly in commit 97b3534 (home/files/waybar/config groups the
+  six pill modules under "group/pill"; home/files/waybar/style.css paints
+  background/border/box-shadow once on #pill, removing all tuck-under margins
+  and the now-obsolete #clock/#battery/#custom-sep2 box-shadow-none rules).
+  No separate doc/hook/skill needed — the commit message and this candidate
+  are the durable record, and the fix is self-verifying (there's no seam
+  geometry left to regress).
