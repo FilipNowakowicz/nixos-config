@@ -226,12 +226,6 @@
         # ── Home Manager Configurations ─────────────────────────────────────
         inherit homeConfigurations;
 
-        # ── Templates ───────────────────────────────────────────────────────
-        templates.python = {
-          path = ./templates/python;
-          description = "Python dev shell with uv, ruff, and basedpyright";
-        };
-
         # ── Reusable pure-function libraries ────────────────────────────────
         # Identifier-free helper libraries that evaluate with stock
         # `nixpkgs.lib` and no fleet context, so they can be imported into a

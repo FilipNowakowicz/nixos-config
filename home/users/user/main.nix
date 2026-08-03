@@ -1,5 +1,7 @@
 { pkgs, ... }:
 {
+  imports = [ ../../profiles/python-development.nix ];
+
   home.packages = with pkgs; [
     input-leap
   ];

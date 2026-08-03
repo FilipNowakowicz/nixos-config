@@ -235,10 +235,14 @@ nix build .#control-center
 nix build .#tailscale-acl
 nix build .#inventory-data
 nix build .#installer-iso
-
-# Template
-nix flake init -t .#python  # Python dev shell with uv, ruff, basedpyright
 ```
+
+On `main`, ordinary Python repositories use the centrally managed `uv`
+workflow instead: Home Manager installs `uv`, defaults unpinned projects to a
+uv-managed Python 3.12 interpreter, and keeps NixOS linker compatibility out of
+project repositories. A project only needs portable Python metadata such as
+`pyproject.toml`, `uv.lock`, and optionally `.python-version`; run commands with
+`uv sync` and `uv run <command>`.
 
 Modules exposed for reuse:
 
@@ -281,7 +285,6 @@ specialisation).
 ├── lib/               # Pure helpers: host registry, ACLs, dashboards, invariants
 ├── tests/             # Pure tests, fixtures, and NixOS profile tests
 ├── scripts/           # Validation, deployment, CI planning, drift checks
-├── templates/         # Flake templates (Python dev shell)
 ├── docs/              # Architecture, operations, security, restore drills
 └── infra/             # Cloud infrastructure for homeserver rollback support
 ```
