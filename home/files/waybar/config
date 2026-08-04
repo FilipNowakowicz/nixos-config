@@ -8,14 +8,21 @@
 
     "modules-left": [],
     "modules-center": [
-        "hyprland/workspaces",
-        "custom/sep",
-        "clock",
-        "battery",
-        "custom/sep2",
-        "custom/weather"
+        "group/pill"
     ],
     "modules-right": [],
+
+    "group/pill": {
+        "orientation": "horizontal",
+        "modules": [
+            "hyprland/workspaces",
+            "custom/sep",
+            "clock",
+            "battery",
+            "custom/sep2",
+            "custom/weather"
+        ]
+    },
 
     "custom/sep": {
         "format": "│",

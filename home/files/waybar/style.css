@@ -23,9 +23,10 @@ window#waybar {
        trailing slack inside the fixed box — the box width never changes, so the
        dot never moves. No spacer, no script, no per-item tuning.
 
-   The trailing slack is INVISIBLE: the pill background is painted on the content
-   modules below, never on this box (which is transparent), so the painted pill
-   ends at the last widget's rounded edge. min-width reserves layout space only.
+   The trailing slack is INVISIBLE: the pill background is painted on the
+   group/pill wrapper below, never on this box (which is transparent), so the
+   painted pill ends at the last widget's rounded edge. min-width reserves
+   layout space only.
 
    WP = 701px, from a measured dot at x=350.5px from the pill's left edge. It's
    logical px and the box auto-centres per output, so it holds on any monitor /
@@ -36,94 +37,22 @@ window#waybar {
   min-width: 720px;
 }
 
-/* Connected pill across the content modules. Vertical borders only on the
-   ends; matching backgrounds + shared top/bottom borders make the widgets
-   read as one continuous pill.
-
-   RULE FOR ADDING A NEW RIGHTMOST MODULE: a negative-margin tuck-under only
-   hides the covered module's flat background/border, not its box-shadow
-   (the blur bleeds past the overlap and shows as a seam) — so box-shadow:
-   none goes on the module being COVERED, not the one doing the covering.
-   See the #clock and #battery comments below for the worked examples. */
-#workspaces,
-#custom-sep,
-#clock,
-#battery,
-#custom-sep2,
-#custom-weather {
+/* The pill background/border/shadow is painted ONCE on the group/pill
+   wrapper box (config groups workspaces+sep+clock+battery+sep2+weather into
+   "group/pill"), not per-module. Previously each module painted its own
+   background+box-shadow and relied on negative-margin "tuck-under" to fake a
+   continuous pill; that box-shadow blur bled past the tuck-under overlap as
+   a visible seam, and — worse — #workspaces' button count changes
+   dynamically (persistent-workspaces churn), so its own separately-tracked
+   background/shadow could desync from its neighbors' mid-relayout and show
+   as the pill visibly splitting in two. A single wrapper widget has exactly
+   one background/border/shadow, so there is no seam or split to desync:
+   GTK repaints one rectangle sized to the current content, always. */
+#pill {
   background: alpha(@bg, 0.98);
-  border-top: 1px solid alpha(@amber, 0.28);
-  border-bottom: 1px solid alpha(@amber, 0.28);
+  border: 1px solid alpha(@amber, 0.28);
+  border-radius: 13px;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
-}
-
-#workspaces {
-  border-left: 1px solid alpha(@amber, 0.28);
-  border-radius: 13px 0 0 13px;
-}
-
-/* box-shadow: none overrides the shared rule above. #clock's rounded right
-   corner gets hidden under #battery (or #custom-sep2, when battery is
-   absent) via a -13px tuck-under margin — but that margin only covers the
-   flat background/border, not the 26px-blur box-shadow, which bleeds past
-   the 13px overlap and shows as a visible seam at the join. Same reasoning
-   applies to #battery below, which gets tucked under by #custom-sep2. */
-#clock {
-  border-right: 1px solid alpha(@amber, 0.28);
-  border-radius: 0 13px 13px 0;
-  box-shadow: none;
-}
-
-/* Battery is appended right after the clock, joining the same pill. It only
-   renders while charging or discharging (empty when full/plugged, absent on
-   the desktop). Whether it's shown or hidden, it just fills more or less of the
-   fixed box's trailing slack, so it never moves the dot. It carries the pill's
-   rounded right end; the negative left margin tucks it under the clock's
-   rounded corner so there's no notch where the two meet. Future right-side
-   widgets append after it the same way. */
-#battery {
-  border-right: 1px solid alpha(@amber, 0.28);
-  border-radius: 0 13px 13px 0;
-  /* -13 margin tucks under the clock's rounded corner; +13 left padding puts
-     the content back where it would sit. */
-  margin-left: -13px;
-  padding: 0 11px 0 13px;
-  /* See the #clock comment: its own rounded right corner is tucked under by
-     #custom-sep2, so it needs the same box-shadow removal. */
-  box-shadow: none;
-}
-
-/* When AC/full, config.format-full and config.format-plugged intentionally
-   render no text. Remove the battery module's padding in those states too;
-   otherwise the empty module still leaves a gap between #clock and the
-   separator, exposing #clock's rounded end as a second pill. */
-#battery.full,
-#battery.plugged {
-  padding: 0;
-}
-
-/* custom-sep2 is a second "workspaces | time"-style divider, placed between
-   battery and weather so the two status blocks read as separate groups. It's
-   a distinct module id (not a second use of #custom-sep) purely so it can
-   carry its own tuck-under margin without moving the original separator
-   between workspaces and clock. It takes over the tuck-under job from
-   weather: it always renders (unlike battery), so it's the thing directly
-   after battery's rounded corner now, and hides it the same way battery hides
-   clock's. */
-#custom-sep2 {
-  margin-left: -13px;
-  /* +13 cancels the margin above; +2 is the same visual gap #custom-sep uses
-     on its left side. Right side matches #custom-sep's 2px too. */
-  padding: 0 2px 0 15px;
-}
-
-/* Weather is the pill's stable right end: always rendered (unlike battery),
-   so nothing needs to tuck under IT — it just needs the rounded corner and
-   its own comfortable padding after custom-sep2's trailing gap. */
-#custom-weather {
-  border-right: 1px solid alpha(@amber, 0.28);
-  border-radius: 0 13px 13px 0;
-  padding: 0 11px 0 4px;
 }
 
 /* Per-module spacing inside the pill. */
@@ -139,6 +68,26 @@ window#waybar {
 
 #custom-sep {
   padding: 0 2px;
+}
+
+#custom-sep2 {
+  padding: 0 2px 0 15px;
+}
+
+#battery {
+  padding: 0 11px 0 13px;
+}
+
+/* AC/full states render no text (format-full/format-plugged are empty) but
+   keep the module's padding unless we zero it here, leaving a blank gap
+   between #clock and #custom-sep2. */
+#battery.full,
+#battery.plugged {
+  padding: 0;
+}
+
+#custom-weather {
+  padding: 0 11px 0 4px;
 }
 
 /* ── Workspaces ───────────────────────────────────────── */
