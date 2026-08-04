@@ -118,7 +118,7 @@ in
   };
 
   nixpkgs.config.permittedInsecurePackages = [
-    "broadcom-sta-6.30.223.271-59-${config.boot.kernelPackages.kernel.version}"
+    "broadcom-sta-6.30.223.271-63-${config.boot.kernelPackages.kernel.version}"
   ];
 
   # Broad passwordless sudo: deploy-rs needs it for activation. SSH access to
