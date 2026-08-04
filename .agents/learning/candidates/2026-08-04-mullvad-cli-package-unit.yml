@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-08-04-mullvad-cli-package-unit
+date: 2026-08-04
+expires: 2027-02-04
+status: open
+route: implement-fix
+best_form: test
+evidence: [hosts/main/networking.nix:169,hosts/main/anonymous.nix:159,systemctl-mullvad-lockdown-exit-127]
+observation: pkgs.mullvad-vpn no longer exposes bin/mullvad while services.mullvad-vpn.package does
+proposed_upgrade: add a static check that custom Mullvad CLI units use services.mullvad-vpn.package
+type: repo-fix
+dedupe_key: main:mullvad-cli-package-unit
+triggers: [mullvad,systemd-unit,package-update]
+targets: [tests,hosts/main/networking.nix,hosts/main/anonymous.nix]

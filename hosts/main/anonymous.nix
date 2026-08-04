@@ -3,7 +3,11 @@ _: {
   # and removes daily-desktop network identity emitters, while keeping Tor
   # workflows inside Whonix rather than pretending every host tool is anonymous.
   specialisation.anonymous.configuration =
-    { lib, pkgs, ... }:
+    {
+      config,
+      lib,
+      ...
+    }:
     {
       system.nixos.tags = [ "anonymous" ];
 
@@ -156,12 +160,12 @@ _: {
               RemainAfterExit = true;
             };
             script = ''
-              ${pkgs.mullvad-vpn}/bin/mullvad auto-connect set on
+              ${config.services.mullvad-vpn.package}/bin/mullvad auto-connect set on
               # auto-connect only fires on daemon start; the daemon is already
               # running this boot, so kick an explicit connect. Best effort —
               # lockdown mode (set by mullvad-lockdown) keeps traffic
               # fail-closed regardless of whether this succeeds.
-              ${pkgs.mullvad-vpn}/bin/mullvad connect || true
+              ${config.services.mullvad-vpn.package}/bin/mullvad connect || true
             '';
           };
         };
