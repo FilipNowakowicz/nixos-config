@@ -85,6 +85,12 @@ shared profiles changed, build all affected hosts.
 - **Codex CLI** — uses this same `CLAUDE.md` guidance through the repo-local
   `.codex/config.toml` fallback configuration. Do not maintain separate
   `CODEX.md`/`AGENTS.md` copies for this repo.
+- **Cross-repo Python workflow** — `home/profiles/python-development.nix`
+  installs `uv`, selects a uv-managed Python 3.12 default, and renders the one
+  policy in `home/files/agents/global-development.md` to the supported global
+  instruction file for Claude Code, Codex, and Gemini CLI. Unless a repository
+  explicitly declares another workflow, agents use `uv sync` and `uv run` and
+  do not add project-local Nix files solely for Python dependencies.
 - **Shared workflow skills** — repo-local skills live under `.agents/skills/`.
   Codex auto-discovers them directly, and Claude discovers the same tree through
   the `.claude/skills -> ../.agents/skills` symlink.
