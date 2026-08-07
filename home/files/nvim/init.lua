@@ -1,5 +1,13 @@
 -- Core modules
 require("config.options")
+
+-- Must be set before VimTeX initializes a compiler for a .tex file passed on
+-- Neovim's command line.  Otherwise VimTeX can retain an older latexmk
+-- wrapper from a Nix profile.
+vim.g.vimtex_compiler_latexmk = {
+  executable = "/etc/profiles/per-user/user/bin/latexmk",
+}
+
 require("config.keymaps")
 require("config.plugins")
 
