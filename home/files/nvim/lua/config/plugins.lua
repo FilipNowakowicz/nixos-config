@@ -200,6 +200,9 @@ require("lazy").setup({
       vim.g.vimtex_imaps_enabled = 0
       vim.g.vimtex_syntax_enabled = 0
       vim.g.vimtex_compiler_latexmk = {
+        -- Use the active Home Manager profile instead of an older Nix-store
+        -- wrapper inherited by a long-running editor session.
+        executable = "/etc/profiles/per-user/user/bin/latexmk",
         out_dir = "build",
         options = {
           "-pdf",

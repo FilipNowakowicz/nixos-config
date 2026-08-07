@@ -15,6 +15,7 @@ in
       (texlive.withPackages (ps: [
         ps.scheme-medium
         ps.enumitem
+        ps.titlesec
       ]))
     ];
   };
