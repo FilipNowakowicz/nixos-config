@@ -1,4 +1,9 @@
-{ lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   tailscaleBypassRules = pkgs.writeShellScript "tailscale-bypass-rules" ''
     set -euo pipefail
@@ -166,10 +171,10 @@ in
       };
       script = ''
         for _ in $(${pkgs.coreutils}/bin/seq 1 30); do
-          ${pkgs.mullvad-vpn}/bin/mullvad status >/dev/null 2>&1 && break
+          ${config.services.mullvad-vpn.package}/bin/mullvad status >/dev/null 2>&1 && break
           ${pkgs.coreutils}/bin/sleep 1
         done
-        ${pkgs.mullvad-vpn}/bin/mullvad lockdown-mode set on
+        ${config.services.mullvad-vpn.package}/bin/mullvad lockdown-mode set on
       '';
     };
   };
