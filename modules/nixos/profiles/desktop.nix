@@ -63,7 +63,15 @@ in
           };
         };
       };
+
+      # Provide a native Secret Service for applications such as Python
+      # keyring.  The service module installs the capability wrapper and
+      # D-Bus activation files; greetd's PAM hook initializes and unlocks the
+      # login collection when the desktop session is entered with a password.
+      gnome.gnome-keyring.enable = true;
     };
+
+    security.pam.services.greetd.enableGnomeKeyring = true;
 
     # Kill memory-pressure offenders in userspace before the interactive machine
     # reaches a kernel OOM or becomes too wedged to recover.
