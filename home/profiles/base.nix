@@ -82,6 +82,12 @@
           format = "[\\($symbol\\)]($style) ";
           symbol = "venv";
           style = "fg:#DAA520";
+          # A project containing Python files or a .venv is not the same as an
+          # activated virtual environment. Only show this module when
+          # VIRTUAL_ENV is present (the module's default detect_env_vars).
+          detect_extensions = [ ];
+          detect_files = [ ];
+          detect_folders = [ ];
         };
         character = {
           success_symbol = "[%]()";
