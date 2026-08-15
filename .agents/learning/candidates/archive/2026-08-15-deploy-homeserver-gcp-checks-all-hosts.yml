@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-08-15-deploy-homeserver-gcp-checks-all-hosts
+date: 2026-08-15
+expires: 2027-02-15
+status: promoted
+
+route: promote-doc
+best_form: doc
+
+evidence: [pr-#394, pr-#395, run-31832144795]
+observation: The "Deploy homeserver-gcp" workflow's validate step (deploy-rs cross-host activation check) builds every host's closure, not just homeserver-gcp's; a break confined to an unrelated host (mac's moonlight-qt, nixpkgs ffmpeg 9.0 dropping AVCodec.pix_fmts) failed that check and looked like a homeserver-gcp deploy problem after the weekly flake-lock bump (PR #394), even though merge-gate on #394 itself passed clean.
+proposed_upgrade: Add a note to docs/operations.md or hosts/homeserver-gcp/CLAUDE.md that a "Deploy homeserver-gcp" CI failure after a flake.lock bump can originate from any host's closure — read the failing derivation name in the run log before assuming it is homeserver-gcp-specific.
+
+dedupe_key: ci:deploy-homeserver-gcp-cross-host-validate
+triggers: [Deploy homeserver-gcp workflow failure, flake.lock weekly update, deploy-rs check-activate]
+targets: [docs/operations.md, hosts/homeserver-gcp/CLAUDE.md]
