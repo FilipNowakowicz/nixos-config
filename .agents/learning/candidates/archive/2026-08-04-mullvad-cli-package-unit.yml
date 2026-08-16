@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-08-04-mullvad-cli-package-unit
 date: 2026-08-04
 expires: 2027-02-04
-status: open
+status: promoted
 route: implement-fix
 best_form: test
 evidence: [hosts/main/networking.nix:169,hosts/main/anonymous.nix:159,systemctl-mullvad-lockdown-exit-127]
