@@ -307,7 +307,7 @@ in
         gcc
         yt-dlp
         ffmpeg
-        gemini-cli
+        antigravity-cli
         grok-cli
         opencode
         opencode-claude-auth
