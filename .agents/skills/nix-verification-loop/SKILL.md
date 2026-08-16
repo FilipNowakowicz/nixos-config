@@ -118,6 +118,18 @@ path/to/script.py`) for quick iteration without a full rebuild.
   another ShellCheck-clean construction) and interpolate that variable. Run
   `nix fmt -- --fail-on-change` and ShellCheck together (not just one) before
   pushing a shell-script change to confirm both pass.
+- **Don't `git checkout`/`git worktree` the working tree while a backgrounded
+  `validate.sh` build is still running against it.** A dirty flake tree is
+  evaluated straight from the working directory (no fixed commit), and `nix
+build` re-reads sources lazily as it evaluates each derivation — switching
+  branches mid-run feeds it a moving target. Hit this twice in one session:
+  once when a foreground `validate.sh light` silently auto-backgrounded on
+  timeout and a branch switch followed before noticing, and once by starting a
+  background run and immediately branching for unrelated work. Both had to be
+  killed and rerun. Wait for the background build to finish (poll with
+  `TaskOutput`/check the process, don't just assume) before checking out a
+  different branch in the same working tree, or use a separate worktree
+  (`EnterWorktree`/`git worktree add`) for the unrelated work instead.
 - **Dry-run the real binary against candidate config before a config-schema
   migration.** For a service config-schema bump (e.g. the Tempo 2.x->3.x
   rewrite in `modules/nixos/profiles/observability/backends.nix`, PR #335),
