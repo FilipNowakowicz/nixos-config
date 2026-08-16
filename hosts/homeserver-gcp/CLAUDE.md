@@ -89,6 +89,17 @@ failed-unit checks. It does not automate `main` workstation rollout.
 
 ## Gotchas
 
+- **A "Deploy homeserver-gcp" CI failure can originate from any host, not just
+  this one** — the workflow's `validate` job runs `scripts/validate.sh flake-eval`
+  and `light`, and `flake/dev.nix`'s `checks` output is
+  `deploy-rs.lib.${system}.deployChecks { nodes = ciDeployNodes; }`, which
+  builds an activation check for _every_ deploy-rs node (`mac`,
+  `gcp-builder`, …), not only `homeserver-gcp`. A break confined to an
+  unrelated host — e.g. mac's `moonlight-qt` breaking on a `flake.lock` bump
+  that dropped `AVCodec.pix_fmts` (PR #395, surfaced by the weekly update in
+  PR #394) — fails this workflow even though `merge-gate` on the same PR
+  passed clean. Read the failing derivation name in the run log before
+  assuming the break is homeserver-gcp-specific.
 - **sops fails on first boot if the host key was not copied into the installed root** — Tailscale won't join, SSH won't work over Tailscale. Recover via GCE serial console or `gcloud compute ssh` (project SSH keys bypass tailnet-only firewall during recovery), then install the encrypted repo key at `/etc/ssh/ssh_host_ed25519_key` and redeploy.
 - **TLS cert is not ACME** — `tailscale-cert.service` fetches it via `tailscale cert`; nginx
   depends on that service via `requires=` so it doesn't start without a cert. A daily
