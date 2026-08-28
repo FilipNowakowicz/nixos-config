@@ -394,6 +394,24 @@ favour of the (strictly superior, gating, off-host) CI scan.
      hasn't picked up a fix yet), the tracking issue from step 3 is the
      mechanism — no separate ledger.
 
+### flake-update eval-failure triage
+
+When a weekly `flake-update` PR fails `eval` (or another gate) after a
+`flake.lock` bump, check for a self-documenting expiry condition before
+digging into the failure from scratch:
+
+```bash
+grep -rni "drop this\|once upstream\|drop once" --include="*.nix" .
+```
+
+An override written to work around an upstream bug often names the exact
+upstream commit that will obsolete it (e.g. `home/users/user/mac.nix`'s
+`moonlight-qt.override { ffmpeg = ffmpeg_8; }`, which names the nixpkgs commit
+that later restored default `ffmpeg` compatibility). A nixpkgs bump landing
+that commit is the exact trigger that can flip the override's argument
+signature and break eval — the comment is the fix, or at least the fastest
+path to it, before treating the failure as a fresh investigation.
+
 Rules of thumb:
 
 - Shared flake, library, or global module changes: run `light` and affected host builds; use `hosts` when impact is broad.

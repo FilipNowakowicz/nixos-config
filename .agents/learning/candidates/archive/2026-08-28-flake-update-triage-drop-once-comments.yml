@@ -1,0 +1,12 @@
+schema: learning-candidate/v1
+id: 2026-08-28-flake-update-triage-drop-once-comments
+date: 2026-08-28
+expires: 2027-02-28
+status: promoted
+
+route: promote-doc
+best_form: doc
+
+evidence: [pr-#401, https://github.com/FilipNowakowicz/nixos-config/actions/runs/32514125731/job/96871888350, sha-b91a9b5-on-automated/flake-update]
+observation: weekly flake-update PR #401 eval failed for ~7 days on a stale local override (moonlight-qt.override { ffmpeg = ffmpeg_8; } in home/users/user/mac.nix); the override's own comment named the exact upstream nixpkgs commit that would obsolete it, and the PR's nixpkgs bump landed that commit, changing moonlight-qt's package.nix signature and breaking eval with "unexpected argument ffmpeg"
+proposed_upgrade: when triaging a flake-update PR eval failure, first grep the repo for "drop this" / "once upstream" / "drop once" style comments on package overrides before deeper investigation - these are self-documenting expiry conditions that a nixpkgs bump is the exact trigger for; consider a doc note in the flake-update runbook or a lint that flags such comments approaching their referenced commit landing
