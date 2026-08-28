@@ -140,3 +140,15 @@ build` re-reads sources lazily as it evaluates each derivation — switching
   authoritative than docs or a full closure build — it disproved a stale
   assumed requirement (Kafka for monolithic `target=all`) that the upstream
   docs/issue text got wrong.
+- **An anonymous `evaluation warning:` (from `lib.warn`) carries no file/line,
+  unlike `meta.problems.removal` warnings — and `--show-trace` doesn't attach
+  a stack to it either.** To find the actual call site: copy the suspect flake
+  input's source to a writable dir, edit the specific `lib.warn "<msg>" value`
+  call to `throw "<msg>"`, then rerun `nix build --dry-run --no-eval-cache
+--show-trace --override-input <input> path:<patched-copy>` — the resulting
+  error carries a full call-stack trace pinpointing the offending
+  `package.nix` line. Do this before concluding an unattributed warning is
+  unfixable upstream noise; confirm the flake input is already pinned at its
+  latest revision as the last step, not the first (see PR #400, where this
+  traced a `stdenv.isLinux`/`isDarwin` deprecation warning to
+  `oxalica/rust-overlay`'s `lib/mk-aggregated.nix` via the `lanzaboote` input).

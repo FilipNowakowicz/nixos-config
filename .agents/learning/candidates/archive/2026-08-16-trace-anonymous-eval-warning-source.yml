@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-08-16-trace-anonymous-eval-warning-source
+date: 2026-08-16
+expires: 2027-02-16
+status: promoted
+
+route: promote-skill
+best_form: doc
+
+evidence: [pr-#400]
+observation: An `evaluation warning:` from `lib.warn` (e.g. "stdenv.isLinux is deprecated, use stdenv.hostPlatform.isLinux instead") carries no file/line, unlike `meta.problems.removal` warnings which do. `--show-trace` does not attach a stack to `builtins.trace`-based warnings either. Located the two call sites (oxalica/rust-overlay's lib/mk-aggregated.nix:76,85, pulled in via lanzaboote -> rust-overlay) by copying the flake input's source to a writable dir, editing the specific `lib.warn "<msg>" value` call to `throw "<msg>"`, then rerunning `nix build --dry-run --no-eval-cache --show-trace --override-input <input> path:<patched-copy>` — the resulting error carries a full call-stack trace pinpointing the offending package.nix line. Confirmed both flake inputs (lanzaboote, rust-overlay) were already pinned at their latest available revisions, so the warning is unfixable from this repo and just upstream noise.
+proposed_upgrade: Add this throw-instrumented-local-copy-plus-show-trace technique to nix-verification-loop (or a new small skill/doc note) as the standard way to locate the source of an anonymous nixpkgs/flake-input `evaluation warning:` before concluding it's unfixable noise.
+
+dedupe_key: nix:trace-anonymous-lib-warn-source
+triggers: [evaluation warning: with no file/line, stdenv.isLinux is deprecated, stdenv.isDarwin is deprecated, rebuild warning cleanup]
+targets: [.claude/skills/nix-verification-loop/SKILL.md]
