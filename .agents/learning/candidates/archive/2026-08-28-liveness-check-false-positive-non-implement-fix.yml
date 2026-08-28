@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-08-28-liveness-check-false-positive-non-implement-fix
+date: 2026-08-28
+expires: 2027-02-28
+status: promoted
+
+route: promote-skill
+best_form: doc
+
+evidence: [pr-#400, pr-#402, .agents/learning/scripts/check-candidate-liveness.sh]
+observation: check-candidate-liveness.sh reported 2026-08-16-trace-anonymous-eval-warning-source as "LIKELY RESOLVED" because its evidence PR #400 merged, but #400's actual diff only swapped gemini-cli->antigravity-cli; the candidate's proposed_upgrade (document the throw-instrumented-local-copy tracing technique in nix-verification-loop's SKILL.md) was merely narrated in #400's commit body, never written into the skill file. review-learning-candidates's own guardrail about this gap ("LIKELY RESOLVED only proves the evidence commits landed...") is written and exemplified only for the implement-fix route; this session hit the identical false-positive shape on a promote-skill route candidate, which the skill text doesn't explicitly call out.
+proposed_upgrade: broaden review-learning-candidates SKILL.md's existing LIKELY-RESOLVED guardrail note to say the verify-before-superseding step applies to every route (promote-skill/promote-doc/promote-hook included), not just implement-fix - for promote-* routes, check that the target file (from `targets:`) actually contains the proposed content, not just that the evidence PR merged.
+
+dedupe_key: learning:liveness-check-scope-not-just-implement-fix
+targets: [.agents/skills/review-learning-candidates/SKILL.md]

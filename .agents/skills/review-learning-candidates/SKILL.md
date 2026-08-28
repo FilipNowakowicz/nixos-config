@@ -58,16 +58,24 @@ targets. Treat an `implement-fix` candidate as "is a fix still needed?", never
 as "a fix is owed" — the fix is often already in tree.
 
 **LIKELY RESOLVED only proves the evidence commits landed, not that the
-candidate's `proposed_upgrade` was fully realized.** A commit can patch the
-reported symptom while leaving a described structural/systemic fix (e.g. "stop
-duplicating this list — derive it from one source") undone. For any
-`implement-fix` candidate whose `proposed_upgrade` asks for something beyond a
-value/config fix, diff the current code against that specific ask before
-marking `superseded` — don't rely on the verdict alone. (Caught live on
+candidate's `proposed_upgrade` was fully realized — this applies to every
+route, not just `implement-fix`.** A commit can patch the reported symptom
+while leaving a described structural/systemic fix (e.g. "stop duplicating this
+list — derive it from one source") undone, or can simply narrate an
+observation in its commit message without ever writing the doc/skill update
+the candidate actually asked for. For any candidate whose `proposed_upgrade`
+asks for something beyond a value/config fix, diff the current code — or, for
+`promote-skill`/`promote-doc`/`promote-hook` routes, `grep` the file(s) in
+`targets:` for the actual proposed content — against that specific ask before
+marking `superseded`; don't rely on the verdict alone. (Caught live on
 `2026-07-24-backup-policy-invariant-drift`: the evidence commits had already
 fixed the missing `--group-by host`, but `flake/checks.nix` still hand-duplicated
 `backup.nix`'s prune-policy list instead of sharing one source, exactly what the
-candidate asked to fix.)
+candidate asked to fix. Caught again on `2026-08-16-trace-anonymous-eval-warning-source`,
+a `promote-skill` candidate: its evidence PR #400 merged, but the diff was an
+unrelated package swap — the commit body only narrated the tracing technique,
+`nix-verification-loop/SKILL.md` never got it, so the candidate still needed
+promoting.)
 
 For everything that still needs action:
 
