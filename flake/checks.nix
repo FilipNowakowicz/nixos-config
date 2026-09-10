@@ -714,6 +714,38 @@ let
     ) sopsBootstrapHostNames
   );
 
+  # `sipLegacyAbiOverlay` in flake.nix patches SIP 6.16.1 so PyQt5's legacy-ABI
+  # bindings keep generating (Python-SIP/sip#114). It is a temporary carry of
+  # nixpkgs commit 60e5dfae until that reaches nixos-unstable. Fail loudly once
+  # the pinned nixpkgs no longer needs it, so the workaround does not outlive
+  # its cause or double-apply the same patch. Reading the expression as text
+  # keeps this eval-only instead of importing a second nixpkgs.
+  sipLegacyAbiOverlayStillNeeded =
+    let
+      sipExpr = builtins.readFile "${nixpkgs}/pkgs/development/python-modules/sip/default.nix";
+      stillUnpatched = !(lib.hasInfix "fetchpatch" sipExpr);
+      stillSameVersion = lib.hasInfix ''version = "6.16.1";'' sipExpr;
+      reasons = lib.filter (msg: msg != "") [
+        (lib.optionalString (
+          !stillUnpatched
+        ) "nixpkgs' sip expression now carries its own patches (the 60e5dfae backport landed)")
+        (lib.optionalString (
+          !stillSameVersion
+        ) "nixpkgs' sip is no longer 6.16.1, so the 6.16.1-specific regression patch may not apply")
+      ];
+    in
+    if reasons == [ ] then
+      pkgs.runCommand "sip-legacy-abi-overlay-still-needed" { } "touch $out"
+    else
+      pkgs.runCommand "sip-legacy-abi-overlay-still-needed" { } ''
+        cat >&2 <<'EOF'
+        sipLegacyAbiOverlay in flake.nix is now stale and must be removed:
+          ${lib.concatStringsSep "\n  " reasons}
+        Drop the overlay (and this check) instead of stacking a second fix.
+        EOF
+        exit 1
+      '';
+
   registrySecurityInvariants = [
     {
       name = "SOPS recipients match active host registry";
@@ -745,6 +777,7 @@ in
     services-hardened-example-fixture = servicesHardenedExampleFixture;
     profiles-base-standalone-fixture = profilesBaseStandaloneFixture;
     mini-fleet-example-fixture = miniFleetExampleFixture;
+    sip-legacy-abi-overlay-still-needed = sipLegacyAbiOverlayStillNeeded;
   }
   // generatedInvariantChecks
   // generatedSopsBootstrapChecks;

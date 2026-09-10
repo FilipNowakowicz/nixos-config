@@ -108,6 +108,40 @@
           });
         };
 
+      # SIP 6.16.1 made `%MinimumABIVersion` mandatory: a binding that targets a
+      # legacy ABI (major <= 13) without declaring the directive is now rejected
+      # outright. PyQt5 5.15.10 asks for ABI 12.13 in its `project.py` but ships
+      # no `%MinimumABIVersion` in any of its module specs, so every PyQt5
+      # module fails to generate with "ABI v12 is being targeted but the
+      # PyQt5.QtCore module doesn't support it". That breaks `main` through
+      # texlive's Asymptote, which is why CI's `main-ci` variant
+      # (`skipHeavyPackages = true`) stays green.
+      #
+      # Upstream SIP fixed the regression in 09598895 (Python-SIP/sip#114) and
+      # nixpkgs backported it in 60e5dfae, but that has not reached the
+      # nixos-unstable channel yet. Patching SIP rather than PyQt5 keeps us on
+      # the upstream fix and covers every legacy-ABI consumer (poppler-qt5,
+      # qgis, ...) instead of just the module the error happened to name.
+      #
+      # Remove this overlay once `flake.lock` advances past nixpkgs 60e5dfae;
+      # `checks.sip-legacy-abi-overlay-still-needed` fails when it becomes
+      # redundant.
+      sipLegacyAbiOverlay = final: prev: {
+        pythonPackagesExtensions = (prev.pythonPackagesExtensions or [ ]) ++ [
+          (_: pyPrev: {
+            sip = pyPrev.sip.overrideAttrs (old: {
+              patches = (old.patches or [ ]) ++ [
+                (final.fetchpatch {
+                  name = "sip-legacy-abi-minimumabiversion.patch";
+                  url = "https://github.com/Python-SIP/sip/commit/09598895c607f3e41f0249ade217ace0a4da6437.patch";
+                  hash = "sha256-v0YeHyg0ymB0v32gpVRbMBIUk9U2etjs93VuOGPGg2M=";
+                })
+              ];
+            });
+          })
+        ];
+      };
+
       hostRegistry = import ./lib/hosts.nix;
 
       inherit (nixpkgs) lib;
@@ -117,6 +151,7 @@
         overlays = [
           lazyactionsOverlay
           libfprintGoodixOverlay
+          sipLegacyAbiOverlay
         ];
       };
       inherit (pkgsHelper) mkPkgs overlays;
