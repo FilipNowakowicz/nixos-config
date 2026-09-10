@@ -121,10 +121,10 @@ in
       ];
     };
 
-    journald.extraConfig = ''
-      ForwardToConsole=yes
-      MaxLevelConsole=info
-    '';
+    journald.settings.Journal = {
+      ForwardToConsole = true;
+      MaxLevelConsole = "info";
+    };
   };
 
   systemd = {
