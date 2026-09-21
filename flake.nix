@@ -145,6 +145,7 @@
       inherit (hostOutputs)
         allNixosConfigs
         ciNixosConfigs
+        deployCheckNixosConfigs
         homeConfigurations
         ;
 
@@ -154,7 +155,7 @@
           lib
           hostRegistry
           allNixosConfigs
-          ciNixosConfigs
+          deployCheckNixosConfigs
           ;
       };
 

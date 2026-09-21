@@ -122,9 +122,16 @@ let
     };
   };
 
+  # deploy-rs' activation check builds every profile path before checking the
+  # generated activation scripts. Keep that blocking check bounded by using a
+  # lean mac closure; the real deploy output below still uses allNixosConfigs.
+  deployCheckNixosConfigs = ciNixosConfigs // {
+    mac = mkNixos "mac" { skipHeavyPackages = true; };
+  };
+
 in
 {
-  inherit allNixosConfigs ciNixosConfigs;
+  inherit allNixosConfigs ciNixosConfigs deployCheckNixosConfigs;
 
   homeConfigurations = {
     user = home-manager.lib.homeManagerConfiguration {
