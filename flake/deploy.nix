@@ -3,7 +3,7 @@
   lib,
   hostRegistry,
   allNixosConfigs,
-  ciNixosConfigs,
+  deployCheckNixosConfigs,
 }:
 let
   deployableHosts = lib.filterAttrs (_: cfg: cfg ? deploy) hostRegistry;
@@ -49,7 +49,7 @@ let
 
   allDeployNodes = mkDeployNodes allNixosConfigs;
 
-  ciDeployNodes = mkDeployNodes ciNixosConfigs;
+  ciDeployNodes = mkDeployNodes deployCheckNixosConfigs;
 in
 {
   inherit allDeployNodes ciDeployNodes;
