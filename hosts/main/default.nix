@@ -546,9 +546,10 @@ in
       # ID: 046d:c54d
       allow id 046d:c54d serial "3081376B3335" name "USB Receiver" with-interface equals { 03:01:02 03:01:01 03:00:00 }
 
-      # Allow Huawei EarPods (USB-C headphones) — audio interfaces only
+      # Allow Huawei EarPods (USB-C headphones) — exact interface set only:
+      # audio control + 4 audio streaming + HID for the inline remote buttons.
       # ID: 12d1:3a06
-      allow id 12d1:3a06 with-interface equals { 01:*:* }
+      allow id 12d1:3a06 name "EarPods" with-interface equals { 01:01:00 01:02:00 01:02:00 01:02:00 01:02:00 03:00:00 }
 
       # Allow Intel CNVi Bluetooth (internal, Comet Lake AX201)
       # ID: 8087:0026
