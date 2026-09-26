@@ -1,0 +1,13 @@
+schema: learning-candidate/v1
+id: 2026-09-26-hyprland-exec-once-daemon-stale
+date: 2026-09-26
+expires: 2027-03-26
+status: open
+route: implement-fix
+best_form: test
+evidence: [home/files/hypr/hyprland.conf exec-once swayosd-server (pre-fix), running swayosd-server 0.3.1 vs client 0.3.2 on PATH, no swayosd layer in hyprctl layers until restart]
+observation: long-lived daemons started via Hyprland exec-once survive rebuilds; after a package bump the stale server silently ignores the new client (swayosd OSD vanished, client rc=0)
+proposed_upgrade: add a lib/tests check that rejects exec-once lines in home/files/hypr/hyprland.conf for daemons with an HM services.* module or systemd unit (allowlist oneshots like dbus-update-activation-environment)
+type: workflow-gotcha
+dedupe_key: hyprland:exec-once-daemon-stale-after-rebuild
+targets: [home/files/hypr/hyprland.conf, home/users/user/home.nix]

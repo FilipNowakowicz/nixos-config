@@ -23,7 +23,6 @@ in
         hyprlock
         brightnessctl
         cliphist
-        swayosd
         wlsunset
 
         # ── Desktop UX ─────────────────────────────────────────────────────────
