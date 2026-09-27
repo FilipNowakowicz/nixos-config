@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-09-27-scheduled-workflow-silent-failure
+date: 2026-09-27
+expires: 2027-03-27
+status: open
+route: implement-fix
+best_form: ci-gate
+evidence: [Tailscale ACL drift workflow failed daily 2026-08-06..2026-09-27 (run 36316718083); last success 2026-08-06 = TAILSCALE_API_KEY set 2026-05-08 + 90d expiry; scripts/check-tailscale-acl-drift.sh curl -sf exit 22 with no message]
+observation: expired API key made a scheduled check fail silently for 7 weeks; curl -sf hides HTTP status so failure looks like a generic exit 22
+proposed_upgrade: have scheduled workflows open/update a GitHub issue on failure, and make the drift script print the HTTP status with a 401/403 hint about key expiry (or switch to a non-expiring Tailscale OAuth client)
+agent: claude
+type: repo-fix
+dedupe_key: ci:scheduled-workflow-silent-failure
+targets: [.github/workflows/tailscale-acl-drift.yml, scripts/check-tailscale-acl-drift.sh]
