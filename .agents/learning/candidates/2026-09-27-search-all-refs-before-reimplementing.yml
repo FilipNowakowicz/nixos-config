@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-09-27-search-all-refs-before-reimplementing
+date: 2026-09-27
+expires: 2027-03-27
+status: open
+route: promote-skill
+best_form: skill
+evidence: [user correction 2026-09-27; GSP fix bfe099e lived only on local fix/swayosd-codex-earpods while HEAD was another branch; agent re-implemented it as a duplicate branch; landed via #411]
+observation: a live/booted main generation can come from a sibling local branch; absence of a change in the current tree does not mean it was uncommitted
+proposed_upgrade: in issue-driven-development / handoff flows, run `git log --all --oneline -S <token>` and check git reflog before re-implementing or declaring work lost
+agent: claude
+type: workflow-gotcha
+dedupe_key: git:search-all-refs-before-reimplementing
+triggers: [resuming another agent's work, booted system differs from tree]
