@@ -104,7 +104,7 @@ in
 
   system.stateVersion = "24.11";
 
-  # time.timeZone = "Europe/London"; # switch back when back in London
+  time.timeZone = "Europe/London";
 
   profiles = {
     # deploy-rs passes store settings for remote builds; trust the local admin
