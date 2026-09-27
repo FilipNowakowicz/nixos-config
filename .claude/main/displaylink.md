@@ -70,7 +70,7 @@ Connect the dock **before** logging into Hyprland (DisplayLink hotplug into a
 running aquamarine session is unreliable — see below).
 
 ```bash
-systemctl status dlm                 # DisplayLinkManager should be active
+systemctl status dlm                 # active once udev sees the dock (not at boot)
 ls -l /dev/dri/displaylink           # evdi symlink present once a sink is created
 hyprctl monitors all                 # the DisplayLink output should be listed
 ```
