@@ -12,14 +12,6 @@
 # rather than rendered from the `&user` sops template.
 { pkgs, lib, ... }:
 let
-  codexLatest = pkgs.writeShellApplication {
-    name = "codex";
-    runtimeInputs = [ pkgs.nodejs ];
-    text = ''
-      exec npm exec --yes --package @openai/codex@latest -- codex --dangerously-bypass-approvals-and-sandbox "$@"
-    '';
-  };
-
   claudeLatest = pkgs.writeShellApplication {
     name = "claude";
     runtimeInputs = [ pkgs.nodejs ];
@@ -32,7 +24,10 @@ let
   };
 in
 {
-  imports = [ ./common.nix ];
+  imports = [
+    ./common.nix
+    ./codex.nix
+  ];
 
   # common.nix signs commits with the personal SSH key, which this host never
   # receives (no `&user` key material on an autonomous box — see header).
@@ -60,7 +55,6 @@ in
   home.packages = [
     pkgs.gh
     pkgs.nodejs
-    codexLatest
     claudeLatest
   ];
 }

@@ -114,14 +114,6 @@ let
     '';
   };
 
-  codexLatest = pkgs.writeShellApplication {
-    name = "codex";
-    runtimeInputs = [ pkgs.nodejs ];
-    text = ''
-      exec npm exec --yes --package @openai/codex@latest -- codex --dangerously-bypass-approvals-and-sandbox "$@"
-    '';
-  };
-
   claudeLatest = pkgs.writeShellApplication {
     name = "claude";
     runtimeInputs = [ pkgs.nodejs ];
@@ -279,7 +271,6 @@ in
       })
 
       batteryNotify
-      codexLatest
       claudeLatest
       launcher
       lazyactions
@@ -318,6 +309,7 @@ in
 
   imports = [
     ./common.nix
+    ./codex.nix
     ./secrets.nix
     ../../profiles/workflow-packs
     ../../theme/module.nix
@@ -407,6 +399,14 @@ in
     # a rebuild. Do not manage mako config here to avoid conflicts.
     mako.enable = true;
 
+    # ── SwayOSD ────────────────────────────────────────────────────────────
+    # Volume/brightness OSD for the media-key binds in hyprland.conf. Runs as
+    # a Home Manager user service rather than a Hyprland `exec-once`: a
+    # long-lived exec-once server survives rebuilds, so after a swayosd bump
+    # the stale server silently ignored the new swayosd-client and no popup
+    # appeared. As a unit it is restarted on switch and on any crash.
+    swayosd.enable = true;
+
     # ── Hypridle ───────────────────────────────────────────────────────────
     # Hyprland-native idle daemon. Single source of truth for desktop idle
     # behavior: lock at 5 minutes, screen off at 5:30, suspend at 15 minutes.
@@ -441,6 +441,16 @@ in
   };
 
   systemd.user.services = {
+    # Bind to the same session target as the other desktop units (the HM
+    # module defaults to wayland.systemd.target).
+    swayosd = {
+      Unit = {
+        After = lib.mkForce [ "nixos-fake-graphical-session.target" ];
+        PartOf = lib.mkForce [ "nixos-fake-graphical-session.target" ];
+      };
+      Install.WantedBy = lib.mkForce [ "nixos-fake-graphical-session.target" ];
+    };
+
     battery-notify = {
       Unit = {
         Description = "Battery low notification check";
