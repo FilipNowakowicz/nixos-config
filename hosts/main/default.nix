@@ -92,6 +92,14 @@ in
       powerOnBoot = true;
     };
     acpilight.enable = true;
+    # The Turing GTX 1650 Ti stays awake with GSP enabled despite fine-grained
+    # runtime PM. Use the proprietary driver's non-GSP path for idle power-off.
+    # gsp.enable controls firmware inclusion; the module parameter selects the
+    # driver mode. Both take effect after reboot, not a live system switch.
+    nvidia = {
+      gsp.enable = false;
+      moduleParams.nvidia.NVreg_EnableGpuFirmware = 0;
+    };
   };
 
   system.stateVersion = "24.11";
