@@ -42,10 +42,10 @@ in
       "modesetting"
     ];
 
-    # Upstream defines `dlm` with no `wantedBy`, expecting an X11 display-manager
-    # to pull it in. We run greetd + Hyprland (no display-manager.service), so
-    # start DisplayLinkManager explicitly or no frames ever leave the daemon.
-    systemd.services.dlm.wantedBy = [ "multi-user.target" ];
+    # No `wantedBy` for `dlm`: the upstream package's udev rule starts it via
+    # SYSTEMD_WANTS when a DisplayLink interface (VID 17e9) appears, including
+    # at coldplug and after USBGuard authorizes the dock. Starting it at boot
+    # kept DisplayLinkManager polling (~2% of a core) with no dock attached.
 
     # Stable, colon-free symlink for the evdi virtual card (same pattern as the
     # intel-igpu rule in nvidia-prime.nix) so AQ_DRM_DEVICES doesn't depend on

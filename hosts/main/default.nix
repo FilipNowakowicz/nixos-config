@@ -244,6 +244,12 @@ in
       "intel_iommu=on"
       "iommu=force"
       "mem_sleep_default=deep"
+      # This Yoga 9 15IMH5 exposes DYTC v4, which ideapad_laptop gates behind an
+      # opt-in ("DYTC_VERSION 4 support may not work"). Without it there is no
+      # ACPI platform_profile, so power-profiles-daemon only tunes intel_pstate
+      # EPP and never switches the EC's intelligent-cooling mode (fan curve and
+      # PL1/PL2). Opting in lets power-saver/balanced/performance reach firmware.
+      "ideapad_laptop.allow_v4_dytc=Y"
     ];
     blacklistedKernelModules = [ "btusb" ];
 
