@@ -1,7 +1,19 @@
-{ config, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   mesaEglVendor = "${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json";
-  intelVulkanIcds = "${pkgs.mesa}/share/vulkan/icd.d/intel_icd.x86_64.json:${pkgs.mesa}/share/vulkan/icd.d/intel_hasvk_icd.x86_64.json";
+  # The i686 ICDs let 32-bit Vulkan clients (e.g. Wine/DXVK) reach the iGPU;
+  # the loader skips entries whose architecture doesn't match the process.
+  intelVulkanIcds = lib.concatStringsSep ":" [
+    "${pkgs.mesa}/share/vulkan/icd.d/intel_icd.x86_64.json"
+    "${pkgs.mesa}/share/vulkan/icd.d/intel_hasvk_icd.x86_64.json"
+    "${pkgs.pkgsi686Linux.mesa}/share/vulkan/icd.d/intel_icd.i686.json"
+    "${pkgs.pkgsi686Linux.mesa}/share/vulkan/icd.d/intel_hasvk_icd.i686.json"
+  ];
 in
 {
   # ── Graphics ────────────────────────────────────────────────────────────────
@@ -14,6 +26,9 @@ in
     # Needed for both Intel (Mesa) and NVIDIA (VA-API consumers, Hyprland, etc.)
     graphics = {
       enable = true;
+      # 32-bit Mesa/NVIDIA userspace for Wine clients (Bottles); without it
+      # 32-bit apps fall back to software rendering.
+      enable32Bit = true;
       extraPackages = with pkgs; [
         # Firefox's VA-API self-test fails unless the Intel media driver is exposed
         # via /run/opengl-driver/lib/dri alongside the Mesa/NVIDIA stack.
