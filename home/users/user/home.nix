@@ -184,6 +184,16 @@ in
         text = builtins.readFile ../../files/scripts/hypr-display-mode.sh;
       })
 
+      (writeShellApplication {
+        name = "hypr-layout-cycle";
+        runtimeInputs = with pkgs; [
+          gnused
+          hyprland
+          libnotify
+        ];
+        text = builtins.readFile ../../files/scripts/hypr-layout-cycle.sh;
+      })
+
       waybarAnchor
 
       controlCenter
