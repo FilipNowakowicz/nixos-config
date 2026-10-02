@@ -1185,7 +1185,10 @@ EOF
   [[ $(parse_session_result "$tmp/missing.log") == null ]] ||
     die "self-test: expected null result for a missing log"
 
-  AGENT_INNER_TIMEOUT_SECONDS=2
+  # Leave headroom between heartbeat and timeout: elapsed is whole-second
+  # `date +%s`, so on a loaded runner one `sleep 1` iteration can jump two
+  # seconds and a 2s timeout would fire before any heartbeat.
+  AGENT_INNER_TIMEOUT_SECONDS=4
   AGENT_HEARTBEAT_SECONDS=1
   AGENT_INNER_KILL_GRACE_SECONDS=1
   set +e
