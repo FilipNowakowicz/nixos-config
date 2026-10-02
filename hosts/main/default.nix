@@ -252,6 +252,11 @@ in
       "ideapad_laptop.allow_v4_dytc=Y"
     ];
     blacklistedKernelModules = [ "btusb" ];
+    # NT sync primitives in the kernel. Wine >= 10 uses /dev/ntsync (created
+    # 0666 by the driver) when it exists, replacing wineserver round trips for
+    # every wait/event/mutex (the PokerStars bottle's wineserver sat at ~40%
+    # CPU without it).
+    kernelModules = [ "ntsync" ];
 
     initrd = {
       # Systemd in initrd (required for initrd SSH)
