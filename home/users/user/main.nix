@@ -4,6 +4,7 @@
 
   home.packages = with pkgs; [
     input-leap
+    modrinth-app
   ];
 
   programs.zsh.shellAliases = {
