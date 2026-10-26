@@ -1,4 +1,9 @@
-{ config, lib, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 # ── DisplayLink (USB display-over-protocol) ──────────────────────────────────
 #
 # DisplayLink is NOT a real DRM connector. The dock renders nothing itself: the
@@ -34,6 +39,27 @@ let
 in
 {
   config = lib.mkIf enable {
+    # Work around nixpkgs#575192: copying evdi.ko directly skips Kbuild's
+    # certificate generation, so the kernel module aggregator fails. Remove
+    # this override once upstream evdi installs through modules_install.
+    boot.kernelPackages = lib.mkDefault (
+      pkgs.linuxPackages.extend (
+        _: previous: {
+          evdi = previous.evdi.overrideAttrs (old: {
+            installPhase = ''
+              runHook preInstall
+              make -C ${config.boot.kernelPackages.kernel.dev}/lib/modules/${config.boot.kernelPackages.kernel.modDirVersion}/build \
+                ${lib.escapeShellArgs (lib.filter (flag: flag != "module") old.makeFlags)} M="$PWD/module" \
+                INSTALL_MOD_PATH="$out" INSTALL_MOD_DIR=kernel/drivers/gpu/drm/evdi \
+                DEPMOD=true modules_install
+              install -Dm755 library/libevdi.so "$out/lib/libevdi.so"
+              runHook postInstall
+            '';
+          });
+        }
+      )
+    );
+
     # videoDrivers is a merging list; this appends to nvidia-prime's [ "nvidia" ]
     # rather than replacing it. "displaylink" is the activation key for the
     # upstream module above; "modesetting" backs the evdi output.
