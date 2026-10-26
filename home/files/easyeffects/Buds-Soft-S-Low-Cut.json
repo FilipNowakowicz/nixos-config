@@ -1,0 +1,111 @@
+{
+  "input": {
+    "blocklist": [],
+    "plugins_order": ["filter#0", "equalizer#0", "compressor#0", "deesser#0"],
+    "equalizer#0": {
+      "bypass": false,
+      "input-gain": -1,
+      "output-gain": 0,
+      "mode": "IIR",
+      "decramp": "Off",
+      "num-bands": 2,
+      "split-channels": false,
+      "balance": 0,
+      "pitch-left": 0,
+      "pitch-right": 0,
+      "left": {
+        "band0": {
+          "type": "Bell",
+          "mode": "RLC (BT)",
+          "slope": "x1",
+          "solo": false,
+          "mute": false,
+          "gain": 0,
+          "frequency": 200,
+          "q": 0.8,
+          "width": 4
+        },
+        "band1": {
+          "type": "Bell",
+          "mode": "RLC (BT)",
+          "slope": "x1",
+          "solo": false,
+          "mute": false,
+          "gain": -2,
+          "frequency": 3000,
+          "q": 0.8,
+          "width": 4
+        }
+      },
+      "right": {
+        "band0": {
+          "type": "Bell",
+          "mode": "RLC (BT)",
+          "slope": "x1",
+          "solo": false,
+          "mute": false,
+          "gain": 0,
+          "frequency": 200,
+          "q": 0.8,
+          "width": 4
+        },
+        "band1": {
+          "type": "Bell",
+          "mode": "RLC (BT)",
+          "slope": "x1",
+          "solo": false,
+          "mute": false,
+          "gain": -2,
+          "frequency": 3000,
+          "q": 0.8,
+          "width": 4
+        }
+      }
+    },
+    "compressor#0": {
+      "bypass": false,
+      "input-gain": 0,
+      "output-gain": 0,
+      "mode": "Downward",
+      "attack": 20,
+      "release": 150,
+      "threshold": -24,
+      "ratio": 2,
+      "knee": -6,
+      "makeup": 1,
+      "sidechain": {}
+    },
+    "deesser#0": {
+      "bypass": false,
+      "input-gain": 0,
+      "output-gain": 0,
+      "detection": "RMS",
+      "mode": "Split",
+      "threshold": -30,
+      "ratio": 3,
+      "laxity": 15,
+      "makeup": 0,
+      "f1-freq": 4000,
+      "f2-freq": 4500,
+      "f1-level": 0,
+      "f2-level": 12,
+      "f2-q": 1,
+      "sc-listen": false
+    },
+    "filter#0": {
+      "bypass": false,
+      "input-gain": 0,
+      "output-gain": 0,
+      "type": "High-pass",
+      "mode": "RLC (BT)",
+      "equal-mode": "IIR",
+      "slope": "x1",
+      "frequency": 75,
+      "quality": 0.70710678,
+      "gain": 0,
+      "balance": 0,
+      "width": 4,
+      "decramp": "Off"
+    }
+  }
+}
