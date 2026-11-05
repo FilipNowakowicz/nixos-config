@@ -18,5 +18,10 @@ pkgs.runCommand "control-center-capabilities-tests"
   ''
     python3 ${./control-center-capabilities.py} \
       ${../../packages/control-center/src/control_center/capabilities.py}
+    python3 ${./desktop-shell-state.py} \
+      ${../../packages/control-center/src/control_center} \
+      ${../../home/files/scripts/launcher.py}
+    python3 ${./control-center-settings.py} \
+      ${../../packages/control-center/src/control_center/settings.py}
     touch $out
   ''

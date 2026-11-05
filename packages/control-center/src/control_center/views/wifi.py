@@ -6,7 +6,6 @@ from ..actions import (
     act_connect_wifi,
     act_open_hidden_wifi,
     act_open_network_settings,
-    act_set_wifi_radio,
     act_wifi_rescan,
 )
 from ..constants import G
@@ -23,10 +22,8 @@ class WifiViewMixin:
                 "wifi.enabled", self.state["wifi"]["enabled"],
             )
             target = not current
-            self._pending_set("wifi.enabled", target, ttl_s=4)
-            self._set_class(sw, "on", target)
-            act_set_wifi_radio(target)
-        sw.connect("clicked", _on_wifi_toggle)
+            self._request_setting("wifi.enabled", target, "Wi-Fi")
+        self._connect_switch(sw, _on_wifi_toggle)
 
         hero = self._hero_card_ref()
         view.append(hero.widget)
@@ -89,6 +86,8 @@ class WifiViewMixin:
                 (f"{w['freq_mhz']}" if w["freq_mhz"] else "—", "MHz"),
             ])
 
+            if not self._list_changed(lst, (enabled, w["networks"])):
+                return
             self._clear(lst)
             if not enabled:
                 lst.append(self._drawer_item(
@@ -111,6 +110,7 @@ class WifiViewMixin:
                         subtitle, f"{net['signal']}%",
                         subtle=subtle,
                     )
+                    row._item_key = net["ssid"]
 
                     def _on_connect(_b, ssid=net["ssid"]):
                         self._pending_set("wifi.ssid", ssid, ttl_s=10)
@@ -131,6 +131,7 @@ class WifiViewMixin:
                     self._hide_window(), act_open_hidden_wifi(),
                 ))
                 lst.append(hidden)
+            self._restore_list_focus(lst)
 
         self._refreshers.append(refresh)
         refresh(self.state)

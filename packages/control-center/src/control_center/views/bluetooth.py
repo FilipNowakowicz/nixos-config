@@ -5,7 +5,6 @@ from gi.repository import GLib, Gtk
 from ..actions import (
     act_bt_connect,
     act_bt_disconnect,
-    act_bt_powered,
     act_bt_scan,
     act_open_bluetooth_settings,
 )
@@ -22,10 +21,8 @@ class BluetoothViewMixin:
             target = not self.effective(
                 "bluetooth.powered", self.state["bluetooth"]["powered"],
             )
-            self._pending_set("bluetooth.powered", target, ttl_s=4)
-            self._set_class(sw, "on", target)
-            act_bt_powered(target)
-        sw.connect("clicked", _on_bt_toggle)
+            self._request_setting("bluetooth.powered", target, "Bluetooth")
+        self._connect_switch(sw, _on_bt_toggle)
 
         hero = self._hero_card_ref()
         view.append(hero.widget)
@@ -60,6 +57,7 @@ class BluetoothViewMixin:
             b = s["bluetooth"]
             powered = self.effective("bluetooth.powered", b["powered"])
             self._set_class(sw, "on", powered)
+            lst.set_sensitive(powered)
 
             if b["primary"]:
                 p = b["primary"]
@@ -91,6 +89,8 @@ class BluetoothViewMixin:
                 hero.big.set_label(str(n))
                 hero.small.set_label("paired")
 
+            if not self._list_changed(lst, b["devices"]):
+                return
             self._clear(lst)
             if not b["devices"]:
                 lst.append(self._drawer_item(
@@ -115,6 +115,7 @@ class BluetoothViewMixin:
                         "Connected" if d["connected"] else "Connect",
                         active=d["connected"],
                     )
+                    row._item_key = d["address"]
 
                     def _on_dev_click(_b, addr=d["address"],
                                       currently=d["connected"]):
@@ -133,6 +134,7 @@ class BluetoothViewMixin:
             )
             pair.connect("clicked", lambda _b: _open_blueman())
             lst.append(pair)
+            self._restore_list_focus(lst)
 
         self._refreshers.append(refresh)
         refresh(self.state)

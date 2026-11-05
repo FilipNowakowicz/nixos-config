@@ -20,13 +20,14 @@ gi.require_version('Gtk4LayerShell', '1.0')
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk4LayerShell, Gtk, Gdk, GLib, Pango
 
-import fcntl, json, re, subprocess, sys
+import fcntl, hashlib, json, re, shlex, subprocess, sys, threading
+from pathlib import Path
 
-def is_waybar_visible():
+def is_waybar_visible(timeout=1):
     try:
         result = subprocess.run(
             ['hyprctl', '-j', 'layers'],
-            capture_output=True, text=True, timeout=1,
+            capture_output=True, text=True, timeout=timeout,
         )
         data = json.loads(result.stdout)
         for monitor_data in data.values():
@@ -38,12 +39,14 @@ def is_waybar_visible():
     except Exception:
         return False
 
-LOCK_PATH = '/tmp/launcher.lock'
+_session = hashlib.sha256(os.environ.get('WAYLAND_DISPLAY', 'default').encode()).hexdigest()[:12]
+LOCK_PATH = Path(os.environ.get('XDG_RUNTIME_DIR', f'/tmp/launcher-{os.getuid()}')) / f'launcher-{_session}.lock'
 _lock_fd = None
 
 def acquire_lock():
     global _lock_fd
     try:
+        LOCK_PATH.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         _lock_fd = open(LOCK_PATH, 'w')
         fcntl.flock(_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         return True
@@ -98,12 +101,16 @@ class Launcher(Gtk.Application):
         self.typed = ''
         self._win = None
         self._waybar_state = None
+        self._waybar_gathering = False
+        self._waybar_poll_id = 0
         self.connect('activate', self._build)
+        self.connect('shutdown', self._on_shutdown)
 
     def _build(self, _):
         win = Gtk.ApplicationWindow(application=self)
         win.set_decorated(False)
         win.set_resizable(False)
+        win.set_title('Launcher')
 
         Gtk4LayerShell.init_for_window(win)
         Gtk4LayerShell.set_layer(win, Gtk4LayerShell.Layer.OVERLAY)
@@ -117,9 +124,9 @@ class Launcher(Gtk.Application):
         Gtk4LayerShell.set_namespace(win, 'launcher')
 
         self._win = win
-        self._waybar_state = is_waybar_visible()
+        self._waybar_state = is_waybar_visible(timeout=0.1)
         self._apply_position()
-        GLib.timeout_add(250, self._poll_waybar)
+        self._waybar_poll_id = GLib.timeout_add(1000, self._poll_waybar)
 
         provider = Gtk.CssProvider()
         provider.load_from_data(self._css().encode())
@@ -132,12 +139,27 @@ class Launcher(Gtk.Application):
         self.entry.set_name('entry')
         self.entry.set_width_chars(20)
         self.entry.set_alignment(0.5)
-        self.entry.set_placeholder_text('run command…')
-        self.entry.set_focusable(False)
+        self.entry.set_placeholder_text('Run a command…')
+        self.entry.set_enable_undo(True)
+        self.entry.update_property([Gtk.AccessibleProperty.LABEL], ['Command'])
+        self.entry.set_tooltip_text('Enter runs the typed command. Tab accepts completion.')
+        self.entry.connect('changed', self._on_changed)
 
-        pill = Gtk.Box()
+        pill = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         pill.set_name('pill')
         pill.append(self.entry)
+        self.hint = Gtk.Label(xalign=0.5)
+        self.hint.set_name('launcher-hint')
+        self.hint.set_ellipsize(Pango.EllipsizeMode.END)
+        self.hint.set_max_width_chars(36)
+        self.hint.set_visible(False)
+        pill.append(self.hint)
+        self.error_label = Gtk.Label(xalign=0.5)
+        self.error_label.set_name('launcher-error')
+        self.error_label.set_wrap(True)
+        self.error_label.set_max_width_chars(32)
+        self.error_label.set_visible(False)
+        pill.append(self.error_label)
 
         win.set_child(pill)
 
@@ -147,8 +169,7 @@ class Launcher(Gtk.Application):
         win.add_controller(kc)
 
         win.present()
-        # No grab_focus() — the window-level key controller captures all input.
-        # Keeping focus off the entry lets GTK render the placeholder text.
+        self.entry.grab_focus()
 
     def _apply_position(self):
         # waybar: margin-top=6, height=38 → 44px footprint; add 8px gap = 52px
@@ -156,11 +177,25 @@ class Launcher(Gtk.Application):
         Gtk4LayerShell.set_margin(self._win, Gtk4LayerShell.Edge.TOP, top_margin)
 
     def _poll_waybar(self):
-        current = is_waybar_visible()
+        if not self._waybar_gathering:
+            self._waybar_gathering = True
+            def gather():
+                current = is_waybar_visible()
+                GLib.idle_add(self._apply_waybar, current)
+            threading.Thread(target=gather, daemon=True).start()
+        return GLib.SOURCE_CONTINUE
+
+    def _apply_waybar(self, current):
+        self._waybar_gathering = False
         if current != self._waybar_state:
             self._waybar_state = current
             self._apply_position()
-        return GLib.SOURCE_CONTINUE
+        return False
+
+    def _on_shutdown(self, *_args):
+        if self._waybar_poll_id:
+            GLib.source_remove(self._waybar_poll_id)
+            self._waybar_poll_id = 0
 
     def _css(self):
         c = self.colors
@@ -168,6 +203,10 @@ class Launcher(Gtk.Application):
         or_ = h2rgb(c['orange'])
         am = h2rgb(c['amber'])
         tx = h2rgb(c['text'])
+        settings = Gtk.Settings.get_default()
+        opening = 'launcher-open 120ms cubic-bezier(0.16, 1, 0.3, 1) both'
+        if settings is not None and not settings.get_property('gtk-enable-animations'):
+            opening = 'none'
         # Pill dimensions mirror the waybar clock pill exactly:
         #   bar height=48, margin-top=6 on bar, pill margin=6px top/bottom
         #   → pill height = 48 - 6 - 6 = 36px, same font/weight as clock
@@ -186,12 +225,12 @@ class Launcher(Gtk.Application):
             border-radius: 12px;
             border: 1px solid rgba({or_[0]},{or_[1]},{or_[2]},0.25);
             margin: 6px 3px;
-            animation: launcher-open 120ms cubic-bezier(0.16, 1, 0.3, 1) both;
+            animation: {opening};
         }}
         #entry, #entry > text {{
             background: transparent;
             color: rgba({tx[0]},{tx[1]},{tx[2]},1.0);
-            caret-color: transparent;
+            caret-color: rgba({tx[0]},{tx[1]},{tx[2]},1.0);
             border: none;
             box-shadow: none;
             outline: none;
@@ -211,42 +250,46 @@ class Launcher(Gtk.Application):
             color: rgba({tx[0]},{tx[1]},{tx[2]},0.38);
         }}
         #entry selection, #entry > text selection {{
-            background: transparent;
+            background: rgba({am[0]},{am[1]},{am[2]},0.28);
             color: rgba({tx[0]},{tx[1]},{tx[2]},1.0);
+        }}
+        #launcher-hint, #launcher-error {{
+            font-size: 11px;
+            color: rgba({tx[0]},{tx[1]},{tx[2]},0.7);
+            margin: 0 18px 8px;
         }}
         """
 
+    def _on_changed(self, entry):
+        self.typed = entry.get_text()
+        self.error_label.set_visible(False)
+        self._refresh()
+
     def _refresh(self):
         ghost = best_match(self.typed)
-        full = self.typed + ghost
-        self.entry.set_text(full)
-        self.entry.set_position(len(self.typed))
+        self.hint.set_text('Tab: ' + self.typed + ghost if ghost else '')
+        self.hint.set_visible(bool(ghost))
 
-        attrs = Pango.AttrList()
-        if ghost:
-            am = h2rgb(self.colors['amber'])
-            bg = h2rgb(self.colors['bg'])
-            gr = int(bg[0] + (am[0] - bg[0]) * 0.5)
-            gg = int(bg[1] + (am[1] - bg[1]) * 0.5)
-            gb = int(bg[2] + (am[2] - bg[2]) * 0.5)
-            start = len(self.typed.encode('utf-8'))
-            end   = len(full.encode('utf-8'))
-            fg = Pango.attr_foreground_new(gr * 257, gg * 257, gb * 257)
-            fg.start_index = start
-            fg.end_index   = end
-            attrs.insert(fg)
-        self.entry.set_attributes(attrs)
+    def _set_error(self, text):
+        self.error_label.set_text(text)
+        self.error_label.set_visible(True)
+        self.entry.grab_focus()
 
     def _launch(self):
-        ghost = best_match(self.typed)
-        cmd = (self.typed + ghost).strip()
-        if cmd:
+        cmd = self.typed.strip()
+        if not cmd:
+            return
+        try:
             subprocess.Popen(
-                cmd.split(),
+                shlex.split(cmd),
                 start_new_session=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+        except (OSError, ValueError) as exc:
+            print(f"Could not launch {cmd!r}: {exc}", file=sys.stderr)
+            self._set_error('Could not start command. Check its name or arguments.')
+            return
         self.quit()
 
     def _on_key(self, _ctrl, keyval, _code, _mods):
@@ -257,26 +300,22 @@ class Launcher(Gtk.Application):
             self._launch()
             return True
         if keyval in (Gdk.KEY_Tab, Gdk.KEY_Right):
+            if _mods & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.ALT_MASK | Gdk.ModifierType.SHIFT_MASK | Gdk.ModifierType.SUPER_MASK):
+                return False
+            if self.entry.get_position() != len(self.typed) or self.entry.get_property('selection-bound') != self.entry.get_position():
+                return False
             ghost = best_match(self.typed)
             if ghost:
-                self.typed += ghost
-                self._refresh()
-            return True
-        if keyval == Gdk.KEY_BackSpace:
-            if self.typed:
-                self.typed = self.typed[:-1]
-                self._refresh()
-            return True
-        uchar = Gdk.keyval_to_unicode(keyval)
-        if uchar and chr(uchar).isprintable():
-            self.typed += chr(uchar)
-            self._refresh()
-            return True
+                self.entry.set_text(self.typed + ghost)
+                self.entry.set_position(-1)
+                return True
         return False
 
 
 if __name__ == '__main__':
     if not acquire_lock():
         sys.exit(0)
+    GLib.set_application_name('Launcher')
+    GLib.set_prgname('launcher')
     app = Launcher(load_colors())
     sys.exit(app.run(None))

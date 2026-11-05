@@ -3,13 +3,9 @@
 from gi.repository import Gtk
 
 from ..actions import (
-    act_mullvad_connect,
-    act_mullvad_disconnect,
     act_mullvad_set_location,
     act_open_vpn_tools,
-    act_tailscale_down,
     act_tailscale_exit_node,
-    act_tailscale_up,
 )
 from ..constants import G
 
@@ -43,6 +39,7 @@ class VpnViewMixin:
         copy.append(ts_sub)
         head.append(copy)
         ts_sw = self._switch()
+        self._name_control(ts_sw, "Tailscale")
         ts_sw.set_sensitive(ts_available)
         head.append(ts_sw)
         ts_section.append(head)
@@ -51,14 +48,8 @@ class VpnViewMixin:
             target = not self.effective(
                 "tailscale.enabled", self.state["tailscale"]["enabled"],
             )
-            self._pending_set("tailscale.enabled", target, ttl_s=10)
-            self._set_class(ts_sw, "on", target)
-            self._set_class(ts_section, "off", not target)
-            if target:
-                act_tailscale_up()
-            else:
-                act_tailscale_down()
-        ts_sw.connect("clicked", _on_ts_toggle)
+            self._request_setting("tailscale.enabled", target, "Tailscale")
+        self._connect_switch(ts_sw, _on_ts_toggle)
 
         ts_strip = Gtk.Grid(column_homogeneous=True, column_spacing=6)
         ts_strip.add_css_class("vpn-stat")
@@ -147,6 +138,7 @@ class VpnViewMixin:
         copy.append(mv_sub)
         head.append(copy)
         mv_sw = self._switch()
+        self._name_control(mv_sw, "Mullvad")
         mv_sw.set_sensitive(mv_available)
         head.append(mv_sw)
         mv_section.append(head)
@@ -155,14 +147,8 @@ class VpnViewMixin:
             target = not self.effective(
                 "mullvad.connected", self.state["mullvad"]["connected"],
             )
-            self._pending_set("mullvad.connected", target, ttl_s=10)
-            self._set_class(mv_sw, "on", target)
-            self._set_class(mv_section, "off", not target)
-            if target:
-                act_mullvad_connect()
-            else:
-                act_mullvad_disconnect()
-        mv_sw.connect("clicked", _on_mv_toggle)
+            self._request_setting("mullvad.connected", target, "Mullvad")
+        self._connect_switch(mv_sw, _on_mv_toggle)
 
         # Inline build of the location row so we can update its labels.
         mv_loc_row = self._box(

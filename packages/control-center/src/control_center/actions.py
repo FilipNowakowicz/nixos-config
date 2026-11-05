@@ -81,7 +81,7 @@ def act_set_power_profile(name):
 
 
 def act_set_dnd_mode(mode):
-    _fire(["makoctl", "mode", "-s", mode])
+    _fire(["makoctl", "mode", "-a" if mode == "do-not-disturb" else "-r", "do-not-disturb"])
 
 
 def act_set_wifi_radio(on):

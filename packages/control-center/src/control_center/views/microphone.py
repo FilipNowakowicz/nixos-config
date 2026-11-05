@@ -1,12 +1,10 @@
-"""Microphone detail view: hero card, slider, decorative meter, input-source picker."""
+"""Microphone detail view: input gain, mute and input-source picker."""
 
 from gi.repository import Gtk
 
 from ..actions import (
     act_open_sound_settings,
     act_set_default_source,
-    act_set_source_volume,
-    act_toggle_source_mute,
 )
 from ..constants import G
 
@@ -16,9 +14,8 @@ class MicrophoneViewMixin:
         view = self._box(Gtk.Orientation.VERTICAL, spacing=12, css="panel-stack")
         mute_btn = self._icon_btn(G["mic"])
         def _on_mic_mute(_b):
-            self._pending_set("audio.source_muted",
-                              not self.state["audio"]["source_muted"], ttl_s=2)
-            act_toggle_source_mute()
+            target = not self.effective("audio.source_muted", self.state["audio"]["source_muted"])
+            self._request_setting("audio.source_muted", target, "Microphone mute")
         mute_btn.connect("clicked", _on_mic_mute)
         view.append(self._detail_header("Microphone", right_widget=mute_btn))
         hero = self._hero_card_ref()
@@ -28,27 +25,10 @@ class MicrophoneViewMixin:
         slider = self._slider_row(G["mic"])
         main.append(slider.widget)
         view.append(main)
-        self._bind_slider(slider, act_set_source_volume)
+        self._bind_setting_slider(slider, "audio.source_volume_pct", "Microphone level")
         slider.glyph_btn.connect("clicked", _on_mic_mute)
 
-        view.append(self._section_label("Input Level", action="Test"))
-        meter = self._box(Gtk.Orientation.HORIZONTAL, spacing=3, css="level-meter")
-        # Static visual decor: real-time peak metering requires PipeWire stream
-        # subscription, out of scope for the read-only data pass.
-        levels = [22, 38, 58, 72, 48, 32, 56, 44, 28, 36, 22, 16]
-        active = [True] * 8 + [False] * 4
-        for h, on in zip(levels, active):
-            bar = Gtk.Box()
-            bar.add_css_class("meter-bar")
-            if on:
-                bar.add_css_class("active")
-            bar.set_size_request(-1, int(h * 0.42))
-            bar.set_valign(Gtk.Align.END)
-            bar.set_hexpand(True)
-            meter.append(bar)
-        view.append(meter)
-
-        view.append(self._section_label("Input Devices", action="Detect"))
+        view.append(self._section_label("Input Devices"))
         inp = self._box(Gtk.Orientation.VERTICAL, spacing=2, css="drawer-list")
         view.append(inp)
 
@@ -64,6 +44,7 @@ class MicrophoneViewMixin:
             a = s["audio"]
             muted = self.effective("audio.source_muted", a["source_muted"])
             mute_btn.set_label(G["mic_off"] if muted else G["mic"])
+            self._name_control(mute_btn, "Unmute microphone" if muted else "Mute microphone")
 
             hero.icon.set_label(G["mic_off"] if muted else G["mic"])
             hero.title.set_label(self._short(a["source_name"], 28))
@@ -71,9 +52,12 @@ class MicrophoneViewMixin:
             hero.big.set_label(str(a["source_volume_pct"]))
             hero.small.set_label("muted" if muted else "level")
 
-            self._set_slider_polled(slider, a["source_volume_pct"])
+            self._set_slider_polled(slider, self.effective("audio.source_volume_pct", a["source_volume_pct"]))
             slider.glyph_btn.set_label(G["mic_off"] if muted else G["mic"])
+            self._name_control(slider.glyph_btn, "Unmute microphone" if muted else "Mute microphone")
 
+            if not self._list_changed(inp, a["sources"]):
+                return
             self._clear(inp)
             if not a["sources"]:
                 inp.append(self._drawer_item(
@@ -88,11 +72,13 @@ class MicrophoneViewMixin:
                         "Active" if src["default"] else "Switch",
                         active=src["default"],
                     )
+                    row._item_key = src["id"]
                     if not src["default"]:
                         def _switch(_b, sid=src["id"]):
                             act_set_default_source(sid)
                         row.connect("clicked", _switch)
                     inp.append(row)
+            self._restore_list_focus(inp)
 
         self._refreshers.append(refresh)
         refresh(self.state)

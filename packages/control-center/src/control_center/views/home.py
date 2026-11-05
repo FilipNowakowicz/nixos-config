@@ -18,14 +18,8 @@ from ..actions import (
     act_mpris,
     act_night_light,
     act_poweroff,
-    act_set_brightness,
-    act_set_power_profile,
-    act_set_sink_volume,
-    act_set_source_volume,
     act_suspend,
     act_switch_theme,
-    act_toggle_sink_mute,
-    act_toggle_source_mute,
 )
 from ..constants import G
 
@@ -134,38 +128,33 @@ class HomeViewMixin:
         view.append(self._divider())
 
         # ── B2 sliders (bare) ──
-        vol_s = self._slider_row(G["volume"])
+        vol_s = self._slider_row(G["volume"], aux_label="Output devices", aux_view="volume")
         brt_s = self._slider_row(G["sun"])
-        mic_s = self._slider_row(G["mic"])
+        mic_s = self._slider_row(G["mic"], aux_label="Input devices", aux_view="microphone")
         sliders = self._box(Gtk.Orientation.VERTICAL, spacing=12)
         sliders.append(vol_s.widget)
         sliders.append(brt_s.widget)
         sliders.append(mic_s.widget)
         view.append(sliders)
 
-        self._bind_slider(vol_s, act_set_sink_volume)
+        self._bind_setting_slider(vol_s, "audio.sink_volume_pct", "Volume")
         if brightness_available:
-            self._bind_slider(brt_s, act_set_brightness)
+            self._bind_setting_slider(brt_s, "brightness.percent", "Brightness")
         else:
             brt_s.widget.set_sensitive(False)
-        self._bind_slider(mic_s, act_set_source_volume)
+        self._bind_setting_slider(mic_s, "audio.source_volume_pct", "Microphone level")
 
         def _on_mute_sink(_b):
-            self._pending_set("audio.sink_muted",
-                              not self.state["audio"]["sink_muted"], ttl_s=2)
-            act_toggle_sink_mute()
+            target = not self.effective("audio.sink_muted", self.state["audio"]["sink_muted"])
+            self._request_setting("audio.sink_muted", target, "Output mute")
         vol_s.glyph_btn.connect("clicked", _on_mute_sink)
 
         def _on_mute_source(_b):
-            self._pending_set("audio.source_muted",
-                              not self.state["audio"]["source_muted"], ttl_s=2)
-            act_toggle_source_mute()
+            target = not self.effective("audio.source_muted", self.state["audio"]["source_muted"])
+            self._request_setting("audio.source_muted", target, "Microphone mute")
         mic_s.glyph_btn.connect("clicked", _on_mute_source)
 
-        # Secondary-click the device icon to open its detail view (output/input
-        # picker). The redesign dropped the old aux buttons that linked there, so
-        # right-click restores the entry point without adding visual clutter;
-        # left-click stays quick-mute.
+        # Secondary click is a shortcut to the visible device-picker actions.
         def _nav_secondary(widget, view_name):
             gesture = Gtk.GestureClick()
             gesture.set_button(3)  # right mouse button
@@ -185,10 +174,7 @@ class HomeViewMixin:
         pp_keys = ["power-saver", "balanced", "performance"]
         for key, btn in zip(pp_keys, pp.buttons):
             def _on_pp(_b, k=key):
-                self._pending_set("power_profile", k, ttl_s=3)
-                for kk, bb in zip(pp_keys, pp.buttons):
-                    self._set_class(bb, "active", kk == k)
-                act_set_power_profile(k)
+                self._request_setting("power_profile", k, "Power mode")
             btn.connect("clicked", _on_pp)
 
         media_divider = self._divider()
@@ -198,6 +184,7 @@ class HomeViewMixin:
         def media_btn(glyph, primary=False):
             b = Gtk.Button(label=glyph)
             b.add_css_class("media-btn")
+            b.set_tooltip_text("Play or pause" if primary else "Previous or next track")
             if primary:
                 b.add_css_class("primary")
             return b
@@ -259,6 +246,9 @@ class HomeViewMixin:
         def foot_btn(glyph, danger=False):
             b = Gtk.Button(label=glyph)
             b.add_css_class("foot-btn")
+            name = {G["palette"]: "Choose theme", G["lock"]: "Lock screen", G["sleep"]: "Sleep", G["power"]: "Power off"}[glyph]
+            b.set_tooltip_text(name)
+            self._name_control(b, name)
             if danger:
                 b.add_css_class("danger")
             return b
@@ -361,8 +351,8 @@ class HomeViewMixin:
                 self._set_class(wifi_t.widget, "on", True)
             else:
                 wifi_t.glyph.set_label(G["wifi"])
-                wifi_t.sub.set_label("Off")
-                self._set_class(wifi_t.widget, "on", False)
+                wifi_t.sub.set_label("Not connected")
+                self._set_class(wifi_t.widget, "on", True)
 
             # Bluetooth tile
             b = s["bluetooth"]
@@ -430,20 +420,22 @@ class HomeViewMixin:
 
             # Sliders
             a = s["audio"]
-            self._set_slider_polled(vol_s, a["sink_volume_pct"])
+            self._set_slider_polled(vol_s, self.effective("audio.sink_volume_pct", a["sink_volume_pct"]))
             vol_s.glyph_btn.set_label(
                 G["volume_mute"]
                 if self.effective("audio.sink_muted", a["sink_muted"])
                 else G["volume"]
             )
+            self._name_control(vol_s.glyph_btn, "Unmute audio" if self.effective("audio.sink_muted", a["sink_muted"]) else "Mute audio")
             if brightness_available:
-                self._set_slider_polled(brt_s, s["brightness"]["percent"])
-            self._set_slider_polled(mic_s, a["source_volume_pct"])
+                self._set_slider_polled(brt_s, self.effective("brightness.percent", s["brightness"]["percent"]))
+            self._set_slider_polled(mic_s, self.effective("audio.source_volume_pct", a["source_volume_pct"]))
             mic_s.glyph_btn.set_label(
                 G["mic_off"]
                 if self.effective("audio.source_muted", a["source_muted"])
                 else G["mic"]
             )
+            self._name_control(mic_s.glyph_btn, "Unmute microphone" if self.effective("audio.source_muted", a["source_muted"]) else "Mute microphone")
 
             # Power profile (respect optimistic pending)
             profile = self.effective("power_profile", s["power_profile"])

@@ -4,7 +4,7 @@ import time
 
 from gi.repository import GLib, Gtk
 
-from ..actions import act_open_notification_config, act_set_dnd_mode
+from ..actions import act_open_notification_config
 from ..constants import G
 
 
@@ -15,15 +15,20 @@ class DndViewMixin:
         sw = self._switch()
         sw.set_sensitive(available)
         view.append(self._detail_header("Do Not Disturb", right_widget=sw))
+        self._dnd_timer_id = 0
+
+        def cancel_timer():
+            if self._dnd_timer_id:
+                GLib.source_remove(self._dnd_timer_id)
+                self._dnd_timer_id = 0
 
         def _on_dnd_toggle(_b):
+            cancel_timer()
             target_enabled = not self.effective(
                 "dnd.enabled", self.state["dnd"]["enabled"],
             )
-            self._pending_set("dnd.enabled", target_enabled, ttl_s=3)
-            self._set_class(sw, "on", target_enabled)
-            act_set_dnd_mode("do-not-disturb" if target_enabled else "default")
-        sw.connect("clicked", _on_dnd_toggle)
+            self._request_setting("dnd.enabled", target_enabled, "Do Not Disturb")
+        self._connect_switch(sw, _on_dnd_toggle)
 
         wrap = self._box(Gtk.Orientation.VERTICAL, spacing=8, css="surface")
         prompt = (
@@ -42,18 +47,16 @@ class DndViewMixin:
 
         # The three preset buttons all enable DND; mako has no native
         # time-bound mode, so the timed presets schedule a GLib timeout
-        # that fires `mode -s default` after the duration.
+        # that fires `mode -r do-not-disturb` after the duration.
         def _enable_for(seconds, label=None):
-            self._pending_set("dnd.enabled", True, ttl_s=3)
-            self._set_class(sw, "on", True)
-            act_set_dnd_mode("do-not-disturb")
+            cancel_timer()
+            self._request_setting("dnd.enabled", True, "Do Not Disturb")
             if seconds and seconds > 0:
                 def _revert():
-                    self._pending_set("dnd.enabled", False, ttl_s=3)
-                    self._set_class(sw, "on", False)
-                    act_set_dnd_mode("default")
+                    self._dnd_timer_id = 0
+                    self._request_setting("dnd.enabled", False, "Do Not Disturb")
                     return False
-                GLib.timeout_add_seconds(int(seconds), _revert)
+                self._dnd_timer_id = GLib.timeout_add_seconds(int(seconds), _revert)
 
         def _seconds_until_8am():
             now = time.localtime()
