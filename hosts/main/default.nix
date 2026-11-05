@@ -254,9 +254,7 @@ in
     blacklistedKernelModules = [ "btusb" ];
 
     initrd = {
-      # Systemd in initrd (required for initrd SSH)
       systemd = {
-        enable = true;
         # Tear down all non-loopback interfaces before transitioning to stage 2.
         # Ensures port 2222 stops being reachable the moment stage 1 is done,
         # before stage 2's firewall loads. Guards against future misconfiguration
