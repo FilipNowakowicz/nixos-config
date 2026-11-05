@@ -89,3 +89,20 @@ assert fire.call_args.args[0] == ['makoctl', 'mode', '-a', 'do-not-disturb']
 action_namespace['act_set_dnd_mode']('default')
 assert fire.call_args.args[0] == ['makoctl', 'mode', '-r', 'do-not-disturb']
 print('DND preserves unrelated mako modes')
+
+launch_helpers = [n for n in actions.body if isinstance(n, ast.FunctionDef)
+                  and n.name in ('_fire', '_fire_if_found', 'act_open_bluetooth_settings')]
+spawn = Mock()
+launch_namespace = {'subprocess': types.SimpleNamespace(Popen=spawn, DEVNULL=-3),
+                    'shutil': types.SimpleNamespace(which=Mock(return_value='/private/blueman-manager'))}
+exec(compile(ast.Module(body=launch_helpers, type_ignores=[]), '<settings launch>', 'exec'), launch_namespace)
+assert launch_namespace['act_open_bluetooth_settings']()
+assert spawn.call_args.args[0] == ['/private/blueman-manager']
+spawn.reset_mock()
+launch_namespace['shutil'].which.return_value = None
+assert not launch_namespace['act_open_bluetooth_settings']()
+spawn.assert_not_called()
+launch_namespace['shutil'].which.return_value = '/private/blueman-manager'
+spawn.side_effect = FileNotFoundError()
+assert not launch_namespace['act_open_bluetooth_settings']()
+print('Settings handoff distinguishes missing tools and failed process startup')

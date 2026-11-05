@@ -98,6 +98,20 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(settings.command_for("dnd.enabled", False),
                          ["makoctl", "mode", "-r", "do-not-disturb"])
 
+    def test_bluetooth_device_identity_and_fresh_connection_readback(self):
+        key = "bluetooth.device.00:11:22:33:44:55"
+        self.assertEqual(settings.command_for(key, True), ["bluetoothctl", "connect", "00:11:22:33:44:55"])
+        self.assertEqual(settings.command_for(key, False), ["bluetoothctl", "disconnect", "00:11:22:33:44:55"])
+        for invalid in ("--help", "00:11:22:33:44:55;other", "00:11:22:33:44"):
+            with self.assertRaises(ValueError):
+                settings.command_for("bluetooth.device." + invalid, True)
+        token = self.model.begin(key, True, "Bluetooth connection")
+        self.model.complete(key, token, "ok", 11)
+        self.model.effective(key, True, 10)
+        self.assertEqual(self.model.requests[key].phase, "confirming")
+        self.model.effective(key, True, 12)
+        self.assertEqual(self.model.requests[key].phase, "confirmed")
+
     def test_real_process_exit_codes(self):
         self.assertEqual(settings.run_command([sys.executable, "-c", "pass"]), "ok")
         self.assertEqual(settings.run_command([sys.executable, "-c", "raise SystemExit(1)"]), "failed")

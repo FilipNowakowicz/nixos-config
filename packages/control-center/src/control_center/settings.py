@@ -1,6 +1,7 @@
 """Tracked, ordered setting writes. No GTK dependency; callbacks choose their thread."""
 
 from dataclasses import dataclass
+import re
 import subprocess
 import threading
 import time
@@ -11,6 +12,11 @@ def command_for(key, target):
         return ["nmcli", "radio", "wifi", "on" if target else "off"]
     if key == "bluetooth.powered":
         return ["bluetoothctl", "power", "on" if target else "off"]
+    if key.startswith("bluetooth.device."):
+        address = key.removeprefix("bluetooth.device.")
+        if re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", address) and isinstance(target, bool):
+            return ["bluetoothctl", "connect" if target else "disconnect", address]
+        raise ValueError("Invalid Bluetooth device request")
     if key == "dnd.enabled":
         return ["makoctl", "mode", "-a" if target else "-r", "do-not-disturb"]
     if key == "tailscale.enabled":

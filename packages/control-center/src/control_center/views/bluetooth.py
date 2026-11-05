@@ -1,11 +1,8 @@
 """Bluetooth detail view: hero card + paired-device list."""
 
-from gi.repository import GLib, Gtk
+from gi.repository import Gtk
 
 from ..actions import (
-    act_bt_connect,
-    act_bt_disconnect,
-    act_bt_scan,
     act_open_bluetooth_settings,
 )
 from ..constants import G
@@ -26,31 +23,22 @@ class BluetoothViewMixin:
 
         hero = self._hero_card_ref()
         view.append(hero.widget)
-        section = self._section_label("My Devices", action="Scan")
-        section_btn = section.get_last_child()
-        view.append(section)
+        view.append(self._section_label("My Devices"))
         lst = self._box(Gtk.Orientation.VERTICAL, spacing=2, css="drawer-list")
         view.append(lst)
         settings_btn = self._ghost_btn("Open Bluetooth Settings")
         view.append(settings_btn)
-
-        def _scan_done():
-            section_btn.set_label("Scan")
-            self._tick_slow()
-            return False
+        launch_error = self._label("Couldn’t open Bluetooth Settings. Try again.")
+        launch_error.set_wrap(True)
+        launch_error.set_visible(False)
+        view.append(launch_error)
 
         def _open_blueman():
-            self._hide_window()
-            act_open_bluetooth_settings()
-
-        def _on_scan(_b):
-            if not self.effective("bluetooth.powered", self.state["bluetooth"]["powered"]):
-                return
-            section_btn.set_label("Scanning...")
-            act_bt_scan()
-            GLib.timeout_add(1800, _scan_done)
-            _open_blueman()
-        section_btn.connect("clicked", _on_scan)
+            if act_open_bluetooth_settings():
+                launch_error.set_visible(False)
+                self._hide_window()
+            else:
+                launch_error.set_visible(True)
         settings_btn.connect("clicked", lambda _b: _open_blueman())
 
         def refresh(s):
@@ -89,7 +77,18 @@ class BluetoothViewMixin:
                 hero.big.set_label(str(n))
                 hero.small.set_label("paired")
 
-            if not self._list_changed(lst, b["devices"]):
+            devices = []
+            for device in b["devices"]:
+                key = "bluetooth.device." + device["address"]
+                intent = self.effective(key, device["connected"])
+                request = self._settings.requests.get(key)
+                pending = request is not None and request.phase in ("writing", "confirming")
+                devices.append({**device, "intent": intent, "pending": pending})
+            present = {"bluetooth.device." + device["address"] for device in b["devices"]}
+            for key in self._settings.requests:
+                if key.startswith("bluetooth.device.") and key not in present:
+                    self.effective(key, None)
+            if not self._list_changed(lst, devices):
                 return
             self._clear(lst)
             if not b["devices"]:
@@ -99,38 +98,39 @@ class BluetoothViewMixin:
                     subtle=True,
                 ))
             else:
-                for d in b["devices"]:
+                for d in devices:
                     bat = d.get("battery")
                     sub_parts = []
                     if d.get("icon"):
                         sub_parts.append(d["icon"].replace("-", " "))
                     if bat is not None:
                         sub_parts.append(f"{bat}%")
-                    if not d["connected"]:
+                    if d["pending"]:
+                        sub_parts.append("Connecting…" if d["intent"] else "Disconnecting…")
+                    elif not d["connected"]:
                         sub_parts.append("offline")
                     row = self._drawer_item(
                         self._bt_icon_glyph(d.get("icon")),
                         self._short(d["alias"], 24),
                         " · ".join(sub_parts) or "—",
-                        "Connected" if d["connected"] else "Connect",
+                        "Disconnect" if d["intent"] else "Connect",
                         active=d["connected"],
                     )
                     row._item_key = d["address"]
 
-                    def _on_dev_click(_b, addr=d["address"],
-                                      currently=d["connected"]):
-                        key = f"bluetooth.dev.{addr}"
-                        target = not currently
-                        self._pending_set(key, target, ttl_s=8)
-                        if target:
-                            act_bt_connect(addr)
-                        else:
-                            act_bt_disconnect(addr)
+                    def _on_dev_click(_b, addr=d["address"]):
+                        current = next((item for item in self.state["bluetooth"]["devices"]
+                                        if item["address"] == addr), None)
+                        if current is None:
+                            return
+                        key = "bluetooth.device." + addr
+                        target = not self.effective(key, current["connected"])
+                        self._request_setting(key, target, "Bluetooth connection")
                     row.connect("clicked", _on_dev_click)
                     lst.append(row)
             pair = self._drawer_item(
                 G["plus"], "Pair new device",
-                "Put your device in pairing mode", "›", subtle=True,
+                "Opens Bluetooth Settings", "›", subtle=True,
             )
             pair.connect("clicked", lambda _b: _open_blueman())
             lst.append(pair)

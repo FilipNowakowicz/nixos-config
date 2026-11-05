@@ -31,8 +31,9 @@ def _fire(cmd):
             cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
+        return True
     except (OSError, FileNotFoundError):
-        pass
+        return False
 
 
 def _fire_if_found(cmd):
@@ -41,8 +42,7 @@ def _fire_if_found(cmd):
     except Exception:
         exe = None
     if exe:
-        _fire([exe, *cmd[1:]])
-        return True
+        return _fire([exe, *cmd[1:]])
     return False
 
 
@@ -104,12 +104,8 @@ def act_open_hidden_wifi():
     _fire_if_found(["nm-connection-editor", "--create", "--type=wifi"])
 
 
-def act_bt_scan():
-    _fire(["bluetoothctl", "scan", "on"])
-
-
 def act_open_bluetooth_settings():
-    _fire_if_found(["blueman-manager"])
+    return _fire_if_found(["blueman-manager"])
 
 
 def act_open_sound_settings():
