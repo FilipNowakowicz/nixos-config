@@ -7,6 +7,9 @@ import signal
 import sys
 import tempfile
 import types
+import socket
+import re
+import json
 from unittest.mock import Mock, patch
 
 source = Path(sys.argv[1])
@@ -63,12 +66,17 @@ import shlex
 spawn = Mock()
 namespace = {'subprocess': types.SimpleNamespace(Popen=spawn, DEVNULL=-3), 'shlex': shlex, 'sys': sys}
 exec(compile(ast.Module(body=[launch], type_ignores=[]), '<launcher submission>', 'exec'), namespace)
-app = types.SimpleNamespace(typed='foot', quit=Mock())
+app = types.SimpleNamespace(typed='foot', mode='command', quit=Mock())
 namespace['_launch'](app)
 assert spawn.call_args.args[0] == ['foot']
 app.typed = 'printf "two words"'
 namespace['_launch'](app)
 assert spawn.call_args.args[0] == ['printf', 'two words']
+app.mode = 'apps'
+app.typed = '> printf "two words"'
+namespace['_launch'](app)
+assert spawn.call_args.args[0] == ['printf', 'two words']
+app.mode = 'command'
 app.quit.reset_mock()
 app._set_error = Mock()
 app.typed = 'missing-command'
@@ -78,6 +86,80 @@ assert app.typed == 'missing-command'
 app._set_error.assert_called_once()
 app.quit.assert_not_called()
 print('Desktop shell state and launcher regression checks passed')
+
+import unicodedata
+ranking = {'unicodedata': unicodedata}
+helpers = [n for n in launcher.body if isinstance(n, ast.FunctionDef)
+           and n.name in ('search_text', 'find_applications')]
+exec(compile(ast.Module(body=helpers, type_ignores=[]), '<application search>', 'exec'), ranking)
+apps = [
+    {'id': 'browser', 'name': 'Firefox', 'executable': 'firefox', 'keywords': ['web', 'browser']},
+    {'id': 'terminal', 'name': 'Terminal', 'executable': 'foot', 'keywords': ['shell']},
+    {'id': 'longer', 'name': 'Footclient', 'executable': 'footclient', 'keywords': []},
+    {'id': 'cafe', 'name': 'Café Editor', 'executable': 'cafe', 'keywords': ['text']},
+]
+find_apps = ranking['find_applications']
+assert find_apps(apps, 'foot')[0]['id'] == 'terminal'
+assert find_apps(apps, 'FIREFOX')[0]['id'] == 'browser'
+assert find_apps(apps, 'web browser')[0]['id'] == 'browser'
+assert find_apps(apps, 'cafe')[0]['id'] == 'cafe'
+assert find_apps(apps, 'absent') == []
+assert len(find_apps(apps, '', limit=2)) == 2
+print('Application ranking and explicit command mode checks passed')
+
+window_helpers = [n for n in launcher.body if isinstance(n, ast.FunctionDef)
+                  and n.name in ('window_records', 'hypr_target', 'hypr_query', 'contains_launcher_layer', 'switch_window')]
+window_namespace = {'re': re, 'os': os, 'Path': Path, 'json': json, 'subprocess': __import__('subprocess')}
+exec(compile(ast.Module(body=window_helpers, type_ignores=[]), '<window identity>', 'exec'), window_namespace)
+records = window_namespace['window_records']([
+    {'stableId': 'aa', 'address': 'same-address', 'title': 'Current', 'focusHistoryID': 0},
+    {'stableId': 'bb', 'address': 'same-address', 'title': 'Previous', 'focusHistoryID': 1},
+    {'address': 'cached-address-only'}, {'stableId': 'cc', 'mapped': False},
+    {'stableId': 'unsafe"; code()'},
+])
+assert len(records) == 2
+assert find_apps(records, '')[0]['id'] == 'bb'
+assert {r['id'] for r in records} == {'aa', 'bb'}
+
+with tempfile.TemporaryDirectory() as runtime:
+    with patch.dict(os.environ, XDG_RUNTIME_DIR=runtime, HYPRLAND_INSTANCE_SIGNATURE='private_test'):
+        try:
+            window_namespace['hypr_target']()
+            raise AssertionError('Missing explicit socket was accepted')
+        except OSError:
+            pass
+        socket_path = Path(runtime) / 'hypr/private_test/.socket.sock'
+        socket_path.parent.mkdir(parents=True)
+        with socket.socket(socket.AF_UNIX) as ipc:
+            ipc.bind(str(socket_path))
+            assert window_namespace['hypr_target']() == ('private_test', runtime)
+        with patch.dict(os.environ, HYPRLAND_INSTANCE_SIGNATURE='../host'):
+            try:
+                window_namespace['hypr_target']()
+                raise AssertionError('Unsafe compositor selector was accepted')
+            except OSError:
+                pass
+
+assert window_namespace['contains_launcher_layer']({'HEADLESS-1': {'levels': {'3': [{'namespace': 'launcher'}]}}})
+assert not window_namespace['contains_launcher_layer']({'HEADLESS-1': {'levels': {'3': [{'namespace': 'mako'}]}}})
+query = Mock(side_effect=['{}', 'ok', json.dumps({'stableId': 'bb'})])
+window_namespace['hypr_query'] = query
+window_namespace['time'] = types.SimpleNamespace(monotonic=Mock(side_effect=[10, 10.1, 10.2]), sleep=Mock())
+assert window_namespace['switch_window']('bb', ('private_test', '/private')) == 'confirmed'
+assert 'w.stable_id == "bb"' in query.call_args_list[1].args[0][1]
+query.reset_mock(side_effect=True)
+assert window_namespace['switch_window']('unsafe";', ('private_test', '/private')) == 'unavailable'
+query.assert_not_called()
+query.side_effect = ['{}', RuntimeError('window closed')]
+window_namespace['time'].monotonic = Mock(return_value=10)
+assert window_namespace['switch_window']('bb', ('private_test', '/private')) == 'closed'
+assert query.call_count == 2
+query.reset_mock(side_effect=True)
+query.side_effect = ['{}', 'ok', json.dumps({'stableId': 'aa'})]
+window_namespace['time'].monotonic = Mock(side_effect=[10, 10.1, 10.2, 11.2])
+assert window_namespace['switch_window']('bb', ('private_test', '/private')) == 'unknown'
+assert query.call_count == 3  # Layer release, one dispatch, one readback; no automatic retry.
+print('Stable window identity, explicit session routing and focus readback checks passed')
 
 actions = ast.parse((source / 'actions.py').read_text())
 dnd = next(n for n in actions.body if isinstance(n, ast.FunctionDef) and n.name == 'act_set_dnd_mode')
