@@ -2,6 +2,13 @@
 
 set -euo pipefail
 
+# Probe the running parser, not the installed package or config filenames.
+# During a rebuild the old compositor can outlive the package/config switch.
+lua_config=false
+if [[ $(hyprctl eval 'assert(type(hl) == "table")' 2>/dev/null) == ok ]]; then
+  lua_config=true
+fi
+
 external_output="DVI-I-1"
 internal_output="eDP-1"
 
@@ -23,31 +30,56 @@ move_workspaces_to() {
   local output="$1"
 
   for workspace in $(seq 1 10); do
-    hyprctl dispatch moveworkspacetomonitor "${workspace}" "${output}" >/dev/null
+    if $lua_config; then
+      hyprctl dispatch "hl.dsp.workspace.move({workspace=${workspace},monitor='${output}'})" >/dev/null
+    else
+      hyprctl dispatch moveworkspacetomonitor "$workspace" "$output" >/dev/null
+    fi
   done
+}
+
+set_monitor() {
+  local output="$1" mode="$2" position="${3:-auto}" reply
+  if $lua_config; then
+    if [[ $mode == disable ]]; then
+      reply=$(hyprctl eval "hl.monitor({output='$output',disabled=true})")
+    else
+      reply=$(hyprctl eval "hl.monitor({output='$output',mode='$mode',position='$position',scale=1,disabled=false})")
+    fi
+  else
+    if [[ $mode == disable ]]; then
+      reply=$(hyprctl keyword monitor "$output,disable")
+    else
+      reply=$(hyprctl keyword monitor "$output,$mode,$position,1")
+    fi
+  fi
+  [[ $reply == ok ]] || {
+    echo "$reply" >&2
+    return 1
+  }
 }
 
 case "${1:-auto}" in
 auto)
   if wait_for_external; then
-    hyprctl keyword monitor "${external_output},highrr,0x0,1"
+    set_monitor "${external_output}" highrr 0x0
     move_workspaces_to "${external_output}"
-    hyprctl keyword monitor "${internal_output},disable"
+    set_monitor "$internal_output" disable
   else
-    hyprctl keyword monitor "${internal_output},preferred,0x0,1"
+    set_monitor "${internal_output}" preferred 0x0
     move_workspaces_to "${internal_output}"
   fi
   ;;
 external)
-  hyprctl keyword monitor "${external_output},highrr,0x0,1"
+  set_monitor "${external_output}" highrr 0x0
   move_workspaces_to "${external_output}"
-  hyprctl keyword monitor "${internal_output},disable"
+  set_monitor "$internal_output" disable
   ;;
 laptop)
-  hyprctl keyword monitor "${internal_output},preferred,0x0,1"
+  set_monitor "${internal_output}" preferred 0x0
   move_workspaces_to "${internal_output}"
   if external_connected; then
-    hyprctl keyword monitor "${external_output},highrr,1920x0,1"
+    set_monitor "${external_output}" highrr 1920x0
   fi
   ;;
 *)

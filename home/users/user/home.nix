@@ -385,7 +385,10 @@ in
       "kitty/kitty.conf".source = ../../files/kitty/kitty.conf;
 
       # Hyprland
+      # Keep the legacy entrypoint while an existing 0.56 session watches it.
+      # Remove it only after the new Lua session has passed live acceptance.
       "hypr/hyprland.conf".source = ../../files/hypr/hyprland.conf;
+      "hypr/hyprland.lua".source = ../../files/hypr/hyprland.lua;
 
       # Hyprlock
       "hypr/hyprlock.conf".source = ../../files/hypr/hyprlock.conf;

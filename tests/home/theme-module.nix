@@ -61,6 +61,19 @@ let
   kittyText = files."themes/mono-mesh/kitty-theme.conf".text;
 
   failures = lib.runTests {
+    # Both formats and links must survive the old-session -> Lua transition.
+    testHyprlandTransitionColors = {
+      expr =
+        lib.hasInfix "$col_active   = rgb(${monoTheme.colors.amber})"
+          files."themes/mono-mesh/hypr-colors.conf".text
+        &&
+          lib.hasInfix "active = \"rgb(${monoTheme.colors.amber})\""
+            files."themes/mono-mesh/hypr-colors.lua".text
+        && lib.hasInfix "/hypr/colors.conf" files."themes/links.sh".text
+        && lib.hasInfix "/hypr/colors.lua" files."themes/links.sh".text;
+      expected = true;
+    };
+
     # The runtime switcher sources this vars file instead of re-parsing .nix.
     testVarsFileGenerated = {
       expr = files ? "themes/mono-mesh/vars";
