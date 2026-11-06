@@ -13,31 +13,35 @@ Item {
         anchors.centerIn: parent
         spacing: 6
         Repeater {
-            model: Dockable.pinned.concat(Dockable.running)
+            model: Dockable.apps
             Press {
                 id: item
                 required property var modelData
+                readonly property bool minimized: modelData.windows.every(Dockable.isHidden)
+                readonly property bool here: modelData.windows.some(Dockable.here)
                 width: 52
                 height: 56
                 radius: 13
                 name: modelData.name
-                onClicked: { modelData.launch(); if (Ui.overview) Ui.close(); }
+                onClicked: { Dockable.click(modelData); if (Ui.overview) Ui.close(); }
                 AppIcon {
                     anchors.centerIn: parent
                     size: 44
                     icon: item.modelData.icon
                     fallback: item.modelData.name
+                    opacity: item.minimized ? 0.45 : 1
                     scale: item.hovered ? 1.1 : 1
                     Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                 }
+                // Bright on this desktop, faint on another, gone when minimised.
                 Rectangle {
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.bottom: parent.bottom
                     width: 4
                     height: 4
                     radius: 2
-                    color: Theme.text
-                    visible: Dockable.matching(item.modelData.id).length > 0
+                    color: item.here ? Theme.text : Theme.faint
+                    visible: !item.minimized
                 }
             }
         }

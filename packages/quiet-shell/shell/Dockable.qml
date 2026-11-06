@@ -1,39 +1,96 @@
 pragma Singleton
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 
-// Pinned apps and whatever else is running. Identity is the desktop entry.
+// What's running, by app. Identity is the desktop entry.
+// Hyprland has no minimise, so a minimised window lives on a hidden special workspace.
 Singleton {
     id: root
-    property var pinnedIds: ["firefox", "kitty", "thunar", "discord", "spotify"]
+    readonly property string hiddenWorkspace: "special:minimized"
+    readonly property var suggestedIds: ["firefox", "kitty", "thunar", "discord", "spotify"]
 
-    function matching(id) {
-        return ToplevelManager.toplevels.values.filter(t => t.appId.toLowerCase() === id.toLowerCase());
+    function entry(id) {
+        return DesktopEntries.heuristicLookup(id);
     }
-    function make(id) {
-        const entry = DesktopEntries.heuristicLookup(id);
-        return {
-            id,
-            name: entry ? entry.name : id.charAt(0).toUpperCase() + id.slice(1),
-            icon: entry ? entry.icon : id,
-            launch() {
-                const open = root.matching(id);
-                if (open.length) open[0].activate();
-                else if (entry) entry.execute();
-            }
-        };
+    function nameOf(id) {
+        const e = entry(id);
+        return e ? e.name : id.charAt(0).toUpperCase() + id.slice(1);
     }
-    readonly property var pinned: pinnedIds.map(make)
-    readonly property var running: {
-        const seen = new Set(pinnedIds.map(p => p.toLowerCase()));
+    // Reads the entries so these update once they load, which happens after startup.
+    function names(toplevels) {
+        DesktopEntries.applications.values;
         const out = [];
-        for (const t of ToplevelManager.toplevels.values) {
-            const id = t.appId.toLowerCase();
-            if (id && !seen.has(id)) {
-                seen.add(id);
-                out.push(make(t.appId));
+        for (const t of toplevels) {
+            const id = t.wayland ? t.wayland.appId : "";
+            const name = id ? nameOf(id) : "";
+            if (name && !out.includes(name))
+                out.push(name);
+        }
+        return out;
+    }
+    function isHidden(t) {
+        return !!t.workspace && t.workspace.name === hiddenWorkspace;
+    }
+    function isActive(t) {
+        return !!t.wayland && t.wayland === ToplevelManager.activeToplevel;
+    }
+    function here(t) {
+        return !!t.workspace && t.workspace === Hyprland.focusedWorkspace;
+    }
+    function move(t, workspace, follow) {
+        Hyprland.dispatch("hl.dsp.window.move({workspace=" + workspace + ",window=\"address:0x" + t.address + "\",follow=" + follow + "})");
+    }
+    function minimize(t) {
+        move(t, "\"" + hiddenWorkspace + "\"", false);
+    }
+    // Comes back to the desktop you are on, not the one it left.
+    function restore(t) {
+        move(t, Hyprland.focusedWorkspace.id, true);
+    }
+    function reveal(t) {
+        if (isHidden(t)) restore(t);
+        else t.wayland.activate();
+    }
+    function revealWayland(toplevel) {
+        const t = Hyprland.toplevels.values.find(x => x.wayland === toplevel);
+        if (t) reveal(t);
+        else toplevel.activate();
+    }
+    function click(app) {
+        const hidden = app.windows.find(isHidden);
+        if (hidden) {
+            restore(hidden);
+            return;
+        }
+        const at = app.windows.findIndex(isActive);
+        if (at >= 0 && app.windows.length === 1)
+            minimize(app.windows[0]);
+        else
+            app.windows[(at + 1) % app.windows.length].wayland.activate();
+    }
+
+    readonly property var suggested: {
+        DesktopEntries.applications.values;
+        return suggestedIds.map(id => {
+            const e = entry(id);
+            return { id, name: nameOf(id), icon: e ? e.icon : id, launch() { if (e) e.execute(); } };
+        });
+    }
+    readonly property var apps: {
+        DesktopEntries.applications.values;
+        const out = [];
+        for (const t of Hyprland.toplevels.values) {
+            const id = t.wayland ? t.wayland.appId : "";
+            if (!id) continue;
+            let app = out.find(a => a.id === id.toLowerCase());
+            if (!app) {
+                const e = entry(id);
+                app = { id: id.toLowerCase(), name: nameOf(id), icon: e ? e.icon : id, windows: [] };
+                out.push(app);
             }
+            app.windows.push(t);
         }
         return out;
     }

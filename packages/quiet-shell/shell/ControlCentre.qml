@@ -69,9 +69,13 @@ Item {
                 on: Sys.focusMode
                 onToggle: Sys.focusMode = !Sys.focusMode
             }
-            Round { Layout.leftMargin: 7; name: "Theme"; icon: "palette"; onActivated: Ui.detail = "theme" }
-            Item { Layout.fillWidth: true }
-            Round { Layout.rightMargin: 7; name: "Microphone"; icon: Sys.micMuted ? "mic-off" : "mic"; writeKey: "mic-mute"; onActivated: Sys.toggleMicMute() }
+            Pill {
+                name: "Theme"
+                icon: "palette"
+                subtitle: Theme.name.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
+                detail: "theme"
+                onToggle: Ui.detail = "theme"
+            }
         }
         Repeater {
             // Every failure, so the warning in the top bar always leads somewhere.
@@ -80,7 +84,6 @@ Item {
         }
         LevelModule {
             Layout.fillWidth: true
-            title: "Sound"
             sliderName: "Volume"
             icon: Sys.muted ? "volume-x" : "volume-2"
             level: Sys.volume
@@ -91,7 +94,6 @@ Item {
         }
         LevelModule {
             Layout.fillWidth: true
-            title: "Display"
             sliderName: "Brightness"
             icon: "sun"
             endIcon: "sun"

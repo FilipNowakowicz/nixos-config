@@ -23,7 +23,6 @@ Singleton {
     readonly property int volume: state.sink ? state.sink.level : 0
     readonly property bool muted: state.sink ? state.sink.muted : false
     readonly property int micLevel: state.source ? state.source.level : 0
-    readonly property bool micMuted: state.source ? state.source.muted : false
     readonly property int brightness: state.brightness === undefined || state.brightness === null ? 0 : state.brightness
     readonly property string profile: state.profile || "balanced"
     readonly property var battery: state.battery || null
@@ -163,10 +162,6 @@ Singleton {
     function toggleMute() {
         const want = !muted;
         write("mute", ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", want ? "1" : "0"], s => s.sink && s.sink.muted === want, "Mute didn't change.");
-    }
-    function toggleMicMute() {
-        const want = !micMuted;
-        write("mic-mute", ["wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", want ? "1" : "0"], s => s.source && s.source.muted === want, "Microphone didn't change.");
     }
     function setDefaultDevice(role, name) {
         const key = "default.configured.audio." + role;

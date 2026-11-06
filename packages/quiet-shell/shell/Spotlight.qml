@@ -39,7 +39,7 @@ Item {
     function launch(item) {
         if (!item) return;
         if (item.kind === "app") item.value.execute();
-        if (item.kind === "window") item.value.activate();
+        if (item.kind === "window") Dockable.revealWayland(item.value);
         if (item.kind === "command" && item.value) Quickshell.execDetached(["sh", "-c", item.value]);
         Ui.close();
     }
@@ -89,7 +89,7 @@ Item {
         height: 84
         spacing: 4
         Repeater {
-            model: Dockable.pinned.slice(0, 6)
+            model: Dockable.suggested
             Press {
                 required property var modelData
                 Layout.fillWidth: true

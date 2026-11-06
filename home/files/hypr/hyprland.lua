@@ -103,6 +103,7 @@ hl.bind("SUPER + Space", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc spotli
 if shell.quiet then
 	hl.bind("SUPER + n", hl.dsp.exec_cmd("quiet-shell-ipc notifications"))
 	hl.bind("SUPER + o", hl.dsp.exec_cmd("quiet-shell-ipc overview"))
+	hl.bind("SUPER + minus", hl.dsp.window.move({ workspace = "special:minimized", follow = false }))
 	hl.layer_rule({ name = "quiet-glass", match = { namespace = "quiet-shell" }, blur = true, ignore_alpha = 0.02 })
 end
 hl.bind("SUPER + M", hl.dsp.exec_cmd("hypr-layout-cycle"))

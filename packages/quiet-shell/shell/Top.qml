@@ -15,15 +15,18 @@ Item {
     readonly property alias rightCapsule: right
     readonly property bool hovered: leftHover.hovered || rightHover.hovered
 
-    function occupied() {
-        const out = [];
-        const focused = Hyprland.focusedWorkspace;
-        for (const ws of Hyprland.workspaces.values) {
-            if (ws.id > 0 && (ws.toplevels.values.length > 0 || ws === focused))
-                out.push(ws.id);
-        }
-        return out.sort((a, b) => a - b);
+    // Always ten, in the order of SUPER+1 to SUPER+0, so a dot's place means something.
+    readonly property var desks: {
+        const named = {};
+        for (const ws of Hyprland.workspaces.values)
+            named[ws.id] = ws;
+        return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(id => {
+            const ws = named[id];
+            return { id, apps: ws ? Dockable.names(ws.toplevels.values) : [] };
+        });
     }
+    property var hoveredDesk: null
+    property real hoveredX: 0
     function clock(format) { return Qt.formatDateTime(time.date, format); }
 
     SystemClock { id: time; precision: SystemClock.Minutes }
@@ -51,37 +54,73 @@ Item {
                 radius: 12
                 toggled: Ui.panel === "system"
                 onClicked: Ui.open("system")
-                Icon { anchors.centerIn: parent; name: "snowflake"; size: 15 }
+                Icon { anchors.centerIn: parent; name: "nixos"; size: 16 }
             }
             Label {
                 text: {
                     const t = ToplevelManager.activeToplevel;
-                    const id = t ? t.appId : "";
-                    return id ? id.charAt(0).toUpperCase() + id.slice(1) : "Desktop";
+                    return t && t.appId ? Dockable.nameOf(t.appId) : "Desktop";
                 }
                 font.weight: Font.DemiBold
             }
             Row {
                 spacing: 0
                 Repeater {
-                    model: root.occupied()
+                    model: root.desks
                     Press {
-                        required property int modelData
-                        readonly property bool active: Hyprland.focusedWorkspace && Hyprland.focusedWorkspace.id === modelData
-                        name: "Desktop " + modelData
-                        width: 15
+                        id: dot
+                        required property var modelData
+                        required property int index
+                        readonly property bool active: !!Hyprland.focusedWorkspace && Hyprland.focusedWorkspace.id === modelData.id
+                        readonly property bool occupied: modelData.apps.length > 0
+                        name: "Desktop " + modelData.id
+                        width: index === 4 ? 21 : 15
                         height: 22
                         radius: 7
-                        onClicked: Hyprland.dispatch("hl.dsp.focus({workspace=" + modelData + "})")
+                        rest: "transparent"
+                        hover: "transparent"
+                        onHoveredChanged: {
+                            if (hovered) {
+                                root.hoveredDesk = modelData;
+                                root.hoveredX = dot.mapToItem(root, 7, 0).x;
+                            } else if (root.hoveredDesk && root.hoveredDesk.id === modelData.id) {
+                                root.hoveredDesk = null;
+                            }
+                        }
+                        onClicked: Hyprland.dispatch("hl.dsp.focus({workspace=" + modelData.id + "})")
+                        // The wider fifth slot splits the row in two, so dots can be counted.
                         Rectangle {
-                            anchors.centerIn: parent
-                            width: parent.active ? 7 : 5
+                            x: 7.5 - width / 2
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: dot.active ? 9 : dot.occupied ? 7 : 5
                             height: width
                             radius: width / 2
-                            color: parent.active ? Theme.text : Theme.faint
+                            color: dot.active ? Theme.text : dot.occupied ? Theme.dim : "transparent"
+                            border.width: dot.active || dot.occupied ? 0 : 1
+                            border.color: Theme.faint
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // Says what's on a desktop without going there.
+    Item {
+        visible: root.hoveredDesk !== null && Ui.topShown
+        x: Math.max(8, root.hoveredX - width / 2)
+        y: 42
+        width: tip.implicitWidth + 20
+        height: 28
+        Glass { anchors.fill: parent; radius: 14 }
+        Label {
+            id: tip
+            anchors.centerIn: parent
+            font.pixelSize: 12
+            text: {
+                const d = root.hoveredDesk;
+                if (!d) return "";
+                return d.id + "  " + (d.apps.length ? d.apps.join(", ") : "Empty");
             }
         }
     }
@@ -120,7 +159,6 @@ Item {
                 }
                 Icon { visible: Sys.focusMode; name: "bell-off"; size: 15 }
                 Icon { visible: Sys.awake; name: "coffee"; size: 15 }
-                Icon { visible: Sys.night; name: "moon"; size: 15 }
                 Icon { visible: Sys.muted; name: "volume-x"; size: 15 }
                 Icon { visible: Sys.wifiOn; name: "wifi"; size: 15 }
             }

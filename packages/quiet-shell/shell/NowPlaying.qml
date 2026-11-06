@@ -6,8 +6,16 @@ Item {
     readonly property var media: Sys.media
 
     Glass { anchors.fill: parent; radius: 30 }
+    Column {
+        anchors.centerIn: parent
+        visible: root.media === null
+        spacing: 6
+        Icon { anchors.horizontalCenter: parent.horizontalCenter; name: "music"; size: 22; color: Theme.dim }
+        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Not playing"; font.pixelSize: 12; color: Theme.dim }
+    }
     Rectangle {
         id: art
+        visible: root.media !== null
         x: 14
         y: 12
         width: 48
@@ -22,15 +30,16 @@ Item {
             fillMode: Image.PreserveAspectCrop
             sourceSize: Qt.size(96, 96)
         }
-        Icon { anchors.centerIn: parent; visible: !root.media || !root.media.art; name: "music"; size: 20; color: Theme.dim }
+        Icon { anchors.centerIn: parent; visible: !!root.media && !root.media.art; name: "music"; size: 20; color: Theme.dim }
     }
     Column {
+        visible: root.media !== null
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.leftMargin: 14
         anchors.rightMargin: 12
         y: 63
-        Label { width: parent.width; text: root.media ? root.media.title : "Not playing"; font.weight: Font.Medium }
+        Label { width: parent.width; text: root.media ? root.media.title : ""; font.weight: Font.Medium }
         Label { width: parent.width; text: root.media ? root.media.artist : ""; font.pixelSize: 12; color: Theme.dim; visible: text !== "" }
     }
     RowLayout {

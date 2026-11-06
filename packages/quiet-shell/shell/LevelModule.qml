@@ -3,7 +3,6 @@ import QtQuick.Layouts
 
 Item {
     id: root
-    property string title
     property string icon
     property string endIcon
     property string sliderName
@@ -13,23 +12,14 @@ Item {
     signal moved(int value)
     signal mute
 
-    implicitHeight: 58
-    Glass { anchors.fill: parent; radius: 22 }
-    Label {
-        x: 14
-        y: 7
-        text: root.title
-        font.pixelSize: 12
-        font.weight: Font.Medium
-        color: Theme.dim
-    }
+    implicitHeight: 42
+    Glass { anchors.fill: parent; radius: 21 }
     RowLayout {
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.bottom: parent.bottom
+        anchors.verticalCenter: parent.verticalCenter
         anchors.leftMargin: 11
         anchors.rightMargin: 11
-        anchors.bottomMargin: 7
         spacing: 7
         Press {
             implicitWidth: 22

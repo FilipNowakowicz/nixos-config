@@ -118,9 +118,9 @@ def open_controls():
 
 WIFI_TOGGLE, WIFI_LABEL = (1603, 73), (1660, 73)
 FOCUS_TOGGLE = (1603, 283)
-AWAKE, NIGHT, THEME, MIC = (1784, 213), (1874, 213), (1784, 283), (1874, 283)
-SOUND_GO = (1889, 362)
-VOLUME_Y, BRIGHT_Y = 362, 428
+AWAKE, NIGHT, THEME = (1784, 213), (1874, 213), (1777, 283)
+SOUND_GO = (1889, 343)
+VOLUME_Y, BRIGHT_Y = 343, 393
 CC_ICON, BATTERY, CLOCK = (1778, 21), (1732, 21), (1850, 21)
 tests = []
 
@@ -455,6 +455,91 @@ def overview_returns_to_window():
     click(400, 500)
     wait(lambda: not ui()["overview"], "window click to close")
 
+
+def clients():
+    return json.loads(sh("hyprctl", "-j", "clients").stdout)
+
+
+def minimised():
+    return [c for c in clients() if c["workspace"]["name"] == "special:minimized"]
+
+
+def reveal_dock():
+    move(960, 1079)
+    wait(lambda: ui()["dock"], "dock reveal")
+    time.sleep(0.3)
+
+
+@test
+def app_icons_come_from_desktop_entries():
+    icons = ui()["suggested"]
+    assert "spotify-client" in icons and "org.xfce.thunar" in icons, icons
+
+
+@test
+def dock_lists_only_running_apps():
+    apps = ui()["apps"]
+    assert [a["name"] for a in apps] == ["kitty"], apps
+
+
+@test
+def desktop_dots_are_always_ten():
+    move(100, 0)
+    wait(lambda: ui()["top"], "top reveal")
+    move(100, 21)
+    time.sleep(0.3)
+    shot("desktop-dots")
+
+
+@test
+def minimise_key_is_bound():
+    binds = json.loads(sh("hyprctl", "-j", "binds").stdout)
+    assert any(b["key"].lower() == "minus" for b in binds), "no minimise bind"
+
+
+@test
+def minimised_window_returns_to_this_desktop():
+    sh("hyprctl", "dispatch", 'hl.dsp.window.move({workspace="special:minimized",follow=false})')
+    wait(lambda: len(minimised()) == 1, "window to minimise")
+    wait(lambda: ui()["apps"][0]["hidden"] == 1, "dock to notice")
+    sh("hyprctl", "dispatch", "hl.dsp.focus({workspace=7})")
+    reveal_dock()
+    shot("dock-minimised")
+    click(960, 1040)
+    wait(lambda: not minimised(), "window to restore")
+    active = json.loads(sh("hyprctl", "-j", "activewindow").stdout)
+    assert active["workspace"]["id"] == 7, active["workspace"]
+
+
+@test
+def dock_click_minimises_a_focused_lone_window():
+    sh("hyprctl", "dispatch", "hl.dsp.window.close()")
+    wait(lambda: len(clients()) == 1, "one window left")
+    sh("hyprctl", "dispatch", f'hl.dsp.focus({{window="address:{clients()[0]["address"]}"}})')
+    wait(lambda: json.loads(sh("hyprctl", "-j", "activewindow").stdout).get("address"), "focus")
+    reveal_dock()
+    click(960, 1040)
+    wait(lambda: len(minimised()) == 1, "window to minimise")
+    click(960, 1040)
+    wait(lambda: not minimised(), "window to restore")
+
+
+@test
+def dock_stays_away_with_nothing_running():
+    sh("hyprctl", "dispatch", "hl.dsp.window.close()")
+    wait(lambda: not clients(), "no windows")
+    wait(lambda: not ui()["apps"], "dock to empty")
+    move(960, 1079)
+    time.sleep(0.6)
+    assert not ui()["dock"], "empty dock revealed"
+    shot("no-windows")
+
+
+# A fresh home gets Hyprland's donate window, which would count as a running app.
+for c in clients():
+    if "donate" in c["class"]:
+        sh("hyprctl", "dispatch", f'hl.dsp.window.close({{window="address:{c["address"]}"}})')
+time.sleep(0.5)
 
 passed = failed = 0
 results = {}

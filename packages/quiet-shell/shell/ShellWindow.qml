@@ -58,6 +58,7 @@ PanelWindow {
             anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter }
             width: parent.width * 0.5
             height: Ui.dockRevealed ? 84 : 2
+            enabled: Dockable.apps.length > 0
             hoverEnabled: true
             acceptedButtons: Qt.NoButton
             onEntered: { hideDock.stop(); Ui.dockRevealed = true; }
@@ -101,7 +102,7 @@ PanelWindow {
         Dock {
             id: dock
             anchors.horizontalCenter: parent.horizontalCenter
-            visible: win.focused
+            visible: win.focused && Dockable.apps.length > 0
             y: parent.height - (Ui.dockRevealed || Ui.overview ? height + 6 : -10)
             Behavior on y { NumberAnimation { duration: Theme.motion; easing.type: Easing.OutCubic } }
         }

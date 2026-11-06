@@ -40,3 +40,19 @@ a command or make it succeed without changing anything.
 
 Not covered: physical `SUPER` chords, because `wtype` chords do not match binds; real
 network, Bluetooth and audio changes; and hardware frame pacing.
+
+## Trying it on real hardware
+
+`try-tty.sh` starts a second Hyprland with the built shell and the real `hyprland.lua`.
+It needs no rebuild and changes nothing in `~/.config`. Press Ctrl+Alt+F2, log in and run
+it, then use Ctrl+Alt+F1 and Ctrl+Alt+F2 to move between sessions. Leave with
+SUPER+SHIFT+Escape.
+
+Sleep and idle are inhibited until you leave, because hypridle in the first session can't
+see input in the second and would otherwise suspend the machine. Hyprland imports its environment into the shared systemd user manager and stops
+`graphical-session.target` on exit, which would take down the first session's services.
+The launcher filters those calls, and logs what it filtered to `held-back.log`.
+
+The session has its own D-Bus, so the shell can own notifications while mako keeps
+running in the first session. Apps there can't see apps here: media playing on tty1 won't
+appear, and Firefox can't open the same profile twice.
