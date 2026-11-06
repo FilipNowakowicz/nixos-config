@@ -160,11 +160,9 @@ in
 
     testScript = builtins.concatStringsSep "\n" [
       "import os"
-      "import sys"
       ""
       "if not os.path.exists('/dev/kvm'):"
-      "  print('KVM not available: /dev/kvm missing; skipping homeserver-gcp smoke test.')"
-      "  sys.exit(0)"
+      "  raise Exception('/dev/kvm missing: refusing to pass without booting the VM')"
       ""
       "start_all()"
       ""
@@ -220,7 +218,7 @@ in
       "for path in ingest_paths:"
       "    server.succeed("
       "      f\"curl -sk -X POST -u admin:test https://${testFqdn}{path} -o /dev/null -w '%{{http_code}}'\""
-      "      f\" | grep -qEv '^(401|404|502)$'\""
+      "      f\" | grep -qE '^(200|204|400|405|415)$'\""
       "    )"
       ""
       "# Broader observability APIs are denied even with ingest credentials."

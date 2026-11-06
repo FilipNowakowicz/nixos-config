@@ -1,0 +1,571 @@
+# Fixed mutant list. See PROTOCOL.md for the format and rules.
+#
+# Header:  ## <id> | <area> | <expected-layer> | <expected check(s)>
+# Body:    one summary line, then one or more edit blocks:
+#            @@ <path>
+#            <<<<
+#            <old text, must occur exactly once>
+#            ====
+#            <new text>
+#            >>>>
+#          An old text of a single `*` replaces the whole file.
+
+## M01 | ssh-exposure | eval | invariants-homeserver-gcp
+Open SSH and HTTPS on every interface of homeserver-gcp (global allowedTCPPorts).
+@@ hosts/homeserver-gcp/default.nix
+<<<<
+      checkReversePath = "loose";
+      interfaces.tailscale0.allowedTCPPorts = [
+====
+      checkReversePath = "loose";
+      allowedTCPPorts = [
+        22
+        443
+      ];
+      interfaces.tailscale0.allowedTCPPorts = [
+>>>>
+
+## M02 | ssh-exposure | eval | invariants-main
+Open SSH to the world on main (global allowedTCPPorts = [ 22 ]).
+@@ hosts/main/networking.nix
+<<<<
+    firewall.checkReversePath = "loose";
+    firewall.interfaces.tailscale0 = {
+====
+    firewall.checkReversePath = "loose";
+    firewall.allowedTCPPorts = [ 22 ];
+    firewall.interfaces.tailscale0 = {
+>>>>
+
+## M03 | ssh-exposure | eval | invariants-mac
+mac OpenSSH opens its port in the firewall (openFirewall = true).
+@@ hosts/mac/default.nix
+<<<<
+      openFirewall = false; # Accessible via Tailscale only.
+====
+      openFirewall = true; # Accessible via Tailscale only.
+>>>>
+
+## M04 | ssh-exposure | eval | invariants-gcp-agent
+gcp-agent OpenSSH opens its port in the firewall (openFirewall = true).
+@@ hosts/gcp-agent/default.nix
+<<<<
+    openssh = {
+      enable = true;
+      openFirewall = false;
+====
+    openssh = {
+      enable = true;
+      openFirewall = true;
+>>>>
+
+## M05 | ssh-exposure | eval | invariants-gcp-builder
+gcp-builder SSH moved from the tailscale0 interface to a global rule.
+@@ hosts/gcp-builder/default.nix
+<<<<
+      interfaces.tailscale0.allowedTCPPorts = [ 22 ];
+====
+      allowedTCPPorts = [ 22 ];
+>>>>
+
+## M06 | firewall | eval | invariants-homeserver-gcp, invariants-mac
+Firewall disabled fleet-wide in the shared security profile.
+@@ modules/nixos/profiles/security.nix
+<<<<
+  networking.firewall.enable = true;
+====
+  networking.firewall.enable = false;
+>>>>
+
+## M07 | fail2ban | eval | invariants-main (hardened fail2ban), NixOS assertion
+fail2ban dropped from the shared security profile.
+@@ modules/nixos/profiles/security.nix
+<<<<
+  services.fail2ban = {
+    enable = true;
+====
+  services.fail2ban = {
+    enable = false;
+>>>>
+
+## M08 | fail2ban | eval | invariants-main (hardened fail2ban), NixOS assertion
+fail2ban weakened from 3 to 20 retries before a ban.
+@@ modules/nixos/profiles/security.nix
+<<<<
+    maxretry = 3;
+====
+    maxretry = 20;
+>>>>
+
+## M09 | sshd | vm | profile-security VM test (sshd -T)
+sshd password authentication re-enabled in the shared security profile.
+@@ modules/nixos/profiles/security.nix
+<<<<
+      PasswordAuthentication = false;
+====
+      PasswordAuthentication = true;
+>>>>
+
+## M10 | sshd | vm | profile-security VM test (sshd -T)
+sshd root login enabled in the shared security profile.
+@@ modules/nixos/profiles/security.nix
+<<<<
+      PermitRootLogin = "no";
+====
+      PermitRootLogin = "yes";
+>>>>
+
+## M11 | sysctl | vm | profile-security VM test (sysctl -n)
+Kernel pointer hiding turned off (kptr_restrict 2 -> 0).
+@@ modules/nixos/profiles/security.nix
+<<<<
+    "kernel.kptr_restrict" = 2;
+====
+    "kernel.kptr_restrict" = 0;
+>>>>
+
+## M12 | sudo | eval | invariants-main (agent maintenance sudo allowlist)
+A shell is added to main's passwordless agent sudo allowlist.
+@@ hosts/main/default.nix
+<<<<
+    "/run/current-system/sw/bin/nixos-switch-main"
+  ];
+====
+    "/run/current-system/sw/bin/nixos-switch-main"
+    "/run/current-system/sw/bin/bash"
+  ];
+>>>>
+
+## M13 | sudo | eval | invariants-main (no passwordless sudo)
+main allows passwordless sudo for the whole wheel group.
+@@ hosts/main/default.nix
+<<<<
+    sudo.extraConfig = ''
+====
+    sudo.wheelNeedsPassword = false;
+    sudo.extraConfig = ''
+>>>>
+
+## M14 | sudo | eval | invariants-gcp-agent (keeps wheelNeedsPassword)
+gcp-agent gets passwordless sudo for wheel.
+@@ hosts/gcp-agent/default.nix
+<<<<
+  # SSH is still Tailscale-scoped and key-only.
+====
+  # SSH is still Tailscale-scoped and key-only.
+  security.sudo.wheelNeedsPassword = false;
+>>>>
+
+## M15 | sudo | eval | invariants-main (agent maintenance sudo allowlist)
+main grants the agent user NOPASSWD ALL in addition to the allowlist.
+@@ hosts/main/default.nix
+<<<<
+        commands = map passwordlessAgentCommand agentMaintenanceCommands;
+====
+        commands = map passwordlessAgentCommand agentMaintenanceCommands ++ [
+          {
+            command = "ALL";
+            options = [ "NOPASSWD" ];
+          }
+        ];
+>>>>
+
+## M16 | nix-trust | eval | NixOS assertion in nix-trusted-users.nix (toplevel eval)
+homeserver-gcp makes all wheel members nix trusted users (root-equivalent).
+@@ hosts/homeserver-gcp/default.nix
+<<<<
+    nix.extraTrustedUsers = [ "user" ];
+====
+    nix.extraTrustedUsers = [
+      "user"
+      "@wheel"
+    ];
+>>>>
+
+## M17 | usbguard | eval | invariants-main (USBGuard deny-default)
+USBGuard final default rule flipped from reject to allow.
+@@ hosts/main/default.nix
+<<<<
+      # Reject everything else
+      reject
+====
+      # Everything else
+      allow
+>>>>
+
+## M18 | usbguard | eval | invariants-main (USBGuard deny-default)
+USBGuard gains a blanket allow for all mass-storage interfaces before the reject rule.
+@@ hosts/main/default.nix
+<<<<
+      # Reject everything else
+      reject
+====
+      allow with-interface one-of { 08:*:* }
+
+      # Reject everything else
+      reject
+>>>>
+
+## M19 | systemd-hardening | eval | services-hardened unit test
+Hardening baseline: NoNewPrivileges false.
+@@ modules/nixos/services/hardened.nix
+<<<<
+    NoNewPrivileges = true;
+    PrivateTmp = true;
+====
+    NoNewPrivileges = false;
+    PrivateTmp = true;
+>>>>
+
+## M20 | systemd-hardening | eval | services-hardened unit test
+Hardening baseline: SystemCallFilter removed.
+@@ modules/nixos/services/hardened.nix
+<<<<
+    SystemCallArchitectures = "native";
+    SystemCallFilter = [ "@system-service" ];
+====
+    SystemCallArchitectures = "native";
+>>>>
+
+## M21 | systemd-hardening | eval | services-hardened unit test
+Hardening baseline: NoNewPrivileges no longer forced over upstream units.
+@@ modules/nixos/services/hardened.nix
+<<<<
+  forcedKeys = [
+    "NoNewPrivileges"
+====
+  forcedKeys = [
+>>>>
+
+## M22 | backup | eval | invariants-main (backup paths are persisted)
+main Restic backs up a path that lives on the wiped root and is not persisted.
+@@ hosts/main/backups.nix
+<<<<
+        "/var/lib/libvirt"
+      ];
+      exclude = [
+====
+        "/var/lib/libvirt"
+        "/opt/scratch-db"
+      ];
+      exclude = [
+>>>>
+
+## M23 | backup | eval | invariants-homeserver-gcp (B2 backup paths)
+homeserver B2 backup drops the Vaultwarden data directory.
+@@ hosts/homeserver-gcp/backups.nix
+<<<<
+    paths = [
+      "/var/lib/vaultwarden"
+      "/var/lib/grafana"
+====
+    paths = [
+      "/var/lib/grafana"
+>>>>
+
+## M24 | backup | eval | invariants-homeserver-gcp (registry backup metadata)
+homeserver-gcp registry entry loses its backup metadata.
+@@ lib/hosts.nix
+<<<<
+      backup = {
+        class = "critical";
+        name = "b2";
+      };
+====
+>>>>
+
+## M25 | backup | eval | invariants-main (local backup protects critical paths)
+main backup drops ~/.ssh.
+@@ hosts/main/backups.nix
+<<<<
+        "/home/user/.ssh"
+        "/home/user/.gnupg"
+====
+        "/home/user/.gnupg"
+>>>>
+
+## M26 | backup | eval | invariants-main (btrbk policy)
+main btrbk snapshot retention cut from 14d to 1d.
+@@ hosts/main/backups.nix
+<<<<
+        snapshot_preserve = "14d";
+====
+        snapshot_preserve = "1d";
+>>>>
+
+## M27 | backup | eval | invariants-homeserver-gcp (critical retention)
+Critical backup class retention cut to one daily snapshot.
+@@ lib/backup-policy.nix
+<<<<
+    "--keep-daily 14"
+====
+    "--keep-daily 1"
+>>>>
+
+## M28 | backup | eval | invariants-homeserver-gcp (B2 timer)
+Backup timer changed from daily to yearly.
+@@ modules/nixos/profiles/backup.nix
+<<<<
+      OnCalendar = "daily";
+====
+      OnCalendar = "yearly";
+>>>>
+
+## M29 | secrets | eval | scan-plaintext-secrets.sh
+Hard-coded password assignment (fake value) committed in a host module.
+@@ hosts/homeserver-gcp/default.nix
+<<<<
+  security.sudo.wheelNeedsPassword = false;
+====
+  security.sudo.wheelNeedsPassword = false;
+  environment.variables.DB_PASSWORD = "FAKE-not-a-real-secret-0000000000";
+>>>>
+
+## M30 | secrets | eval | secrets-directory, scan-plaintext-secrets.sh
+A decrypted (plaintext, no sops block) YAML is committed in place of main's secrets file.
+@@ hosts/main/secrets/secrets.yaml
+<<<<
+*
+====
+restic_password: FAKE-not-a-real-secret-0000000000
+user_password: FAKE-not-a-real-secret-1111111111
+>>>>
+
+## M31 | secrets | eval | invariants-registry-security (SOPS recipient parity)
+homeserver-gcp host key dropped from the .sops.yaml recipients.
+@@ .sops.yaml
+<<<<
+          - *homeserver_gcp_host
+====
+>>>>
+
+## M32 | tailscale-acl | eval | lib-acl / tailscale-acl package eval (unknown tag)
+An acceptFrom rule references a misspelled, undefined source tag.
+@@ lib/hosts.nix
+<<<<
+          agent = [ 53 ];
+====
+          agnt = [ 53 ];
+>>>>
+
+## M33 | tailscale-acl | eval | none expected to be specific (ACL widening)
+CI runners are additionally granted HTTPS to homeserver-gcp in the ACL.
+@@ lib/hosts.nix
+<<<<
+          ci = [ 22 ];
+====
+          ci = [
+            22
+            443
+          ];
+>>>>
+
+## M34 | tailscale-acl | eval | lib-invariants (tags have AdGuard DNS grant)
+The builder tag loses its DNS grant to the tailnet resolver.
+@@ lib/hosts.nix
+<<<<
+          builder = [ 53 ];
+====
+>>>>
+
+## M35 | alerting | eval | invariants-homeserver-gcp (failed-unit fallback)
+tailscaled removed from the failed-unit notifier list.
+@@ hosts/homeserver-gcp/default.nix
+<<<<
+        "tailscaled"
+        "heartbeat-ping"
+====
+        "heartbeat-ping"
+>>>>
+
+## M36 | nginx | vm | homeserver-gcp-smoke VM test
+HSTS header removed from the homeserver nginx security headers.
+@@ hosts/homeserver-gcp/nginx.nix
+<<<<
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+====
+>>>>
+
+## M37 | nginx | vm | homeserver-gcp-smoke VM test (401 matrix)
+Mimir ingest endpoint loses its basic-auth requirement.
+@@ hosts/homeserver-gcp/nginx.nix
+<<<<
+            target = "http://127.0.0.1:9009/api/v1/push";
+            basicAuthFile = cfg.ingestHtpasswdFile;
+====
+            target = "http://127.0.0.1:9009/api/v1/push";
+>>>>
+
+## M38 | observability | eval | observability-client-fixture
+Telemetry client defaults to plain HTTP (basic-auth credentials in clear text).
+@@ modules/nixos/profiles/observability-client.nix
+<<<<
+        default = "https";
+====
+        default = "http";
+>>>>
+
+## M39 | observability | eval | NixOS assertion (Grafana secret key)
+Grafana secret_key file dropped from homeserver-gcp.
+@@ hosts/homeserver-gcp/default.nix
+<<<<
+        secretKeyFile = config.sops.secrets.grafana_secret_key.path;
+====
+>>>>
+
+## M40 | deploy | eval | deploy-schema / deploy invariants
+homeserver-gcp deploy user changed to root (PermitRootLogin is off).
+@@ lib/hosts.nix
+<<<<
+          ci = [ 22 ];
+        };
+      };
+      deploy.sshUser = "user";
+====
+          ci = [ 22 ];
+        };
+      };
+      deploy.sshUser = "root";
+>>>>
+
+## M41 | sops | eval | invariants-mac (sops uses SSH host key)
+mac sops no longer points at an SSH host key.
+@@ hosts/mac/default.nix
+<<<<
+    age.sshKeyPaths = [ "/persist/etc/ssh/ssh_host_ed25519_key" ];
+====
+    age.sshKeyPaths = [ ];
+>>>>
+
+## M42 | backup | eval | invariants-main (backup metadata configures Restic)
+main no longer imports its backups module (no Restic job at all).
+@@ hosts/main/default.nix
+<<<<
+    ./backups.nix
+====
+>>>>
+
+## M43 | persistence | eval | none expected to be specific
+mac stops persisting /var/lib/tailscale (node identity lost on every boot).
+@@ hosts/mac/impermanence.nix
+<<<<
+    "/var/lib/tailscale" # tailnet node identity + peers
+====
+>>>>
+
+## M44 | accounts | eval | invariants-gcp-builder (users key-only)
+gcp-builder login user gets a password.
+@@ hosts/gcp-builder/default.nix
+<<<<
+  users.users.user = {
+    home = "/home/user";
+====
+  users.users.user = {
+    home = "/home/user";
+    initialPassword = "FAKE-changeme";
+>>>>
+
+## M45 | ssh-exposure | eval | invariants-main (main SSH tailnet-only)
+main OpenSSH opens its port in the firewall.
+@@ hosts/main/default.nix
+<<<<
+      openFirewall = false; # Accessible via Tailscale only
+====
+      openFirewall = true; # Accessible via Tailscale only
+>>>>
+
+## M46 | boot | eval | invariants-main (rollback-root initrd tools)
+rollback-root initrd loses a required tool (gnused).
+@@ modules/nixos/profiles/impermanence-base.nix
+<<<<
+        pkgs.findutils
+        pkgs.gnused
+====
+        pkgs.findutils
+>>>>
+
+## M47 | backup | eval | invariants-homeserver-gcp (secrets from /run/secrets)
+homeserver B2 repository file pointed at a plaintext path outside /run/secrets.
+@@ hosts/homeserver-gcp/backups.nix
+<<<<
+    repositoryFile = config.sops.secrets.restic_repository.path;
+====
+    repositoryFile = "/root/restic-repository";
+>>>>
+
+## M48 | tailscale | eval | invariants (autoconnect normalizes prefs)
+homeserver tailscale autoconnect loses --reset.
+@@ hosts/homeserver-gcp/default.nix
+<<<<
+      extraUpFlags = [ "--reset" ];
+====
+      extraUpFlags = [ ];
+>>>>
+
+## M49 | mullvad-tailscale | eval | invariants-main (coexistence)
+Mullvad/Tailscale nftables ct-mark rule loses its mark.
+@@ hosts/main/networking.nix
+<<<<
+          oifname "tailscale0" ct mark set 0x00000f41 meta mark set 0x6d6f6c65
+====
+          oifname "tailscale0" meta mark set 0x6d6f6c65
+>>>>
+
+## M50 | mullvad-tailscale | eval | none expected to be specific
+Tailnet IPv4 route no longer injected into the main table.
+@@ hosts/main/networking.nix
+<<<<
+    "$ip_bin" route replace 100.64.0.0/10 dev tailscale0 table main
+====
+>>>>
+
+## M51 | anonymity | eval | invariants-main (anonymous specialisation persistence)
+Anonymous specialisation persists /var/lib/tailscale (identity leak).
+@@ hosts/main/anonymous.nix
+<<<<
+          "/var/lib/nixos"
+          "/var/lib/systemd/backlight"
+====
+          "/var/lib/nixos"
+          "/var/lib/tailscale"
+          "/var/lib/systemd/backlight"
+>>>>
+
+## M52 | firewall | eval | none expected to be specific
+Sunshine opens its game-streaming ports on every interface of main.
+@@ hosts/main/default.nix
+<<<<
+      capSysAdmin = true;
+      openFirewall = false;
+====
+      capSysAdmin = true;
+      openFirewall = true;
+>>>>
+
+## M53 | alerting | eval | observability-alerts-lint
+The ResticBackupStale alert rule is deleted.
+@@ lib/observability-alerts.nix
+<<<<
+          {
+            alert = "ResticBackupStale";
+            expr = "(time() - restic_last_backup_timestamp_seconds) / 3600 > 26";
+            for = "0m";
+            labels.severity = "critical";
+            annotations = {
+              summary = "Restic backup stale on {{ $labels.instance }}";
+              description = "Last backup {{ $value | printf \"%.1f\" }}h ago (threshold: 26h).";
+            };
+          }
+====
+>>>>
+
+## M54 | ssh-exposure | eval | none expected to be specific
+Installer ISO allows password logins for root over SSH.
+@@ hosts/installer/default.nix
+<<<<
+      PermitRootLogin = "prohibit-password";
+      PasswordAuthentication = false;
+====
+      PermitRootLogin = "yes";
+      PasswordAuthentication = true;
+>>>>

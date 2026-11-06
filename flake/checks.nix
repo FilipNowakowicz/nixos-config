@@ -229,7 +229,15 @@ let
         backup = cfg.services.restic.backups.b2;
         # Same source modules/nixos/profiles/backup.nix uses, so this can't
         # drift out of sync with the policy that's actually applied.
-        expectedPruneOpts = (import ../lib/backup-policy.nix).critical;
+        # Pinned literally (not read from lib/backup-policy.nix): a shared
+        # source would let a retention cut change policy and expectation together.
+        expectedPruneOpts = [
+          "--group-by host"
+          "--keep-daily 14"
+          "--keep-weekly 8"
+          "--keep-monthly 6"
+          "--keep-yearly 2"
+        ];
         pathCheck = requirePaths backup.paths [
           "/var/lib/vaultwarden"
           "/var/lib/grafana"
@@ -259,8 +267,53 @@ let
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
 
+  # `cfg.system.stateVersion != null` can never fail (the option defaults to the
+  # nixpkgs release with only a warning), so inspect the option's priority
+  # instead: it must have been set by the host, not left at the module default.
+  stateVersionExplicitlySet = hostName: {
+    name = "system.stateVersion is set explicitly";
+    check =
+      _:
+      mkResult (
+        allNixosConfigs.${hostName}.options.system.stateVersion.highestPrio < (lib.mkOptionDefault { })
+        .priority
+      ) "system.stateVersion falls back to the nixpkgs default; set it in the host config";
+  };
+
+  # An impermanent host that loses /var/lib/tailscale re-registers a new node
+  # identity on every boot (new IP, orphaned device, ACL tags lost).
+  tailscaleStateIsPersisted = {
+    name = "impermanent tailscale hosts persist /var/lib/tailscale";
+    check =
+      cfg:
+      let
+        dirs = map (d: if builtins.isAttrs d then d.directory else d) (
+          lib.concatMap (p: p.directories or [ ]) (lib.attrValues (cfg.environment.persistence or { }))
+        );
+      in
+      mkResult (
+        !(cfg.profiles.impermanence.rollbackRoot.enable or false)
+        || !cfg.services.tailscale.enable
+        || builtins.elem "/var/lib/tailscale" dirs
+      ) "/var/lib/tailscale must be persisted on impermanent hosts that run Tailscale";
+  };
+
+  mainNoGloballyOpenPorts = {
+    name = "main opens no ports on all interfaces";
+    check =
+      cfg:
+      let
+        tcp = cfg.networking.firewall.allowedTCPPorts or [ ];
+        # mDNS (avahi) and the WireGuard port tailscaled listens on are the only
+        # sanctioned global UDP ports.
+        udp = lib.subtractLists [ 5353 41641 ] (cfg.networking.firewall.allowedUDPPorts or [ ]);
+      in
+      mkResult (tcp == [ ] && udp == [ ])
+        "unexpected globally open ports (open them per-interface): tcp=${builtins.toJSON tcp} udp=${builtins.toJSON udp}";
+  };
+
   commonSystemInvariants = [
-    invariants.hasStateVersion
+    tailscaleStateIsPersisted
     invariants.tailscaleAutoconnectNormalizesPrefs
     nixpkgsRegistryPinnedToFlakeInput
     rollbackRootInitrdToolsAvailable
@@ -278,6 +331,7 @@ let
     }
     invariants.mainAgentMaintenanceSudoAllowlist
     invariants.mainSshIsTailnetOnly
+    mainNoGloballyOpenPorts
     invariants.mainUsbguardIsDenyDefault
     {
       name = "anonymous specialisation persistence stays minimal";
@@ -376,10 +430,24 @@ let
   # silently shipping a non-firing rule.
   alertData = import ../lib/observability-alerts.nix;
   rulesYaml = (pkgs.formats.yaml { }).generate "infrastructure-alerts.yaml" alertData.rules;
+  requiredAlerts = [
+    "SystemdUnitFailed"
+    "ResticBackupStale"
+    "ResticCheckStale"
+    "ResticRestoreCanaryStale"
+    "HeartbeatPingStale"
+    "BlackboxProbeFailed"
+    "TLSCertificateExpiresSoon"
+  ];
   observabilityAlertsLint =
     pkgs.runCommand "observability-alerts-lint" { nativeBuildInputs = [ pkgs.prometheus.cli ]; }
       ''
         promtool check rules ${rulesYaml}
+        # Deleting an alert is not a lint error; pin the ones that guard backups,
+        # failed units and liveness so removing one fails here.
+        for alert in ${lib.escapeShellArgs requiredAlerts}; do
+          grep -q "alert: $alert\$" ${rulesYaml} || { echo "missing required alert: $alert" >&2; exit 1; }
+        done
         touch $out
       '';
 
@@ -421,7 +489,17 @@ let
         tempo = systemConfig.config.services.tempo.enable;
         prometheus = systemConfig.config.services.prometheus.enable;
       };
+      expected = {
+        grafana = true;
+        loki = true;
+        mimir = true;
+        tempo = true;
+        prometheus = true;
+      };
     in
+    assert lib.assertMsg (
+      evaluated == expected
+    ) "observability-stack-fixture: ${builtins.toJSON evaluated}";
     pkgs.writeText "observability-stack-fixture.json" (builtins.toJSON evaluated);
 
   observabilityClientFixture =
@@ -440,7 +518,7 @@ let
             profiles.observability-client = {
               enable = true;
               remoteEndpoint = {
-                scheme = "https";
+                # scheme intentionally unset: the default must be https.
                 host = "observability.example.ts.net";
                 metricsPath = "/ingest/metrics";
                 logsPath = "/ingest/logs";
@@ -460,7 +538,15 @@ let
         traceEndpoint =
           systemConfig.config.services.opentelemetry-collector.settings.exporters.otlphttp.endpoint;
       };
+      expected = {
+        metricsURL = "https://observability.example.ts.net/ingest/metrics";
+        logsEnabled = true;
+        traceEndpoint = "https://observability.example.ts.net/ingest/traces";
+      };
     in
+    assert lib.assertMsg (
+      evaluated == expected
+    ) "observability-client-fixture: ${builtins.toJSON evaluated}";
     pkgs.writeText "observability-client-fixture.json" (builtins.toJSON evaluated);
 
   observabilityDashboardBackendAssertionFixture =
@@ -556,7 +642,21 @@ let
         privateTmp = serviceConfig.PrivateTmp;
         protectSystem = serviceConfig.ProtectSystem;
       };
+      expected = {
+        capabilityBoundingSet = "CAP_NET_BIND_SERVICE";
+        ambientCapabilities = "CAP_NET_BIND_SERVICE";
+        readWritePaths = [
+          "/var/cache/nginx"
+          "/var/log/nginx"
+          "/var/lib/nginx/certs"
+        ];
+        privateTmp = true;
+        protectSystem = "strict";
+      };
     in
+    assert lib.assertMsg (
+      evaluated == expected
+    ) "services-hardened-example-fixture: ${builtins.toJSON evaluated}";
     pkgs.writeText "services-hardened-example-fixture.json" (builtins.toJSON evaluated);
 
   # Evaluates `nixosModules.profiles-base` standalone: no observability module
@@ -581,7 +681,16 @@ let
         hasExportSystemMetadata = systemConfig.config.system.activationScripts ? exportSystemMetadata;
         zramSwap = systemConfig.config.zramSwap.enable;
       };
+      expected = {
+        configurationRevision = null;
+        hasNixpkgsRegistry = true;
+        hasExportSystemMetadata = false;
+        zramSwap = true;
+      };
     in
+    assert lib.assertMsg (
+      evaluated == expected
+    ) "profiles-base-standalone-fixture: ${builtins.toJSON evaluated}";
     pkgs.writeText "profiles-base-standalone-fixture.json" (builtins.toJSON evaluated);
 
   # Evaluates both `examples/mini-fleet` hosts against nixpkgs only — the same
@@ -628,12 +737,16 @@ let
           ../modules/nixos/profiles/observability-client.nix
         ];
       };
+      serverToplevel = builtins.tryEval (
+        builtins.deepSeq server.config.system.build.toplevel.drvPath true
+      );
       evaluated = {
         workstationHostName = workstation.config.networking.hostName;
         workstationHasDesktop = workstation.config.programs.hyprland.enable;
         workstationFirewallEnabled = workstation.config.networking.firewall.enable;
         workstationHomeHasBasePackages = workstation.config.home-manager.users.demo.home.packages != [ ];
         workstationToplevelBuildable = workstationToplevel.success;
+        serverToplevelBuildable = serverToplevel.success;
         serverHostName = server.config.networking.hostName;
         serverServiceCapabilityBoundingSet =
           server.config.systemd.services.demo-app.serviceConfig.CapabilityBoundingSet;
@@ -642,6 +755,12 @@ let
     in
     if !workstationToplevel.success then
       throw "mini-fleet example fixture: workstation system.build.toplevel failed to evaluate (e.g. failing NixOS assertions)"
+    else if !serverToplevel.success then
+      throw "mini-fleet example fixture: server system.build.toplevel failed to evaluate (e.g. failing NixOS assertions)"
+    else if evaluated.serverMetricsURL != "https://observability.example.ts.net/ingest/metrics" then
+      throw "mini-fleet example fixture: unexpected server metrics URL ${evaluated.serverMetricsURL}"
+    else if evaluated.serverServiceCapabilityBoundingSet != "" then
+      throw "mini-fleet example fixture: demo-app must drop all capabilities"
     else
       pkgs.writeText "mini-fleet-example-fixture.json" (builtins.toJSON evaluated);
 
@@ -652,7 +771,19 @@ let
       hasPub = builtins.pathExists (secretsDir + "/ssh_host_ed25519_key.pub.enc");
     in
     if hasKey && hasPub then
-      pkgs.runCommand "${hostName}-sops-bootstrap-check" { } "touch $out"
+      # An empty or truncated file (a failed `sops -e > out.enc`) exists but is
+      # useless; require non-empty sops-encrypted content. No key material needed.
+      pkgs.runCommand "${hostName}-sops-bootstrap-check" { } ''
+        for f in ${secretsDir + "/ssh_host_ed25519_key.enc"} ${
+          secretsDir + "/ssh_host_ed25519_key.pub.enc"
+        }; do
+          if [ ! -s "$f" ] || ! grep -q 'ENC\[' "$f"; then
+            echo "${hostName} sops bootstrap: empty or non-sops file: $f" >&2
+            exit 1
+          fi
+        done
+        touch $out
+      ''
     else
       pkgs.runCommand "${hostName}-sops-bootstrap-check" { } ''
         echo "${hostName} sops bootstrap incomplete — missing pre-baked host key files:"
@@ -677,6 +808,7 @@ let
   baselineInvariantsFor =
     hostName:
     commonSystemInvariants
+    ++ [ (stateVersionExplicitlySet hostName) ]
     ++ registryAssertionsFor hostName
     ++ (hostInvariantOverlays.${hostName} or [ ]);
 
@@ -723,6 +855,65 @@ let
       name = "deploy targets have tailnet addresses";
       check = _: invariants.checkDeployTargetsHaveTailnetAddresses hostRegistry;
     }
+    {
+      name = "deploy-rs never connects as root";
+      check =
+        _:
+        let
+          rootTargets = builtins.attrNames (
+            lib.filterAttrs (_: m: (m.deploy.sshUser or null) == "root") hostRegistry
+          );
+        in
+        mkResult (rootTargets == [ ]) "deploy.sshUser must not be root: ${builtins.toJSON rootTargets}";
+    }
+    {
+      # Reviewed tailnet grants (srcTag->dstTag:port). Any widening or removal
+      # of an acceptFrom entry changes the ACL; update this list deliberately.
+      name = "tailnet grants match the reviewed set";
+      check =
+        _:
+        let
+          actual = lib.sort builtins.lessThan (
+            lib.unique (
+              lib.concatLists (
+                lib.mapAttrsToList (
+                  _: m:
+                  lib.concatLists (
+                    lib.mapAttrsToList (src: ports: map (p: "${src}->${m.tailscale.tag}:${toString p}") ports) (
+                      m.tailscale.acceptFrom or { }
+                    )
+                  )
+                ) (lib.filterAttrs (_: m: m ? tailscale) hostRegistry)
+              )
+            )
+          );
+          reviewed = [
+            "agent->builder:22"
+            "agent->server:53"
+            "builder->server:53"
+            "ci->server:22"
+            "workstation->agent:22"
+            "workstation->builder:22"
+            "workstation->server:22"
+            "workstation->server:3001"
+            "workstation->server:443"
+            "workstation->server:53"
+            "workstation->workstation:22"
+            "workstation->workstation:22000"
+            "workstation->workstation:24800"
+            "workstation->workstation:47984"
+            "workstation->workstation:47989"
+            "workstation->workstation:47998"
+            "workstation->workstation:47999"
+            "workstation->workstation:48000"
+            "workstation->workstation:48002"
+            "workstation->workstation:48010"
+          ];
+        in
+        mkResult (
+          actual == reviewed
+        ) "tailnet grants differ from the reviewed set: ${builtins.toJSON actual}";
+    }
   ];
 in
 {
@@ -737,6 +928,30 @@ in
     invariants-main-ci =
       invariants.mkInvariantCheck "main-ci" mainInvariants
         ciNixosConfigs.main-ci.config;
+
+    # The installer ISO is not a registry host but exposes SSH on TCP/22 to
+    # whatever network it boots on: it must stay key-only.
+    invariants-installer =
+      invariants.mkInvariantCheck "installer"
+        [
+          {
+            name = "installer SSH is key-only";
+            check =
+              cfg:
+              let
+                s = cfg.services.openssh.settings;
+              in
+              mkResult (
+                s.PermitRootLogin == "prohibit-password"
+                && s.PasswordAuthentication == false
+                && s.KbdInteractiveAuthentication == false
+              ) "installer sshd must allow only key-based root login";
+          }
+        ]
+        (lib.nixosSystem {
+          system = pkgs.stdenv.hostPlatform.system;
+          modules = [ ../hosts/installer/default.nix ];
+        }).config;
 
     observability-alerts-lint = observabilityAlertsLint;
     observability-stack-fixture = observabilityStackFixture;

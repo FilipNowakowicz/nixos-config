@@ -279,12 +279,12 @@ let
       expected = false;
     };
 
-    hostnameMatchesRegistryKey = {
+    testHostnameMatchesRegistryKey = {
       expr = runAssertion "networking.hostName matches registry key" baseConfig;
       expected = true;
     };
 
-    deployableHostsRequireOpenSsh = {
+    testDeployableHostsRequireOpenSsh = {
       expr = runAssertion "deployable hosts enable OpenSSH" (
         baseConfig
         // {
@@ -296,7 +296,7 @@ let
       expected = false;
     };
 
-    backupMetadataRequiresRestic = {
+    testBackupMetadataRequiresRestic = {
       expr = runAssertion "backup metadata configures Restic backup target" (
         baseConfig
         // {
@@ -308,7 +308,7 @@ let
       expected = false;
     };
 
-    backupMetadataAcceptsRepositoryFile = {
+    testBackupMetadataAcceptsRepositoryFile = {
       expr = runAssertion "backup metadata configures Restic backup target" (
         baseConfig
         // {
@@ -323,7 +323,7 @@ let
       expected = true;
     };
 
-    backupMetadataRequiresPaths = {
+    testBackupMetadataRequiresPaths = {
       expr = runAssertion "backup metadata configures Restic backup target" (
         baseConfig
         // {
@@ -338,7 +338,7 @@ let
       expected = false;
     };
 
-    tailnetMetadataRequiresTailscale = {
+    testTailnetMetadataRequiresTailscale = {
       expr = runAssertion "tailnet metadata enables Tailscale" (
         baseConfig
         // {
@@ -350,19 +350,19 @@ let
       expected = false;
     };
 
-    tailscale0PortsAssertionAbsentWithoutAcceptFrom = {
+    testTailscale0PortsAssertionAbsentWithoutAcceptFrom = {
       expr = lib.any (a: a.name == "tailscale0 firewall ports match registry acceptFrom") assertions;
       expected = false;
     };
 
-    tailscale0PortsAssertionPresentWithAcceptFrom = {
+    testTailscale0PortsAssertionPresentWithAcceptFrom = {
       expr = lib.any (
         a: a.name == "tailscale0 firewall ports match registry acceptFrom"
       ) assertionsWithAcceptFrom;
       expected = true;
     };
 
-    tailscale0PortsMatchAcceptFromPasses = {
+    testTailscale0PortsMatchAcceptFromPasses = {
       expr =
         (runAssertionFrom assertionsWithAcceptFrom "tailscale0 firewall ports match registry acceptFrom"
           baseConfig
@@ -370,7 +370,7 @@ let
       expected = true;
     };
 
-    tailscale0PortsMatchAcceptFromRejectsMismatch = {
+    testTailscale0PortsMatchAcceptFromRejectsMismatch = {
       expr =
         (runAssertionFrom assertionsWithAcceptFrom "tailscale0 firewall ports match registry acceptFrom" (
           baseConfig
@@ -386,12 +386,12 @@ let
       expected = "tailscale.acceptFrom admits port(s) not opened on tailscale0: 443; tailscale0 opens port(s) not admitted by tailscale.acceptFrom: 21027";
     };
 
-    sopsRecipientParityPasses = {
+    testSopsRecipientParityPasses = {
       expr = (invariants.checkSopsRecipientParity hostRegistry matchingSopsYaml).passed;
       expected = true;
     };
 
-    sopsRecipientParityRejectsMissingAndStaleHosts = {
+    testSopsRecipientParityRejectsMissingAndStaleHosts = {
       expr =
         (invariants.checkSopsRecipientParity hostRegistry ''
           keys:
@@ -399,17 +399,39 @@ let
             - &old_host age1old
           creation_rules:
             - path_regex: ^hosts/main/secrets/.*
+              key_groups:
+                - age:
+                    - *main_host
             - path_regex: ^hosts/old/secrets/.*
         '').message;
       expected = ".sops.yaml missing host secret rule(s): homeserver-gcp; .sops.yaml has stale host secret rule(s): old; .sops.yaml missing host recipient key(s): homeserver-gcp; .sops.yaml has stale host recipient key(s): old";
     };
 
-    deployTargetsHaveTailnetAddressesPasses = {
+    testSopsRecipientParityRejectsUnlistedHostKey = {
+      expr =
+        (invariants.checkSopsRecipientParity hostRegistry ''
+          keys:
+            - &main_host age1main
+            - &homeserver_gcp_host age1hs
+          creation_rules:
+            - path_regex: ^hosts/main/secrets/.*
+              key_groups:
+                - age:
+                    - *main_host
+            - path_regex: ^hosts/homeserver-gcp/secrets/.*
+              key_groups:
+                - age:
+                    - *user
+        '').message;
+      expected = ".sops.yaml defines but never lists host recipient key(s): homeserver-gcp";
+    };
+
+    testDeployTargetsHaveTailnetAddressesPasses = {
       expr = (invariants.checkDeployTargetsHaveTailnetAddresses hostRegistry).passed;
       expected = true;
     };
 
-    deployTargetsHaveTailnetAddressesRejectsMissingTailnetMetadata = {
+    testDeployTargetsHaveTailnetAddressesRejectsMissingTailnetMetadata = {
       expr =
         (invariants.checkDeployTargetsHaveTailnetAddresses (
           hostRegistry
@@ -426,17 +448,17 @@ let
     # Validates the live registry: homeserver-gcp must admit every active tag
     # (workstation, builder, agent) on :53, with tag:server exempt as the
     # AdGuard host itself. Catches a newly-added tagged host that forgets DNS.
-    tailnetTagsHaveAdguardDnsGrantPassesOnRealRegistry = {
+    testTailnetTagsHaveAdguardDnsGrantPassesOnRealRegistry = {
       expr = (invariants.checkTailnetTagsHaveAdguardDnsGrant realHostRegistry).passed;
       expected = true;
     };
 
-    tailnetTagsHaveAdguardDnsGrantPasses = {
+    testTailnetTagsHaveAdguardDnsGrantPasses = {
       expr = (invariants.checkTailnetTagsHaveAdguardDnsGrant dnsGrantRegistry).passed;
       expected = true;
     };
 
-    tailnetTagsHaveAdguardDnsGrantRejectsUngrantedTag = {
+    testTailnetTagsHaveAdguardDnsGrantRejectsUngrantedTag = {
       expr =
         (invariants.checkTailnetTagsHaveAdguardDnsGrant (
           dnsGrantRegistry
@@ -451,7 +473,7 @@ let
     };
 
     # Auth-key autoconnect host (enable + authKeyFile) must carry --reset.
-    tailscaleAutoconnectNormalizesPrefsPassesWithReset = {
+    testTailscaleAutoconnectNormalizesPrefsPassesWithReset = {
       expr =
         (invariants.tailscaleAutoconnectNormalizesPrefs.check {
           services.tailscale = {
@@ -466,7 +488,7 @@ let
       expected = true;
     };
 
-    tailscaleAutoconnectNormalizesPrefsRejectsMissingReset = {
+    testTailscaleAutoconnectNormalizesPrefsRejectsMissingReset = {
       expr =
         (invariants.tailscaleAutoconnectNormalizesPrefs.check {
           services.tailscale = {
@@ -479,7 +501,7 @@ let
     };
 
     # Interactive host (no authKeyFile) never autoconnects, so it is exempt.
-    tailscaleAutoconnectNormalizesPrefsExemptsInteractiveHost = {
+    testTailscaleAutoconnectNormalizesPrefsExemptsInteractiveHost = {
       expr =
         (invariants.tailscaleAutoconnectNormalizesPrefs.check {
           services.tailscale = {
@@ -491,12 +513,12 @@ let
       expected = true;
     };
 
-    impermanentHostsHaveDiskoConfigPasses = {
+    testImpermanentHostsHaveDiskoConfigPasses = {
       expr = (invariants.checkImpermanentHostHasDiskoConfig impermanentConfig).passed;
       expected = true;
     };
 
-    impermanentHostsHaveDiskoConfigRejectsMissingMountpoint = {
+    testImpermanentHostsHaveDiskoConfigRejectsMissingMountpoint = {
       expr =
         (invariants.checkImpermanentHostHasDiskoConfig (
           impermanentConfig
@@ -507,12 +529,12 @@ let
       expected = "environment.persistence root(s) missing matching disko mountpoint: /persist";
     };
 
-    anonymousSpecialisationPersistencePasses = {
+    testAnonymousSpecialisationPersistencePasses = {
       expr = (invariants.checkAnonymousSpecialisationPersistence anonymousConfig).passed;
       expected = true;
     };
 
-    anonymousSpecialisationPersistenceRejectsExtraPersistedDirectory = {
+    testAnonymousSpecialisationPersistenceRejectsExtraPersistedDirectory = {
       expr =
         (invariants.checkAnonymousSpecialisationPersistence (
           anonymousConfig
@@ -529,12 +551,12 @@ let
       expected = "anonymous specialisation persists unexpected dir(s): /var/lib/tailscale";
     };
 
-    mullvadTailscaleCoexistencePasses = {
+    testMullvadTailscaleCoexistencePasses = {
       expr = (invariants.checkMullvadTailscaleCoexistence mullvadTailscaleConfig).passed;
       expected = true;
     };
 
-    mullvadTailscaleCoexistenceRejectsMissingMarks = {
+    testMullvadTailscaleCoexistenceRejectsMissingMarks = {
       expr =
         (invariants.checkMullvadTailscaleCoexistence (
           mullvadTailscaleConfig
@@ -552,12 +574,12 @@ let
       expected = "tailscale-mullvad-compat nftables chain must set Mullvad's conntrack bypass mark";
     };
 
-    trustedUsersMatchExpectedSet = {
+    testTrustedUsersMatchExpectedSet = {
       expr = (invariants.checkExpectedTrustedUsers [ "root" ] baseConfig).passed;
       expected = true;
     };
 
-    trustedUsersRejectUnexpectedUsers = {
+    testTrustedUsersRejectUnexpectedUsers = {
       expr =
         (invariants.checkExpectedTrustedUsers [ "root" ] (
           baseConfig
@@ -571,7 +593,7 @@ let
       expected = "unexpected trusted users: user";
     };
 
-    trustedUsersRejectMissingExpectedUsers = {
+    testTrustedUsersRejectMissingExpectedUsers = {
       expr =
         (invariants.checkExpectedTrustedUsers [
           "root"
@@ -580,12 +602,12 @@ let
       expected = "missing trusted users: builder";
     };
 
-    noGlobalTcpPortsPasses = {
+    testNoGlobalTcpPortsPasses = {
       expr = (invariants.checkNoGlobalTCPPorts [ 22 443 ] baseConfig).passed;
       expected = true;
     };
 
-    noGlobalTcpPortsRejectsExposure = {
+    testNoGlobalTcpPortsRejectsExposure = {
       expr =
         (invariants.checkNoGlobalTCPPorts [ 22 443 ] (
           baseConfig
@@ -598,7 +620,7 @@ let
       expected = "ports must not be globally open: 443";
     };
 
-    tcpPortsRestrictedToInterfacePasses = {
+    testTcpPortsRestrictedToInterfacePasses = {
       expr =
         (invariants.checkTCPPortsRestrictedToInterface {
           interface = "tailscale0";
@@ -610,7 +632,7 @@ let
       expected = true;
     };
 
-    tcpPortsRestrictedToInterfaceRejectsMissingTargetPort = {
+    testTcpPortsRestrictedToInterfaceRejectsMissingTargetPort = {
       expr =
         (invariants.checkTCPPortsRestrictedToInterface
           {
@@ -632,7 +654,7 @@ let
       expected = "networking.firewall.interfaces.tailscale0.allowedTCPPorts must include: 443";
     };
 
-    tcpPortsRestrictedToInterfaceRejectsOtherInterfaces = {
+    testTcpPortsRestrictedToInterfaceRejectsOtherInterfaces = {
       expr =
         (invariants.checkTCPPortsRestrictedToInterface
           {
@@ -656,12 +678,12 @@ let
       expected = "ports must not be exposed on non-tailscale0 interfaces: eth0 (22)";
     };
 
-    mainSudoAllowlistPasses = {
+    testMainSudoAllowlistPasses = {
       expr = (checkMainSudoExtraRules mainSudoExtraRulesGood).passed;
       expected = true;
     };
 
-    mainSudoAllowlistRejectsUnexpectedUserRule = {
+    testMainSudoAllowlistRejectsUnexpectedUserRule = {
       expr =
         (checkMainSudoExtraRules (
           mainSudoExtraRulesGood
@@ -675,7 +697,7 @@ let
       expected = false;
     };
 
-    mainSudoAllowlistRejectsBroadAllAdditionToAgentRule = {
+    testMainSudoAllowlistRejectsBroadAllAdditionToAgentRule = {
       expr =
         (checkMainSudoExtraRules [
           mainSudoRootSetenvRule
@@ -691,7 +713,7 @@ let
       expected = "expected exactly 1 agent maintenance allowlist rule, got 0; main sudo extraRules contains 1 unexpected rule(s)";
     };
 
-    mainSudoAllowlistRejectsNonUserNopasswdResidue = {
+    testMainSudoAllowlistRejectsNonUserNopasswdResidue = {
       expr =
         (checkMainSudoExtraRules (
           mainSudoExtraRulesGood ++ [ (mainSudoAgentMaintenanceRule // { users = [ "user2" ]; }) ]
@@ -699,7 +721,7 @@ let
       expected = false;
     };
 
-    mainSudoAllowlistRejectsMalformedBtrbkResidue = {
+    testMainSudoAllowlistRejectsMalformedBtrbkResidue = {
       expr =
         (checkMainSudoExtraRules [
           mainSudoRootSetenvRule
@@ -715,7 +737,7 @@ let
       expected = "expected exactly 1 btrbk maintenance allowlist rule, got 0; main sudo extraRules contains 1 unexpected rule(s)";
     };
 
-    mainSudoAllowlistRejectsMissingDefaultRule = {
+    testMainSudoAllowlistRejectsMissingDefaultRule = {
       expr =
         (checkMainSudoExtraRules [
           mainSudoRootSetenvRule
@@ -725,13 +747,13 @@ let
       expected = "expected exactly 1 default wheel SETENV rule, got 0";
     };
 
-    mainSudoAllowlistRejectsDuplicateAgentRule = {
+    testMainSudoAllowlistRejectsDuplicateAgentRule = {
       expr =
         (checkMainSudoExtraRules (mainSudoExtraRulesGood ++ [ mainSudoAgentMaintenanceRule ])).message;
       expected = "expected exactly 1 agent maintenance allowlist rule, got 2";
     };
 
-    homeserverDeployRunnerConfigPasses = {
+    testHomeserverDeployRunnerConfigPasses = {
       expr =
         (invariants.homeserverDeployRunnerRegistrationGcRunbookMatchesConfig.check {
           systemd.services.github-runner-homeserver-deploy = {
@@ -742,7 +764,7 @@ let
       expected = true;
     };
 
-    homeserverDeployRunnerConfigRejectsRestartIfChanged = {
+    testHomeserverDeployRunnerConfigRejectsRestartIfChanged = {
       expr =
         (invariants.homeserverDeployRunnerRegistrationGcRunbookMatchesConfig.check {
           systemd.services.github-runner-homeserver-deploy = {
@@ -753,7 +775,7 @@ let
       expected = "systemd.services.github-runner-homeserver-deploy.restartIfChanged must be false (the self-deploy runner is SIGKILLed mid switch-to-configuration otherwise, half-applying activation with exit 130)";
     };
 
-    homeserverDeployRunnerConfigRejectsDefaultRestartIfChanged = {
+    testHomeserverDeployRunnerConfigRejectsDefaultRestartIfChanged = {
       expr =
         (invariants.homeserverDeployRunnerRegistrationGcRunbookMatchesConfig.check {
           systemd.services.github-runner-homeserver-deploy.serviceConfig.StateDirectory =

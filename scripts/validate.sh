@@ -278,6 +278,9 @@ light)
     ".#checks.${system}.invariants-main" \
     ".#checks.${system}.invariants-main-ci" \
     ".#checks.${system}.invariants-mac" \
+    ".#checks.${system}.invariants-registry-security" \
+    ".#checks.${system}.invariants-installer" \
+    ".#checks.${system}.control-center-capabilities" \
     ".#checks.${system}.lib-doctor" \
     ".#checks.${system}.lib-generators" \
     ".#checks.${system}.lib-generators-structured" \
@@ -312,8 +315,8 @@ hosts)
 
 smoke-homeserver-gcp)
   if [[ ! -e /dev/kvm ]]; then
-    echo "KVM not available: /dev/kvm missing; skipping homeserver-gcp smoke test." >&2
-    exit 0
+    echo "error: /dev/kvm missing; the homeserver-gcp smoke test cannot run here." >&2
+    exit 1
   fi
   ensure_builder
   build_attrs ".#legacyPackages.${system}.ciTests.homeserver-gcp-smoke"

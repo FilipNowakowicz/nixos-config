@@ -25,6 +25,7 @@ let
       {
         services.hardened = {
           baseline = { };
+          upstream = { };
 
           "forced-extra".extraConfig = {
             PrivateDevices = false;
@@ -40,6 +41,14 @@ let
         };
 
         systemd.services = {
+          # An upstream unit that relaxes a forced key at normal priority.
+          upstream.serviceConfig = {
+            ExecStart = "${pkgs.coreutils}/bin/true";
+            Type = "oneshot";
+            NoNewPrivileges = false;
+            PrivateTmp = false;
+          };
+
           baseline.serviceConfig = {
             ExecStart = "${pkgs.coreutils}/bin/true";
             Type = "oneshot";
@@ -59,6 +68,7 @@ let
     ]).config.systemd.services.${name}.serviceConfig;
 
   baseline = serviceConfigFor "baseline";
+  upstream = serviceConfigFor "upstream";
   forcedExtra = serviceConfigFor "forced-extra";
   forcedRelaxed = serviceConfigFor "forced-relaxed";
 
@@ -80,6 +90,17 @@ let
     baselineDropsCapabilities = baseline.CapabilityBoundingSet == "";
     baselineDropsAmbientCapabilities = baseline.AmbientCapabilities == "";
     baselineUsesPrivateKeyring = baseline.KeyringMode == "private";
+    baselineSetsNoNewPrivileges = baseline.NoNewPrivileges == true;
+    baselineProtectsSystem = baseline.ProtectSystem == "strict";
+    baselineFiltersSyscalls = baseline.SystemCallFilter == [ "@system-service" ];
+    baselineRestrictsAddressFamilies =
+      baseline.RestrictAddressFamilies == [
+        "AF_UNIX"
+        "AF_INET"
+        "AF_INET6"
+      ];
+    forcedNoNewPrivilegesBeatsUpstream = upstream.NoNewPrivileges == true;
+    forcedPrivateTmpBeatsUpstream = upstream.PrivateTmp == true;
     forcedKeyWinsOverExtraConfig = forcedExtra.PrivateDevices == true;
     extraConfigOverridesNonForcedDefault = forcedExtra.ProtectSystem == "full";
     extraConfigOverridesCapabilities = forcedExtra.CapabilityBoundingSet == "CAP_NET_BIND_SERVICE";
