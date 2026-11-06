@@ -76,6 +76,10 @@ let
       target = "${config.xdg.configHome}/hypr/colors.conf";
     }
     {
+      source = "hypr-colors.lua";
+      target = "${config.xdg.configHome}/hypr/colors.lua";
+    }
+    {
       source = "hyprlock-colors.conf";
       target = "${config.xdg.configHome}/hypr/hyprlock-colors.conf";
     }
@@ -159,11 +163,20 @@ let
       color15 #${theme.ansiColors.color15}
     '';
 
-    # Hyprland colors
+    # Keep both formats until old sessions have ended and Lua is accepted.
     "themes/${themeName}/hypr-colors.conf".text = ''
       $col_active   = rgb(${theme.colors.amber})
       $col_inactive = rgb(${theme.colors.brown})
       $col_shadow   = rgba(${theme.colors.bg}cc)
+    '';
+
+    # Hyprland colors
+    "themes/${themeName}/hypr-colors.lua".text = ''
+      return {
+        active = "rgb(${theme.colors.amber})",
+        inactive = "rgb(${theme.colors.brown})",
+        shadow = "rgba(${theme.colors.bg}cc)",
+      }
     '';
 
     # Hyprlock colors

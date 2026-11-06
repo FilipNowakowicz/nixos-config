@@ -136,9 +136,20 @@ if [[ -f /tmp/control-center.json ]]; then
 fi
 
 # Reload apps
-hyprctl keyword general:col.active_border "rgb($amber)" >/dev/null 2>&1 || true
-hyprctl keyword general:col.inactive_border "rgb($brown)" >/dev/null 2>&1 || true
-hyprctl keyword decoration:shadow:color "rgba(${bg}cc)" >/dev/null 2>&1 || true
+# Probe the running parser, not the installed package or config filenames.
+# During a rebuild the old compositor can outlive the package/config switch.
+lua_config=false
+if [[ $(hyprctl eval 'assert(type(hl) == "table")' 2>/dev/null) == ok ]]; then
+  lua_config=true
+fi
+
+if $lua_config; then
+  hyprctl eval "hl.config({general={col={active_border='rgb($amber)',inactive_border='rgb($brown)'}},decoration={shadow={color='rgba(${bg}cc)'}}})" >/dev/null
+else
+  hyprctl keyword general:col.active_border "rgb($amber)" >/dev/null
+  hyprctl keyword general:col.inactive_border "rgb($brown)" >/dev/null
+  hyprctl keyword decoration:shadow:color "rgba(${bg}cc)" >/dev/null
+fi
 
 if waybar_visible; then
   while IFS= read -r pid; do
