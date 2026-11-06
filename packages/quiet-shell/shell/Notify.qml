@@ -59,8 +59,8 @@ Singleton {
     }
 
     // For the shell's own messages. An urgent one still shows during Focus.
-    function post(title, body, urgent) {
-        const entry = { source: null, app: "System", title, body, at: new Date() };
+    function post(title, body, urgent, image) {
+        const entry = { source: null, app: "System", title, body, at: new Date(), image: image || "" };
         items = [entry].concat(items);
         if (urgent || !Sys.focusMode) {
             banner = entry;

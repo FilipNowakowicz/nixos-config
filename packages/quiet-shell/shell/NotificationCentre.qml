@@ -7,7 +7,18 @@ ColumnLayout {
     spacing: 8
     property bool compact: false
 
-    readonly property date now: new Date()
+    // Read on opening, because the shell stays up across midnight.
+    property date now: new Date()
+    onVisibleChanged: if (visible) { now = new Date(); Sys.refreshWeather(); }
+    function weatherIcon(condition) {
+        const c = condition.toLowerCase();
+        if (c.includes("thunder")) return "cloud-lightning";
+        if (c.includes("snow") || c.includes("sleet") || c.includes("ice")) return "cloud-snow";
+        if (c.includes("rain") || c.includes("drizzle") || c.includes("shower")) return "cloud-rain";
+        if (c.includes("fog") || c.includes("mist") || c.includes("haze")) return "cloud-fog";
+        if (c.includes("cloud") || c.includes("overcast")) return "cloud";
+        return "sun";
+    }
     function days() {
         const y = now.getFullYear(), m = now.getMonth();
         const first = (new Date(y, m, 1).getDay() + 6) % 7;
@@ -18,6 +29,25 @@ ColumnLayout {
         return out;
     }
 
+    Item {
+        visible: Sys.weather !== null
+        Layout.fillWidth: true
+        implicitHeight: 62
+        Glass { anchors.fill: parent; radius: 22 }
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            spacing: 12
+            Icon { name: Sys.weather ? root.weatherIcon(Sys.weather.condition) : "sun"; size: 24 }
+            Column {
+                Layout.fillWidth: true
+                Label { width: parent.width; text: Sys.weather ? Sys.weather.place : ""; font.weight: Font.Medium }
+                Label { width: parent.width; text: Sys.weather ? Sys.weather.condition : ""; font.pixelSize: 12; color: Theme.dim }
+            }
+            Label { text: Sys.weather ? Sys.weather.temperature : ""; font.pixelSize: 22; font.features: { "tnum": 1 } }
+        }
+    }
     Item {
         Layout.fillWidth: true
         implicitHeight: calendar.implicitHeight + 24

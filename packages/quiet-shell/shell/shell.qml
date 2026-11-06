@@ -21,11 +21,13 @@ ShellRoot {
         function switcher(step: int): void { Ui.stepSwitcher(step); }
         function switcherDone(): void { Ui.commitSwitcher(); }
         function clipboard(): void { Ui.openClipboard(); }
+        function screenshot(): void { Ui.toggleScreenshot(); }
+        function shortcuts(): void { Ui.toggleCheatSheet(); }
         function pin(): void { Ui.pinned = !Ui.pinned; }
         function close(): void { Ui.close(); }
         function reloadTheme(): void { Theme.reload(); }
         function state(): string {
-            return JSON.stringify({ panel: Ui.panel, detail: Ui.detail, spotlight: Ui.spotlight, overview: Ui.overview, top: Ui.topShown, dock: Ui.dockRevealed, writes: Object.keys(Sys.writes), failed: Sys.failedCount, theme: Theme.name, notices: Notify.items.length, banner: !!Notify.banner, focus: Sys.focusMode, confirm: Ui.confirm ? Ui.confirm.action : "", hud: Ui.hud, switcher: Ui.switcher ? Ui.switcherIndex : -1, active: Hyprland.activeToplevel ? Hyprland.activeToplevel.title : "", recent: Dockable.recentWindows.map(t => t.address), apps: Dockable.apps.map(a => ({ name: a.name, windows: a.windows.length, hidden: a.windows.filter(Dockable.isHidden).length })), suggested: Dockable.suggested.map(a => a.icon), tray: SystemTray.items.values.map(i => i.id), screen: Ui.focusedScreen, sys: Sys.state });
+            return JSON.stringify({ panel: Ui.panel, detail: Ui.detail, spotlight: Ui.spotlight, overview: Ui.overview, top: Ui.topShown, dock: Ui.dockRevealed, writes: Object.keys(Sys.writes), failed: Sys.failedCount, theme: Theme.name, notices: Notify.items.length, banner: !!Notify.banner, focus: Sys.focusMode, screenshot: Ui.screenshot, cheatSheet: Ui.cheatSheet, shortcuts: Ui.shortcuts.reduce((all, column) => all.concat(column), []).filter(r => r.length > 1).map(r => r[0]), weather: Sys.weather, confirm: Ui.confirm ? Ui.confirm.action : "", hud: Ui.hud, switcher: Ui.switcher ? Ui.switcherIndex : -1, active: Hyprland.activeToplevel ? Hyprland.activeToplevel.title : "", recent: Dockable.recentWindows.map(t => t.address), apps: Dockable.apps.map(a => ({ name: a.name, windows: a.windows.length, hidden: a.windows.filter(Dockable.isHidden).length })), suggested: Dockable.suggested.map(a => a.icon), tray: SystemTray.items.values.map(i => i.id), screen: Ui.focusedScreen, sys: Sys.state });
         }
     }
 
@@ -33,19 +35,26 @@ ShellRoot {
     // on the wrong screen. Read the settled answer from Hyprland afterwards.
     Connections {
         target: Quickshell
-        function onScreensChanged() { resync.restart(); }
+        function onScreensChanged() { resync.left = 2; resync.restart(); }
     }
     Connections {
         target: Hyprland
         function onRawEvent(event) {
-            if (event.name.startsWith("monitor"))
+            if (event.name.startsWith("monitor")) {
+                resync.left = 2;
                 resync.restart();
+            }
         }
     }
     Timer {
         id: resync
         interval: 400
-        onTriggered: Hyprland.refreshMonitors()
+        property int left: 0
+        onTriggered: {
+            Hyprland.refreshMonitors();
+            if (left-- > 0)
+                restart();
+        }
     }
 
     Binding { target: Sys; property: "live"; value: Ui.blocking || Ui.topShown }

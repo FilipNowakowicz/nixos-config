@@ -6,6 +6,7 @@ A key `fail` listing command names makes those exit 1 without changing state, an
 `stick` makes them exit 0 without changing state, so readback must catch it.
 """
 
+import base64
 import fcntl
 import json
 import os
@@ -15,7 +16,8 @@ import sys
 state_path = pathlib.Path(os.environ["QUIET_FAKE_STATE"])
 # Pipelines feed these, so wait for the input first: holding the lock would stall the
 # command before it in the pipe, which needs the same lock.
-piped = sys.stdin.read() if pathlib.Path(sys.argv[0]).name in ("cliphist", "wl-copy") and sys.argv[1:] in (["decode"], []) else ""
+PIPED = (["decode"], [], ["--type", "image/png"])
+piped = sys.stdin.buffer.read().decode(errors="replace") if pathlib.Path(sys.argv[0]).name in ("cliphist", "wl-copy") and sys.argv[1:] in PIPED else ""
 # The shell runs several commands at once, and each one rewrites the whole state.
 lock = open(f"{state_path}.lock", "w", encoding="utf-8")
 fcntl.flock(lock, fcntl.LOCK_EX)
@@ -31,7 +33,7 @@ DEFAULT = {
     "volume": 0.59, "muted": False, "mic": 0.5, "mic_muted": False,
     "sink": "alsa_output.speakers", "source": "alsa_input.internal",
     "brightness": 50, "profile": "balanced", "night": False, "awake": False,
-    "playing": True, "fail": [], "stick": [], "log": [],
+    "playing": True, "fail": [], "stick": [], "log": [], "offline": True,
 }
 state = {**DEFAULT, **(json.loads(state_path.read_text()) if state_path.exists() else {})}
 cmd, args = pathlib.Path(sys.argv[0]).name, sys.argv[1:]
@@ -184,6 +186,17 @@ elif cmd == "cliphist":
         print(piped.split("\t", 1)[1], end="")
 elif cmd == "wl-copy":
     state["clipboard"] = " ".join(args) if args else piped
+elif cmd == "grim":
+    # The smallest valid PNG, so the shell has a real image to show.
+    pathlib.Path(args[-1]).write_bytes(base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="))
+elif cmd == "slurp":
+    if state.get("slurp_cancel"):
+        done(1)
+    print("10,10 100x100")
+elif cmd == "curl":
+    if not state.get("offline"):
+        print("Partly cloudy|+11°C")
 elif cmd == "theme-switch":
     colors = pathlib.Path(os.environ["QUIET_COLORS"])
     data = json.loads(colors.read_text())

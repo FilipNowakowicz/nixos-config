@@ -243,6 +243,51 @@ Singleton {
         }
     }
 
+    function screenshot(mode) {
+        Ui.close();
+        capture.command = ["python3", Qt.resolvedUrl("scripts/screenshot.py").toString().replace("file://", ""), mode];
+        captureDelay.restart();
+    }
+    // The bar has to fade away before the picture is taken.
+    Timer {
+        id: captureDelay
+        interval: Theme.motion + 90
+        onTriggered: capture.running = true
+    }
+    Process {
+        id: capture
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const path = text.trim();
+                if (path)
+                    Notify.post("Screenshot saved", "Copied to the clipboard", false, path);
+            }
+        }
+        onExited: code => { if (code !== 0) Notify.post("Screenshot failed", "Nothing was saved.", false); }
+    }
+
+    property var weather: null
+    property real weatherAt: 0
+    // Called when the centre opens. A forecast barely moves in half an hour.
+    function refreshWeather() {
+        if (!weatherRead.running && Date.now() - weatherAt > 1800000)
+            weatherRead.running = true;
+    }
+    Process {
+        id: weatherRead
+        command: ["python3", Qt.resolvedUrl("scripts/weather.py").toString().replace("file://", "")]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    root.weather = JSON.parse(text);
+                    root.weatherAt = Date.now();
+                } catch (e) {
+                    // Keep the last reading. The card hides if there has never been one.
+                }
+            }
+        }
+    }
+
     function setMullvadCountry(code) {
         write("mullvad-location", ["mullvad", "relay", "set", "location", code], s => s.vpn && s.vpn.country === code, "Mullvad's location didn't change.", { timeout: 15000 });
     }

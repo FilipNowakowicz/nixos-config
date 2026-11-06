@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 
 Item {
     id: root
@@ -11,6 +12,7 @@ Item {
     readonly property var actions: source ? source.actions.filter(a => a.identifier !== "default") : []
     readonly property var primary: source ? source.actions.find(a => a.identifier === "default") : null
     readonly property bool hovered: hover.hovered
+    readonly property string saved: entry && entry.image ? entry.image : ""
 
     implicitWidth: 340
     implicitHeight: Math.max(column.implicitHeight, 34) + 22
@@ -18,8 +20,15 @@ Item {
     Glass { anchors.fill: parent; radius: 22 }
     MouseArea {
         anchors.fill: parent
-        cursorShape: root.primary ? Qt.PointingHandCursor : Qt.ArrowCursor
-        onClicked: if (root.primary) Notify.invoke(root.entry, root.primary)
+        cursorShape: root.primary || root.saved ? Qt.PointingHandCursor : Qt.ArrowCursor
+        onClicked: {
+            if (root.primary) {
+                Notify.invoke(root.entry, root.primary);
+            } else if (root.saved) {
+                Quickshell.execDetached(["xdg-open", root.saved]);
+                Notify.remove(root.entry);
+            }
+        }
     }
 
     Image {
@@ -28,7 +37,7 @@ Item {
         y: 13
         width: 32
         height: 32
-        source: root.source ? root.source.image : ""
+        source: root.source ? root.source.image : root.saved
         fillMode: Image.PreserveAspectCrop
         sourceSize: Qt.size(64, 64)
         visible: status === Image.Ready

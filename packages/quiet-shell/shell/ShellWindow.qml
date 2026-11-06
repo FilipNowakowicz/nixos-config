@@ -55,7 +55,7 @@ PanelWindow {
             height: Ui.topShown ? 44 : 2
             hoverEnabled: true
             acceptedButtons: Qt.NoButton
-            onEntered: { hideTop.stop(); Ui.topRevealed = true; }
+            onEntered: { Hyprland.refreshMonitors(); hideTop.stop(); Ui.topRevealed = true; }
         }
         MouseArea {
             id: hotBottom
@@ -65,7 +65,7 @@ PanelWindow {
             enabled: Dockable.apps.length > 0
             hoverEnabled: true
             acceptedButtons: Qt.NoButton
-            onEntered: { hideDock.stop(); Ui.dockRevealed = true; }
+            onEntered: { Hyprland.refreshMonitors(); hideDock.stop(); Ui.dockRevealed = true; }
         }
 
         // Built only while open: live window capture should cost nothing at rest.
@@ -111,6 +111,17 @@ PanelWindow {
 
         Switcher {
             visible: Ui.switcher && win.focused
+            anchors.centerIn: parent
+        }
+
+        Screenshot {
+            visible: Ui.screenshot && win.focused
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: parent.height * 0.82
+        }
+
+        Shortcuts {
+            visible: Ui.cheatSheet && win.focused
             anchors.centerIn: parent
         }
 

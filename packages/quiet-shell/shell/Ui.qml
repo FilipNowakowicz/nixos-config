@@ -18,6 +18,42 @@ Singleton {
     property var confirm: null           // { title, body, action, command }
     property var hud: null               // { kind, level, muted }
     property var dockMenu: null          // { app, x }
+    property bool screenshot: false
+    property bool cheatSheet: false
+    // Each list is a column. A one-item row is a heading.
+    readonly property var shortcuts: [
+        [
+            ["Windows"],
+            ["SUPER + Return", "Terminal"],
+            ["SUPER + b", "Browser"],
+            ["SUPER + apostrophe", "Close window"],
+            ["SUPER + minus", "Minimise window"],
+            ["SUPER + T", "Float window"],
+            ["SUPER + M", "Change layout"],
+            ["SUPER + Tab", "Switch window"],
+            ["SUPER + h", "Focus left"],
+            ["SUPER + l", "Focus right"],
+            ["Desktops"],
+            ["SUPER + 1", "Go to desktop 1"],
+            ["SUPER + SHIFT + 1", "Move window to desktop 1"]
+        ],
+        [
+            ["Shell"],
+            ["SUPER + Space", "Spotlight"],
+            ["SUPER + c", "Control centre"],
+            ["SUPER + n", "Notifications"],
+            ["SUPER + o", "Overview"],
+            ["SUPER + V", "Clipboard history"],
+            ["SUPER + W", "Keep the bar open"],
+            ["SUPER + slash", "Shortcuts"],
+            ["Capture"],
+            ["SUPER + SHIFT + s", "Screenshot tool"],
+            ["SUPER + SHIFT + P", "Copy the screen"],
+            ["SUPER + CTRL + P", "Copy an area"],
+            ["System"],
+            ["SUPER + BackSpace", "Lock"]
+        ]
+    ]
     property bool switcher: false
     property int switcherIndex: 0
 
@@ -28,7 +64,7 @@ Singleton {
         return m && Quickshell.screens.some(s => s.name === m.name) ? m.name : "";
     }
     readonly property bool topShown: topRevealed || pinned || panel !== ""
-    readonly property bool blocking: panel !== "" || spotlight || overview || confirm !== null || switcher
+    readonly property bool blocking: panel !== "" || spotlight || overview || confirm !== null || switcher || screenshot || cheatSheet
 
     // A focused field can disappear, which would leave the keyboard with nowhere to go.
     signal refocus
@@ -85,8 +121,21 @@ Singleton {
         panel = "dock";
     }
 
+    function toggleScreenshot() {
+        const want = !screenshot;
+        close();
+        screenshot = want;
+    }
+    function toggleCheatSheet() {
+        const want = !cheatSheet;
+        close();
+        cheatSheet = want;
+    }
+
     function close() {
         confirm = null;
+        screenshot = false;
+        cheatSheet = false;
         dockMenu = null;
         switcher = false;
         panel = "";

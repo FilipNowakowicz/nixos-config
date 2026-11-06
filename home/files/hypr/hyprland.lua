@@ -106,6 +106,8 @@ if shell.quiet then
 	hl.bind("SUPER + Tab", hl.dsp.exec_cmd("quiet-shell-ipc switcher 1"))
 	hl.bind("SUPER + SHIFT + Tab", hl.dsp.exec_cmd("quiet-shell-ipc switcher -1"))
 	hl.bind("SUPER + Super_L", hl.dsp.exec_cmd("quiet-shell-ipc switcherDone"), { release = true })
+	hl.bind("SUPER + SHIFT + s", hl.dsp.exec_cmd("quiet-shell-ipc screenshot"))
+	hl.bind("SUPER + slash", hl.dsp.exec_cmd("quiet-shell-ipc shortcuts"))
 	hl.bind("SUPER + minus", hl.dsp.window.move({ workspace = "special:minimized", follow = false }))
 	hl.layer_rule({ name = "quiet-glass", match = { namespace = "quiet-shell" }, blur = true, ignore_alpha = 0.02 })
 end

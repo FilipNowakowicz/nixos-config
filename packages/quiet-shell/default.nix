@@ -7,7 +7,9 @@
   bluez,
   brightnessctl,
   cliphist,
+  curl,
   fd,
+  grim,
   hyprlock,
   mullvad-vpn,
   networkmanager,
@@ -16,6 +18,7 @@
   playerctl,
   power-profiles-daemon,
   procps,
+  slurp,
   systemd,
   tailscale,
   tzdata,
@@ -34,7 +37,9 @@ let
     bluez
     brightnessctl
     cliphist
+    curl
     fd
+    grim
     hyprlock
     mullvad-vpn
     networkmanager
@@ -43,6 +48,7 @@ let
     playerctl
     power-profiles-daemon
     procps
+    slurp
     systemd
     tailscale
     util-linux

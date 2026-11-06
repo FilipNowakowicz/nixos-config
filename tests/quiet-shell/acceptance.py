@@ -846,6 +846,58 @@ def dock_labels_and_right_click_menu():
     wait(lambda: len(clients()) >= 2, "windows back", timeout=8)
 
 
+@test
+def screenshot_tool_captures_and_confirms():
+    before = ui()["notices"]
+    shell("screenshot")
+    wait(lambda: ui()["screenshot"], "tool")
+    time.sleep(0.3)
+    shot("screenshot-tool")
+    click(841, 923)
+    wait(lambda: not ui()["screenshot"], "tool to leave the picture")
+    wait(lambda: ui()["notices"] == before + 1, "saved notice", timeout=6)
+    assert [c for c in fake()["log"] if c[:2] == ["grim", "-g"]], "area not used"
+    time.sleep(0.4)
+    shot("screenshot-saved")
+    set_fake(slurp_cancel=True)
+    shell("screenshot")
+    wait(lambda: ui()["screenshot"], "tool again")
+    time.sleep(0.3)
+    click(841, 923)
+    time.sleep(1.2)
+    set_fake(slurp_cancel=False)
+    assert ui()["notices"] == before + 1, "cancelling must not report anything"
+
+
+@test
+def weather_appears_in_the_centre():
+    set_fake(offline=False)
+    shell("notifications")
+    wait(lambda: ui()["weather"], "weather", timeout=8)
+    assert ui()["weather"] == {"place": "Warsaw", "condition": "Partly cloudy", "temperature": "11°"}, ui()["weather"]
+    calls = [" ".join(c) for c in fake()["log"] if c[:1] == ["curl"]]
+    assert calls and "52.25,21.0" in calls[-1], calls
+    time.sleep(0.4)
+    shot("weather")
+
+
+@test
+def shortcut_sheet_matches_real_binds():
+    shell("shortcuts")
+    wait(lambda: ui()["panel"] == "" and ui()["cheatSheet"], "sheet")
+    time.sleep(0.3)
+    shot("shortcuts")
+    binds = json.loads(sh("hyprctl", "-j", "binds").stdout)
+    real = {(b["modmask"], b["key"].lower()) for b in binds}
+    masks = {"SUPER": 64, "SHIFT": 1, "CTRL": 4}
+    for entry in ui()["shortcuts"]:
+        *mods, name = entry.split(" + ")
+        wanted = (sum(masks[m] for m in mods), name.lower())
+        assert wanted in real, f"{entry} is not bound"
+    key("Escape")
+    wait(lambda: not ui()["cheatSheet"], "escape to close")
+
+
 def restart_shell():
     path = os.environ.get("QUIET_SHELL_PATH", "")
     for proc in pathlib.Path("/proc").glob("[0-9]*"):
