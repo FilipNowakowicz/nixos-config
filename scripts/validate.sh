@@ -279,6 +279,7 @@ light)
     ".#checks.${system}.invariants-main-ci" \
     ".#checks.${system}.invariants-mac" \
     ".#checks.${system}.invariants-registry-security" \
+    ".#checks.${system}.invariants-installer" \
     ".#checks.${system}.control-center-capabilities" \
     ".#checks.${system}.lib-doctor" \
     ".#checks.${system}.lib-generators" \

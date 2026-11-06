@@ -531,14 +531,21 @@ rec {
       cfg:
       let
         rules = cfg.services.usbguard.rules or "";
+        ruleLines = lib.filter (l: l != "" && !lib.hasPrefix "#" l) (
+          map lib.trim (lib.splitString "\n" rules)
+        );
+        broadAllows = lib.filter (l: lib.hasPrefix "allow" l && !lib.hasPrefix "allow id " l) ruleLines;
         violations = lib.filter (msg: msg != "") [
           (lib.optionalString (!cfg.services.usbguard.enable) "services.usbguard.enable must be true")
           (lib.optionalString (
             !lib.hasInfix "allow id " rules
           ) "services.usbguard.rules must whitelist at least one device")
           (lib.optionalString (
-            !lib.hasInfix "reject" rules
-          ) "services.usbguard.rules must include a default reject rule")
+            ruleLines == [ ] || lib.last ruleLines != "reject"
+          ) "services.usbguard.rules must end with a default reject rule")
+          (lib.optionalString (
+            broadAllows != [ ]
+          ) "services.usbguard.rules has allow rule(s) not pinned to a device id: ${formatList broadAllows}")
         ];
       in
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
