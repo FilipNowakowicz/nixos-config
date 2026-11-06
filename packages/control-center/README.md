@@ -17,6 +17,16 @@ nix build '.#control-center'         # build the wrapped binary
 sending `SIGUSR1` (the repo wires this to a keybind), and `SIGUSR2` reloads
 theme colours.
 
+Wi-Fi radio, Bluetooth power, VPN switches, Do Not Disturb, audio levels/mute,
+brightness and power mode changes show pending feedback, then wait for a fresh
+status readback before reporting success. Failed requests
+offer Retry. A timeout is shown as unconfirmed and is not automatically retried.
+Writes to each setting run in order; queued intermediate requests collapse to the
+latest intent. Audio mute uses an explicit target, so Retry cannot accidentally
+toggle it twice. Sliders coalesce writes and tolerate one percentage point of
+hardware rounding. Device/relay selection and the remaining launch actions still
+use the existing polling workflow.
+
 ## Runtime dependencies
 
 The packaged derivation pins every backing tool on `PATH` through the gApps

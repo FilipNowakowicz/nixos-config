@@ -4,6 +4,8 @@ import os
 import signal
 import sys
 
+from gi.repository import GLib
+
 from .app import ControlCenter
 from .constants import VIEWS
 from .gather import _default_state, gather_fast_state
@@ -11,6 +13,7 @@ from .state_file import (
     acquire_lock,
     process_alive,
     read_state,
+    signal_instance,
     release_lock,
     write_state,
 )
@@ -18,8 +21,11 @@ from .theme import load_colors
 
 
 def main():
+    GLib.set_application_name("Control Centre")
+    GLib.set_prgname("control-center")
     initial = "home"
     start_hidden = False
+    reload_theme = False
     args = sys.argv[1:]
     if len(args) > 2:
         print(
@@ -30,6 +36,8 @@ def main():
     for arg in args:
         if arg in VIEWS:
             initial = arg
+        elif arg == "--reload-theme":
+            reload_theme = True
         elif arg == "--daemon":
             start_hidden = True
         elif arg in ("-h", "--help"):
@@ -47,13 +55,17 @@ def main():
     pid = state.get("pid")
     current = state.get("view")
     visible = bool(state.get("visible", False))
-    if isinstance(pid, int) and process_alive(pid):
+    if reload_theme:
+        signal_instance(state, signal.SIGUSR2)
+        release_lock()
+        return 0
+    if process_alive(pid, state.get("start_time")):
         if start_hidden:
             release_lock()
             return 0
-        write_state(pid, initial, not (visible and current == initial))
+        write_state(pid, initial, not (visible and current == initial), state["start_time"])
         release_lock()
-        os.kill(pid, signal.SIGUSR1)
+        signal_instance(state, signal.SIGUSR1)
         return 0
 
     write_state(os.getpid(), initial, not start_hidden)

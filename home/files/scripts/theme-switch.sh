@@ -125,15 +125,7 @@ bg='' brown='' amber=''
 # shellcheck source=/dev/null
 source "$THEMES_DIR/$THEME/vars"
 
-if [[ -f /tmp/control-center.json ]]; then
-  control_center_pid=$(
-    sed -n 's/.*"pid"[[:space:]]*:[[:space:]]*\([0-9]\+\).*/\1/p' \
-      /tmp/control-center.json | head -1
-  )
-  if [[ -n ${control_center_pid:-} ]] && kill -0 "$control_center_pid" 2>/dev/null; then
-    kill -USR2 "$control_center_pid" 2>/dev/null || true
-  fi
-fi
+control-center --reload-theme >/dev/null 2>&1 || true
 
 # Reload apps
 # Probe the running parser, not the installed package or config filenames.

@@ -1,7 +1,14 @@
 """Module-wide constants: paths, panel geometry, state-key partitions, glyphs."""
 
-STATE_PATH = "/tmp/control-center.json"
-LOCK_PATH = "/tmp/control-center.lock"
+import hashlib
+import os
+from pathlib import Path
+
+# Each Wayland session owns its daemon; previews cannot signal the real panel.
+_session = hashlib.sha256(os.environ.get("WAYLAND_DISPLAY", "default").encode()).hexdigest()[:12]
+RUNTIME_DIR = Path(os.environ.get("XDG_RUNTIME_DIR", f"/tmp/control-center-{os.getuid()}")) / f"control-center-{_session}"
+STATE_PATH = RUNTIME_DIR / "state.json"
+LOCK_PATH = RUNTIME_DIR / "handoff.lock"
 
 VIEWS = ("home", "wifi", "bluetooth", "vpn", "dnd", "volume", "microphone")
 

@@ -66,11 +66,18 @@ let
       expr =
         lib.hasInfix "$col_active   = rgb(${monoTheme.colors.amber})"
           files."themes/mono-mesh/hypr-colors.conf".text
-        &&
-          lib.hasInfix "active = \"rgb(${monoTheme.colors.amber})\""
-            files."themes/mono-mesh/hypr-colors.lua".text
         && lib.hasInfix "/hypr/colors.conf" files."themes/links.sh".text
         && lib.hasInfix "/hypr/colors.lua" files."themes/links.sh".text;
+      expected = true;
+    };
+
+    testHyprlandLuaColors = {
+      expr = lib.all (line: lib.hasInfix line files."themes/mono-mesh/hypr-colors.lua".text) [
+        "return {"
+        "active = \"rgb(${monoTheme.colors.amber})\""
+        "inactive = \"rgb(${monoTheme.colors.brown})\""
+        "shadow = \"rgba(${monoTheme.colors.bg}cc)\""
+      ];
       expected = true;
     };
 
