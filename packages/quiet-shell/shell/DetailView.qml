@@ -3,6 +3,13 @@ import QtQuick.Layouts
 
 Item {
     id: root
+    // The unsaved network waiting for a password, if any.
+    property string asking: ""
+    onKindChanged: {
+        asking = "";
+        if (kind === "wifi") Sys.rescanWifi();
+        if (kind === "bluetooth") Sys.scanBluetooth();
+    }
     implicitHeight: body.implicitHeight + 16
     readonly property string kind: Ui.detail
     readonly property string title: ({ wifi: "Wi-Fi", bluetooth: "Bluetooth", vpn: "VPN", sound: "Sound", theme: "Theme" })[kind] || ""
@@ -33,15 +40,40 @@ Item {
         // Wi-Fi
         Repeater {
             model: root.kind === "wifi" && Sys.state.wifi ? Sys.state.wifi.networks : []
-            DetailRow {
+            ColumnLayout {
+                id: network
                 required property var modelData
+                readonly property bool enterprise: modelData.security.includes("802.1X")
+                readonly property bool needsPassword: !modelData.known && modelData.security !== ""
                 Layout.fillWidth: true
-                name: modelData.name
-                title: modelData.name
-                note: modelData.signal + "%"
-                selected: modelData.active
-                busy: Sys.pending("wifi-net")
-                onClicked: if (!modelData.active) Sys.joinWifi(modelData.name)
+                spacing: 0
+                DetailRow {
+                    Layout.fillWidth: true
+                    name: network.modelData.name
+                    title: network.modelData.name
+                    note: network.needsPassword && network.enterprise ? "Needs setup" : network.modelData.signal + "%"
+                    locked: network.needsPassword
+                    selected: network.modelData.active
+                    busy: Sys.pending("wifi-net")
+                    enabled: !(network.needsPassword && network.enterprise)
+                    onClicked: {
+                        if (network.modelData.active) return;
+                        if (network.needsPassword) {
+                            root.asking = network.modelData.name;
+                            password.ask();
+                        } else {
+                            Sys.joinWifi(network.modelData.name);
+                        }
+                    }
+                }
+                PasswordRow {
+                    id: password
+                    visible: root.asking === network.modelData.name
+                    Layout.fillWidth: true
+                    network: network.modelData.name
+                    onCancelled: root.asking = ""
+                    onSubmitted: value => { root.asking = ""; Sys.joinWifi(network.modelData.name, value); }
+                }
             }
         }
         FailRow { Layout.fillWidth: true; writeKey: "wifi-net" }
@@ -60,9 +92,29 @@ Item {
                 onClicked: Sys.toggleDevice(modelData)
             }
         }
+        Label {
+            visible: root.kind === "bluetooth" && Sys.btNearby.length > 0
+            Layout.leftMargin: 10
+            Layout.topMargin: 6
+            text: "Nearby"
+            font.pixelSize: 12
+            color: Theme.dim
+        }
         Repeater {
-            model: root.kind === "bluetooth" ? Sys.btDevices : []
-            FailRow { required property var modelData; Layout.fillWidth: true; writeKey: "bt-" + modelData.addr }
+            model: root.kind === "bluetooth" ? Sys.btNearby : []
+            DetailRow {
+                required property var modelData
+                Layout.fillWidth: true
+                name: "Pair " + modelData.name
+                title: modelData.name
+                note: "Pair"
+                busy: Sys.pending("bt-" + modelData.addr)
+                onClicked: Sys.pairDevice(modelData)
+            }
+        }
+        Repeater {
+            model: root.kind === "bluetooth" ? Object.keys(Sys.writes).filter(k => k.startsWith("bt-") && Sys.failed(k)) : []
+            FailRow { required property string modelData; Layout.fillWidth: true; writeKey: modelData }
         }
 
         // VPN

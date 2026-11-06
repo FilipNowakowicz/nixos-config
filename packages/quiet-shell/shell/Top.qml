@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Services.SystemTray
 import Quickshell.Wayland
 
 // Capsules. Clear on an empty desktop, glass as soon as a window could sit behind them.
@@ -27,6 +28,10 @@ Item {
     }
     property var hoveredDesk: null
     property real hoveredX: 0
+    function showMenu(item) {
+        const at = item.mapToItem(null, 0, item.height + 8);
+        item.modelData.display(QsWindow.window, at.x, at.y);
+    }
     function clock(format) { return Qt.formatDateTime(time.date, format); }
 
     SystemClock { id: time; precision: SystemClock.Minutes }
@@ -156,6 +161,21 @@ Item {
                     radius: 9
                     onClicked: Ui.open("controls")
                     Icon { anchors.centerIn: parent; name: "triangle-alert"; size: 15 }
+                }
+                // Nothing here unless an app asks for it.
+                Repeater {
+                    model: SystemTray.items
+                    Press {
+                        id: trayItem
+                        required property var modelData
+                        width: 18
+                        height: 18
+                        radius: 5
+                        name: modelData.tooltipTitle || modelData.title || modelData.id
+                        onClicked: modelData.onlyMenu ? root.showMenu(trayItem) : modelData.activate()
+                        onSecondaryClicked: modelData.hasMenu ? root.showMenu(trayItem) : modelData.secondaryActivate()
+                        Image { anchors.fill: parent; source: trayItem.modelData.icon; sourceSize: Qt.size(36, 36) }
+                    }
                 }
                 Icon { visible: Sys.focusMode; name: "bell-off"; size: 15 }
                 Icon { visible: Sys.awake; name: "coffee"; size: 15 }

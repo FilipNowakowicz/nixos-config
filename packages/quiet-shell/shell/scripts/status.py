@@ -26,16 +26,28 @@ def wifi():
         return None
     networks, ssid = [], ""
     seen = set()
-    for line in (run("nmcli", "-t", "-f", "active,ssid,signal", "dev", "wifi") or "").splitlines():
+    known = set()
+    for line in (run("nmcli", "-t", "-f", "name,type", "connection", "show") or "").splitlines():
         parts = re.split(r"(?<!\\):", line)
-        if len(parts) < 3 or not parts[1]:
+        if len(parts) == 2 and parts[1].endswith("wireless"):
+            known.add(parts[0].replace("\\:", ":"))
+    # Cached results: letting nmcli rescan here can outlast the timeout and blank the list.
+    for line in (run("nmcli", "-t", "-f", "active,ssid,signal,security", "dev", "wifi", "list", "--rescan", "no") or "").splitlines():
+        parts = re.split(r"(?<!\\):", line)
+        if len(parts) < 4 or not parts[1]:
             continue
         name = parts[1].replace("\\:", ":")
         active = parts[0] == "yes"
         ssid = name if active else ssid
         if name not in seen:
             seen.add(name)
-            networks.append({"name": name, "active": active, "signal": int(parts[2] or 0)})
+            networks.append({
+                "name": name,
+                "active": active,
+                "signal": int(parts[2] or 0),
+                "security": parts[3].replace("\\:", ":"),
+                "known": name in known,
+            })
     return {"on": radio.strip() == "enabled", "ssid": ssid, "networks": networks[:8]}
 
 
@@ -53,7 +65,14 @@ def bluetooth():
         bits = line.split(" ", 2)
         if len(bits) == 3:
             devices.append({"addr": bits[1], "name": bits[2], "connected": bits[1] in connected})
-    return {"on": "Powered: yes" in show, "devices": devices}
+    paired = {d["addr"] for d in devices}
+    nearby = []
+    for line in (run("bluetoothctl", "devices") or "").splitlines():
+        bits = line.split(" ", 2)
+        # Unnamed devices report their address as a name, which helps nobody.
+        if len(bits) == 3 and bits[1] not in paired and bits[2].replace("-", ":") != bits[1]:
+            nearby.append({"addr": bits[1], "name": bits[2]})
+    return {"on": "Powered: yes" in show, "devices": devices, "nearby": nearby[:6]}
 
 
 def vpn():
@@ -111,7 +130,8 @@ def audio_devices():
             active = name == default
             if role == "sinks" and not active and re.search(r"hdmi|displayport|monitor", desc, re.I):
                 continue
-            entries.append({"name": name, "desc": desc, "active": active})
+            # The description repeats the sound card, so devices on one card look alike.
+            entries.append({"name": name, "desc": str(props.get("node.nick") or desc), "active": active})
         result[role] = entries
     return result
 

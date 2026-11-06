@@ -11,12 +11,14 @@ Singleton {
     property var state: ({})
     property var writes: ({})
     property bool focusMode: false
+    onFocusModeChanged: if (focusFile.loaded) focusFile.setText(focusMode ? "on" : "off")
     readonly property int failedCount: Object.keys(writes).filter(k => writes[k].status === "failed").length
 
     readonly property bool wifiOn: state.wifi ? state.wifi.on : false
     readonly property string ssid: state.wifi ? state.wifi.ssid : ""
     readonly property bool btOn: state.bluetooth ? state.bluetooth.on : false
     readonly property var btDevices: state.bluetooth ? state.bluetooth.devices : []
+    readonly property var btNearby: state.bluetooth ? state.bluetooth.nearby : []
     readonly property bool tailscaleOn: state.vpn ? state.vpn.tailscale : false
     readonly property bool mullvadOn: state.vpn ? state.vpn.mullvad : false
     readonly property bool vpnOn: tailscaleOn || mullvadOn
@@ -45,11 +47,14 @@ Singleton {
     }
 
     // `done(state)` decides from a fresh snapshot whether the write took effect.
-    function write(key, command, done, message) {
+    // options: `input` goes to stdin so it never shows in the process list, `timeout`
+    // is for slow actions, and `undo` runs if the command fails.
+    function write(key, command, done, message, options) {
         if (pending(key))
             return;
-        setWrite(key, { status: "pending", command, done, message, deadline: Date.now() + 8000 });
-        const proc = runner.createObject(root, { command, key });
+        const o = options || {};
+        setWrite(key, { status: "pending", command, done, message, options: o, deadline: Date.now() + (o.timeout || 8000) });
+        const proc = runner.createObject(root, { command, key, input: o.input || "" });
         proc.running = true;
     }
 
@@ -58,7 +63,7 @@ Singleton {
         if (!w)
             return;
         setWrite(key, null);
-        write(key, w.command, w.done, w.message);
+        write(key, w.command, w.done, w.message, w.options);
     }
 
     function dismiss(key) { setWrite(key, null); }
@@ -89,12 +94,17 @@ Singleton {
         id: runner
         Process {
             property string key
+            property string input
+            stdinEnabled: input !== ""
+            onStarted: if (input !== "") { write(input); stdinEnabled = false; }
             onExited: code => {
                 const w = root.writes[key];
                 if (w) {
-                    if (code !== 0)
+                    if (code !== 0) {
                         root.setWrite(key, Object.assign({}, w, { status: "failed" }));
-                    else
+                        if (w.options.undo)
+                            Quickshell.execDetached(w.options.undo);
+                    } else
                         root.setWrite(key, Object.assign({}, w, { exited: true }));
                 }
                 root.refresh();
@@ -130,8 +140,25 @@ Singleton {
         const want = !wifiOn;
         write("wifi", ["nmcli", "radio", "wifi", want ? "on" : "off"], s => s.wifi && s.wifi.on === want, "Wi-Fi didn't turn " + (want ? "on." : "off."));
     }
-    function joinWifi(name) {
-        write("wifi-net", ["nmcli", "dev", "wifi", "connect", name], s => s.wifi && s.wifi.ssid === name, "Couldn't join " + name + ".");
+    function joinWifi(name, password) {
+        const secret = !!password;
+        write("wifi-net", ["nmcli"].concat(secret ? ["--ask"] : [], ["dev", "wifi", "connect", name]),
+            s => s.wifi && s.wifi.ssid === name,
+            secret ? "Couldn't join. Wrong password?" : "Couldn't join " + name + ".",
+            // A failed attempt leaves a profile behind that would look like a saved network.
+            secret ? { input: password + "\n", timeout: 30000, undo: ["nmcli", "connection", "delete", "id", name] } : { timeout: 30000 });
+    }
+    function rescanWifi() {
+        Quickshell.execDetached(["nmcli", "dev", "wifi", "rescan"]);
+    }
+    function scanBluetooth() {
+        Quickshell.execDetached(["bluetoothctl", "--timeout", "15", "scan", "on"]);
+    }
+    function pairDevice(dev) {
+        write("bt-" + dev.addr,
+            ["sh", "-c", 'bluetoothctl --agent NoInputNoOutput pair "$0" && bluetoothctl trust "$0" && bluetoothctl connect "$0"', dev.addr],
+            s => s.bluetooth && s.bluetooth.devices.some(d => d.addr === dev.addr && d.connected),
+            "Couldn't pair " + dev.name + ".", { timeout: 30000 });
     }
     function toggleBluetooth() {
         const want = !btOn;
@@ -174,7 +201,8 @@ Singleton {
     }
     function toggleNight() {
         const want = !night;
-        const cmd = want ? ["sh", "-c", "setsid -f wlsunset -l 52.2 -L 21.0 >/dev/null 2>&1"] : ["pkill", "-x", "wlsunset"];
+        const location = Qt.resolvedUrl("scripts/location.py").toString().replace("file://", "");
+        const cmd = want ? ["sh", "-c", 'where=$(python3 "$0") && setsid -f wlsunset $where >/dev/null 2>&1', location] : ["pkill", "-x", "wlsunset"];
         write("night", cmd, s => !!s.night === want, "Night mode didn't change.");
     }
     function toggleAwake() {
@@ -190,6 +218,15 @@ Singleton {
     function mediaCommand(verb) {
         Quickshell.execDetached(["playerctl", verb]);
         settle.restart();
+    }
+
+    FileView {
+        id: focusFile
+        property bool loaded: false
+        path: Quickshell.env("HOME") + "/.local/state/quiet-shell/focus"
+        printErrors: false
+        onLoaded: { root.focusMode = text().trim() === "on"; loaded = true; }
+        onLoadFailed: loaded = true
     }
 
     Process {

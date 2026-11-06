@@ -14,7 +14,9 @@ import sys
 state_path = pathlib.Path(os.environ["QUIET_FAKE_STATE"])
 DEFAULT = {
     "wifi": True, "ssid": "Harbour 5G",
-    "networks": [["Harbour 5G", 92], ["Harbour 2.4G", 70], ["Kavarna Guest", 31]],
+    "networks": [["Harbour 5G", 92, "WPA2"], ["Harbour 2.4G", 70, "WPA2"], ["Kavarna Guest", 31, "WPA2"], ["Open Cafe", 28, ""], ["Campus", 25, "WPA2 802.1X"]],
+    "known": ["Harbour 5G", "Harbour 2.4G"], "wifi_password": "correct horse",
+    "nearby": {"AA:BB:CC:00:00:03": "Speaker", "AA:BB:CC:00:00:04": "AA-BB-CC-00-00-04"},
     "bt": True,
     "devices": {"AA:BB:CC:00:00:01": ["Headphones", True], "AA:BB:CC:00:00:02": ["Trackball", False]},
     "tailscale": True, "mullvad": False,
@@ -46,17 +48,36 @@ if cmd == "nmcli":
         print("enabled" if state["wifi"] else "disabled")
     elif args[:2] == ["radio", "wifi"]:
         state["wifi"] = args[2] == "on"
+    elif args[0] == "-t" and "connection" in args:
+        for name in state["known"]:
+            print(f"{name}:802-11-wireless")
+        print("Wired:802-3-ethernet")
     elif args[0] == "-t":
-        for name, signal in state["networks"] if state["wifi"] else []:
-            print(f"{'yes' if name == state['ssid'] else 'no'}:{name}:{signal}")
+        for name, signal, security in state["networks"] if state["wifi"] else []:
+            print(f"{'yes' if name == state['ssid'] else 'no'}:{name}:{signal}:{security}")
     elif args[:3] == ["dev", "wifi", "connect"]:
         state["ssid"] = args[3]
+    elif args[:4] == ["--ask", "dev", "wifi", "connect"]:
+        # Like nmcli, the profile exists even when the password turns out wrong.
+        state["known"].append(args[4])
+        if sys.stdin.readline().rstrip("\n") != state["wifi_password"]:
+            done(4)
+        state["ssid"] = args[4]
+    elif args[:3] == ["connection", "delete", "id"]:
+        state["known"].remove(args[3])
 elif cmd == "bluetoothctl":
     if args == ["show"]:
         print(f"Powered: {'yes' if state['bt'] else 'no'}")
     elif args == ["devices", "Paired"]:
         for addr, (name, _) in state["devices"].items():
             print(f"Device {addr} {name}")
+    elif args == ["devices"]:
+        for addr, (name, _) in state["devices"].items():
+            print(f"Device {addr} {name}")
+        for addr, name in state["nearby"].items():
+            print(f"Device {addr} {name}")
+    elif args[:2] == ["--agent", "NoInputNoOutput"] and args[2] == "pair":
+        state["devices"][args[3]] = [state["nearby"].pop(args[3]), False]
     elif args == ["devices", "Connected"]:
         for addr, (name, on) in state["devices"].items():
             if on:
@@ -86,7 +107,7 @@ elif cmd == "wpctl":
         state[mute] = args[2] == "1"
 elif cmd == "pw-dump":
     def node(name, desc, cls):
-        return {"type": "PipeWire:Interface:Node", "info": {"props": {"node.name": name, "node.description": desc, "media.class": cls}}}
+        return {"type": "PipeWire:Interface:Node", "info": {"props": {"node.name": name, "node.description": "Sound Card " + desc, "node.nick": desc, "media.class": cls}}}
     print(json.dumps([
         {"type": "PipeWire:Interface:Metadata", "props": {"metadata.name": "default"}, "metadata": [
             {"subject": 0, "key": "default.audio.sink", "value": {"name": state["sink"]}},

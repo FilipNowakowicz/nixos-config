@@ -31,12 +31,17 @@ a command or make it succeed without changing anything.
    q.sh RUNDIR hyprctl dispatch 'hl.dsp.focus({monitor="HEADLESS-1"})'
    ```
 
-4. Open two windows, then run the suite with `wlrctl`, `wtype`, `notify-send`, `grim`
+4. Open two windows with `kitty -o confirm_os_window_close=0`, since some tests close them,
+   then run the suite with `wlrctl`, `wtype`, `notify-send`, `grim`
    and `qs` on `QUIET_TOOLS`:
 
    ```sh
    QUIET_TOOLS=... python3 acceptance.py RUNDIR HEADLESS-1 [name-filter]
    ```
+
+Set `QUIET_TRAY_PYTHON` to a Python with `dbus-next` to include the tray test, which uses
+`fakes/tray.py`. Start from a fresh session each run, because tests pair a device and close
+windows.
 
 Not covered: physical `SUPER` chords, because `wtype` chords do not match binds; real
 network, Bluetooth and audio changes; and hardware frame pacing.

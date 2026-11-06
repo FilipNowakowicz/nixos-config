@@ -16,10 +16,7 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: Ui.blocking ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
-    readonly property bool focused: {
-        const m = Hyprland.focusedMonitor;
-        return !m || !screen || m.name === screen.name;
-    }
+    readonly property bool focused: Ui.focusedScreen === "" || !screen || Ui.focusedScreen === screen.name
     readonly property bool fullscreenApp: {
         const t = ToplevelManager.activeToplevel;
         return !!t && t.fullscreen;

@@ -14,7 +14,7 @@ for c in nmcli bluetoothctl tailscale mullvad wpctl pw-dump pw-metadata brightne
 done
 echo 64 >"$run/power/BAT0/capacity"
 echo Discharging >"$run/power/BAT0/status"
-export QUIET_FAKE_STATE="$run/state.json" QUIET_COLORS="$run/colors.json" QUIET_POWER_SUPPLY="$run/power"
+export QUIET_TIMEZONE=Europe/Warsaw QUIET_FAKE_STATE="$run/state.json" QUIET_COLORS="$run/colors.json" QUIET_POWER_SUPPLY="$run/power"
 [[ -f $QUIET_COLORS ]] || cat >"$QUIET_COLORS" <<'JSON'
 {"name":"gilded-contours","bg":"071126","accent":"d3ad7a","text":"f0d5a2",
  "themes":["acid-statue","cold-concrete","desert-dusk","gilded-contours","lunar-peaks","mono-mesh","nighthawks","obsidian-ridge"]}

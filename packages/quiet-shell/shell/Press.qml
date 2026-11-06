@@ -11,6 +11,7 @@ Item {
     property color rest: "transparent"
     readonly property bool hovered: area.containsMouse
     signal clicked
+    signal secondaryClicked
 
     activeFocusOnTab: true
     Accessible.role: checkable ? Accessible.CheckBox : Accessible.Button
@@ -34,6 +35,7 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.clicked()
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onClicked: mouse => mouse.button === Qt.RightButton ? root.secondaryClicked() : root.clicked()
     }
 }

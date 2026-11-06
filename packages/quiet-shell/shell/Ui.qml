@@ -1,6 +1,7 @@
 pragma Singleton
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 
 // Which surfaces are open. One owner, so nothing can fight over visibility.
 Singleton {
@@ -15,6 +16,12 @@ Singleton {
     property bool pinned: false
     property bool dragging: false
 
+    // Hyprland sends no focus event when the focused monitor is unplugged, so it can
+    // name a screen that's gone. Then every remaining screen counts, or nothing shows.
+    readonly property string focusedScreen: {
+        const m = Hyprland.focusedMonitor;
+        return m && Quickshell.screens.some(s => s.name === m.name) ? m.name : "";
+    }
     readonly property bool topShown: topRevealed || pinned || panel !== ""
     readonly property bool blocking: panel !== "" || spotlight || overview
 

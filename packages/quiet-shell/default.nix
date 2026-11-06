@@ -15,6 +15,7 @@
   procps,
   systemd,
   tailscale,
+  tzdata,
   util-linux,
   wireplumber,
   wlsunset,
@@ -54,6 +55,7 @@ stdenvNoCC.mkDerivation {
     cp -r . $out/share/quiet-shell
     makeWrapper ${quickshell}/bin/qs $out/bin/quiet-shell \
       --add-flags "-p $out/share/quiet-shell" \
+      --set QUIET_ZONE_TAB ${tzdata}/share/zoneinfo/zone1970.tab \
       --suffix PATH : ${lib.makeBinPath runtime}
     makeWrapper ${quickshell}/bin/qs $out/bin/quiet-shell-ipc \
       --add-flags "ipc -p $out/share/quiet-shell call shell"

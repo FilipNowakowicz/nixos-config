@@ -456,6 +456,134 @@ def overview_returns_to_window():
     wait(lambda: not ui()["overview"], "window click to close")
 
 
+@test
+def night_uses_the_timezone_location():
+    open_controls()
+    click(*NIGHT)
+    wait(lambda: ui()["sys"]["night"], "night on")
+    calls = [" ".join(c) for c in fake()["log"]]
+    assert any("wlsunset -l 52.25 -L 21.0" in c for c in calls), calls[-8:]
+
+
+@test
+def focus_survives_a_restart():
+    open_controls()
+    click(*FOCUS_TOGGLE)
+    wait(lambda: ui()["focus"], "focus on")
+    time.sleep(0.3)
+    restart_shell()
+    wait(lambda: ui()["focus"], "focus to come back", timeout=10)
+    shell("controls")
+    time.sleep(0.5)
+    click(*FOCUS_TOGGLE)
+    wait(lambda: not ui()["focus"], "focus off")
+    time.sleep(0.3)
+    restart_shell()
+    wait(lambda: "focus" in ui() and not ui()["focus"], "focus to stay off", timeout=10)
+
+
+@test
+def wifi_password_joins_without_leaking():
+    open_controls()
+    click(*WIFI_LABEL)
+    wait(lambda: ui()["detail"] == "wifi", "wifi detail")
+    time.sleep(0.4)
+    shot("wifi-list")
+    click(1700, 169)
+    time.sleep(0.3)
+    typed("correct horse")
+    shot("wifi-password")
+    key("Return")
+    wait(lambda: fake()["ssid"] == "Kavarna Guest", "join", timeout=8)
+    wait(lambda: ui()["sys"]["wifi"]["ssid"] == "Kavarna Guest", "readback")
+    assert "correct horse" not in json.dumps(fake()["log"]), "password reached argv"
+    wait(lambda: not ui()["writes"], "write to confirm")
+
+
+@test
+def wrong_password_fails_and_leaves_no_profile():
+    set_fake(ssid="Harbour 5G", known=["Harbour 5G", "Harbour 2.4G"])
+    open_controls()
+    click(*WIFI_LABEL)
+    wait(lambda: ui()["detail"] == "wifi", "wifi detail")
+    time.sleep(1.2)
+    click(1700, 169)
+    time.sleep(0.3)
+    typed("wrong")
+    key("Return")
+    wait(lambda: ui()["failed"] == 1, "failure", timeout=8)
+    wait(lambda: "Kavarna Guest" not in fake()["known"], "failed profile to go")
+    shot("wifi-wrong-password")
+    # Reaching the network heals the failure, which clears it for later tests.
+    set_fake(ssid="Kavarna Guest")
+    wait(lambda: ui()["failed"] == 0, "failure to heal")
+    set_fake(ssid="Harbour 5G")
+
+
+@test
+def bluetooth_scans_and_pairs():
+    open_controls()
+    click(1660, 143)
+    wait(lambda: ui()["detail"] == "bluetooth", "bluetooth detail")
+    wait(lambda: any(c[:1] == ["bluetoothctl"] and "scan" in c for c in fake()["log"]), "scan")
+    wait(lambda: ui()["sys"]["bluetooth"]["nearby"], "nearby device")
+    time.sleep(0.4)
+    shot("bluetooth-nearby")
+    click(1700, 192)
+    addr = "AA:BB:CC:00:00:03"
+    wait(lambda: any(d["addr"] == addr and d["connected"] for d in ui()["sys"]["bluetooth"]["devices"]), "paired", timeout=8)
+
+
+@test
+def tray_item_appears_and_activates():
+    if not os.environ.get("QUIET_TRAY_PYTHON"):
+        return
+    log = run / "tray.log"
+    log.write_text("")
+    tray = subprocess.Popen([os.environ["QUIET_TRAY_PYTHON"], str(repo / "tests/quiet-shell/fakes/tray.py"), str(log)], env=env)
+    try:
+        wait(lambda: ui()["tray"] == ["quiet-test"], "tray item")
+        move(1664, 0)
+        wait(lambda: ui()["top"], "top reveal")
+        time.sleep(0.3)
+        shot("tray")
+        click(1664, 21)
+        wait(lambda: "activate" in log.read_text(), "activation")
+    finally:
+        tray.terminate()
+    wait(lambda: ui()["tray"] == [], "tray item to go")
+
+
+@test
+def focus_follows_a_new_monitor():
+    sh("hyprctl", "output", "create", "headless", "QUIET-2")
+    sh("hyprctl", "eval", 'hl.monitor({output="QUIET-2",mode="1280x720@60",position="3840x0",scale=1})')
+    sh("hyprctl", "dispatch", 'hl.dsp.focus({monitor="QUIET-2"})')
+    try:
+        wait(lambda: ui()["screen"] == "QUIET-2", "shell to see the new monitor")
+    finally:
+        sh("hyprctl", "output", "remove", "QUIET-2")
+        sh("hyprctl", "dispatch", f'hl.dsp.focus({{monitor="{output}"}})')
+    wait(lambda: ui()["screen"] in (output, ""), "shell to return")
+    shell("controls")
+    wait(lambda: ui()["panel"] == "controls", "controls")
+    time.sleep(0.4)
+    shot("after-monitor-removed")
+
+
+def restart_shell():
+    path = os.environ.get("QUIET_SHELL_PATH", "")
+    for proc in pathlib.Path("/proc").glob("[0-9]*"):
+        try:
+            cmdline = (proc / "cmdline").read_bytes().replace(b"\0", b" ").decode()
+        except OSError:
+            continue
+        if path and path in cmdline and "ipc" not in cmdline:
+            os.kill(int(proc.name), 15)
+    time.sleep(2.5)
+    wait(lambda: ui(), "shell to restart", timeout=10)
+
+
 def clients():
     return json.loads(sh("hyprctl", "-j", "clients").stdout)
 

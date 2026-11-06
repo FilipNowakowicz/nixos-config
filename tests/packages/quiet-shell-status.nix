@@ -15,6 +15,7 @@ pkgs.runCommand "quiet-shell-status-tests"
   ''
     python3 ${./quiet-shell-status.py} \
       ${../../packages/quiet-shell/shell/scripts/status.py} \
-      ${../quiet-shell/fakes/fake.py}
+      ${../quiet-shell/fakes/fake.py} \
+      ${../../packages/quiet-shell/shell/scripts/location.py}
     touch $out
   ''

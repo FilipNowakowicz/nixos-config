@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 
-status, fake = sys.argv[1:3]
+status, fake, location = sys.argv[1:4]
 COMMANDS = "nmcli bluetoothctl tailscale mullvad wpctl pw-dump brightnessctl powerprofilesctl playerctl pgrep systemctl".split()
 
 with tempfile.TemporaryDirectory() as tmp:
@@ -31,7 +31,13 @@ with tempfile.TemporaryDirectory() as tmp:
     }
     out = json.loads(subprocess.check_output([sys.executable, status], env=env))
     assert out["wifi"]["on"] is True and out["wifi"]["ssid"] == "Harbour 5G", out["wifi"]
-    assert len(out["wifi"]["networks"]) == 3
+    assert len(out["wifi"]["networks"]) == 5
+    guest = next(n for n in out["wifi"]["networks"] if n["name"] == "Kavarna Guest")
+    assert guest["security"] == "WPA2" and not guest["known"], guest
+    assert next(n for n in out["wifi"]["networks"] if n["name"] == "Harbour 2.4G")["known"]
+    # Unnamed devices are left out, and paired ones never count as nearby.
+    assert out["bluetooth"]["nearby"] == [{"addr": "AA:BB:CC:00:00:03", "name": "Speaker"}], out["bluetooth"]
+    assert out["devices"]["sources"][0]["desc"] == "Internal microphone", out["devices"]
     assert out["bluetooth"]["on"] and out["bluetooth"]["devices"][0]["connected"], out["bluetooth"]
     assert out["vpn"] == {"tailscale": True, "mullvad": False}, out["vpn"]
     assert out["sink"] == {"level": 59, "muted": False}, out["sink"]
@@ -45,3 +51,23 @@ with tempfile.TemporaryDirectory() as tmp:
     for key in ("wifi", "bluetooth", "vpn", "sink", "devices", "brightness", "profile", "battery", "media"):
         assert empty[key] is None, (key, empty[key])
 print("quiet-shell status: ok")
+
+with tempfile.TemporaryDirectory() as tmp:
+    table = pathlib.Path(tmp) / "zone1970.tab"
+    table.write_text(
+        "# comment\n"
+        "GB,GG,IM,JE\t+513030-0000731\tEurope/London\n"
+        "PL\t+5215+02100\tEurope/Warsaw\n"
+        "US\t+611305-1495401\tAmerica/Anchorage\n"
+        "NZ\t-3652+17446\tPacific/Auckland\n"
+    )
+
+    def where(zone):
+        env = {"QUIET_ZONE_TAB": str(table), "QUIET_TIMEZONE": zone}
+        return subprocess.run([sys.executable, location], env=env, capture_output=True, text=True, check=False)
+
+    assert where("Europe/London").stdout.split() == ["-l", "51.51", "-L", "-0.13"], where("Europe/London")
+    assert where("Europe/Warsaw").stdout.split() == ["-l", "52.25", "-L", "21.0"]
+    assert where("America/Anchorage").stdout.split() == ["-l", "61.22", "-L", "-149.9"]
+    assert where("Pacific/Auckland").stdout.split() == ["-l", "-36.87", "-L", "174.77"]
+    assert where("Mars/Base").returncode != 0, "an unknown zone must not pick a location"
