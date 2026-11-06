@@ -53,6 +53,10 @@ if [[ -z ${QUIET_TRY_NESTED:-} ]] && [[ $(loginctl show-session "$XDG_SESSION_ID
 fi
 
 mkdir -p "$run/bin"
+# Keep the last run's logs: if a session hangs, the next one must not overwrite the evidence.
+for log in hyprland shell; do
+  [[ ! -e $run/$log.log ]] || mv "$run/$log.log" "$run/$log.previous.log"
+done
 echo "Building the shell…"
 nix build "$repo#quiet-shell" --out-link "$run/package"
 

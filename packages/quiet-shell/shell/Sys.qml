@@ -49,6 +49,9 @@ Singleton {
         }
     }
 
+    // The network being joined, so only its row shows progress.
+    readonly property string joining: pending("wifi-net") ? writes["wifi-net"].options.target : ""
+
     function has(section) { return state[section] !== undefined && state[section] !== null; }
     function pending(key) { return !!(writes[key] && writes[key].status === "pending"); }
     function failed(key) { return !!(writes[key] && writes[key].status === "failed"); }
@@ -163,7 +166,7 @@ Singleton {
             s => s.wifi && s.wifi.ssid === name,
             secret ? "Couldn't join. Wrong password?" : "Couldn't join " + name + ".",
             // A failed attempt leaves a profile behind that would look like a saved network.
-            secret ? { input: password + "\n", timeout: 30000, undo: ["nmcli", "connection", "delete", "id", name] } : { timeout: 30000 });
+            secret ? { target: name, input: password + "\n", timeout: 30000, undo: ["nmcli", "connection", "delete", "id", name] } : { target: name, timeout: 30000 });
     }
     function rescanWifi() {
         Quickshell.execDetached(["nmcli", "dev", "wifi", "rescan"]);

@@ -46,6 +46,7 @@ Item {
                 id: network
                 required property var modelData
                 readonly property bool enterprise: modelData.security.includes("802.1X")
+                readonly property bool joining: Sys.joining === modelData.name
                 readonly property bool needsPassword: !modelData.known && modelData.security !== ""
                 Layout.fillWidth: true
                 spacing: 0
@@ -53,12 +54,17 @@ Item {
                     Layout.fillWidth: true
                     name: network.modelData.name
                     title: network.modelData.name
-                    note: network.needsPassword && network.enterprise ? "Needs setup" : network.modelData.signal + "%"
+                    note: network.joining ? "Joining…"
+                        : network.modelData.active ? "Connected"
+                        : network.needsPassword && network.enterprise ? "Needs setup"
+                        : network.modelData.signal + "%"
                     locked: network.needsPassword
                     selected: network.modelData.active
-                    busy: Sys.pending("wifi-net")
+                    busy: network.joining
+                    // One join at a time, so the rest wait for it to finish.
+                    opacity: Sys.joining === "" || network.joining ? 1 : 0.5
                     onClicked: {
-                        if (network.modelData.active) return;
+                        if (network.modelData.active || Sys.joining !== "") return;
                         if (network.needsPassword && network.enterprise) {
                             Sys.openNetworkSettings();
                         } else if (network.needsPassword) {

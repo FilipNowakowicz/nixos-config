@@ -53,6 +53,9 @@ It needs no rebuild and changes nothing in `~/.config`. Press Ctrl+Alt+F2, log i
 it, then use Ctrl+Alt+F1 and Ctrl+Alt+F2 to move between sessions. Leave with
 SUPER+SHIFT+Escape.
 
+If the screen hangs, try Ctrl+Alt+F1 before the power button. Each run moves the last
+run's logs to `hyprland.previous.log` and `shell.previous.log`, so a hang leaves evidence.
+
 Sleep and idle are inhibited until you leave, because hypridle in the first session can't
 see input in the second and would otherwise suspend the machine. Hyprland imports its environment into the shared systemd user manager and stops
 `graphical-session.target` on exit, which would take down the first session's services.

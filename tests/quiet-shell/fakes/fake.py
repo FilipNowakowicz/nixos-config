@@ -23,9 +23,9 @@ lock = open(f"{state_path}.lock", "w", encoding="utf-8")
 fcntl.flock(lock, fcntl.LOCK_EX)
 DEFAULT = {
     "wifi": True, "ssid": "Harbour 5G",
-    "networks": [["Harbour 5G", 92, "WPA2"], ["Harbour 2.4G", 70, "WPA2"], ["Kavarna Guest", 31, "WPA2"], ["Open Cafe", 28, ""], ["Campus", 25, "WPA2 802.1X"]],
+    "networks": [["Harbour 5G", 96, "WPA2", "another access point"], ["Harbour 5G", 92, "WPA2"], ["Harbour 2.4G", 70, "WPA2"], ["Kavarna Guest", 31, "WPA2"], ["Open Cafe", 28, ""], ["Campus", 25, "WPA2 802.1X"]],
     "known": ["Harbour 5G", "Harbour 2.4G"], "wifi_password": "correct horse",
-    "nearby": {"AA:BB:CC:00:00:03": "Speaker", "AA:BB:CC:00:00:04": "AA-BB-CC-00-00-04"},
+    "nearby": {"AA:BB:CC:00:00:03": "Speaker", "AA:BB:CC:00:00:04": "AA-BB-CC-00-00-04", "AA:BB:CC:00:00:05": "7E-11-22-33-44-55", "AA:BB:CC:00:00:06": "LE_Headphones"},
     "bt": True,
     "devices": {"AA:BB:CC:00:00:01": ["Headphones", True], "AA:BB:CC:00:00:02": ["Trackball", False]},
     "tailscale": True, "mullvad": False, "country": "se",
@@ -63,8 +63,8 @@ if cmd == "nmcli":
             print(f"{name}:802-11-wireless")
         print("Wired:802-3-ethernet")
     elif args[0] == "-t":
-        for name, signal, security in state["networks"] if state["wifi"] else []:
-            print(f"{'yes' if name == state['ssid'] else 'no'}:{name}:{signal}:{security}")
+        for name, signal, security, *other in state["networks"] if state["wifi"] else []:
+            print(f"{'yes' if name == state['ssid'] and not other else 'no'}:{name}:{signal}:{security}")
     elif args[:3] == ["dev", "wifi", "connect"]:
         state["ssid"] = args[3]
     elif args[:4] == ["--ask", "dev", "wifi", "connect"]:

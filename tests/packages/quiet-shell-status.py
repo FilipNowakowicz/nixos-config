@@ -31,11 +31,13 @@ with tempfile.TemporaryDirectory() as tmp:
     }
     out = json.loads(subprocess.check_output([sys.executable, status], env=env))
     assert out["wifi"]["on"] is True and out["wifi"]["ssid"] == "Harbour 5G", out["wifi"]
+    # The access point in use is rarely the strongest one with that name.
     assert len(out["wifi"]["networks"]) == 5
+    assert out["wifi"]["networks"][0] == {"name": "Harbour 5G", "active": True, "signal": 96, "security": "WPA2", "known": True}, out["wifi"]
     guest = next(n for n in out["wifi"]["networks"] if n["name"] == "Kavarna Guest")
     assert guest["security"] == "WPA2" and not guest["known"], guest
     assert next(n for n in out["wifi"]["networks"] if n["name"] == "Harbour 2.4G")["known"]
-    # Unnamed devices are left out, and paired ones never count as nearby.
+    # Unnamed devices, low-energy twins and paired devices never count as nearby.
     assert out["bluetooth"]["nearby"] == [{"addr": "AA:BB:CC:00:00:03", "name": "Speaker"}], out["bluetooth"]
     assert out["devices"]["sources"][0]["desc"] == "Internal microphone", out["devices"]
     assert out["bluetooth"]["on"] and out["bluetooth"]["devices"][0]["connected"], out["bluetooth"]

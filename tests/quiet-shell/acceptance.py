@@ -506,6 +506,29 @@ def wifi_password_joins_without_leaking():
 
 
 @test
+def only_the_chosen_network_shows_progress():
+    set_fake(ssid="Harbour 5G", known=["Harbour 5G", "Harbour 2.4G", "Open Cafe"], stick=["nmcli"])
+    open_controls()
+    click(*WIFI_LABEL)
+    wait(lambda: ui()["detail"] == "wifi", "wifi detail")
+    time.sleep(1.2)
+    nets = ui()["sys"]["wifi"]["networks"]
+    assert nets[0]["name"] == "Harbour 5G" and nets[0]["active"], nets
+    assert [n["name"] for n in nets].count("Harbour 5G") == 1, nets
+    shot("wifi-connected")
+    click(1700, 123)
+    wait(lambda: ui()["joining"] == "Harbour 2.4G", "the chosen network to be joining")
+    time.sleep(0.3)
+    shot("wifi-joining")
+    set_fake(stick=[], ssid="Harbour 2.4G")
+    wait(lambda: ui()["joining"] == "", "the join to finish", timeout=8)
+    wait(lambda: ui()["sys"]["wifi"]["networks"][0]["name"] == "Harbour 2.4G", "the new network on top")
+    set_fake(ssid="Harbour 5G", known=["Harbour 5G", "Harbour 2.4G"])
+    key("Escape")
+    wait(lambda: not ui()["writes"], "write to confirm")
+
+
+@test
 def escape_still_works_after_cancelling_a_password():
     set_fake(ssid="Harbour 5G", known=["Harbour 5G", "Harbour 2.4G"])
     open_controls()

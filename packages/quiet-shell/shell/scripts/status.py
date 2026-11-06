@@ -25,31 +25,43 @@ def wifi():
     radio = run("nmcli", "radio", "wifi")
     if radio is None:
         return None
-    networks, ssid = [], ""
-    seen = set()
     known = set()
     for line in (run("nmcli", "-t", "-f", "name,type", "connection", "show") or "").splitlines():
         parts = re.split(r"(?<!\\):", line)
         if len(parts) == 2 and parts[1].endswith("wireless"):
             known.add(parts[0].replace("\\:", ":"))
+    # One name can have many access points, and the one in use is rarely the strongest.
+    networks = {}
     # Cached results: letting nmcli rescan here can outlast the timeout and blank the list.
     for line in (run("nmcli", "-t", "-f", "active,ssid,signal,security", "dev", "wifi", "list", "--rescan", "no") or "").splitlines():
         parts = re.split(r"(?<!\\):", line)
         if len(parts) < 4 or not parts[1]:
             continue
         name = parts[1].replace("\\:", ":")
-        active = parts[0] == "yes"
-        ssid = name if active else ssid
-        if name not in seen:
-            seen.add(name)
-            networks.append({
-                "name": name,
-                "active": active,
-                "signal": int(parts[2] or 0),
-                "security": parts[3].replace("\\:", ":"),
-                "known": name in known,
-            })
-    return {"on": radio.strip() == "enabled", "ssid": ssid, "networks": networks[:8]}
+        signal = int(parts[2] or 0)
+        entry = networks.setdefault(name, {
+            "name": name,
+            "active": False,
+            "signal": signal,
+            "security": parts[3].replace("\\:", ":"),
+            "known": name in known,
+        })
+        entry["active"] = entry["active"] or parts[0] == "yes"
+        entry["signal"] = max(entry["signal"], signal)
+    ordered = sorted(networks.values(), key=lambda n: (not n["active"], not n["known"], -n["signal"]))
+    ssid = ordered[0]["name"] if ordered and ordered[0]["active"] else ""
+    return {"on": radio.strip() == "enabled", "ssid": ssid, "networks": ordered[:8]}
+
+
+# Unnamed devices report an address as their name. While pairing it can be another
+# address of the same device, so comparing against its own address isn't enough.
+ADDRESS = re.compile(r"(?:[0-9A-Fa-f]{2}[-:]){5}[0-9A-Fa-f]{2}")
+LOW_ENERGY = re.compile(r"^LE[-_ ]+|[-_ ]+LE$")
+
+
+def same_device(name):
+    """Earbuds and headphones can also advertise a low-energy twin, as in LE_Buds."""
+    return LOW_ENERGY.sub("", name).casefold()
 
 
 def bluetooth():
@@ -64,15 +76,27 @@ def bluetooth():
             connected.add(bits[1])
     for line in (run("bluetoothctl", "devices", "Paired") or "").splitlines():
         bits = line.split(" ", 2)
-        if len(bits) == 3:
-            devices.append({"addr": bits[1], "name": bits[2], "connected": bits[1] in connected})
+        if len(bits) != 3:
+            continue
+        unnamed = ADDRESS.fullmatch(bits[2])
+        if unnamed and bits[1] not in connected:
+            continue
+        devices.append({
+            "addr": bits[1],
+            "name": "Bluetooth device" if unnamed else bits[2],
+            "connected": bits[1] in connected,
+        })
     paired = {d["addr"] for d in devices}
+    names = {same_device(d["name"]) for d in devices}
     nearby = []
     for line in (run("bluetoothctl", "devices") or "").splitlines():
         bits = line.split(" ", 2)
-        # Unnamed devices report their address as a name, which helps nobody.
-        if len(bits) == 3 and bits[1] not in paired and bits[2].replace("-", ":") != bits[1]:
-            nearby.append({"addr": bits[1], "name": bits[2]})
+        if len(bits) != 3 or bits[1] in paired or ADDRESS.fullmatch(bits[2]):
+            continue
+        if same_device(bits[2]) in names:
+            continue
+        names.add(same_device(bits[2]))
+        nearby.append({"addr": bits[1], "name": bits[2]})
     return {"on": "Powered: yes" in show, "devices": devices, "nearby": nearby[:6]}
 
 
