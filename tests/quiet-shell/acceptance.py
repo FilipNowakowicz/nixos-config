@@ -898,6 +898,18 @@ def shortcut_sheet_matches_real_binds():
     wait(lambda: not ui()["cheatSheet"], "escape to close")
 
 
+@test
+def changing_desktop_shows_where_you_landed():
+    start = json.loads(sh("hyprctl", "-j", "activeworkspace").stdout)["id"]
+    sh("hyprctl", "dispatch", "hl.dsp.focus({workspace=6})")
+    wait(lambda: ui()["deskHud"] == 6, "desktop indicator")
+    time.sleep(0.3)
+    shot("desk-hud")
+    wait(lambda: ui()["deskHud"] == 0, "indicator to leave", timeout=3)
+    sh("hyprctl", "dispatch", f"hl.dsp.focus({{workspace={start}}})")
+    wait(lambda: ui()["deskHud"] == start, "indicator on return")
+
+
 def restart_shell():
     path = os.environ.get("QUIET_SHELL_PATH", "")
     for proc in pathlib.Path("/proc").glob("[0-9]*"):

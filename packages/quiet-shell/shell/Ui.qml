@@ -18,6 +18,21 @@ Singleton {
     property var confirm: null           // { title, body, action, command }
     property var hud: null               // { kind, level, muted }
     property var dockMenu: null          // { app, x }
+    property int deskHud: 0
+    Timer { id: deskTimer; interval: 900; onTriggered: root.deskHud = 0 }
+    Connections {
+        target: Hyprland
+        function onFocusedWorkspaceChanged() {
+            const ws = Hyprland.focusedWorkspace;
+            // Startup isn't a change, and the bar or overview already shows it.
+            if (ws && ws.id > 0 && root.deskSeen && !root.topShown && !root.overview) {
+                root.deskHud = ws.id;
+                deskTimer.restart();
+            }
+            root.deskSeen = true;
+        }
+    }
+    property bool deskSeen: false
     property bool screenshot: false
     property bool cheatSheet: false
     // Each list is a column. A one-item row is a heading.

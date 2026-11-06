@@ -53,6 +53,17 @@ Singleton {
         return Hyprland.toplevels.values.slice().sort((a, b) => rank(a) - rank(b));
     }
 
+    // Always ten, in the order of SUPER+1 to SUPER+0, so a dot's place means something.
+    readonly property var desks: {
+        const named = {};
+        for (const ws of Hyprland.workspaces.values)
+            named[ws.id] = ws;
+        return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(id => {
+            const ws = named[id];
+            return { id, apps: ws ? names(ws.toplevels.values) : [] };
+        });
+    }
+
     function isHidden(t) {
         return !!t.workspace && t.workspace.name === hiddenWorkspace;
     }

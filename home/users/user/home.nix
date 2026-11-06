@@ -422,7 +422,7 @@ in
     # long-lived exec-once server survives rebuilds, so after a swayosd bump
     # the stale server silently ignored the new swayosd-client and no popup
     # appeared. As a unit it is restarted on switch and on any crash.
-    swayosd.enable = true;
+    swayosd.enable = !quietShellEnabled;
 
     # ── Hypridle ───────────────────────────────────────────────────────────
     # Hyprland-native idle daemon. Single source of truth for desktop idle
@@ -460,7 +460,7 @@ in
   systemd.user.services = {
     # Bind to the same session target as the other desktop units (the HM
     # module defaults to wayland.systemd.target).
-    swayosd = {
+    swayosd = lib.mkIf (!quietShellEnabled) {
       Unit = {
         After = lib.mkForce [ "nixos-fake-graphical-session.target" ];
         PartOf = lib.mkForce [ "nixos-fake-graphical-session.target" ];
@@ -468,7 +468,8 @@ in
       Install.WantedBy = lib.mkForce [ "nixos-fake-graphical-session.target" ];
     };
 
-    battery-notify = {
+    # The quiet shell warns about low battery itself.
+    battery-notify = lib.mkIf (!quietShellEnabled) {
       Unit = {
         Description = "Battery low notification check";
         After = [ "nixos-fake-graphical-session.target" ];
@@ -540,7 +541,7 @@ in
 
   };
 
-  systemd.user.timers.battery-notify = {
+  systemd.user.timers.battery-notify = lib.mkIf (!quietShellEnabled) {
     Unit.Description = "Poll battery level every minute";
     Timer = {
       OnBootSec = "1min";

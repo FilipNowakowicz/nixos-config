@@ -114,6 +114,12 @@ PanelWindow {
             anchors.centerIn: parent
         }
 
+        DeskHud {
+            visible: opacity > 0 && win.focused
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: parent.height * 0.82 + 4
+        }
+
         Screenshot {
             visible: Ui.screenshot && win.focused
             anchors.horizontalCenter: parent.horizontalCenter

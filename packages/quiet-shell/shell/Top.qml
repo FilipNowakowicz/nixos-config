@@ -16,16 +16,6 @@ Item {
     readonly property alias rightCapsule: right
     readonly property bool hovered: leftHover.hovered || rightHover.hovered
 
-    // Always ten, in the order of SUPER+1 to SUPER+0, so a dot's place means something.
-    readonly property var desks: {
-        const named = {};
-        for (const ws of Hyprland.workspaces.values)
-            named[ws.id] = ws;
-        return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(id => {
-            const ws = named[id];
-            return { id, apps: ws ? Dockable.names(ws.toplevels.values) : [] };
-        });
-    }
     property var hoveredDesk: null
     property real hoveredX: 0
     function showMenu(item) {
@@ -71,7 +61,7 @@ Item {
             Row {
                 spacing: 0
                 Repeater {
-                    model: root.desks
+                    model: Dockable.desks
                     Press {
                         id: dot
                         required property var modelData
