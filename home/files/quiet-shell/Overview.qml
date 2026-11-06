@@ -69,12 +69,20 @@ Item {
                 name: modelData.title
                 rest: "transparent"
                 onClicked: { modelData.wayland.activate(); Ui.close(); }
+                // Always there underneath, so a failed capture still leaves a usable tile.
+                Glass { anchors.fill: parent; radius: 12 }
+                AppIcon {
+                    anchors.centerIn: parent
+                    size: 72
+                    icon: DesktopEntries.heuristicLookup(tile.modelData.wayland.appId)?.icon ?? ""
+                    fallback: tile.modelData.wayland.appId || "?"
+                }
                 ScreencopyView {
                     anchors.fill: parent
                     anchors.margins: 4
                     captureSource: tile.modelData.wayland
                     live: true
-                    constraintSize: Qt.size(width, height)
+                    constraintSize: Qt.size(Math.max(width, 1), Math.max(height, 1))
                 }
                 Label { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 8; text: tile.modelData.title; font.pixelSize: 12 }
             }

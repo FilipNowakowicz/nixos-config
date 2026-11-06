@@ -118,7 +118,7 @@ elif cmd == "pgrep":
     done(0 if state["night"] else 1)
 elif cmd == "pkill":
     state["night"] = False
-elif cmd == "sh":
+elif cmd == "setsid":
     state["night"] = True
 elif cmd == "systemctl":
     if "is-active" in args:

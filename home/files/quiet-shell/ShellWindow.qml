@@ -29,9 +29,6 @@ PanelWindow {
         Region { item: Ui.blocking && win.focused ? root : null }
         Region { item: win.fullscreenApp ? null : hotTop }
         Region { item: win.fullscreenApp ? null : hotBottom }
-        Region { item: Ui.topShown ? top.leftCapsule : null }
-        Region { item: Ui.topShown ? top.rightCapsule : null }
-        Region { item: Ui.dockRevealed ? dock : null }
     }
 
     Item {
@@ -46,7 +43,32 @@ PanelWindow {
             onClicked: Ui.close()
         }
 
-        Overview { anchors.fill: parent; visible: Ui.overview && win.focused }
+        // Hot edges are 2px while hidden and grow once revealed, so the pointer can
+        // travel from wherever it hit the edge to a capsule without the bar hiding.
+        MouseArea {
+            id: hotTop
+            anchors { top: parent.top; left: parent.left; right: parent.right }
+            height: Ui.topShown ? 44 : 2
+            hoverEnabled: true
+            acceptedButtons: Qt.NoButton
+            onEntered: { hideTop.stop(); Ui.topRevealed = true; }
+        }
+        MouseArea {
+            id: hotBottom
+            anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter }
+            width: parent.width * 0.5
+            height: Ui.dockRevealed ? 84 : 2
+            hoverEnabled: true
+            acceptedButtons: Qt.NoButton
+            onEntered: { hideDock.stop(); Ui.dockRevealed = true; }
+        }
+
+        // Built only while open: live window capture should cost nothing at rest.
+        Loader {
+            anchors.fill: parent
+            active: Ui.overview && win.focused
+            sourceComponent: Overview {}
+        }
 
         Top { id: top; anchors.fill: parent; visible: win.focused || Ui.pinned }
 
@@ -82,24 +104,6 @@ PanelWindow {
             visible: win.focused
             y: parent.height - (Ui.dockRevealed || Ui.overview ? height + 6 : -10)
             Behavior on y { NumberAnimation { duration: Theme.motion; easing.type: Easing.OutCubic } }
-        }
-
-        MouseArea {
-            id: hotTop
-            anchors { top: parent.top; left: parent.left; right: parent.right }
-            height: 2
-            hoverEnabled: true
-            acceptedButtons: Qt.NoButton
-            onEntered: { hideTop.stop(); Ui.topRevealed = true; }
-        }
-        MouseArea {
-            id: hotBottom
-            anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter }
-            width: parent.width * 0.5
-            height: 2
-            hoverEnabled: true
-            acceptedButtons: Qt.NoButton
-            onEntered: { hideDock.stop(); Ui.dockRevealed = true; }
         }
     }
 

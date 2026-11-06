@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Wayland
 
 // Capsules. Clear on an empty desktop, glass as soon as a window could sit behind them.
 Item {
@@ -54,9 +55,9 @@ Item {
             }
             Label {
                 text: {
-                    const t = Hyprland.activeToplevel;
-                    const cls = t && t.lastIpcObject ? t.lastIpcObject.class : "";
-                    return cls ? cls.charAt(0).toUpperCase() + cls.slice(1) : "Desktop";
+                    const t = ToplevelManager.activeToplevel;
+                    const id = t ? t.appId : "";
+                    return id ? id.charAt(0).toUpperCase() + id.slice(1) : "Desktop";
                 }
                 font.weight: Font.DemiBold
             }
