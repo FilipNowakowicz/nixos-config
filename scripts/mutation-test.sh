@@ -90,12 +90,14 @@ stage_scripts() {
 stage_eval() {
   local log="$work/eval.log"
   : >"$log"
+  # Chain with && explicitly: errexit is disabled inside a function that is
+  # called from an `if`, so a failing earlier command would otherwise be lost.
   {
     nix "${nix_opts[@]}" eval --json ".#checks.${system}" \
-      --apply 'c: builtins.mapAttrs (_: v: v.drvPath) c' >/dev/null
-    nix "${nix_opts[@]}" eval --raw \
-      ".#nixosConfigurations.main.config.system.build.toplevel.drvPath" >/dev/null
-    nix "${nix_opts[@]}" eval --raw ".#packages.${system}.tailscale-acl.drvPath" >/dev/null
+      --apply 'c: builtins.mapAttrs (_: v: v.drvPath) c' >/dev/null &&
+      nix "${nix_opts[@]}" eval --raw \
+        ".#nixosConfigurations.main.config.system.build.toplevel.drvPath" >/dev/null &&
+      nix "${nix_opts[@]}" eval --raw ".#packages.${system}.tailscale-acl.drvPath" >/dev/null
   } >"$log" 2>&1 && return 0
   summarize_eval_error "$log"
   return 1
