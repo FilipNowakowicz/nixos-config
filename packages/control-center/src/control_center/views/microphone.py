@@ -34,11 +34,19 @@ class MicrophoneViewMixin:
 
         settings_btn = self._ghost_btn("Open Sound Settings")
 
+        launch_error = self._label("Couldn’t open Sound Settings. Try again.")
+        launch_error.set_wrap(True)
+        launch_error.set_visible(False)
+
         def _open_pavucontrol(_b):
-            self._hide_window()
-            act_open_sound_settings()
+            if act_open_sound_settings():
+                launch_error.set_visible(False)
+                self._hide_window()
+            else:
+                launch_error.set_visible(True)
         settings_btn.connect("clicked", _open_pavucontrol)
         view.append(settings_btn)
+        view.append(launch_error)
 
         def refresh(s):
             a = s["audio"]

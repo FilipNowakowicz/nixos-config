@@ -66,3 +66,11 @@ Private Bluetooth trials additionally covered delayed connect/disconnect, reject
 and explicit Retry, timeout with late readback, rapid reversal under reduced motion,
 and successful/missing-settings pairing handoffs. All command writes were mocked;
 no physical Bluetooth adapter or personal settings application was changed.
+
+Sound Settings handoffs in both input and output views now follow the same rule:
+keep the panel open with a visible error if pavucontrol is missing or cannot start.
+A successful process startup dismisses the panel as a handoff; it does not prove
+that a settings window mapped. The workbench's normal/missing/startup-failure
+pointer trials passed, with every application launch stubbed. Packaged helper
+regressions cover all three outcomes. This follow-up does not include the stable
+audio-device selection changes, which remain independently reviewable in PR429.

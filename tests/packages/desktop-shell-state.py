@@ -91,7 +91,7 @@ assert fire.call_args.args[0] == ['makoctl', 'mode', '-r', 'do-not-disturb']
 print('DND preserves unrelated mako modes')
 
 launch_helpers = [n for n in actions.body if isinstance(n, ast.FunctionDef)
-                  and n.name in ('_fire', '_fire_if_found', 'act_open_bluetooth_settings')]
+                  and n.name in ('_fire', '_fire_if_found', 'act_open_bluetooth_settings', 'act_open_sound_settings')]
 spawn = Mock()
 launch_namespace = {'subprocess': types.SimpleNamespace(Popen=spawn, DEVNULL=-3),
                     'shutil': types.SimpleNamespace(which=Mock(return_value='/private/blueman-manager'))}
@@ -105,4 +105,15 @@ spawn.assert_not_called()
 launch_namespace['shutil'].which.return_value = '/private/blueman-manager'
 spawn.side_effect = FileNotFoundError()
 assert not launch_namespace['act_open_bluetooth_settings']()
+spawn.side_effect = None
+launch_namespace['shutil'].which.return_value = '/private/pavucontrol'
+assert launch_namespace['act_open_sound_settings']()
+assert spawn.call_args.args[0] == ['/private/pavucontrol']
+spawn.reset_mock()
+launch_namespace['shutil'].which.return_value = None
+assert not launch_namespace['act_open_sound_settings']()
+spawn.assert_not_called()
+launch_namespace['shutil'].which.return_value = '/private/pavucontrol'
+spawn.side_effect = OSError('settings process cannot start')
+assert not launch_namespace['act_open_sound_settings']()
 print('Settings handoff distinguishes missing tools and failed process startup')

@@ -109,7 +109,7 @@ def act_open_bluetooth_settings():
 
 
 def act_open_sound_settings():
-    _fire_if_found(["pavucontrol"])
+    return _fire_if_found(["pavucontrol"])
 
 
 def act_bt_powered(on):
