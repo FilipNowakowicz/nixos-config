@@ -1,5 +1,8 @@
 -- Behaviour-preserving migration for Hyprland 0.57.
 local colors = dofile(os.getenv("HOME") .. "/.config/hypr/colors.lua")
+-- Written by Home Manager from fleet.quietShell. Missing means the classic shell.
+local shell_file = loadfile(os.getenv("HOME") .. "/.config/hypr/shell.lua")
+local shell = shell_file and shell_file() or { quiet = false }
 if os.getenv("DESKTOP_TEST") ~= "1" then
 	hl.on("hyprland.start", function()
 		hl.exec_cmd("hypr-display-mode auto")
@@ -94,9 +97,14 @@ hl.bind("SUPER + Return", hl.dsp.exec_cmd("kitty"))
 hl.bind("SUPER + apostrophe", hl.dsp.window.close())
 hl.bind("SUPER + b", hl.dsp.exec_cmd("firefox"))
 hl.bind("SUPER + BackSpace", hl.dsp.exec_cmd("hyprlock"))
-hl.bind("SUPER + c", hl.dsp.exec_cmd("control-center"))
-hl.bind("SUPER + W", hl.dsp.exec_cmd("waybar-toggle"))
-hl.bind("SUPER + Space", hl.dsp.exec_cmd("launcher"))
+hl.bind("SUPER + c", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc controls" or "control-center"))
+hl.bind("SUPER + W", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc pin" or "waybar-toggle"))
+hl.bind("SUPER + Space", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc spotlight" or "launcher"))
+if shell.quiet then
+	hl.bind("SUPER + n", hl.dsp.exec_cmd("quiet-shell-ipc notifications"))
+	hl.bind("SUPER + o", hl.dsp.exec_cmd("quiet-shell-ipc overview"))
+	hl.layer_rule({ name = "quiet-glass", match = { namespace = "quiet-shell" }, blur = true, ignore_alpha = 0.02 })
+end
 hl.bind("SUPER + M", hl.dsp.exec_cmd("hypr-layout-cycle"))
 hl.bind("SUPER + h", hl.dsp.focus({ direction = "left" }))
 hl.bind("SUPER + j", hl.dsp.focus({ direction = "down" }))
@@ -148,6 +156,8 @@ if os.getenv("DESKTOP_TEST") ~= "1" then
 		)
 		hl.exec_cmd("/run/current-system/sw/libexec/polkit-gnome-authentication-agent-1")
 		hl.exec_cmd("swaybg -m fill -i ~/.local/share/wallpapers/current.png")
-		hl.exec_cmd("control-center --daemon")
+		if not shell.quiet then
+			hl.exec_cmd("control-center --daemon")
+		end
 	end)
 end

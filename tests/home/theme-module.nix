@@ -61,6 +61,18 @@ let
   kittyText = files."themes/mono-mesh/kitty-theme.conf".text;
 
   failures = lib.runTests {
+    testQuietShellColors = {
+      expr = builtins.fromJSON files."themes/mono-mesh/quiet-colors.json".text;
+      expected = {
+        name = "mono-mesh";
+        inherit (monoTheme.colors) bg text;
+        accent = monoTheme.colors.amber;
+        themes = builtins.fromJSON (
+          builtins.toJSON (builtins.fromJSON files."themes/mono-mesh/quiet-colors.json".text).themes
+        );
+      };
+    };
+
     # Both formats and links must survive the old-session -> Lua transition.
     testHyprlandTransitionColors = {
       expr =

@@ -32,7 +32,7 @@ def sh(*cmd, timeout=10):
 
 
 def shell(fn):
-    out = sh("qs", "ipc", "-p", str(repo / "home/files/quiet-shell"), "call", "shell", fn)
+    out = sh("qs", "ipc", "-p", str(repo / "packages/quiet-shell/shell"), "call", "shell", fn)
     return out.stdout.strip()
 
 

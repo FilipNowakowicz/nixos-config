@@ -50,6 +50,6 @@ env | grep -E '^(HYPRLAND_INSTANCE_SIGNATURE|WAYLAND_DISPLAY|XDG_RUNTIME_DIR|QUI
 [[ -n ${QUIET_WALLPAPER:-} ]] && swaybg -m fill -i "$QUIET_WALLPAPER" &
 # Keep retrying so a QML error can be fixed without restarting the compositor.
 while true; do
-  qs -p "$repo/home/files/quiet-shell" >"$run/qs.log" 2>&1 || true
+  qs -p "$repo/packages/quiet-shell/shell" >"$run/qs.log" 2>&1 || true
   sleep 1
 done

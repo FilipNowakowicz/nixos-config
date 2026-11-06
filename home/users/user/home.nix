@@ -6,6 +6,7 @@
 }:
 let
   inherit (config.fleet) hostName skipHeavyPackages;
+  quietShellEnabled = config.fleet.quietShell;
   nixRepo = "${config.home.homeDirectory}/nix";
   privateUserJs = ../../files/firefox/private-user.js;
   langgraphPython = pkgs.python3.withPackages (
@@ -59,6 +60,7 @@ let
     };
 
   controlCenter = pkgs.callPackage ../../../packages/control-center { };
+  quietShell = pkgs.callPackage ../../../packages/quiet-shell { };
   waybarStyle =
     lib.replaceStrings
       [ ''@import "colors.css";'' ]
@@ -283,6 +285,7 @@ in
       batteryNotify
       claudeLatest
       launcher
+      quietShell
       lazyactions
 
       (writeShellApplication {
@@ -389,6 +392,7 @@ in
       # Remove it only after the new Lua session has passed live acceptance.
       "hypr/hyprland.conf".source = ../../files/hypr/hyprland.conf;
       "hypr/hyprland.lua".source = ../../files/hypr/hyprland.lua;
+      "hypr/shell.lua".text = "return { quiet = ${lib.boolToString quietShellEnabled} }\n";
 
       # Hyprlock
       "hypr/hyprlock.conf".source = ../../files/hypr/hyprlock.conf;
@@ -410,7 +414,7 @@ in
     # Config is managed by home/theme/module.nix (per-theme mako-config file,
     # symlinked at ~/.config/mako/config) so runtime theme-switch works without
     # a rebuild. Do not manage mako config here to avoid conflicts.
-    mako.enable = true;
+    mako.enable = !quietShellEnabled;
 
     # ── SwayOSD ────────────────────────────────────────────────────────────
     # Volume/brightness OSD for the media-key binds in hyprland.conf. Runs as
@@ -485,7 +489,7 @@ in
     # As a bare Hyprland `exec-once`, a crash like that left the bar dead
     # until the next relogin. Running it as a systemd unit instead means any
     # crash — from a rebuild or otherwise — self-heals in a couple seconds.
-    waybar = {
+    waybar = lib.mkIf (!quietShellEnabled) {
       Unit = {
         Description = "Highly customizable Wayland bar (Home Manager-managed)";
         After = [ "nixos-fake-graphical-session.target" ];
@@ -501,7 +505,7 @@ in
       };
     };
 
-    waybar-autohide = {
+    waybar-autohide = lib.mkIf (!quietShellEnabled) {
       Unit = {
         Description = "Auto-hide / hover-reveal controller for the waybar pill";
         After = [ "nixos-fake-graphical-session.target" ];
@@ -509,6 +513,23 @@ in
       };
       Service = {
         ExecStart = "${waybarAutohide}/bin/waybar-autohide";
+        Restart = "always";
+        RestartSec = 2;
+      };
+      Install = {
+        WantedBy = [ "nixos-fake-graphical-session.target" ];
+      };
+    };
+
+    # A unit for the same reason as waybar: it heals after a rebuild severs Wayland.
+    quiet-shell = lib.mkIf quietShellEnabled {
+      Unit = {
+        Description = "Quiet desktop shell";
+        After = [ "nixos-fake-graphical-session.target" ];
+        PartOf = [ "nixos-fake-graphical-session.target" ];
+      };
+      Service = {
+        ExecStart = "${quietShell}/bin/quiet-shell";
         Restart = "always";
         RestartSec = 2;
       };

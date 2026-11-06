@@ -21,8 +21,8 @@ PanelWindow {
         return !m || !screen || m.name === screen.name;
     }
     readonly property bool fullscreenApp: {
-        const t = Hyprland.activeToplevel;
-        return !!t && !!t.lastIpcObject && t.lastIpcObject.fullscreen > 0;
+        const t = ToplevelManager.activeToplevel;
+        return !!t && t.fullscreen;
     }
 
     mask: Region {

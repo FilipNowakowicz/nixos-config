@@ -194,7 +194,7 @@ Singleton {
 
     Process {
         id: status
-        command: [Qt.resolvedUrl("scripts/status.py").toString().replace("file://", "")]
+        command: ["python3", Qt.resolvedUrl("scripts/status.py").toString().replace("file://", "")]
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
