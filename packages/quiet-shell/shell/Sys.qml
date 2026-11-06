@@ -195,6 +195,54 @@ Singleton {
         const want = !mullvadOn;
         write("mullvad", ["mullvad", want ? "connect" : "disconnect"], s => s.vpn && s.vpn.mullvad === want, "Mullvad didn't change.");
     }
+    // The hardware keys. They read the result straight back, because a pop-up that
+    // waits for a full status read feels broken.
+    function nudge(kind, command) {
+        if (nudger.running) {
+            nudger.queued = [kind, command];
+            return;
+        }
+        nudger.kind = kind;
+        nudger.command = command;
+        nudger.running = true;
+    }
+    function nudgeVolume(step) {
+        const delta = Math.abs(step) + "%" + (step < 0 ? "-" : "+");
+        nudge("volume", ["sh", "-c", 'wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ "$0" && wpctl get-volume @DEFAULT_AUDIO_SINK@', delta]);
+    }
+    function nudgeMute() {
+        nudge("volume", ["sh", "-c", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && wpctl get-volume @DEFAULT_AUDIO_SINK@"]);
+    }
+    function nudgeBrightness(step) {
+        nudge("brightness", ["brightnessctl", "-m", "set", Math.abs(step) + "%" + (step < 0 ? "-" : "+")]);
+    }
+    Process {
+        id: nudger
+        property string kind
+        property var queued: null
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (nudger.kind === "volume") {
+                    const match = text.match(/([0-9.]+)/);
+                    if (match)
+                        Ui.showHud("volume", Math.round(parseFloat(match[1]) * 100), text.includes("[MUTED]"));
+                } else {
+                    const match = text.match(/(\d+)%/);
+                    if (match)
+                        Ui.showHud("brightness", parseInt(match[1]), false);
+                }
+                settle.restart();
+            }
+        }
+        onExited: {
+            if (queued) {
+                const next = queued;
+                queued = null;
+                root.nudge(next[0], next[1]);
+            }
+        }
+    }
+
     function setMullvadCountry(code) {
         write("mullvad-location", ["mullvad", "relay", "set", "location", code], s => s.vpn && s.vpn.country === code, "Mullvad's location didn't change.", { timeout: 15000 });
     }

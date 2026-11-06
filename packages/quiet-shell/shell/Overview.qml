@@ -68,7 +68,7 @@ Item {
                 radius: 12
                 name: modelData.title
                 rest: "transparent"
-                onClicked: { modelData.wayland.activate(); Ui.close(); }
+                onClicked: { Dockable.revealWayland(modelData.wayland); Ui.close(); }
                 // Always there underneath, so a failed capture still leaves a usable tile.
                 Glass { anchors.fill: parent; radius: 12 }
                 AppIcon {

@@ -30,6 +30,29 @@ Singleton {
         }
         return out;
     }
+    function iconOf(id) {
+        const e = entry(id);
+        return e ? e.icon : id;
+    }
+
+    // Windows, last focused first. Hyprland doesn't expose this order.
+    property var recent: []
+    Connections {
+        target: ToplevelManager
+        function onActiveToplevelChanged() {
+            const t = ToplevelManager.activeToplevel;
+            if (t)
+                root.recent = [t].concat(root.recent.filter(x => x !== t && ToplevelManager.toplevels.values.includes(x)));
+        }
+    }
+    readonly property var recentWindows: {
+        const rank = t => {
+            const at = recent.indexOf(t.wayland);
+            return at < 0 ? recent.length : at;
+        };
+        return Hyprland.toplevels.values.slice().sort((a, b) => rank(a) - rank(b));
+    }
+
     function isHidden(t) {
         return !!t.workspace && t.workspace.name === hiddenWorkspace;
     }
@@ -53,9 +76,21 @@ Singleton {
         if (isHidden(t)) restore(t);
         else t.wayland.activate();
     }
+    // While a surface holds the keyboard, closing it hands focus back to the old window
+    // and undoes the switch. So surfaces close first, and the switch follows.
+    property var pendingReveal: null
+    function revealAfterClose(t) {
+        pendingReveal = t;
+        revealTimer.restart();
+    }
+    Timer {
+        id: revealTimer
+        interval: 60
+        onTriggered: if (root.pendingReveal) root.reveal(root.pendingReveal)
+    }
     function revealWayland(toplevel) {
         const t = Hyprland.toplevels.values.find(x => x.wayland === toplevel);
-        if (t) reveal(t);
+        if (t) revealAfterClose(t);
         else toplevel.activate();
     }
     function click(app) {

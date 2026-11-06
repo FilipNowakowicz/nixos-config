@@ -16,6 +16,9 @@ Singleton {
     property bool pinned: false
     property bool dragging: false
     property var confirm: null           // { title, body, action, command }
+    property var hud: null               // { kind, level, muted }
+    property bool switcher: false
+    property int switcherIndex: 0
 
     // Hyprland sends no focus event when the focused monitor is unplugged, so it can
     // name a screen that's gone. Then every remaining screen counts, or nothing shows.
@@ -24,15 +27,44 @@ Singleton {
         return m && Quickshell.screens.some(s => s.name === m.name) ? m.name : "";
     }
     readonly property bool topShown: topRevealed || pinned || panel !== ""
-    readonly property bool blocking: panel !== "" || spotlight || overview || confirm !== null
+    readonly property bool blocking: panel !== "" || spotlight || overview || confirm !== null || switcher
 
     // A focused field can disappear, which would leave the keyboard with nowhere to go.
     signal refocus
     onPanelChanged: refocus()
     onDetailChanged: refocus()
 
+    function showHud(kind, level, muted) {
+        hud = { kind, level, muted };
+        hudTimer.restart();
+    }
+    Timer { id: hudTimer; interval: 1400; onTriggered: root.hud = null }
+
+    // Repeated presses arrive here too, because Hyprland's bind wins over the panel.
+    function stepSwitcher(by) {
+        const count = Dockable.recentWindows.length;
+        if (count < 2)
+            return;
+        if (!switcher) {
+            close();
+            switcherIndex = by > 0 ? 1 : count - 1;
+            switcher = true;
+        } else {
+            switcherIndex = (switcherIndex + by + count) % count;
+        }
+    }
+    function commitSwitcher() {
+        if (!switcher)
+            return;
+        const target = Dockable.recentWindows[switcherIndex];
+        switcher = false;
+        if (target)
+            Dockable.revealAfterClose(target);
+    }
+
     function close() {
         confirm = null;
+        switcher = false;
         panel = "";
         detail = "";
         spotlight = false;

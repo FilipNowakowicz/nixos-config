@@ -15,11 +15,16 @@ ShellRoot {
         function notifications(): void { Ui.open("notifications"); }
         function spotlight(): void { Ui.toggleSpotlight(); }
         function overview(): void { Ui.toggleOverview(); }
+        function volume(step: int): void { Sys.nudgeVolume(step); }
+        function mute(): void { Sys.nudgeMute(); }
+        function brightness(step: int): void { Sys.nudgeBrightness(step); }
+        function switcher(step: int): void { Ui.stepSwitcher(step); }
+        function switcherDone(): void { Ui.commitSwitcher(); }
         function pin(): void { Ui.pinned = !Ui.pinned; }
         function close(): void { Ui.close(); }
         function reloadTheme(): void { Theme.reload(); }
         function state(): string {
-            return JSON.stringify({ panel: Ui.panel, detail: Ui.detail, spotlight: Ui.spotlight, overview: Ui.overview, top: Ui.topShown, dock: Ui.dockRevealed, writes: Object.keys(Sys.writes), failed: Sys.failedCount, theme: Theme.name, notices: Notify.items.length, banner: !!Notify.banner, focus: Sys.focusMode, confirm: Ui.confirm ? Ui.confirm.action : "", apps: Dockable.apps.map(a => ({ name: a.name, windows: a.windows.length, hidden: a.windows.filter(Dockable.isHidden).length })), suggested: Dockable.suggested.map(a => a.icon), tray: SystemTray.items.values.map(i => i.id), screen: Ui.focusedScreen, sys: Sys.state });
+            return JSON.stringify({ panel: Ui.panel, detail: Ui.detail, spotlight: Ui.spotlight, overview: Ui.overview, top: Ui.topShown, dock: Ui.dockRevealed, writes: Object.keys(Sys.writes), failed: Sys.failedCount, theme: Theme.name, notices: Notify.items.length, banner: !!Notify.banner, focus: Sys.focusMode, confirm: Ui.confirm ? Ui.confirm.action : "", hud: Ui.hud, switcher: Ui.switcher ? Ui.switcherIndex : -1, active: Hyprland.activeToplevel ? Hyprland.activeToplevel.title : "", recent: Dockable.recentWindows.map(t => t.address), apps: Dockable.apps.map(a => ({ name: a.name, windows: a.windows.length, hidden: a.windows.filter(Dockable.isHidden).length })), suggested: Dockable.suggested.map(a => a.icon), tray: SystemTray.items.values.map(i => i.id), screen: Ui.focusedScreen, sys: Sys.state });
         }
     }
 

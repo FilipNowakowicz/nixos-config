@@ -34,7 +34,7 @@ def sh(*cmd, timeout=10):
 
 def shell(fn):
     path = os.environ.get("QUIET_SHELL_PATH", str(repo / "packages/quiet-shell/shell"))
-    out = sh("qs", "ipc", "-p", path, "call", "shell", fn)
+    out = sh("qs", "ipc", "-p", path, "call", "shell", *fn.split())
     return out.stdout.strip()
 
 
@@ -507,6 +507,7 @@ def wifi_password_joins_without_leaking():
 
 @test
 def escape_still_works_after_cancelling_a_password():
+    set_fake(ssid="Harbour 5G", known=["Harbour 5G", "Harbour 2.4G"])
     open_controls()
     click(*WIFI_LABEL)
     wait(lambda: ui()["detail"] == "wifi", "wifi detail")
@@ -675,6 +676,54 @@ def network_settings_open_from_wifi():
     click(1700, 277)
     wait(lambda: [c for c in fake()["log"] if c[:1] == ["nm-connection-editor"]], "settings to open")
     wait(lambda: ui()["panel"] == "", "panel to close")
+
+
+@test
+def hardware_keys_show_the_hud():
+    start = fake()["volume"]
+    shell("volume 5")
+    wait(lambda: (ui()["hud"] or {}).get("kind") == "volume", "volume hud")
+    wait(lambda: abs(ui()["hud"]["level"] - round((start + 0.05) * 100)) <= 1, "hud to match")
+    assert abs(fake()["volume"] - (start + 0.05)) < 0.011, fake()["volume"]
+    time.sleep(0.3)
+    shot("hud")
+    shell("mute")
+    wait(lambda: ui()["hud"]["muted"], "mute shown")
+    assert fake()["muted"]
+    shell("mute")
+    wait(lambda: not ui()["hud"]["muted"], "unmute shown")
+    bright = fake()["brightness"]
+    shell("brightness -5")
+    wait(lambda: ui()["hud"]["kind"] == "brightness", "brightness hud")
+    assert fake()["brightness"] == bright - 5 and ui()["hud"]["level"] == bright - 5
+    wait(lambda: ui()["hud"] is None, "hud to leave", timeout=4)
+
+
+@test
+def switcher_moves_between_recent_windows():
+    first = ui()["active"]
+    windows = ui()["recent"]
+    assert len(windows) >= 2, windows
+    addresses = [c["address"] for c in clients() if c["workspace"]["id"] > 0]
+    sh("hyprctl", "dispatch", f'hl.dsp.focus({{window="address:{addresses[0]}"}})')
+    time.sleep(0.3)
+    sh("hyprctl", "dispatch", f'hl.dsp.focus({{window="address:{addresses[1]}"}})')
+    time.sleep(0.3)
+    shell("switcher 1")
+    wait(lambda: ui()["switcher"] == 1, "switcher on the previous window")
+    order = ["0x" + a.removeprefix("0x") for a in ui()["recent"]]
+    assert order[:2] == [addresses[1], addresses[0]], (order, addresses)
+    time.sleep(0.3)
+    shot("switcher")
+    shell("switcherDone")
+    wait(lambda: ui()["switcher"] == -1, "switcher to close")
+    wait(lambda: json.loads(sh("hyprctl", "-j", "activewindow").stdout)["address"] == addresses[0], "the other window to focus")
+    shell("switcher 1")
+    wait(lambda: ui()["switcher"] == 1, "open again")
+    key("Escape")
+    wait(lambda: ui()["switcher"] == -1, "escape to cancel")
+    active = json.loads(sh("hyprctl", "-j", "activewindow").stdout)
+    assert active["address"] == addresses[0], "escape must not switch"
 
 
 def restart_shell():

@@ -117,9 +117,14 @@ elif cmd == "wpctl":
     if args[0] == "get-volume":
         print(f"Volume: {state[key]:.2f}{' [MUTED]' if state[mute] else ''}")
     elif args[0] == "set-volume":
-        state[key] = float(args[2])
+        value = args[-1]
+        if value.endswith(("+", "-")):
+            step = float(value[:-2]) / 100
+            state[key] = round(min(1.0, max(0.0, state[key] + (step if value[-1] == "+" else -step))), 2)
+        else:
+            state[key] = float(value)
     elif args[0] == "set-mute":
-        state[mute] = args[2] == "1"
+        state[mute] = not state[mute] if args[2] == "toggle" else args[2] == "1"
 elif cmd == "pw-dump":
     def node(name, desc, cls):
         return {"type": "PipeWire:Interface:Node", "info": {"props": {"node.name": name, "node.description": "Sound Card " + desc, "node.nick": desc, "media.class": cls}}}
@@ -136,6 +141,9 @@ elif cmd == "pw-metadata":
     role = "sink" if args[3].endswith("sink") else "source"
     state[role] = json.loads(args[4])["name"]
 elif cmd == "brightnessctl":
+    if args[:2] == ["-m", "set"]:
+        step = int(args[2][:-2])
+        state["brightness"] = min(100, max(1, state["brightness"] + (step if args[2][-1] == "+" else -step)))
     if args[0] == "-m":
         print(f"intel_backlight,backlight,{state['brightness']},{state['brightness']}%,100")
     else:

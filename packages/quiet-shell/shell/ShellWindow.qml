@@ -33,6 +33,12 @@ PanelWindow {
         anchors.fill: parent
         focus: true
         Keys.onEscapePressed: Ui.back()
+        Keys.onReturnPressed: event => { if (Ui.switcher) Ui.commitSwitcher(); else event.accepted = false; }
+        Keys.onReleased: event => {
+            if (Ui.switcher && (event.key === Qt.Key_Super_L || event.key === Qt.Key_Super_R || event.key === Qt.Key_Meta))
+                Ui.commitSwitcher();
+        }
+        Keys.onTabPressed: event => { if (Ui.switcher) Ui.stepSwitcher(1); else event.accepted = false; }
 
         MouseArea {
             anchors.fill: parent
@@ -95,6 +101,17 @@ PanelWindow {
         Banner { visible: win.focused && Ui.panel === "" && !Ui.overview }
 
         Spotlight { visible: Ui.spotlight && win.focused; anchors.horizontalCenter: parent.horizontalCenter; y: parent.height * 0.2 }
+
+        Switcher {
+            visible: Ui.switcher && win.focused
+            anchors.centerIn: parent
+        }
+
+        Hud {
+            visible: opacity > 0 && win.focused
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: parent.height * 0.82
+        }
 
         Confirm { visible: Ui.confirm !== null && win.focused; z: 10 }
 
