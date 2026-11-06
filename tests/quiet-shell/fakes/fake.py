@@ -6,12 +6,16 @@ A key `fail` listing command names makes those exit 1 without changing state, an
 `stick` makes them exit 0 without changing state, so readback must catch it.
 """
 
+import fcntl
 import json
 import os
 import pathlib
 import sys
 
 state_path = pathlib.Path(os.environ["QUIET_FAKE_STATE"])
+# The shell runs several commands at once, and each one rewrites the whole state.
+lock = open(f"{state_path}.lock", "w", encoding="utf-8")
+fcntl.flock(lock, fcntl.LOCK_EX)
 DEFAULT = {
     "wifi": True, "ssid": "Harbour 5G",
     "networks": [["Harbour 5G", 92, "WPA2"], ["Harbour 2.4G", 70, "WPA2"], ["Kavarna Guest", 31, "WPA2"], ["Open Cafe", 28, ""], ["Campus", 25, "WPA2 802.1X"]],
@@ -19,7 +23,8 @@ DEFAULT = {
     "nearby": {"AA:BB:CC:00:00:03": "Speaker", "AA:BB:CC:00:00:04": "AA-BB-CC-00-00-04"},
     "bt": True,
     "devices": {"AA:BB:CC:00:00:01": ["Headphones", True], "AA:BB:CC:00:00:02": ["Trackball", False]},
-    "tailscale": True, "mullvad": False,
+    "tailscale": True, "mullvad": False, "country": "se",
+    "exit_nodes": ["relay-box", "home-box"], "exit_node": "",
     "volume": 0.59, "muted": False, "mic": 0.5, "mic_muted": False,
     "sink": "alsa_output.speakers", "source": "alsa_input.internal",
     "brightness": 50, "profile": "balanced", "night": False, "awake": False,
@@ -88,12 +93,22 @@ elif cmd == "bluetoothctl":
         state["devices"][args[1]][1] = args[0] == "connect"
 elif cmd == "tailscale":
     if args[0] == "status":
-        print(json.dumps({"BackendState": "Running" if state["tailscale"] else "Stopped"}))
+        peers = {name: {"HostName": name, "ExitNodeOption": True, "ExitNode": name == state["exit_node"]} for name in state["exit_nodes"]}
+        print(json.dumps({"BackendState": "Running" if state["tailscale"] else "Stopped", "Peer": peers}))
+    elif args[0] == "set":
+        state["exit_node"] = args[1].split("=", 1)[1]
     else:
         state["tailscale"] = args[0] == "up"
 elif cmd == "mullvad":
     if args[0] == "status":
-        print("Connected to Stockholm" if state["mullvad"] else "Disconnected")
+        print(f"Connected\n    Relay:  {state['country']}-sto-wg-001" if state["mullvad"] else "Disconnected")
+    elif args[:2] == ["relay", "get"]:
+        print(f"Generic constraints\n    Location:  country {state['country']}")
+    elif args[:2] == ["relay", "list"]:
+        for name, code in (("Albania", "al"), ("Sweden", "se"), ("UK", "gb")):
+            print(f"{name} ({code})\n\tCity (cit) @ 1.0N, 2.0W\n\t\t{code}-cit-wg-001 (1.2.3.4) - hosted by X\n")
+    elif args[:2] == ["relay", "set"]:
+        state["country"] = args[3]
     else:
         state["mullvad"] = args[0] == "connect"
 elif cmd == "wpctl":

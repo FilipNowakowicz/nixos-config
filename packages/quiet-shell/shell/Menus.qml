@@ -36,11 +36,20 @@ Item {
             width: parent.width - 12
             spacing: 0
             MenuRow { title: "Sleep"; onClicked: { Ui.close(); Quickshell.execDetached(["systemctl", "suspend"]); } }
-            MenuRow { title: "Restart…"; onClicked: { Ui.close(); Quickshell.execDetached(["systemctl", "reboot"]); } }
-            MenuRow { title: "Shut Down…"; onClicked: { Ui.close(); Quickshell.execDetached(["systemctl", "poweroff"]); } }
+            MenuRow {
+                title: "Restart…"
+                onClicked: { Ui.close(); Ui.confirm = { title: "Restart now?", body: "Open apps will close, and anything unsaved will be lost.", action: "Restart", command: ["systemctl", "reboot"] }; }
+            }
+            MenuRow {
+                title: "Shut Down…"
+                onClicked: { Ui.close(); Ui.confirm = { title: "Shut down now?", body: "Open apps will close, and anything unsaved will be lost.", action: "Shut Down", command: ["systemctl", "poweroff"] }; }
+            }
             Sep {}
             MenuRow { title: "Lock Screen"; onClicked: { Ui.close(); Quickshell.execDetached(["hyprlock"]); } }
-            MenuRow { title: "Log Out…"; onClicked: { Ui.close(); Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.exit()"]); } }
+            MenuRow {
+                title: "Log Out…"
+                onClicked: { Ui.close(); Ui.confirm = { title: "Log out now?", body: "Open apps will close, and anything unsaved will be lost.", action: "Log Out", command: ["hyprctl", "dispatch", "hl.dsp.exit()"] }; }
+            }
         }
     }
 

@@ -15,6 +15,7 @@ Singleton {
     property bool dockRevealed: false
     property bool pinned: false
     property bool dragging: false
+    property var confirm: null           // { title, body, action, command }
 
     // Hyprland sends no focus event when the focused monitor is unplugged, so it can
     // name a screen that's gone. Then every remaining screen counts, or nothing shows.
@@ -23,9 +24,15 @@ Singleton {
         return m && Quickshell.screens.some(s => s.name === m.name) ? m.name : "";
     }
     readonly property bool topShown: topRevealed || pinned || panel !== ""
-    readonly property bool blocking: panel !== "" || spotlight || overview
+    readonly property bool blocking: panel !== "" || spotlight || overview || confirm !== null
+
+    // A focused field can disappear, which would leave the keyboard with nowhere to go.
+    signal refocus
+    onPanelChanged: refocus()
+    onDetailChanged: refocus()
 
     function close() {
+        confirm = null;
         panel = "";
         detail = "";
         spotlight = false;
@@ -51,7 +58,9 @@ Singleton {
         overview = want;
     }
     function back() {
-        if (detail !== "")
+        if (detail === "mullvad")
+            detail = "vpn";
+        else if (detail !== "")
             detail = "";
         else
             close();

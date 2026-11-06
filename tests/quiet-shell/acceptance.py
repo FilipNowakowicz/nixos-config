@@ -6,6 +6,7 @@ Each check reads the shell's IPC state and the fake system's state, so a pass me
 the action reached the system and was confirmed, not only that a widget moved.
 """
 
+import fcntl
 import json
 import os
 import pathlib
@@ -42,13 +43,17 @@ def ui():
 
 
 def fake():
-    return json.loads(state_file.read_text())
+    with open(f"{state_file}.lock", "w", encoding="utf-8") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        return json.loads(state_file.read_text())
 
 
 def set_fake(**values):
-    state = fake()
-    state.update(values)
-    state_file.write_text(json.dumps(state))
+    with open(f"{state_file}.lock", "w", encoding="utf-8") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        state = json.loads(state_file.read_text())
+        state.update(values)
+        state_file.write_text(json.dumps(state))
 
 
 def wait(check, what, timeout=5.0):
@@ -501,6 +506,21 @@ def wifi_password_joins_without_leaking():
 
 
 @test
+def escape_still_works_after_cancelling_a_password():
+    open_controls()
+    click(*WIFI_LABEL)
+    wait(lambda: ui()["detail"] == "wifi", "wifi detail")
+    time.sleep(1.2)
+    click(1700, 169)
+    time.sleep(0.3)
+    key("Escape")
+    time.sleep(0.3)
+    assert ui()["detail"] == "wifi", "escape left the page instead of the field"
+    key("Escape")
+    wait(lambda: ui()["detail"] == "", "second escape to go back")
+
+
+@test
 def wrong_password_fails_and_leaves_no_profile():
     set_fake(ssid="Harbour 5G", known=["Harbour 5G", "Harbour 2.4G"])
     open_controls()
@@ -569,6 +589,92 @@ def focus_follows_a_new_monitor():
     wait(lambda: ui()["panel"] == "controls", "controls")
     time.sleep(0.4)
     shot("after-monitor-removed")
+
+
+@test
+def shut_down_asks_first():
+    shell("close")
+    move(30, 0)
+    wait(lambda: ui()["top"], "top reveal")
+    click(30, 21)
+    wait(lambda: ui()["panel"] == "system", "system menu")
+    time.sleep(0.2)
+    before = len(fake()["log"])
+    click(100, 123)
+    wait(lambda: ui()["confirm"] == "Shut Down", "confirmation")
+    time.sleep(0.3)
+    shot("confirm")
+    assert not [c for c in fake()["log"][before:] if "poweroff" in c], "ran without asking"
+    key("Escape")
+    wait(lambda: ui()["confirm"] == "", "escape to cancel")
+    assert not [c for c in fake()["log"][before:] if "poweroff" in c], "cancel still ran it"
+    shell("close")
+    move(30, 0)
+    wait(lambda: ui()["top"], "top reveal")
+    click(30, 21)
+    wait(lambda: ui()["panel"] == "system", "system menu")
+    time.sleep(0.2)
+    click(100, 123)
+    wait(lambda: ui()["confirm"] == "Shut Down", "confirmation")
+    time.sleep(0.3)
+    click(1029, 577)
+    wait(lambda: [c for c in fake()["log"] if "poweroff" in c], "shut down to run")
+
+
+@test
+def low_battery_warns_once_per_discharge():
+    level, status = run / "power/BAT0/capacity", run / "power/BAT0/status"
+    before = ui()["notices"]
+    try:
+        level.write_text("12\n")
+        shell("controls")
+        wait(lambda: ui()["notices"] == before + 1, "low battery notice", timeout=8)
+        shell("close")
+        level.write_text("11\n")
+        shell("controls")
+        time.sleep(5)
+        assert ui()["notices"] == before + 1, "warned twice"
+        level.write_text("4\n")
+        wait(lambda: ui()["notices"] == before + 2, "critical notice", timeout=8)
+    finally:
+        level.write_text("64\n")
+        status.write_text("Discharging\n")
+
+
+@test
+def mullvad_location_and_exit_node():
+    set_fake(mullvad=True)
+    open_controls()
+    click(1660, 213)
+    wait(lambda: ui()["detail"] == "vpn", "vpn detail")
+    wait(lambda: ui()["sys"]["vpn"]["country"] == "se", "country")
+    time.sleep(0.4)
+    shot("vpn-detail")
+    click(1700, 169)
+    wait(lambda: ui()["detail"] == "mullvad", "location picker")
+    time.sleep(0.8)
+    shot("mullvad-location")
+    click(1700, 169)
+    wait(lambda: fake()["country"] == "gb", "country to change", timeout=8)
+    wait(lambda: not ui()["writes"], "write to confirm", timeout=8)
+    key("Escape")
+    wait(lambda: ui()["detail"] == "vpn", "escape back to vpn")
+    time.sleep(0.3)
+    click(1700, 247)
+    wait(lambda: fake()["exit_node"] == "home-box", "exit node", timeout=8)
+    wait(lambda: not ui()["writes"], "exit node to confirm", timeout=8)
+    set_fake(exit_node="", country="se", mullvad=False)
+
+
+@test
+def network_settings_open_from_wifi():
+    open_controls()
+    click(*WIFI_LABEL)
+    wait(lambda: ui()["detail"] == "wifi", "wifi detail")
+    time.sleep(0.4)
+    click(1700, 277)
+    wait(lambda: [c for c in fake()["log"] if c[:1] == ["nm-connection-editor"]], "settings to open")
+    wait(lambda: ui()["panel"] == "", "panel to close")
 
 
 def restart_shell():

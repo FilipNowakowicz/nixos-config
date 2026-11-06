@@ -96,6 +96,8 @@ PanelWindow {
 
         Spotlight { visible: Ui.spotlight && win.focused; anchors.horizontalCenter: parent.horizontalCenter; y: parent.height * 0.2 }
 
+        Confirm { visible: Ui.confirm !== null && win.focused; z: 10 }
+
         Dock {
             id: dock
             anchors.horizontalCenter: parent.horizontalCenter
@@ -105,6 +107,10 @@ PanelWindow {
         }
     }
 
+    Connections {
+        target: Ui
+        function onRefocus() { root.forceActiveFocus(); }
+    }
     Timer {
         id: hideTop
         interval: 260

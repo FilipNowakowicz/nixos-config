@@ -9,10 +9,12 @@ Item {
         asking = "";
         if (kind === "wifi") Sys.rescanWifi();
         if (kind === "bluetooth") Sys.scanBluetooth();
+        if (kind === "mullvad") Sys.loadCountries();
     }
     implicitHeight: body.implicitHeight + 16
     readonly property string kind: Ui.detail
-    readonly property string title: ({ wifi: "Wi-Fi", bluetooth: "Bluetooth", vpn: "VPN", sound: "Sound", theme: "Theme" })[kind] || ""
+    readonly property var exitNodes: Sys.state.vpn ? Sys.state.vpn.exitNodes : []
+    readonly property string title: ({ wifi: "Wi-Fi", bluetooth: "Bluetooth", vpn: "VPN", sound: "Sound", theme: "Theme", mullvad: "Mullvad location" })[kind] || ""
 
     Glass { anchors.fill: parent; radius: 26 }
     ColumnLayout {
@@ -31,7 +33,7 @@ Item {
                 implicitHeight: 28
                 radius: 14
                 name: "Back"
-                onClicked: Ui.detail = ""
+                onClicked: Ui.back()
                 Icon { anchors.centerIn: parent; name: "chevron-left"; size: 15 }
             }
             Label { text: root.title; font.weight: Font.DemiBold; font.pixelSize: 14 }
@@ -55,10 +57,11 @@ Item {
                     locked: network.needsPassword
                     selected: network.modelData.active
                     busy: Sys.pending("wifi-net")
-                    enabled: !(network.needsPassword && network.enterprise)
                     onClicked: {
                         if (network.modelData.active) return;
-                        if (network.needsPassword) {
+                        if (network.needsPassword && network.enterprise) {
+                            Sys.openNetworkSettings();
+                        } else if (network.needsPassword) {
                             root.asking = network.modelData.name;
                             password.ask();
                         } else {
@@ -71,12 +74,21 @@ Item {
                     visible: root.asking === network.modelData.name
                     Layout.fillWidth: true
                     network: network.modelData.name
-                    onCancelled: root.asking = ""
-                    onSubmitted: value => { root.asking = ""; Sys.joinWifi(network.modelData.name, value); }
+                    onCancelled: { root.asking = ""; Ui.refocus(); }
+                    onSubmitted: value => { root.asking = ""; Ui.refocus(); Sys.joinWifi(network.modelData.name, value); }
                 }
             }
         }
         FailRow { Layout.fillWidth: true; writeKey: "wifi-net" }
+        DetailRow {
+            visible: root.kind === "wifi"
+            Layout.fillWidth: true
+            Layout.topMargin: 4
+            name: "Other networks"
+            title: "Other Networks…"
+            note: "Hidden, enterprise"
+            onClicked: Sys.openNetworkSettings()
+        }
 
         // Bluetooth
         Repeater {
@@ -138,6 +150,56 @@ Item {
             busy: Sys.pending("mullvad")
             onClicked: Sys.toggleMullvad()
         }
+        FailRow { Layout.fillWidth: true; writeKey: "mullvad" }
+        DetailRow {
+            visible: root.kind === "vpn" && Sys.has("vpn")
+            Layout.fillWidth: true
+            name: "Mullvad location"
+            title: "Mullvad location"
+            note: (Sys.state.vpn && Sys.state.vpn.country || "").toUpperCase()
+            onClicked: Ui.detail = "mullvad"
+        }
+        Label {
+            visible: root.kind === "vpn" && root.exitNodes.length > 0
+            Layout.leftMargin: 10
+            Layout.topMargin: 6
+            text: "Exit node"
+            font.pixelSize: 12
+            color: Theme.dim
+        }
+        Repeater {
+            model: root.kind === "vpn" && root.exitNodes.length > 0 ? [""].concat(root.exitNodes) : []
+            DetailRow {
+                required property string modelData
+                Layout.fillWidth: true
+                name: "Exit node " + (modelData || "none")
+                title: modelData || "None"
+                selected: Sys.state.vpn.exitNode === modelData
+                busy: Sys.pending("exit-node")
+                onClicked: Sys.setExitNode(modelData)
+            }
+        }
+        FailRow { Layout.fillWidth: true; writeKey: "exit-node" }
+
+        // Mullvad location. There are about fifty countries, so this one scrolls.
+        ListView {
+            visible: root.kind === "mullvad"
+            Layout.fillWidth: true
+            Layout.preferredHeight: 300
+            clip: true
+            model: root.kind === "mullvad" ? Sys.countries : []
+            boundsBehavior: Flickable.StopAtBounds
+            delegate: DetailRow {
+                required property var modelData
+                width: ListView.view.width
+                name: modelData.name
+                title: modelData.name
+                selected: Sys.state.vpn && Sys.state.vpn.country === modelData.code
+                busy: Sys.pending("mullvad-location")
+                onClicked: Sys.setMullvadCountry(modelData.code)
+            }
+        }
+        FailRow { Layout.fillWidth: true; writeKey: "mullvad-location" }
 
         // Sound
         Label { visible: root.kind === "sound"; Layout.leftMargin: 10; Layout.topMargin: 4; text: "Output"; font.pixelSize: 12; color: Theme.dim }

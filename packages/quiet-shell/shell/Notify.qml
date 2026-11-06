@@ -11,15 +11,25 @@ Singleton {
 
     function clear() {
         for (const n of items)
-            n.source.dismiss();
+            if (n.source) n.source.dismiss();
         items = [];
         banner = null;
     }
     function remove(entry) {
-        entry.source.dismiss();
+        if (entry.source) entry.source.dismiss();
         items = items.filter(i => i !== entry);
         if (banner === entry)
             banner = null;
+    }
+
+    // For the shell's own messages. An urgent one still shows during Focus.
+    function post(title, body, urgent) {
+        const entry = { source: null, app: "System", title, body, at: new Date() };
+        items = [entry].concat(items);
+        if (urgent || !Sys.focusMode) {
+            banner = entry;
+            timer.restart();
+        }
     }
 
     NotificationServer {

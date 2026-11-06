@@ -9,6 +9,7 @@
   hyprlock,
   mullvad-vpn,
   networkmanager,
+  networkmanagerapplet,
   pipewire,
   playerctl,
   power-profiles-daemon,
@@ -31,6 +32,7 @@ let
     hyprlock
     mullvad-vpn
     networkmanager
+    networkmanagerapplet
     pipewire
     playerctl
     power-profiles-daemon

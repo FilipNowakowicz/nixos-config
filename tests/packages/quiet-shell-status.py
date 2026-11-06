@@ -39,7 +39,10 @@ with tempfile.TemporaryDirectory() as tmp:
     assert out["bluetooth"]["nearby"] == [{"addr": "AA:BB:CC:00:00:03", "name": "Speaker"}], out["bluetooth"]
     assert out["devices"]["sources"][0]["desc"] == "Internal microphone", out["devices"]
     assert out["bluetooth"]["on"] and out["bluetooth"]["devices"][0]["connected"], out["bluetooth"]
-    assert out["vpn"] == {"tailscale": True, "mullvad": False}, out["vpn"]
+    assert out["vpn"]["tailscale"] and not out["vpn"]["mullvad"], out["vpn"]
+    assert out["vpn"]["country"] == "se" and out["vpn"]["exitNodes"] == ["home-box", "relay-box"], out["vpn"]
+    countries = json.loads(subprocess.check_output([sys.executable, status, "countries"], env=env))
+    assert {"name": "UK", "code": "gb"} in countries and len(countries) == 3, countries
     assert out["sink"] == {"level": 59, "muted": False}, out["sink"]
     assert [d["name"] for d in out["devices"]["sinks"] if d["active"]] == ["alsa_output.speakers"]
     assert out["brightness"] == 50 and out["profile"] == "balanced"

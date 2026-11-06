@@ -32,6 +32,23 @@ Singleton {
     readonly property bool night: !!state.night
     readonly property bool awake: !!state.awake
 
+    // Warn once per discharge at each threshold, and again after charging.
+    property int warnedAt: 100
+    onBatteryChanged: {
+        if (!battery) return;
+        if (battery.charging) {
+            warnedAt = 100;
+            return;
+        }
+        for (const limit of [5, 15]) {
+            if (battery.level <= limit && limit < warnedAt) {
+                warnedAt = limit;
+                Notify.post("Battery low", battery.level + "% left. Plug in soon.", limit === 5);
+                break;
+            }
+        }
+    }
+
     function has(section) { return state[section] !== undefined && state[section] !== null; }
     function pending(key) { return !!(writes[key] && writes[key].status === "pending"); }
     function failed(key) { return !!(writes[key] && writes[key].status === "failed"); }
@@ -177,6 +194,34 @@ Singleton {
     function toggleMullvad() {
         const want = !mullvadOn;
         write("mullvad", ["mullvad", want ? "connect" : "disconnect"], s => s.vpn && s.vpn.mullvad === want, "Mullvad didn't change.");
+    }
+    function setMullvadCountry(code) {
+        write("mullvad-location", ["mullvad", "relay", "set", "location", code], s => s.vpn && s.vpn.country === code, "Mullvad's location didn't change.", { timeout: 15000 });
+    }
+    function setExitNode(name) {
+        write("exit-node", ["tailscale", "set", "--exit-node=" + name], s => s.vpn && s.vpn.exitNode === name, "The exit node didn't change.", { timeout: 15000 });
+    }
+    function openNetworkSettings() {
+        Ui.close();
+        Quickshell.execDetached(["nm-connection-editor"]);
+    }
+    property var countries: []
+    function loadCountries() {
+        if (!countryList.running)
+            countryList.running = true;
+    }
+    Process {
+        id: countryList
+        command: ["python3", Qt.resolvedUrl("scripts/status.py").toString().replace("file://", ""), "countries"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    root.countries = JSON.parse(text);
+                } catch (e) {
+                    root.countries = [];
+                }
+            }
+        }
     }
     function toggleVpn() {
         if (vpnOn) {

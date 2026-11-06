@@ -10,6 +10,7 @@ import os
 import pathlib
 import re
 import subprocess
+import sys
 
 
 def run(*cmd, timeout=3):
@@ -80,14 +81,35 @@ def vpn():
     mull = run("mullvad", "status")
     if tail is None and mull is None:
         return None
-    tail_on = False
+    tail_on, nodes, exit_node = False, [], ""
     if tail:
         try:
-            tail_on = json.loads(tail).get("BackendState") == "Running"
-        except ValueError:
+            parsed = json.loads(tail)
+            tail_on = parsed.get("BackendState") == "Running"
+            for peer in (parsed.get("Peer") or {}).values():
+                if peer.get("ExitNodeOption"):
+                    nodes.append(peer.get("HostName", ""))
+                if peer.get("ExitNode"):
+                    exit_node = peer.get("HostName", "")
+        except (ValueError, AttributeError):
             pass
     mull_on = bool(mull) and mull.lstrip().startswith("Connected")
-    return {"tailscale": tail_on, "mullvad": mull_on}
+    # The relay name starts with the country, as in gb-lon-wg-004.
+    relay = re.search(r"Relay:\s+([a-z]{2})-", mull or "")
+    wanted = re.search(r"Location:\s+country ([a-z]{2})", run("mullvad", "relay", "get") or "")
+    return {
+        "tailscale": tail_on,
+        "mullvad": mull_on,
+        "country": wanted.group(1) if wanted else (relay.group(1) if relay else ""),
+        "exitNodes": sorted(nodes),
+        "exitNode": exit_node,
+    }
+
+
+def mullvad_countries():
+    """`mullvad relay list` is long, so this runs only when the picker opens."""
+    found = re.findall(r"^(\S.*) \(([a-z]{2})\)$", run("mullvad", "relay", "list", timeout=8) or "", re.M)
+    return [{"name": name, "code": code} for name, code in found]
 
 
 def level(target):
@@ -179,6 +201,10 @@ def night():
 def awake():
     return run("systemctl", "--user", "is-active", "--quiet", "caffeinate.service") is not None
 
+
+if sys.argv[1:] == ["countries"]:
+    print(json.dumps(mullvad_countries()))
+    sys.exit()
 
 print(json.dumps({
     "wifi": wifi(),
