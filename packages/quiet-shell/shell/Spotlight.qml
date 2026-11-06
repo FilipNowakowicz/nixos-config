@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 
 // The launcher. A leading > runs the rest as a command.
@@ -19,21 +20,99 @@ Item {
         if (t.startsWith(q)) return 1;
         return t.includes(q) ? 2 : -1;
     }
+    // A leading "cb" lists clipboard history instead of searching.
+    readonly property bool clipboardMode: query === "cb" || query.startsWith("cb ")
+
+    function calculate(text) {
+        if (!/^[\d\s+\-*\/().,%^]+$/.test(text) || !/\d/.test(text) || !/[+\-*\/%^(]/.test(text))
+            return null;
+        const source = text.replace(/,/g, ".").replace(/\^/g, "**").replace(/([\d.]+)%/g, "($1/100)");
+        try {
+            const value = new Function("return (" + source + ");")();
+            return Number.isFinite(value) ? String(+value.toFixed(10)) : null;
+        } catch (e) {
+            return null;
+        }
+    }
+    readonly property var actions: [
+        { title: "Lock Screen", note: "System", run: () => Ui.session("lock") },
+        { title: "Sleep", note: "System", run: () => Ui.session("sleep") },
+        { title: "Restart…", note: "System", run: () => Ui.session("restart") },
+        { title: "Shut Down…", note: "System", run: () => Ui.session("shutdown") },
+        { title: "Log Out…", note: "System", run: () => Ui.session("logout") },
+        { title: "Focus", note: Sys.focusMode ? "Turn off" : "Turn on", run: () => { Sys.focusMode = !Sys.focusMode; Ui.close(); } },
+        { title: "Night Mode", note: Sys.night ? "Turn off" : "Turn on", run: () => { Sys.toggleNight(); Ui.close(); } },
+        { title: "Keep Awake", note: Sys.awake ? "Turn off" : "Turn on", run: () => { Sys.toggleAwake(); Ui.close(); } },
+        { title: "Wi-Fi", note: Sys.wifiOn ? "Turn off" : "Turn on", run: () => { Sys.toggleWifi(); Ui.close(); } },
+        { title: "Bluetooth", note: Sys.btOn ? "Turn off" : "Turn on", run: () => { Sys.toggleBluetooth(); Ui.close(); } }
+    ]
+    property var clips: []
+    property var files: []
+
     readonly property var results: {
         if (query === "") return [];
         if (query.startsWith(">")) {
             const cmd = query.slice(1).trim();
             return [{ group: "Command", title: cmd || "Type a command", note: "Run", kind: "command", value: cmd }];
         }
+        if (clipboardMode) {
+            const wanted = query.slice(2).trim().toLowerCase();
+            return clips.filter(c => c.text.toLowerCase().includes(wanted)).slice(0, 8)
+                .map(c => ({ group: "Clipboard", title: c.text, note: "Copy", kind: "clip", value: c.line, glyph: "clipboard" }));
+        }
         const q = query.toLowerCase();
+        const answer = calculate(query);
+        const sums = answer === null ? [] : [{ group: "Calculator", title: answer, note: "Copy", kind: "copy", value: answer, glyph: "calculator" }];
         const found = apps.map(a => ({ a, s: score(a.name, q) })).filter(x => x.s >= 0)
-            .sort((x, y) => x.s - y.s).slice(0, 6)
+            .sort((x, y) => x.s - y.s).slice(0, 4)
             .map(x => ({ group: "Applications", title: x.a.name, note: "Open", kind: "app", value: x.a, icon: x.a.icon }));
         const windows = ToplevelManager.toplevels.values
-            .filter(t => (t.title + " " + t.appId).toLowerCase().includes(q)).slice(0, 4)
+            .filter(t => (t.title + " " + t.appId).toLowerCase().includes(q)).slice(0, 3)
             .map(t => ({ group: "Open windows", title: t.title || t.appId, note: "Switch", kind: "window", value: t }));
-        return found.concat(windows);
+        const system = actions.filter(a => score(a.title, q) >= 0).slice(0, 3)
+            .map(a => ({ group: "System", title: a.title, note: a.note, kind: "action", value: a.run, glyph: "power" }));
+        const inFiles = files.map(f => ({ group: "Files", title: f.name, note: f.folder, kind: "file", value: f.path, glyph: "folder" }));
+        const web = answer === null ? [{ group: "Web", title: "Search the web for " + query, note: "Open", kind: "web", value: query, glyph: "globe" }] : [];
+        return sums.concat(found, windows, system, inFiles, web);
     }
+    onQueryChanged: {
+        files = [];
+        fileSearch.running = false;
+        if (query.length >= 3 && !query.startsWith(">") && !clipboardMode)
+            fileDelay.restart();
+    }
+    onClipboardModeChanged: if (clipboardMode) clipList.running = true
+
+    Timer {
+        id: fileDelay
+        interval: 180
+        onTriggered: {
+            fileSearch.command = ["fd", "--type", "f", "--fixed-strings", "--max-results", "3", "--color", "never", "--", root.query, Quickshell.env("HOME")];
+            fileSearch.running = true;
+        }
+    }
+    Process {
+        id: fileSearch
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const home = Quickshell.env("HOME");
+                root.files = text.split("\n").filter(p => p).map(path => {
+                    const at = path.lastIndexOf("/");
+                    return { path, name: path.slice(at + 1), folder: path.slice(0, at).replace(home, "~") };
+                });
+            }
+        }
+    }
+    Process {
+        id: clipList
+        command: ["cliphist", "list"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.clips = text.split("\n").filter(l => l.includes("\t")).map(line => ({ line, text: line.slice(line.indexOf("\t") + 1) }));
+            }
+        }
+    }
+
     onResultsChanged: selected = Math.min(selected, Math.max(results.length - 1, 0))
 
     function launch(item) {
@@ -41,10 +120,16 @@ Item {
         if (item.kind === "app") item.value.execute();
         if (item.kind === "window") Dockable.revealWayland(item.value);
         if (item.kind === "command" && item.value) Quickshell.execDetached(["sh", "-c", item.value]);
-        Ui.close();
+        if (item.kind === "copy") Quickshell.execDetached(["wl-copy", item.value]);
+        if (item.kind === "clip") Quickshell.execDetached(["sh", "-c", 'printf "%s" "$0" | cliphist decode | wl-copy', item.value]);
+        if (item.kind === "file") Quickshell.execDetached(["xdg-open", item.value]);
+        if (item.kind === "web") Quickshell.execDetached(["xdg-open", "https://duckduckgo.com/?q=" + encodeURIComponent(item.value)]);
+        // These decide for themselves what stays open.
+        if (item.kind === "action") item.value();
+        else Ui.close();
     }
 
-    onVisibleChanged: if (visible) { input.text = ""; selected = 0; input.forceActiveFocus(); }
+    onVisibleChanged: if (visible) { input.text = Ui.spotlightQuery; selected = 0; input.forceActiveFocus(); }
 
     MouseArea { anchors.fill: parent }
     Glass { anchors.fill: parent; radius: 31 }
@@ -73,7 +158,7 @@ Item {
             Label {
                 visible: input.text === ""
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Search apps and windows"
+                text: "Search apps, files and settings"
                 font.pixelSize: 22
                 color: Theme.dim
             }
@@ -154,9 +239,9 @@ Item {
                         anchors.leftMargin: 12
                         anchors.rightMargin: 14
                         spacing: 12
-                        AppIcon { size: 30; icon: rowItem.modelData.icon || ""; fallback: rowItem.modelData.title; glyph: rowItem.modelData.kind === "command" ? "terminal" : "" }
+                        AppIcon { size: 30; icon: rowItem.modelData.icon || ""; fallback: rowItem.modelData.title; glyph: rowItem.modelData.kind === "command" ? "terminal" : rowItem.modelData.glyph || "" }
                         Label { Layout.fillWidth: true; text: rowItem.modelData.title; font.pixelSize: 14 }
-                        Label { text: rowItem.modelData.note; font.pixelSize: 12; color: Theme.dim }
+                        Label { Layout.maximumWidth: 220; text: rowItem.modelData.note; font.pixelSize: 12; color: Theme.dim }
                     }
                 }
             }

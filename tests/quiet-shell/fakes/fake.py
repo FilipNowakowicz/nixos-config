@@ -13,6 +13,9 @@ import pathlib
 import sys
 
 state_path = pathlib.Path(os.environ["QUIET_FAKE_STATE"])
+# Pipelines feed these, so wait for the input first: holding the lock would stall the
+# command before it in the pipe, which needs the same lock.
+piped = sys.stdin.read() if pathlib.Path(sys.argv[0]).name in ("cliphist", "wl-copy") and sys.argv[1:] in (["decode"], []) else ""
 # The shell runs several commands at once, and each one rewrites the whole state.
 lock = open(f"{state_path}.lock", "w", encoding="utf-8")
 fcntl.flock(lock, fcntl.LOCK_EX)
@@ -171,6 +174,16 @@ elif cmd == "systemctl":
         state["awake"] = False
 elif cmd == "systemd-run":
     state["awake"] = True
+elif cmd == "fd":
+    if any("report" in a for a in args):
+        print(os.path.join(args[-1], "notes/quiet-report.txt"))
+elif cmd == "cliphist":
+    if args[0] == "list":
+        print("7\tmeeting at noon\n6\thttps://example.com/page")
+    else:
+        print(piped.split("\t", 1)[1], end="")
+elif cmd == "wl-copy":
+    state["clipboard"] = " ".join(args) if args else piped
 elif cmd == "theme-switch":
     colors = pathlib.Path(os.environ["QUIET_COLORS"])
     data = json.loads(colors.read_text())

@@ -20,6 +20,7 @@ ShellRoot {
         function brightness(step: int): void { Sys.nudgeBrightness(step); }
         function switcher(step: int): void { Ui.stepSwitcher(step); }
         function switcherDone(): void { Ui.commitSwitcher(); }
+        function clipboard(): void { Ui.openClipboard(); }
         function pin(): void { Ui.pinned = !Ui.pinned; }
         function close(): void { Ui.close(); }
         function reloadTheme(): void { Theme.reload(); }

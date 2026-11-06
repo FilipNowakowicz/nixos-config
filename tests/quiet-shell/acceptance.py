@@ -726,6 +726,66 @@ def switcher_moves_between_recent_windows():
     assert active["address"] == addresses[0], "escape must not switch"
 
 
+def spotlight(text):
+    shell("close")
+    time.sleep(0.2)
+    shell("spotlight")
+    wait(lambda: ui()["spotlight"], "spotlight")
+    time.sleep(0.3)
+    typed(text)
+    time.sleep(0.5)
+
+
+@test
+def spotlight_calculates_and_copies():
+    spotlight("2+3*4")
+    shot("spotlight-calculator")
+    key("Return")
+    wait(lambda: fake().get("clipboard") == "14", "result on the clipboard")
+    spotlight("20% * 50")
+    key("Return")
+    wait(lambda: fake().get("clipboard") == "10", "percent")
+
+
+@test
+def spotlight_runs_system_actions():
+    spotlight("lock")
+    shot("spotlight-system")
+    key("Return")
+    wait(lambda: ["hyprlock"] in fake()["log"], "lock")
+    spotlight("shut")
+    key("Return")
+    wait(lambda: ui()["confirm"] == "Shut Down", "spotlight to ask first")
+    assert not [c for c in fake()["log"] if "poweroff" in c][1:], "ran without asking"
+    key("Escape")
+    wait(lambda: ui()["confirm"] == "", "cancel")
+
+
+@test
+def spotlight_finds_files_and_the_web():
+    spotlight("report")
+    wait(lambda: any(c[:1] == ["fd"] for c in fake()["log"]), "file search")
+    time.sleep(0.4)
+    shot("spotlight-files")
+    key("Return")
+    wait(lambda: any(c[:1] == ["xdg-open"] and c[1].endswith("quiet-report.txt") for c in fake()["log"]), "file to open")
+    spotlight("zzqq what")
+    key("Return")
+    wait(lambda: any(c[:1] == ["xdg-open"] and "zzqq%20what" in c[1] for c in fake()["log"]), "web search")
+
+
+@test
+def clipboard_history_copies_an_entry():
+    shell("clipboard")
+    wait(lambda: ui()["spotlight"], "clipboard opens spotlight")
+    time.sleep(0.6)
+    shot("spotlight-clipboard")
+    typed("exam")
+    time.sleep(0.3)
+    key("Return")
+    wait(lambda: fake().get("clipboard") == "https://example.com/page", "entry to copy")
+
+
 def restart_shell():
     path = os.environ.get("QUIET_SHELL_PATH", "")
     for proc in pathlib.Path("/proc").glob("[0-9]*"):

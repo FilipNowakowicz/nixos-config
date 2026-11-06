@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
 
 // Plain text menus, as macOS has for the Apple and battery menus.
 Item {
@@ -35,21 +34,12 @@ Item {
             y: 6
             width: parent.width - 12
             spacing: 0
-            MenuRow { title: "Sleep"; onClicked: { Ui.close(); Quickshell.execDetached(["systemctl", "suspend"]); } }
-            MenuRow {
-                title: "Restart…"
-                onClicked: { Ui.close(); Ui.confirm = { title: "Restart now?", body: "Open apps will close, and anything unsaved will be lost.", action: "Restart", command: ["systemctl", "reboot"] }; }
-            }
-            MenuRow {
-                title: "Shut Down…"
-                onClicked: { Ui.close(); Ui.confirm = { title: "Shut down now?", body: "Open apps will close, and anything unsaved will be lost.", action: "Shut Down", command: ["systemctl", "poweroff"] }; }
-            }
+            MenuRow { title: "Sleep"; onClicked: Ui.session("sleep") }
+            MenuRow { title: "Restart…"; onClicked: Ui.session("restart") }
+            MenuRow { title: "Shut Down…"; onClicked: Ui.session("shutdown") }
             Sep {}
-            MenuRow { title: "Lock Screen"; onClicked: { Ui.close(); Quickshell.execDetached(["hyprlock"]); } }
-            MenuRow {
-                title: "Log Out…"
-                onClicked: { Ui.close(); Ui.confirm = { title: "Log out now?", body: "Open apps will close, and anything unsaved will be lost.", action: "Log Out", command: ["hyprctl", "dispatch", "hl.dsp.exit()"] }; }
-            }
+            MenuRow { title: "Lock Screen"; onClicked: Ui.session("lock") }
+            MenuRow { title: "Log Out…"; onClicked: Ui.session("logout") }
         }
     }
 

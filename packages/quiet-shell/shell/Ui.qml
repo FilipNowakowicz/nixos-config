@@ -34,6 +34,22 @@ Singleton {
     onPanelChanged: refocus()
     onDetailChanged: refocus()
 
+    property string spotlightQuery: ""
+
+    // One path for these, so nothing can reach them without being asked.
+    function session(name) {
+        const lost = "Open apps will close, and anything unsaved will be lost.";
+        const asks = {
+            restart: { title: "Restart now?", body: lost, action: "Restart", command: ["systemctl", "reboot"] },
+            shutdown: { title: "Shut down now?", body: lost, action: "Shut Down", command: ["systemctl", "poweroff"] },
+            logout: { title: "Log out now?", body: lost, action: "Log Out", command: ["hyprctl", "dispatch", "hl.dsp.exit()"] }
+        };
+        close();
+        if (name === "sleep") Quickshell.execDetached(["systemctl", "suspend"]);
+        else if (name === "lock") Quickshell.execDetached(["hyprlock"]);
+        else confirm = asks[name];
+    }
+
     function showHud(kind, level, muted) {
         hud = { kind, level, muted };
         hudTimer.restart();
@@ -82,7 +98,13 @@ Singleton {
     function toggleSpotlight() {
         const want = !spotlight;
         close();
+        spotlightQuery = "";
         spotlight = want;
+    }
+    function openClipboard() {
+        close();
+        spotlightQuery = "cb ";
+        spotlight = true;
     }
     function toggleOverview() {
         const want = !overview;

@@ -151,7 +151,7 @@ hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ip
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc volume 5" or "swayosd-client --output-volume raise"))
 hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc volume -5" or "swayosd-client --output-volume lower"))
 hl.bind("XF86AudioMute", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc mute" or "swayosd-client --output-volume mute-toggle"))
-hl.bind("SUPER + V", hl.dsp.exec_cmd("kitty --class clipboard-picker -e clipboard-pick"))
+hl.bind("SUPER + V", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc clipboard" or "kitty --class clipboard-picker -e clipboard-pick"))
 hl.bind("SUPER + T", hl.dsp.window.float({ action = "toggle" }))
 if os.getenv("DESKTOP_TEST") ~= "1" then
 	hl.on("hyprland.start", function()

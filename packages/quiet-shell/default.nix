@@ -6,6 +6,8 @@
   python3,
   bluez,
   brightnessctl,
+  cliphist,
+  fd,
   hyprlock,
   mullvad-vpn,
   networkmanager,
@@ -19,7 +21,9 @@
   tzdata,
   util-linux,
   wireplumber,
+  wl-clipboard,
   wlsunset,
+  xdg-utils,
 }:
 
 let
@@ -29,6 +33,8 @@ let
     python3
     bluez
     brightnessctl
+    cliphist
+    fd
     hyprlock
     mullvad-vpn
     networkmanager
@@ -41,7 +47,9 @@ let
     tailscale
     util-linux
     wireplumber
+    wl-clipboard
     wlsunset
+    xdg-utils
   ];
 in
 stdenvNoCC.mkDerivation {
