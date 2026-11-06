@@ -13,6 +13,11 @@
     fsType = "ext4";
   };
 
+  # Placeholder bootloader target, same `by-label` convention as the root
+  # filesystem, so `system.build.toplevel` evaluates (NixOS asserts a GRUB
+  # target device otherwise). Point this at your own boot disk.
+  boot.loader.grub.devices = [ "/dev/disk/by-label/nixos" ];
+
   # ── A minimal hardened service ──────────────────────────────────────────
   # Demonstrates the exact `services.hardened.<name>.extraConfig` pattern from
   # docs/modules/services-hardened.md, evaluated against a real systemd unit.

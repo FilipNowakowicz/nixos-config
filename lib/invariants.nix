@@ -71,10 +71,18 @@ rec {
           match = builtins.match ".*&([A-Za-z0-9_-]+)_host .*" line;
         in
         if match == null then [ ] else map (lib.replaceStrings [ "_" ] [ "-" ]) match;
+      hostRefForLine =
+        line:
+        let
+          match = builtins.match "[[:space:]]*-[[:space:]]*\\*([A-Za-z0-9_-]+)_host[[:space:]]*" line;
+        in
+        if match == null then [ ] else map (lib.replaceStrings [ "_" ] [ "-" ]) match;
     in
     {
       rules = uniqueSorted (lib.concatMap hostRuleForLine lines);
       keys = uniqueSorted (lib.concatMap hostKeyForLine lines);
+      # Hosts whose key anchor is actually listed as a recipient (`- *name_host`).
+      refs = uniqueSorted (lib.concatMap hostRefForLine lines);
     };
 
   checkSopsRecipientParity =
@@ -86,6 +94,9 @@ rec {
       staleRules = lib.filter (host: !(builtins.elem host expectedHosts)) sopsHosts.rules;
       missingKeys = lib.filter (host: !(builtins.elem host sopsHosts.keys)) expectedHosts;
       staleKeys = lib.filter (host: !(builtins.elem host expectedHosts)) sopsHosts.keys;
+      unreferencedKeys = lib.filter (
+        host: builtins.elem host sopsHosts.keys && !(builtins.elem host sopsHosts.refs)
+      ) expectedHosts;
       violations = lib.filter (msg: msg != "") [
         (lib.optionalString (
           missingRules != [ ]
@@ -99,6 +110,9 @@ rec {
         (lib.optionalString (
           staleKeys != [ ]
         ) ".sops.yaml has stale host recipient key(s): ${formatList staleKeys}")
+        (lib.optionalString (
+          unreferencedKeys != [ ]
+        ) ".sops.yaml defines but never lists host recipient key(s): ${formatList unreferencedKeys}")
       ];
     in
     mkResult (violations == [ ]) (
@@ -496,7 +510,10 @@ rec {
     check =
       cfg:
       let
-        violations = lib.filter (msg: msg != "") [
+        violations = interfaceTCPExposureViolations {
+          interface = "tailscale0";
+          ports = [ 22 ];
+        } cfg ++ lib.filter (msg: msg != "") [
           (lib.optionalString (!cfg.services.openssh.enable) "services.openssh.enable must be true")
           (lib.optionalString cfg.services.openssh.openFirewall "services.openssh.openFirewall must be false")
           (lib.optionalString (!cfg.services.tailscale.enable) "services.tailscale.enable must be true")

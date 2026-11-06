@@ -399,9 +399,31 @@ let
             - &old_host age1old
           creation_rules:
             - path_regex: ^hosts/main/secrets/.*
+              key_groups:
+                - age:
+                    - *main_host
             - path_regex: ^hosts/old/secrets/.*
         '').message;
       expected = ".sops.yaml missing host secret rule(s): homeserver-gcp; .sops.yaml has stale host secret rule(s): old; .sops.yaml missing host recipient key(s): homeserver-gcp; .sops.yaml has stale host recipient key(s): old";
+    };
+
+    sopsRecipientParityRejectsUnlistedHostKey = {
+      expr =
+        (invariants.checkSopsRecipientParity hostRegistry ''
+          keys:
+            - &main_host age1main
+            - &homeserver_gcp_host age1hs
+          creation_rules:
+            - path_regex: ^hosts/main/secrets/.*
+              key_groups:
+                - age:
+                    - *main_host
+            - path_regex: ^hosts/homeserver-gcp/secrets/.*
+              key_groups:
+                - age:
+                    - *user
+        '').message;
+      expected = ".sops.yaml defines but never lists host recipient key(s): homeserver-gcp";
     };
 
     deployTargetsHaveTailnetAddressesPasses = {
