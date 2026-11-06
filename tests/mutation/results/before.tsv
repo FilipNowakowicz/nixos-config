@@ -1,0 +1,55 @@
+id	area	expected_layer	outcome	stage	detail
+M01	ssh-exposure	eval	CAUGHT	light	invariant-check-homeserver-gcp-fail 
+M02	ssh-exposure	eval	SURVIVED	-	-
+M03	ssh-exposure	eval	CAUGHT	light	invariant-check-mac-fail 
+M04	ssh-exposure	eval	CAUGHT	light	invariant-check-gcp-agent-fail 
+M05	ssh-exposure	eval	CAUGHT	light	invariant-check-gcp-builder-fail 
+M06	firewall	eval	CAUGHT	light	invariant-check-gcp-builder-fail invariant-check-homeserver-gcp-fail invariant-check-mac-fail 
+M07	fail2ban	eval	CAUGHT	eval	error:           421|             assert condition;        Failed assertions: 
+M08	fail2ban	eval	CAUGHT	eval	error:           421|             assert condition;        Failed assertions: 
+M09	sshd	vm	SURVIVED	-	-
+M10	sshd	vm	SURVIVED	-	-
+M11	sysctl	vm	SURVIVED	-	-
+M12	sudo	eval	CAUGHT	light	invariant-check-main-ci-fail invariant-check-main-fail 
+M13	sudo	eval	CAUGHT	light	invariant-check-main-ci-fail invariant-check-main-fail 
+M14	sudo	eval	CAUGHT	light	invariant-check-gcp-agent-fail 
+M15	sudo	eval	CAUGHT	light	invariant-check-main-ci-fail invariant-check-main-fail 
+M16	nix-trust	eval	CAUGHT	eval	error:           421|             assert condition;        Failed assertions: 
+M17	usbguard	eval	CAUGHT	light	invariant-check-main-ci-fail invariant-check-main-fail 
+M18	usbguard	eval	SURVIVED	-	-
+M19	systemd-hardening	eval	SURVIVED	-	-
+M20	systemd-hardening	eval	CAUGHT	eval	error: 
+M21	systemd-hardening	eval	SURVIVED	-	-
+M22	backup	eval	CAUGHT	light	invariant-check-main-ci-fail invariant-check-main-fail 
+M23	backup	eval	CAUGHT	light	invariant-check-homeserver-gcp-fail 
+M24	backup	eval	CAUGHT	light	invariant-check-homeserver-gcp-fail 
+M25	backup	eval	CAUGHT	light	invariant-check-main-ci-fail invariant-check-main-fail 
+M26	backup	eval	CAUGHT	light	invariant-check-main-ci-fail invariant-check-main-fail 
+M27	backup	eval	SURVIVED	-	-
+M28	backup	eval	CAUGHT	light	invariant-check-homeserver-gcp-fail invariant-check-main-ci-fail invariant-check-main-fail 
+M29	secrets	eval	CAUGHT	scripts	scan-plaintext-secrets.sh
+M30	secrets	eval	CAUGHT	scripts	scan-plaintext-secrets.sh check-secrets-directory.sh
+M31	secrets	eval	SURVIVED	-	-
+M32	tailscale-acl	eval	CAUGHT	eval	error: 
+M33	tailscale-acl	eval	SURVIVED	-	-
+M34	tailscale-acl	eval	SURVIVED	-	-
+M35	alerting	eval	CAUGHT	light	invariant-check-homeserver-gcp-fail 
+M36	nginx	vm	SURVIVED	-	-
+M37	nginx	vm	SURVIVED	-	-
+M38	observability	eval	SURVIVED	-	-
+M39	observability	eval	CAUGHT	eval	error:           421|             assert condition;        Failed assertions: 
+M40	deploy	eval	SURVIVED	-	-
+M41	sops	eval	CAUGHT	eval	error:           421|             assert condition;        Failed assertions: 
+M42	backup	eval	CAUGHT	eval	error: 
+M43	persistence	eval	SURVIVED	-	-
+M44	accounts	eval	CAUGHT	light	invariant-check-gcp-builder-fail 
+M45	ssh-exposure	eval	CAUGHT	light	invariant-check-main-ci-fail invariant-check-main-fail 
+M46	boot	eval	CAUGHT	light	invariant-check-mac-fail invariant-check-main-ci-fail invariant-check-main-fail 
+M47	backup	eval	CAUGHT	light	invariant-check-homeserver-gcp-fail 
+M48	tailscale	eval	CAUGHT	light	invariant-check-homeserver-gcp-fail 
+M49	mullvad-tailscale	eval	CAUGHT	light	invariant-check-main-ci-fail invariant-check-main-fail 
+M50	mullvad-tailscale	eval	SURVIVED	-	-
+M51	anonymity	eval	CAUGHT	light	invariant-check-main-ci-fail invariant-check-main-fail 
+M52	firewall	eval	SURVIVED	-	-
+M53	alerting	eval	SURVIVED	-	-
+M54	ssh-exposure	eval	SURVIVED	-	-
