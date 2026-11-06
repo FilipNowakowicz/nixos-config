@@ -37,7 +37,12 @@ Singleton {
     FontLoader { source: Qt.resolvedUrl("assets/fonts/OpenRunde-Medium.woff2") }
     FontLoader { source: Qt.resolvedUrl("assets/fonts/OpenRunde-Semibold.woff2") }
 
+    // theme-switch replaces a symlink, which a file watcher only survives once, so
+    // it also calls this. The watcher just covers edits made by hand.
+    function reload() { colors.reload(); }
+
     FileView {
+        id: colors
         path: root.colorsPath
         watchChanges: true
         onFileChanged: reload()

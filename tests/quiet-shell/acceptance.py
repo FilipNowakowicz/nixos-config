@@ -32,7 +32,8 @@ def sh(*cmd, timeout=10):
 
 
 def shell(fn):
-    out = sh("qs", "ipc", "-p", str(repo / "packages/quiet-shell/shell"), "call", "shell", fn)
+    path = os.environ.get("QUIET_SHELL_PATH", str(repo / "packages/quiet-shell/shell"))
+    out = sh("qs", "ipc", "-p", path, "call", "shell", fn)
     return out.stdout.strip()
 
 
@@ -310,6 +311,29 @@ def theme_switch_restyles_shell():
 
 
 @test
+def theme_survives_repeated_symlink_swaps():
+    colors = run / "colors.json"
+    base = json.loads(colors.read_text())
+    target_a, target_b = run / "theme-a.json", run / "theme-b.json"
+    target_a.write_text(json.dumps({**base, "name": "theme-a"}))
+    target_b.write_text(json.dumps({**base, "name": "theme-b"}))
+    original = run / "colors.original.json"
+    if not colors.is_symlink():
+        colors.rename(original)
+    for name, target in (("theme-a", target_a), ("theme-b", target_b), ("theme-a", target_a)):
+        tmp = run / "colors.tmp"
+        tmp.unlink(missing_ok=True)
+        tmp.symlink_to(target)
+        tmp.replace(colors)
+        shell("reloadTheme")
+        wait(lambda n=name: ui()["theme"] == n, f"swap to {name}")
+    colors.unlink()
+    original.rename(colors)
+    shell("reloadTheme")
+    wait(lambda: ui()["theme"] == "gilded-contours", "restore")
+
+
+@test
 def spotlight_runs_commands():
     marker = run / "spotlight-ran"
     marker.unlink(missing_ok=True)
@@ -367,6 +391,34 @@ def focus_silences_banners():
     wait(lambda: ui()["panel"] == "notifications", "centre")
     time.sleep(0.3)
     click(1877, 274)
+
+
+@test
+def fullscreen_app_keeps_edges_quiet():
+    sh("hyprctl", "dispatch", 'hl.dsp.window.fullscreen({mode="fullscreen"})')
+    time.sleep(0.5)
+    try:
+        move(960, 0)
+        time.sleep(0.4)
+        assert not ui()["top"], "top edge revealed over a fullscreen app"
+        move(960, 1079)
+        time.sleep(0.4)
+        assert not ui()["dock"], "dock revealed over a fullscreen app"
+    finally:
+        sh("hyprctl", "dispatch", 'hl.dsp.window.fullscreen({mode="fullscreen"})')
+        move(960, 600)
+        time.sleep(0.5)
+
+
+@test
+def keyboard_reaches_controls():
+    open_controls()
+    key("Tab")
+    key("Tab")
+    state = ui()
+    assert state["panel"] == "controls"
+    key("Escape")
+    wait(lambda: ui()["panel"] == "", "escape closes")
 
 
 @test

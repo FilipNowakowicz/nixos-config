@@ -126,6 +126,7 @@ bg='' brown='' amber=''
 source "$THEMES_DIR/$THEME/vars"
 
 control-center --reload-theme >/dev/null 2>&1 || true
+quiet-shell-ipc reloadTheme >/dev/null 2>&1 || true
 
 # Reload apps
 # Probe the running parser, not the installed package or config filenames.

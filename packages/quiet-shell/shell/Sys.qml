@@ -67,9 +67,10 @@ Singleton {
     function reconcile() {
         for (const key of Object.keys(writes)) {
             const w = writes[key];
-            if (w.status !== "pending" || !w.exited)
+            if (w.status !== "pending")
                 continue;
-            if (w.done(state))
+            // The deadline also covers a command that hung or could not start at all.
+            if (w.exited && w.done(state))
                 setWrite(key, null);
             else if (Date.now() > w.deadline)
                 setWrite(key, Object.assign({}, w, { status: "failed" }));

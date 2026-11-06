@@ -31,7 +31,16 @@ hl.config({
 hl.monitor({ output = "", mode = "1920x1080@60", position = "auto", scale = 1 })
 hl.layer_rule({ name = "quiet-glass", match = { namespace = "quiet-shell" }, blur = true, ignore_alpha = 0.02 })
 LUA
-XDG_RUNTIME_DIR="$rt" WAYLAND_DISPLAY="$parent" Hyprland -c "$run/hypr.lua" >"$run/hyprland.log" 2>&1 &
+config="$run/hypr.lua"
+# QUIET_REAL_CONFIG=1 loads the repo's own hyprland.lua with the quiet shell enabled.
+if [[ ${QUIET_REAL_CONFIG:-} == 1 ]]; then
+  mkdir -p "$HOME/.config/hypr"
+  echo 'return { active = "rgb(d3ad7a)", inactive = "rgb(0d1830)", shadow = "rgba(071126cc)" }' >"$HOME/.config/hypr/colors.lua"
+  echo 'return { quiet = true }' >"$HOME/.config/hypr/shell.lua"
+  config="$repo/home/files/hypr/hyprland.lua"
+  export DESKTOP_TEST=1
+fi
+XDG_RUNTIME_DIR="$rt" WAYLAND_DISPLAY="$parent" Hyprland -c "$config" >"$run/hyprland.log" 2>&1 &
 hypr=$!
 trap 'kill $hypr 2>/dev/null || true; rm -rf "$rt"' EXIT
 for _ in $(seq 1 60); do
@@ -50,6 +59,6 @@ env | grep -E '^(HYPRLAND_INSTANCE_SIGNATURE|WAYLAND_DISPLAY|XDG_RUNTIME_DIR|QUI
 [[ -n ${QUIET_WALLPAPER:-} ]] && swaybg -m fill -i "$QUIET_WALLPAPER" &
 # Keep retrying so a QML error can be fixed without restarting the compositor.
 while true; do
-  qs -p "$repo/packages/quiet-shell/shell" >"$run/qs.log" 2>&1 || true
+  ${QUIET_COMMAND:-qs -p "$repo/packages/quiet-shell/shell"} >"$run/qs.log" 2>&1 || true
   sleep 1
 done
