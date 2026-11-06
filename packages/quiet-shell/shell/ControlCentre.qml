@@ -74,7 +74,8 @@ Item {
             Round { Layout.rightMargin: 7; name: "Microphone"; icon: Sys.micMuted ? "mic-off" : "mic"; writeKey: "mic-mute"; onActivated: Sys.toggleMicMute() }
         }
         Repeater {
-            model: ["wifi", "bluetooth", "tailscale", "mullvad", "night", "awake", "mute", "mic-mute"]
+            // Every failure, so the warning in the top bar always leads somewhere.
+            model: Object.keys(Sys.writes).filter(k => Sys.failed(k))
             FailRow { required property string modelData; Layout.fillWidth: true; writeKey: modelData }
         }
         LevelModule {

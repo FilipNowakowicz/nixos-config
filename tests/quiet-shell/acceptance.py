@@ -197,7 +197,7 @@ def failed_write_offers_retry():
     shot("failed")
     set_fake(fail=[])
     # The retry button sits in the row added under the toggles.
-    click(1871, 351)
+    click(1842, 351)
     wait(lambda: ui()["failed"] == 0 and ui()["writes"] == [], "retry to succeed")
     click(*WIFI_TOGGLE)
     wait(lambda: ui()["writes"] == [], "restore")
@@ -211,10 +211,25 @@ def silent_no_op_is_caught():
     wait(lambda: "bluetooth" in ui()["writes"], "pending")
     wait(lambda: ui()["failed"] == 1, "deadline failure", timeout=11)
     set_fake(stick=[])
-    click(1871, 351)
+    click(1842, 351)
     wait(lambda: ui()["failed"] == 0, "retry", timeout=4)
     click(1603, 143)
     wait(lambda: ui()["writes"] == [], "restore")
+
+
+@test
+def failure_can_be_dismissed_and_heals():
+    open_controls()
+    set_fake(fail=["nmcli"])
+    click(*WIFI_TOGGLE)
+    wait(lambda: ui()["failed"] == 1, "failure")
+    click(1891, 351)
+    wait(lambda: ui()["failed"] == 0, "dismiss")
+    click(*WIFI_TOGGLE)
+    wait(lambda: ui()["failed"] == 1, "failure again")
+    # The system reaches the target by itself, for example from another tool.
+    set_fake(fail=[], wifi=False)
+    wait(lambda: ui()["failed"] == 0, "failure to heal", timeout=8)
 
 
 @test

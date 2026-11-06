@@ -67,8 +67,12 @@ Singleton {
     function reconcile() {
         for (const key of Object.keys(writes)) {
             const w = writes[key];
-            if (w.status !== "pending")
+            // A failed setting that later reaches its target has healed itself.
+            if (w.status === "failed") {
+                if (w.done(state))
+                    setWrite(key, null);
                 continue;
+            }
             // The deadline also covers a command that hung or could not start at all.
             if (w.exited && w.done(state))
                 setWrite(key, null);

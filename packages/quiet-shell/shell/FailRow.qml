@@ -23,5 +23,13 @@ Item {
             onClicked: Sys.retry(root.writeKey)
             Label { anchors.centerIn: parent; text: "Retry"; font.pixelSize: 12; font.weight: Font.Medium }
         }
+        Press {
+            name: "Dismiss"
+            implicitWidth: 26
+            implicitHeight: 26
+            radius: 13
+            onClicked: Sys.dismiss(root.writeKey)
+            Icon { anchors.centerIn: parent; name: "x"; size: 13 }
+        }
     }
 }

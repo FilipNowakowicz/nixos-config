@@ -109,7 +109,15 @@ Item {
                 leftPadding: 5
                 rightPadding: 4
                 Layout.alignment: Qt.AlignVCenter
-                Icon { visible: Sys.failedCount > 0; name: "triangle-alert"; size: 15 }
+                Press {
+                    visible: Sys.failedCount > 0
+                    name: "Show failed settings"
+                    width: 18
+                    height: 18
+                    radius: 9
+                    onClicked: Ui.open("controls")
+                    Icon { anchors.centerIn: parent; name: "triangle-alert"; size: 15 }
+                }
                 Icon { visible: Sys.focusMode; name: "bell-off"; size: 15 }
                 Icon { visible: Sys.awake; name: "coffee"; size: 15 }
                 Icon { visible: Sys.night; name: "moon"; size: 15 }
