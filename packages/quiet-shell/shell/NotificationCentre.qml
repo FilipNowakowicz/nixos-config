@@ -68,8 +68,14 @@ ColumnLayout {
         }
     }
     Repeater {
-        model: Notify.items.slice(0, root.compact ? 3 : 6)
-        NoticeCard { required property var modelData; entry: modelData; Layout.fillWidth: true }
+        model: Notify.groups.slice(0, root.compact ? 3 : 6)
+        NoticeCard {
+            required property var modelData
+            entry: modelData.entry
+            more: modelData.more
+            Layout.fillWidth: true
+            onShowMore: Notify.toggleApp(modelData.entry.app)
+        }
     }
     Item {
         visible: Notify.items.length === 0

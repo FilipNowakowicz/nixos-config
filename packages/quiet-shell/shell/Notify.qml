@@ -22,6 +22,42 @@ Singleton {
             banner = null;
     }
 
+    // The app decides what happens next, so the notification has done its job.
+    function invoke(entry, action) {
+        action.invoke();
+        items = items.filter(i => i !== entry);
+        if (banner === entry)
+            banner = null;
+    }
+
+    // One card per app, newest first, unless that app has been opened out.
+    property var openApps: []
+    function toggleApp(app) {
+        openApps = openApps.includes(app) ? openApps.filter(a => a !== app) : openApps.concat([app]);
+    }
+    readonly property var groups: {
+        const seen = new Map();
+        for (const item of items) {
+            if (!seen.has(item.app))
+                seen.set(item.app, []);
+            seen.get(item.app).push(item);
+        }
+        const out = [];
+        for (const [app, list] of seen) {
+            if (openApps.includes(app))
+                list.forEach(entry => out.push({ entry, more: 0 }));
+            else
+                out.push({ entry: list[0], more: list.length - 1 });
+        }
+        return out;
+    }
+
+    // Stays up while the pointer is on it, so it can be read and clicked.
+    function holdBanner(held) {
+        if (held) timer.stop();
+        else if (banner) timer.restart();
+    }
+
     // For the shell's own messages. An urgent one still shows during Focus.
     function post(title, body, urgent) {
         const entry = { source: null, app: "System", title, body, at: new Date() };

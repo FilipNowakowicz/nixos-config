@@ -17,6 +17,7 @@ Singleton {
     property bool dragging: false
     property var confirm: null           // { title, body, action, command }
     property var hud: null               // { kind, level, muted }
+    property var dockMenu: null          // { app, x }
     property bool switcher: false
     property int switcherIndex: 0
 
@@ -78,8 +79,15 @@ Singleton {
             Dockable.revealAfterClose(target);
     }
 
+    function openDockMenu(app, x) {
+        close();
+        dockMenu = { app, x };
+        panel = "dock";
+    }
+
     function close() {
         confirm = null;
+        dockMenu = null;
         switcher = false;
         panel = "";
         detail = "";

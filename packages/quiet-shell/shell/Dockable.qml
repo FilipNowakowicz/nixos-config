@@ -93,6 +93,14 @@ Singleton {
         if (t) revealAfterClose(t);
         else toplevel.activate();
     }
+    function launch(app) {
+        const e = entry(app.id);
+        if (e) e.execute();
+    }
+    function closeAll(app) {
+        for (const t of app.windows)
+            Hyprland.dispatch("hl.dsp.window.close({window=\"address:0x" + t.address + "\"})");
+    }
     function click(app) {
         const hidden = app.windows.find(isHidden);
         if (hidden) {

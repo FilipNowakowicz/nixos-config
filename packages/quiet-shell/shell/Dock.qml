@@ -24,6 +24,7 @@ Item {
                 radius: 13
                 name: modelData.name
                 onClicked: { Dockable.click(modelData); if (Ui.overview) Ui.close(); }
+                onSecondaryClicked: Ui.openDockMenu(modelData, mapToItem(null, width / 2, 0).x)
                 AppIcon {
                     anchors.centerIn: parent
                     size: 44
@@ -32,6 +33,15 @@ Item {
                     opacity: item.minimized ? 0.45 : 1
                     scale: item.hovered ? 1.1 : 1
                     Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                }
+                Item {
+                    visible: item.hovered && Ui.panel === ""
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    y: -38
+                    width: nameText.implicitWidth + 18
+                    height: 26
+                    Glass { anchors.fill: parent; radius: 13 }
+                    Label { id: nameText; anchors.centerIn: parent; text: item.modelData.name; font.pixelSize: 12 }
                 }
                 // Bright on this desktop, faint on another, gone when minimised.
                 Rectangle {

@@ -26,6 +26,7 @@ PanelWindow {
         Region { item: Ui.blocking && win.focused ? root : null }
         Region { item: win.fullscreenApp ? null : hotTop }
         Region { item: win.fullscreenApp ? null : hotBottom }
+        Region { item: Notify.banner && win.focused ? banner : null }
     }
 
     Item {
@@ -98,7 +99,13 @@ PanelWindow {
 
         Menus { anchors.fill: parent; visible: win.focused }
 
-        Banner { visible: win.focused && Ui.panel === "" && !Ui.overview }
+        Banner { id: banner; visible: win.focused && Ui.panel === "" && !Ui.overview }
+
+        DockMenu {
+            visible: Ui.panel === "dock" && win.focused
+            x: Math.min(parent.width - width - 8, Math.max(8, (Ui.dockMenu ? Ui.dockMenu.x : 0) - width / 2))
+            y: parent.height - height - 82
+        }
 
         Spotlight { visible: Ui.spotlight && win.focused; anchors.horizontalCenter: parent.horizontalCenter; y: parent.height * 0.2 }
 
@@ -144,7 +151,7 @@ PanelWindow {
     Timer {
         id: hideDock
         interval: 300
-        onTriggered: if (!dock.hovered && !hotBottom.containsMouse) Ui.dockRevealed = false
+        onTriggered: if (!dock.hovered && !hotBottom.containsMouse && Ui.panel !== "dock") Ui.dockRevealed = false
     }
     Connections {
         target: dock

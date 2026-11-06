@@ -786,6 +786,66 @@ def clipboard_history_copies_an_entry():
     wait(lambda: fake().get("clipboard") == "https://example.com/page", "entry to copy")
 
 
+@test
+def notification_actions_reach_the_app():
+    before = ui()["notices"]
+    app = subprocess.Popen(["notify-send", "--app-name=Mail", "--action=reply=Reply", "--action=later=Later", "New message", "From a test"], env=env, stdout=subprocess.PIPE, text=True)
+    try:
+        wait(lambda: ui()["notices"] == before + 1, "notification")
+        wait(lambda: ui()["banner"], "banner")
+        time.sleep(0.4)
+        shot("banner-actions")
+        move(1730, 112)
+        time.sleep(5.2)
+        assert ui()["banner"], "banner left while hovered"
+        click(1660, 112)
+        assert app.wait(timeout=5) == 0
+        assert app.stdout.read().strip() == "reply", "wrong action"
+        wait(lambda: ui()["notices"] == before, "notice to clear")
+    finally:
+        app.kill()
+
+
+@test
+def notification_centre_groups_by_app():
+    shell("close")
+    for number in range(3):
+        sh("notify-send", "--app-name=Builds", f"Build {number}", "Finished")
+        time.sleep(0.1)
+    shell("notifications")
+    wait(lambda: ui()["panel"] == "notifications", "centre")
+    time.sleep(0.5)
+    shot("notifications-grouped")
+    shell("close")
+
+
+@test
+def dock_labels_and_right_click_menu():
+    start = len(clients())
+    reveal_dock()
+    move(960, 1040)
+    time.sleep(0.4)
+    shot("dock-label")
+    sh("wlrctl", "pointer", "click", "right")
+    wait(lambda: ui()["panel"] == "dock", "menu")
+    time.sleep(0.3)
+    shot("dock-menu")
+    click(960, 947)
+    wait(lambda: len(clients()) == start + 1, "new window", timeout=8)
+    time.sleep(0.5)
+    reveal_dock()
+    move(960, 1040)
+    sh("wlrctl", "pointer", "click", "right")
+    wait(lambda: ui()["panel"] == "dock", "menu again")
+    time.sleep(0.3)
+    click(960, 977)
+    wait(lambda: not [c for c in clients() if c["class"] == "kitty"], "windows to close", timeout=8)
+    for _ in range(2):
+        sh("hyprctl", "dispatch", 'hl.dsp.exec_cmd("kitty -o confirm_os_window_close=0")')
+        time.sleep(1.5)
+    wait(lambda: len(clients()) >= 2, "windows back", timeout=8)
+
+
 def restart_shell():
     path = os.environ.get("QUIET_SHELL_PATH", "")
     for proc in pathlib.Path("/proc").glob("[0-9]*"):

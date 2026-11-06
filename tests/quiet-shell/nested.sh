@@ -5,11 +5,14 @@
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 run=${1:?run directory}
-mkdir -p "$run/bin" "$run/power/BAT0" "$run/apps"
+mkdir -p "$run/bin" "$run/power/BAT0" "$run/apps" "$run/kitty"
+# Tests close windows, and kitty's confirmation would otherwise stop them.
+echo 'confirm_os_window_close 0' >"$run/kitty/kitty.conf"
+export KITTY_CONFIG_DIRECTORY="$run/kitty"
 # Unix socket paths are limited to about 108 bytes, so keep this one short.
 rt=$(mktemp -d "/run/user/$(id -u)/q.XXXX")
 unset HYPRLAND_INSTANCE_SIGNATURE
-for c in nm-connection-editor hyprlock fd xdg-open cliphist wl-copy nmcli bluetoothctl tailscale mullvad wpctl pw-dump pw-metadata brightnessctl powerprofilesctl playerctl pgrep pkill systemctl systemd-run theme-switch setsid; do
+for c in nm-connection-editor hyprlock grim slurp fd xdg-open cliphist wl-copy nmcli bluetoothctl tailscale mullvad wpctl pw-dump pw-metadata brightnessctl powerprofilesctl playerctl pgrep pkill systemctl systemd-run theme-switch setsid; do
   ln -sf "$repo/tests/quiet-shell/fakes/fake.py" "$run/bin/$c"
 done
 echo 64 >"$run/power/BAT0/capacity"
