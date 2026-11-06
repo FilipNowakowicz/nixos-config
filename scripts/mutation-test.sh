@@ -115,7 +115,7 @@ build_checks() {
   nix "${nix_opts[@]}" build --no-link --keep-going "${attrs[@]}" >"$log" 2>&1 && return 0
   local drvs
   drvs="$(grep -oE "Cannot build '[^']+'" "$log" | sed -E "s#.*/[a-z0-9]{32}-##; s#\.drv'##" | sort -u | tr '\n' ' ')"
-  if [[ -n "$drvs" ]]; then
+  if [[ -n $drvs ]]; then
     echo "$drvs"
   else
     summarize_eval_error "$log"
@@ -159,12 +159,12 @@ if [[ $mode == baseline ]]; then
 fi
 
 mapfile -t rows < <(python3 -I tests/mutation/apply.py list)
-[[ -n "$out" ]] && printf 'id\tarea\texpected_layer\toutcome\tstage\tdetail\n' >"$out"
+[[ -n $out ]] && printf 'id\tarea\texpected_layer\toutcome\tstage\tdetail\n' >"$out"
 
 caught_gated=0 caught_extra=0 survived=0 excluded=0 total=0
 for row in "${rows[@]}"; do
   IFS=$'\t' read -r id area layer _expected _summary <<<"$row"
-  if ((${#ids[@]})) && [[ ! " ${ids[*]} " == *" $id "* ]]; then continue; fi
+  if ((${#ids[@]})) && [[ " ${ids[*]} " != *" $id "* ]]; then continue; fi
   total=$((total + 1))
   python3 -I tests/mutation/apply.py apply "$id"
   if run_stages; then

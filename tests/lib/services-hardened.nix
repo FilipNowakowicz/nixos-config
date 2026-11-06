@@ -93,11 +93,12 @@ let
     baselineSetsNoNewPrivileges = baseline.NoNewPrivileges == true;
     baselineProtectsSystem = baseline.ProtectSystem == "strict";
     baselineFiltersSyscalls = baseline.SystemCallFilter == [ "@system-service" ];
-    baselineRestrictsAddressFamilies = baseline.RestrictAddressFamilies == [
-      "AF_UNIX"
-      "AF_INET"
-      "AF_INET6"
-    ];
+    baselineRestrictsAddressFamilies =
+      baseline.RestrictAddressFamilies == [
+        "AF_UNIX"
+        "AF_INET"
+        "AF_INET6"
+      ];
     forcedNoNewPrivilegesBeatsUpstream = upstream.NoNewPrivileges == true;
     forcedPrivateTmpBeatsUpstream = upstream.PrivateTmp == true;
     forcedKeyWinsOverExtraConfig = forcedExtra.PrivateDevices == true;

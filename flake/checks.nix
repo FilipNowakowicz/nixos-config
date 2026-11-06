@@ -275,8 +275,8 @@ let
     check =
       _:
       mkResult (
-        allNixosConfigs.${hostName}.options.system.stateVersion.highestPrio
-        < (lib.mkOptionDefault { }).priority
+        allNixosConfigs.${hostName}.options.system.stateVersion.highestPrio < (lib.mkOptionDefault { })
+        .priority
       ) "system.stateVersion falls back to the nixpkgs default; set it in the host config";
   };
 
@@ -308,9 +308,8 @@ let
         # sanctioned global UDP ports.
         udp = lib.subtractLists [ 5353 41641 ] (cfg.networking.firewall.allowedUDPPorts or [ ]);
       in
-      mkResult (
-        tcp == [ ] && udp == [ ]
-      ) "unexpected globally open ports (open them per-interface): tcp=${builtins.toJSON tcp} udp=${builtins.toJSON udp}";
+      mkResult (tcp == [ ] && udp == [ ])
+        "unexpected globally open ports (open them per-interface): tcp=${builtins.toJSON tcp} udp=${builtins.toJSON udp}";
   };
 
   commonSystemInvariants = [
@@ -498,7 +497,9 @@ let
         prometheus = true;
       };
     in
-    assert lib.assertMsg (evaluated == expected) "observability-stack-fixture: ${builtins.toJSON evaluated}";
+    assert lib.assertMsg (
+      evaluated == expected
+    ) "observability-stack-fixture: ${builtins.toJSON evaluated}";
     pkgs.writeText "observability-stack-fixture.json" (builtins.toJSON evaluated);
 
   observabilityClientFixture =
@@ -543,7 +544,9 @@ let
         traceEndpoint = "https://observability.example.ts.net/ingest/traces";
       };
     in
-    assert lib.assertMsg (evaluated == expected) "observability-client-fixture: ${builtins.toJSON evaluated}";
+    assert lib.assertMsg (
+      evaluated == expected
+    ) "observability-client-fixture: ${builtins.toJSON evaluated}";
     pkgs.writeText "observability-client-fixture.json" (builtins.toJSON evaluated);
 
   observabilityDashboardBackendAssertionFixture =
@@ -651,7 +654,9 @@ let
         protectSystem = "strict";
       };
     in
-    assert lib.assertMsg (evaluated == expected) "services-hardened-example-fixture: ${builtins.toJSON evaluated}";
+    assert lib.assertMsg (
+      evaluated == expected
+    ) "services-hardened-example-fixture: ${builtins.toJSON evaluated}";
     pkgs.writeText "services-hardened-example-fixture.json" (builtins.toJSON evaluated);
 
   # Evaluates `nixosModules.profiles-base` standalone: no observability module
@@ -683,7 +688,9 @@ let
         zramSwap = true;
       };
     in
-    assert lib.assertMsg (evaluated == expected) "profiles-base-standalone-fixture: ${builtins.toJSON evaluated}";
+    assert lib.assertMsg (
+      evaluated == expected
+    ) "profiles-base-standalone-fixture: ${builtins.toJSON evaluated}";
     pkgs.writeText "profiles-base-standalone-fixture.json" (builtins.toJSON evaluated);
 
   # Evaluates both `examples/mini-fleet` hosts against nixpkgs only — the same
@@ -730,7 +737,9 @@ let
           ../modules/nixos/profiles/observability-client.nix
         ];
       };
-      serverToplevel = builtins.tryEval (builtins.deepSeq server.config.system.build.toplevel.drvPath true);
+      serverToplevel = builtins.tryEval (
+        builtins.deepSeq server.config.system.build.toplevel.drvPath true
+      );
       evaluated = {
         workstationHostName = workstation.config.networking.hostName;
         workstationHasDesktop = workstation.config.programs.hyprland.enable;
@@ -765,7 +774,9 @@ let
       # An empty or truncated file (a failed `sops -e > out.enc`) exists but is
       # useless; require non-empty sops-encrypted content. No key material needed.
       pkgs.runCommand "${hostName}-sops-bootstrap-check" { } ''
-        for f in ${secretsDir + "/ssh_host_ed25519_key.enc"} ${secretsDir + "/ssh_host_ed25519_key.pub.enc"}; do
+        for f in ${secretsDir + "/ssh_host_ed25519_key.enc"} ${
+          secretsDir + "/ssh_host_ed25519_key.pub.enc"
+        }; do
           if [ ! -s "$f" ] || ! grep -q 'ENC\[' "$f"; then
             echo "${hostName} sops bootstrap: empty or non-sops file: $f" >&2
             exit 1
@@ -899,7 +910,9 @@ let
             "workstation->workstation:48010"
           ];
         in
-        mkResult (actual == reviewed) "tailnet grants differ from the reviewed set: ${builtins.toJSON actual}";
+        mkResult (
+          actual == reviewed
+        ) "tailnet grants differ from the reviewed set: ${builtins.toJSON actual}";
     }
   ];
 in

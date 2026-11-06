@@ -510,17 +510,19 @@ rec {
     check =
       cfg:
       let
-        violations = interfaceTCPExposureViolations {
-          interface = "tailscale0";
-          ports = [ 22 ];
-        } cfg ++ lib.filter (msg: msg != "") [
-          (lib.optionalString (!cfg.services.openssh.enable) "services.openssh.enable must be true")
-          (lib.optionalString cfg.services.openssh.openFirewall "services.openssh.openFirewall must be false")
-          (lib.optionalString (!cfg.services.tailscale.enable) "services.tailscale.enable must be true")
-          (lib.optionalString (
-            !cfg.services.tailscale.openFirewall
-          ) "services.tailscale.openFirewall must be true")
-        ];
+        violations =
+          interfaceTCPExposureViolations {
+            interface = "tailscale0";
+            ports = [ 22 ];
+          } cfg
+          ++ lib.filter (msg: msg != "") [
+            (lib.optionalString (!cfg.services.openssh.enable) "services.openssh.enable must be true")
+            (lib.optionalString cfg.services.openssh.openFirewall "services.openssh.openFirewall must be false")
+            (lib.optionalString (!cfg.services.tailscale.enable) "services.tailscale.enable must be true")
+            (lib.optionalString (
+              !cfg.services.tailscale.openFirewall
+            ) "services.tailscale.openFirewall must be true")
+          ];
       in
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
