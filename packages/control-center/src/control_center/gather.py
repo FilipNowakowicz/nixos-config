@@ -9,6 +9,7 @@ import time
 from gi.repository import Gio, GLib
 
 from . import actions
+from .audio import parse_devices
 from ._proc import _run
 from .capabilities import capabilities
 from .constants import NOW_PLAYING_ALLOW
@@ -205,8 +206,15 @@ def _parse_wpctl_status(text):
     default_sink_desc = ""
     default_source_desc = ""
     default_filter_source_desc = ""
+    audio = False
     for raw in text.splitlines():
         stripped = raw.strip()
+        if stripped in ("Audio", "Video", "MIDI", "Settings"):
+            audio = stripped == "Audio"
+            section = None
+            continue
+        if not audio:
+            continue
         if stripped.startswith("├─ Sinks") or stripped.startswith("└─ Sinks"):
             section = "sinks"
             continue
@@ -272,7 +280,7 @@ def gather_audio():
     state = {
         "sink_volume_pct": 0, "sink_muted": False, "sink_name": "—",
         "source_volume_pct": 0, "source_muted": False, "source_name": "—",
-        "sinks": [], "sources": [],
+        "sinks": [], "sources": [], "sink_node_name": None, "source_node_name": None,
     }
     for key, target in (("sink", "@DEFAULT_AUDIO_SINK@"),
                         ("source", "@DEFAULT_AUDIO_SOURCE@")):
@@ -285,7 +293,14 @@ def gather_audio():
             state[f"{key}_muted"] = bool(m.group(2))
 
     status_out, _ = _run(["wpctl", "status"])
-    state.update(_parse_wpctl_status(status_out))
+    status = _parse_wpctl_status(status_out)
+    state.update(sink_name=status["sink_name"], source_name=status["source_name"])
+    dump, ok = _run(["pw-dump"], timeout=3)
+    if ok:
+        try:
+            state.update(parse_devices(dump))
+        except (ValueError, TypeError, KeyError, AttributeError):
+            pass  # Incomplete discovery must not expose numeric-ID selection.
 
     # Prefer the friendly node.description over whatever fell out of the
     # status table (status sometimes points at a bluez_input filter that
@@ -630,7 +645,7 @@ def _default_state():
         "audio": {
             "sink_volume_pct": 0, "sink_muted": False, "sink_name": "—",
             "source_volume_pct": 0, "source_muted": False, "source_name": "—",
-            "sinks": [], "sources": [],
+            "sinks": [], "sources": [], "sink_node_name": None, "source_node_name": None,
         },
         "battery": {"percent": 0, "status": "Unknown", "charging": False, "time_str": "—"},
         "brightness": {"percent": 100},

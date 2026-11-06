@@ -4,7 +4,6 @@ from gi.repository import Gtk
 
 from ..actions import (
     act_open_sound_settings,
-    act_set_default_sink,
 )
 from ..constants import G
 
@@ -47,7 +46,7 @@ class VolumeViewMixin:
 
             hero.icon.set_label(self._sink_icon_glyph(a["sink_name"]))
             hero.title.set_label(self._short(a["sink_name"], 28))
-            hero.sub.set_label("default sink")
+            hero.sub.set_label("Default output")
             hero.big.set_label(str(a["sink_volume_pct"]))
             hero.small.set_label("muted" if muted else "level")
 
@@ -55,29 +54,33 @@ class VolumeViewMixin:
             slider.glyph_btn.set_label(G["volume_mute"] if muted else G["volume"])
             self._name_control(slider.glyph_btn, "Unmute audio" if muted else "Mute audio")
 
-            if not self._list_changed(out, a["sinks"]):
+            key = "audio.default_sink"
+            self.effective(key, a.get("sink_node_name"))
+            request = self._settings.requests.get(key)
+            pending = request is not None and request.phase in ("writing", "confirming")
+            snapshot = {"devices": a["sinks"], "intent": request.target if pending else None}
+            if not self._list_changed(out, snapshot):
                 return
             self._clear(out)
             if not a["sinks"]:
                 out.append(self._drawer_item(
-                    G["volume"], "No output devices", "—", "—",
-                    subtle=True,
+                    G["volume"], "No output devices", "—", "—", subtle=True,
                 ))
-            else:
-                for sink in a["sinks"]:
-                    row = self._drawer_item(
-                        self._sink_icon_glyph(sink["desc"]),
-                        self._short(sink["desc"], 28),
-                        f"id {sink['id']}",
-                        "Active" if sink["default"] else "Switch",
-                        active=sink["default"],
-                    )
-                    row._item_key = sink["id"]
-                    if not sink["default"]:
-                        def _switch(_b, sid=sink["id"]):
-                            act_set_default_sink(sid)
-                        row.connect("clicked", _switch)
-                    out.append(row)
+            for device in a["sinks"]:
+                switching = pending and request.target == device.get("name")
+                row = self._drawer_item(
+                    self._sink_icon_glyph(device["desc"]), self._short(device["desc"], 28),
+                    "Switching…" if switching else "Audio output",
+                    "Waiting" if switching else "Active" if device["default"] else "Switch",
+                    active=device["default"],
+                )
+                row._item_key = device.get("name")
+                def switch(_button, name=device.get("name")):
+                    current = next((d for d in self.state["audio"]["sinks"] if d.get("name") == name), None)
+                    if current is not None and name:
+                        self._request_setting(key, name, "Output device")
+                row.connect("clicked", switch)
+                out.append(row)
             self._restore_list_focus(out)
 
         self._refreshers.append(refresh)

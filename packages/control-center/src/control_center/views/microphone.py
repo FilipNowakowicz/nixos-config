@@ -4,7 +4,6 @@ from gi.repository import Gtk
 
 from ..actions import (
     act_open_sound_settings,
-    act_set_default_source,
 )
 from ..constants import G
 
@@ -48,7 +47,7 @@ class MicrophoneViewMixin:
 
             hero.icon.set_label(G["mic_off"] if muted else G["mic"])
             hero.title.set_label(self._short(a["source_name"], 28))
-            hero.sub.set_label("default source")
+            hero.sub.set_label("Default input")
             hero.big.set_label(str(a["source_volume_pct"]))
             hero.small.set_label("muted" if muted else "level")
 
@@ -56,28 +55,33 @@ class MicrophoneViewMixin:
             slider.glyph_btn.set_label(G["mic_off"] if muted else G["mic"])
             self._name_control(slider.glyph_btn, "Unmute microphone" if muted else "Mute microphone")
 
-            if not self._list_changed(inp, a["sources"]):
+            key = "audio.default_source"
+            self.effective(key, a.get("source_node_name"))
+            request = self._settings.requests.get(key)
+            pending = request is not None and request.phase in ("writing", "confirming")
+            snapshot = {"devices": a["sources"], "intent": request.target if pending else None}
+            if not self._list_changed(inp, snapshot):
                 return
             self._clear(inp)
             if not a["sources"]:
                 inp.append(self._drawer_item(
                     G["mic"], "No input devices", "—", "—", subtle=True,
                 ))
-            else:
-                for src in a["sources"]:
-                    row = self._drawer_item(
-                        G["mic"],
-                        self._short(src["desc"], 28),
-                        f"id {src['id']}",
-                        "Active" if src["default"] else "Switch",
-                        active=src["default"],
-                    )
-                    row._item_key = src["id"]
-                    if not src["default"]:
-                        def _switch(_b, sid=src["id"]):
-                            act_set_default_source(sid)
-                        row.connect("clicked", _switch)
-                    inp.append(row)
+            for device in a["sources"]:
+                switching = pending and request.target == device.get("name")
+                row = self._drawer_item(
+                    G["mic"], self._short(device["desc"], 28),
+                    "Switching…" if switching else "Audio input",
+                    "Waiting" if switching else "Active" if device["default"] else "Switch",
+                    active=device["default"],
+                )
+                row._item_key = device.get("name")
+                def switch(_button, name=device.get("name")):
+                    current = next((d for d in self.state["audio"]["sources"] if d.get("name") == name), None)
+                    if current is not None and name:
+                        self._request_setting(key, name, "Microphone device")
+                row.connect("clicked", switch)
+                inp.append(row)
             self._restore_list_focus(inp)
 
         self._refreshers.append(refresh)

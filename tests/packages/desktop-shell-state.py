@@ -3,6 +3,7 @@ import ast
 import importlib.util
 import os
 from pathlib import Path
+import re
 import signal
 import sys
 import tempfile
@@ -89,3 +90,36 @@ assert fire.call_args.args[0] == ['makoctl', 'mode', '-a', 'do-not-disturb']
 action_namespace['act_set_dnd_mode']('default')
 assert fire.call_args.args[0] == ['makoctl', 'mode', '-r', 'do-not-disturb']
 print('DND preserves unrelated mako modes')
+
+gather_source = ast.parse((source / 'gather.py').read_text())
+audio_helpers = [n for n in gather_source.body if isinstance(n, ast.FunctionDef)
+                 and n.name in ('_wpctl_source_pretty', '_is_hidden_output_sink', '_parse_wpctl_status')]
+audio_namespace = {'re': re}
+exec(compile(ast.Module(body=audio_helpers, type_ignores=[]), '<audio status>', 'exec'), audio_namespace)
+audio_status = '''PipeWire 'private-test'
+Audio
+ ├─ Sinks:
+ │  *   20. Speakers [vol: 0.50]
+ │      21. HDMI monitor [vol: 1.00]
+ ├─ Sources:
+ │  *   22. Microphone [vol: 0.30]
+ ├─ Filters:
+ │      23. Other filter [Audio/Source/Virtual]
+ └─ Streams:
+Video
+ ├─ Sinks:
+ │  *   30. Video output
+ ├─ Sources:
+ │  *   31. Webcam
+ ├─ Filters:
+ │  *   32. Camera filter [Video/Source]
+ └─ Streams:
+Settings
+ └─ Default Configured Devices:
+'''
+parsed_audio = audio_namespace['_parse_wpctl_status'](audio_status)
+assert [device['id'] for device in parsed_audio['sinks']] == [20], parsed_audio
+assert [device['id'] for device in parsed_audio['sources']] == [22], parsed_audio
+assert parsed_audio['sink_name'] == 'Speakers', parsed_audio
+assert parsed_audio['source_name'] == 'Microphone', parsed_audio
+print('Audio device status excludes video nodes and preserves active defaults')

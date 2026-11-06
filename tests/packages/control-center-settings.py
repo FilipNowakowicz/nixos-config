@@ -1,6 +1,7 @@
 """Setting write races, actual command results and fresh read-back requirements."""
 
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -122,6 +123,24 @@ class SettingsTests(unittest.TestCase):
         self.model.complete("audio.sink_volume_pct", token, "ok", 11)
         self.model.effective("audio.sink_volume_pct", 70, 12)
         self.assertEqual(self.model.latest()[1].phase, "confirming")
+
+    def test_audio_device_uses_json_name_and_effective_fresh_readback(self):
+        name = 'headphones "quoted" $(literal)'
+        command = settings.command_for("audio.default_sink", name)
+        self.assertEqual(command[:5], ["pw-metadata", "-n", "default", "0", "default.configured.audio.sink"])
+        self.assertEqual(json.loads(command[5]), {"name": name})
+        for invalid in (None, "", "bad\nname", "x" * 1025):
+            with self.assertRaises(ValueError):
+                settings.command_for("audio.default_sink", invalid)
+        token = self.model.begin("audio.default_sink", name, "Output device")
+        self.model.complete("audio.default_sink", token, "ok", 11)
+        self.model.effective("audio.default_sink", name, 10)
+        self.assertEqual(self.model.latest()[1].phase, "confirming")
+        self.model.effective("audio.default_sink", None, 12)
+        self.assertEqual(self.model.latest()[1].phase, "confirming")
+        self.model.effective("audio.default_sink", name, 13)
+        self.assertEqual(self.model.latest()[1].phase, "confirmed")
+
 
     def test_mute_is_idempotent_and_levels_are_explicit(self):
         self.assertEqual(settings.command_for("audio.sink_muted", True),

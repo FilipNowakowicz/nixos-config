@@ -1,12 +1,19 @@
 """Tracked, ordered setting writes. No GTK dependency; callbacks choose their thread."""
 
 from dataclasses import dataclass
+import json
 import subprocess
 import threading
 import time
 
 
 def command_for(key, target):
+    if key in ("audio.default_sink", "audio.default_source"):
+        if not isinstance(target, str) or not target or len(target) > 1024 or any(ord(c) < 32 for c in target):
+            raise ValueError("Invalid audio node name")
+        role = key.removeprefix("audio.default_")
+        return ["pw-metadata", "-n", "default", "0", f"default.configured.audio.{role}",
+                json.dumps({"name": target}), "Spa:String:JSON"]
     if key == "wifi.enabled":
         return ["nmcli", "radio", "wifi", "on" if target else "off"]
     if key == "bluetooth.powered":
@@ -31,6 +38,9 @@ def command_for(key, target):
 
 
 def run_command(command):
+    if command[:4] == ["pw-metadata", "-n", "default", "0"]:
+        from .audio import write_default
+        return write_default(command)
     try:
         result = subprocess.run(command, stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL, timeout=8, check=False)
