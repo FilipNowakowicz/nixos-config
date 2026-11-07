@@ -16,7 +16,7 @@
   self',
 }:
 let
-  controlCenterPackage = pkgs.callPackage ../packages/control-center { };
+  quietShellPackage = pkgs.callPackage ../packages/quiet-shell { };
 
   tailscaleAclPackage =
     pkgs.runCommand "tailscale-acl"
@@ -65,11 +65,6 @@ in
       );
       meta.description = "Run clean-clone documentation, planner, evaluation, and formatting checks";
     };
-    control-center = {
-      type = "app";
-      program = "${controlCenterPackage}/bin/control-center";
-      meta.description = "Open the unified Control Center widget";
-    };
     tailscale-acl = {
       type = "app";
       program = toString (
@@ -91,7 +86,7 @@ in
   };
 
   packages = {
-    control-center = controlCenterPackage;
+    quiet-shell = quietShellPackage;
     inherit (pkgs)
       deadnix
       lazyactions
@@ -257,7 +252,7 @@ in
       theme-module = import ../tests/home/theme-module.nix {
         inherit nixpkgs system;
       };
-      control-center-capabilities = import ../tests/packages/control-center-capabilities.nix {
+      quiet-shell-status = import ../tests/packages/quiet-shell-status.nix {
         inherit nixpkgs system;
       };
     };

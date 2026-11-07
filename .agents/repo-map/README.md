@@ -10,7 +10,7 @@ Use it before broad exploration when the target file is not already obvious:
 ```sh
 bash .agents/repo-map/scripts/query.sh merge-gate lint
 bash .agents/repo-map/scripts/query.sh homeserver-gcp sops bootstrap
-bash .agents/repo-map/scripts/query.sh waybar theme switch
+bash .agents/repo-map/scripts/query.sh shell theme switch
 ```
 
 The query output is a routing hint. Open only the likely files it returns, then

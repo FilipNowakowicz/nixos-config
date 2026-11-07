@@ -33,6 +33,8 @@ let
     "/run/current-system/sw/bin/nixos-switch-main"
   ];
 
+  synatudor = pkgs.callPackage ../../packages/synatudor { };
+
   passwordlessAgentCommand = command: {
     inherit command;
     options = [ "NOPASSWD" ];
@@ -225,7 +227,9 @@ in
       }
     ];
     pam.services = lib.mkIf (!config.profiles.ci) {
-      hyprlock.fprintAuth = true;
+      # hyprlock reads the fingerprint itself, so a password works at the same time.
+      # Through PAM it would have to wait for the fingerprint attempt to end.
+      hyprlock.fprintAuth = false;
       greetd.fprintAuth = true;
     };
   };
@@ -340,9 +344,13 @@ in
       enable = true;
       tod = {
         enable = true;
-        driver = pkgs.libfprint-2-tod1-goodix;
+        driver = synatudor;
       };
     };
+
+    # The driver's host process runs outside fprintd's sandbox, started on demand over D-Bus.
+    dbus.packages = lib.mkIf (!config.profiles.ci) [ synatudor ];
+    udev.packages = lib.mkIf (!config.profiles.ci) [ synatudor ];
     # Bluetooth management (GUI)
     blueman.enable = true;
 
@@ -459,6 +467,7 @@ in
   };
 
   systemd = {
+    packages = lib.mkIf (!config.profiles.ci) [ synatudor ];
     user.services = {
       # Hyprland starts the Home Manager graphical session through this target
       # after exporting WAYLAND_DISPLAY/AQ_DRM_DEVICES into the user systemd
@@ -473,8 +482,8 @@ in
         wants = lib.mkForce [ "nixos-fake-graphical-session.target" ];
       };
 
-      # The control center owns Bluetooth status/control now, so suppress the
-      # redundant Blueman tray icon instead of autostarting blueman-applet.
+      # The shell owns Bluetooth status and control, so suppress the redundant
+      # Blueman tray icon instead of autostarting blueman-applet.
       blueman-applet.enable = false;
 
       # The upstream dbus-broker unit is Type=notify-reload with no ExecReload,
@@ -501,13 +510,18 @@ in
       #   usb 1-14: device descriptor read/64, error -71
       #
       # Keep btusb blacklisted above and load it here after early boot settles.
+      # The timer below starts this at boot: bluetooth.target only follows the
+      # hci0 device, which cannot exist until btusb is loaded, so otherwise
+      # Bluetooth stays off until something happens to activate org.bluez.
       bluetooth-load-btusb = {
         description = "Load Intel Bluetooth USB driver after early boot settles";
         requiredBy = [ "bluetooth.service" ];
         before = [ "bluetooth.service" ];
-        serviceConfig.Type = "oneshot";
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
         script = ''
-          sleep 5
           ${pkgs.kmod}/bin/modprobe btusb
         '';
       };
@@ -541,6 +555,13 @@ in
       };
 
     };
+
+    # A timer rather than multi-user.target, so the delay never holds up boot.
+    timers.bluetooth-load-btusb = {
+      description = "Load Intel Bluetooth USB driver after early boot settles";
+      wantedBy = [ "timers.target" ];
+      timerConfig.OnActiveSec = "10s";
+    };
   };
 
   # ── USB Device Control ─────────────────────────────────────────────────────
@@ -567,7 +588,7 @@ in
       # ID: 8087:0026
       allow id 8087:0026
 
-      # Allow internal fingerprint reader (Synaptics; goodix-tod driver claims it)
+      # Allow internal fingerprint reader (Synaptics Tudor; synaTudor drives it)
       # ID: 06cb:00be
       allow id 06cb:00be
 

@@ -7,10 +7,9 @@
 let
   cfg = config.themes;
 
-  # Directory where themes are stored (themes/, mako-config.template, active.nix)
+  # Directory where themes are stored (themes/, active.nix)
   inherit (cfg) themeDir;
   themesDir = themeDir + /themes;
-  makoTemplate = builtins.readFile (themeDir + /mako-config.template);
 
   # Auto-discover all theme files
   themeFiles = builtins.readDir themesDir;
@@ -46,7 +45,7 @@ let
   # than discovered from the environment.
   themeSwitch = pkgs.writeShellApplication {
     name = "theme-switch";
-    # The themed UI tools (kitty/waybar/swaybg) come from the single shared
+    # The themed UI tools (kitty/swaybg) come from the single shared
     # list so they cannot drift from the desktop install list; hyprland is
     # added here for `hyprctl` reloads (the compositor itself is system-level).
     runtimeInputs =
@@ -72,10 +71,6 @@ let
       target = "${config.xdg.configHome}/kitty/current-theme.conf";
     }
     {
-      source = "hypr-colors.conf";
-      target = "${config.xdg.configHome}/hypr/colors.conf";
-    }
-    {
       source = "hypr-colors.lua";
       target = "${config.xdg.configHome}/hypr/colors.lua";
     }
@@ -84,8 +79,8 @@ let
       target = "${config.xdg.configHome}/hypr/hyprlock-colors.conf";
     }
     {
-      source = "mako-config";
-      target = "${config.xdg.configHome}/mako/config";
+      source = "quiet-colors.json";
+      target = "${config.xdg.configHome}/quiet-shell/colors.json";
     }
     {
       source = "wallpaper";
@@ -108,10 +103,6 @@ let
             return 1
           fi
     ${mkThemeLinkCommands "$theme_dir"}
-
-          mkdir -p ${lib.escapeShellArg (builtins.dirOf "${config.xdg.configHome}/waybar/colors.css")}
-          rm -f ${lib.escapeShellArg "${config.xdg.configHome}/waybar/colors.css"}
-          install -m 0644 "$theme_dir/waybar-colors.css" ${lib.escapeShellArg "${config.xdg.configHome}/waybar/colors.css"}
         }
   '';
 
@@ -163,13 +154,6 @@ let
       color15 #${theme.ansiColors.color15}
     '';
 
-    # Keep both formats until old sessions have ended and Lua is accepted.
-    "themes/${themeName}/hypr-colors.conf".text = ''
-      $col_active   = rgb(${theme.colors.amber})
-      $col_inactive = rgb(${theme.colors.brown})
-      $col_shadow   = rgba(${theme.colors.bg}cc)
-    '';
-
     # Hyprland colors
     "themes/${themeName}/hypr-colors.lua".text = ''
       return {
@@ -187,29 +171,13 @@ let
       $orange = rgb(${theme.colors.orange})
     '';
 
-    # Waybar colors
-    "themes/${themeName}/waybar-colors.css".text = ''
-      @define-color bg #${theme.colors.bg};
-      @define-color brown #${theme.colors.brown};
-      @define-color orange #${theme.colors.orange};
-      @define-color amber #${theme.colors.amber};
-      @define-color text #${theme.colors.text};
-    '';
-
-    # Mako notification colors
-    "themes/${themeName}/mako-config".text =
-      lib.replaceStrings
-        [
-          "@bg@"
-          "@text@"
-          "@orange@"
-        ]
-        [
-          theme.colors.bg
-          theme.colors.text
-          theme.colors.orange
-        ]
-        makoTemplate;
+    # Quiet shell colors, plus the theme list for its picker
+    "themes/${themeName}/quiet-colors.json".text = builtins.toJSON {
+      name = themeName;
+      inherit (theme.colors) bg text;
+      accent = theme.colors.amber;
+      themes = builtins.attrNames validThemes;
+    };
 
     # Wallpaper symlink
     "themes/${themeName}/wallpaper".source = theme.wallpaper;
@@ -240,7 +208,7 @@ in
       defaultText = lib.literalExpression "./. (home/theme)";
       description = ''
         Directory holding the theme set: a `themes/` subdirectory of `.nix`
-        theme definitions, a `mako-config.template`, and an `active.nix`
+        theme definitions and an `active.nix`
         pointer. Point this at your own directory to supply a different set of
         themes without forking the module.
       '';

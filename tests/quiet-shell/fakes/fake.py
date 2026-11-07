@@ -1,0 +1,245 @@
+#!/usr/bin/env python3
+"""One stateful fake for every system command the shell calls.
+
+Symlink this under each command's name. State lives in $QUIET_FAKE_STATE as JSON.
+A key `fail` listing command names makes those exit 1 without changing state, and
+`stick` makes them exit 0 without changing state, so readback must catch it.
+"""
+
+import base64
+import datetime
+import fcntl
+import json
+import os
+import pathlib
+import sys
+
+state_path = pathlib.Path(os.environ["QUIET_FAKE_STATE"])
+# Pipelines feed these, so wait for the input first: holding the lock would stall the
+# command before it in the pipe, which needs the same lock.
+PIPED = (["decode"], [], ["--type", "image/png"])
+piped = sys.stdin.buffer.read().decode(errors="replace") if pathlib.Path(sys.argv[0]).name in ("cliphist", "wl-copy") and sys.argv[1:] in PIPED else ""
+# The shell runs several commands at once, and each one rewrites the whole state.
+lock = open(f"{state_path}.lock", "w", encoding="utf-8")
+fcntl.flock(lock, fcntl.LOCK_EX)
+DEFAULT = {
+    "wifi": True, "ssid": "Harbour 5G",
+    "networks": [["Harbour 5G", 96, "WPA2", "another access point"], ["Harbour 5G", 92, "WPA2"], ["Harbour 2.4G", 70, "WPA2"], ["Kavarna Guest", 31, "WPA2"], ["Open Cafe", 28, ""], ["Campus", 25, "WPA2 802.1X"]],
+    "known": ["Harbour 5G", "Harbour 2.4G"], "wifi_password": "correct horse",
+    "nearby": {"AA:BB:CC:00:00:03": "Speaker", "AA:BB:CC:00:00:04": "AA-BB-CC-00-00-04", "AA:BB:CC:00:00:05": "7E-11-22-33-44-55", "AA:BB:CC:00:00:06": "LE_Headphones"},
+    "bt": True,
+    "devices": {"AA:BB:CC:00:00:01": ["Headphones", True], "AA:BB:CC:00:00:02": ["Trackball", False]},
+    "tailscale": True, "mullvad": False, "country": "se",
+    "exit_nodes": ["relay-box", "home-box"], "exit_node": "",
+    "volume": 0.59, "muted": False, "mic": 0.5, "mic_muted": False,
+    "sink": "alsa_output.speakers", "source": "alsa_input.internal",
+    "brightness": 50, "profile": "balanced", "night": False, "awake": False,
+    "playing": True, "fail": [], "stick": [], "log": [], "offline": True,
+}
+state = {**DEFAULT, **(json.loads(state_path.read_text()) if state_path.exists() else {})}
+cmd, args = pathlib.Path(sys.argv[0]).name, sys.argv[1:]
+state["log"].append([cmd, *args])
+
+
+def done(code=0):
+    state_path.write_text(json.dumps(state))
+    sys.exit(code)
+
+
+READS = (("nmcli", "radio", "wifi"), ("nmcli", "-t"))
+is_read = args[:1] in (["-t"], ["show"], ["devices"], ["status"], ["get-volume"], ["get"], ["metadata"], ["-m"]) or cmd in ("pw-dump", "pgrep") or args == ["radio", "wifi"] or args[:1] == ["--user"] and "is-active" in args
+if not is_read:
+    if cmd in state["fail"]:
+        done(1)
+    if cmd in state["stick"]:
+        done(0)
+
+if cmd == "nmcli":
+    if args == ["radio", "wifi"]:
+        print("enabled" if state["wifi"] else "disabled")
+    elif args[:2] == ["radio", "wifi"]:
+        state["wifi"] = args[2] == "on"
+    elif args[0] == "-t" and "connection" in args:
+        for name in state["known"]:
+            print(f"{name}:802-11-wireless")
+        print("Wired:802-3-ethernet")
+    elif args[0] == "-t":
+        for name, signal, security, *other in state["networks"] if state["wifi"] else []:
+            print(f"{'yes' if name == state['ssid'] and not other else 'no'}:{name}:{signal}:{security}")
+    elif args[:3] == ["dev", "wifi", "connect"]:
+        state["ssid"] = args[3]
+    elif args[:4] == ["--ask", "dev", "wifi", "connect"]:
+        # Like nmcli, the profile exists even when the password turns out wrong.
+        state["known"].append(args[4])
+        if sys.stdin.readline().rstrip("\n") != state["wifi_password"]:
+            done(4)
+        state["ssid"] = args[4]
+    elif args[:3] == ["connection", "delete", "id"]:
+        state["known"].remove(args[3])
+elif cmd == "bluetoothctl":
+    if args == ["show"]:
+        print(f"Powered: {'yes' if state['bt'] else 'no'}")
+    elif args == ["devices", "Paired"]:
+        for addr, (name, _) in state["devices"].items():
+            print(f"Device {addr} {name}")
+    elif args == ["devices"]:
+        for addr, (name, _) in state["devices"].items():
+            print(f"Device {addr} {name}")
+        for addr, name in state["nearby"].items():
+            print(f"Device {addr} {name}")
+    elif args[:2] == ["--agent", "NoInputNoOutput"] and args[2] == "pair":
+        state["devices"][args[3]] = [state["nearby"].pop(args[3]), False]
+    elif args == ["devices", "Connected"]:
+        for addr, (name, on) in state["devices"].items():
+            if on:
+                print(f"Device {addr} {name}")
+    elif args[0] == "info":
+        if args[1] == state.get("buds"):
+            print("UUID: Vendor specific (2e73a4ad-332d-41fc-90e2-16bef06523f2)\nBattery Percentage: 0x5a (90)")
+    elif args[0] == "power":
+        state["bt"] = args[1] == "on"
+    elif args[0] in ("connect", "disconnect"):
+        state["devices"][args[1]][1] = args[0] == "connect"
+elif cmd == "tailscale":
+    if args[0] == "status":
+        peers = {name: {"HostName": name, "ExitNodeOption": True, "ExitNode": name == state["exit_node"]} for name in state["exit_nodes"]}
+        print(json.dumps({"BackendState": "Running" if state["tailscale"] else "Stopped", "Peer": peers}))
+    elif args[0] == "set":
+        state["exit_node"] = args[1].split("=", 1)[1]
+    else:
+        state["tailscale"] = args[0] == "up"
+elif cmd == "mullvad":
+    if args[0] == "status":
+        print(f"Connected\n    Relay:  {state['country']}-sto-wg-001" if state["mullvad"] else "Disconnected")
+    elif args[:2] == ["relay", "get"]:
+        print(f"Generic constraints\n    Location:  country {state['country']}")
+    elif args[:2] == ["relay", "list"]:
+        for name, code in (("Albania", "al"), ("Sweden", "se"), ("UK", "gb")):
+            print(f"{name} ({code})\n\tCity (cit) @ 1.0N, 2.0W\n\t\t{code}-cit-wg-001 (1.2.3.4) - hosted by X\n")
+    elif args[:2] == ["relay", "set"]:
+        state["country"] = args[3]
+    else:
+        state["mullvad"] = args[0] == "connect"
+elif cmd == "wpctl":
+    source = "SOURCE" in (args[1] if len(args) > 1 else "")
+    key, mute = ("mic", "mic_muted") if source else ("volume", "muted")
+    if args[0] == "get-volume":
+        print(f"Volume: {state[key]:.2f}{' [MUTED]' if state[mute] else ''}")
+    elif args[0] == "set-volume":
+        value = args[-1]
+        if value.endswith(("+", "-")):
+            step = float(value[:-2]) / 100
+            state[key] = round(min(1.0, max(0.0, state[key] + (step if value[-1] == "+" else -step))), 2)
+        else:
+            state[key] = float(value)
+    elif args[0] == "set-mute":
+        state[mute] = not state[mute] if args[2] == "toggle" else args[2] == "1"
+elif cmd == "pw-dump":
+    def node(name, desc, cls):
+        return {"type": "PipeWire:Interface:Node", "info": {"props": {"node.name": name, "node.description": "Sound Card " + desc, "node.nick": desc, "media.class": cls}}}
+    print(json.dumps([
+        {"type": "PipeWire:Interface:Metadata", "props": {"metadata.name": "default"}, "metadata": [
+            {"subject": 0, "key": "default.audio.sink", "value": {"name": state["sink"]}},
+            {"subject": 0, "key": "default.audio.source", "value": {"name": state["source"]}}]},
+        node("alsa_output.speakers", "Laptop speakers", "Audio/Sink"),
+        node("bluez_output.headphones", "Headphones", "Audio/Sink"),
+        node("alsa_input.internal", "Internal microphone", "Audio/Source"),
+        node("alsa_input.usb", "USB microphone", "Audio/Source"),
+    ]))
+elif cmd == "pw-metadata":
+    role = "sink" if args[3].endswith("sink") else "source"
+    state[role] = json.loads(args[4])["name"]
+elif cmd == "brightnessctl":
+    if args[:2] == ["-m", "set"]:
+        step = int(args[2][:-2])
+        state["brightness"] = min(100, max(1, state["brightness"] + (step if args[2][-1] == "+" else -step)))
+    if args[0] == "-m":
+        print(f"intel_backlight,backlight,{state['brightness']},{state['brightness']}%,100")
+    else:
+        state["brightness"] = int(args[1].rstrip("%"))
+elif cmd == "powerprofilesctl":
+    if args[0] == "get":
+        print(state["profile"])
+    else:
+        state["profile"] = args[1]
+elif cmd == "playerctl":
+    # Unscoped, playerctl follows whichever player was active last, like a browser video.
+    spotify = args[0] == "--player=spotify"
+    if spotify:
+        args = args[1:]
+    if args[0] == "status":
+        print("Playing" if state["playing"] else "Paused")
+    elif args[:2] == ["metadata", "title"]:
+        print("Blue <in> Green & More")
+    elif args[:2] == ["metadata", "artist"]:
+        print("Miles Davis")
+    elif args[0] == "metadata" and not spotify:
+        print("Playing\tA browser video\tSome channel\t")
+    elif args[0] == "metadata":
+        print(f"{'Playing' if state['playing'] else 'Paused'}\tBlue in Green\tMiles Davis\t")
+    elif args[0] == "play-pause" and spotify:
+        state["playing"] = not state["playing"]
+elif cmd == "quiet-buds":
+    if args[0] == "read":
+        print(json.dumps({"left": 88, "right": 92, "case": 40, "mode": state.get("buds_mode", "off")}))
+    else:
+        state["buds_mode"] = args[2]
+        print(json.dumps({"mode": args[2]}))
+elif cmd == "pgrep":
+    done(0 if state["night"] else 1)
+elif cmd == "pkill":
+    state["night"] = False
+elif cmd == "setsid":
+    state["night"] = True
+elif cmd == "systemctl":
+    if "is-active" in args:
+        done(0 if state["awake"] else 3)
+    if "stop" in args:
+        state["awake"] = False
+elif cmd == "systemd-run":
+    state["awake"] = True
+elif cmd == "fd":
+    if any("report" in a for a in args):
+        print(os.path.join(args[-1], "notes/quiet-report.txt"))
+elif cmd == "cliphist":
+    if args[0] == "list":
+        print("7\tmeeting at noon\n6\thttps://example.com/page")
+    else:
+        print(piped.split("\t", 1)[1], end="")
+elif cmd == "wl-copy":
+    state["clipboard"] = " ".join(args) if args else piped
+elif cmd == "grim":
+    # The smallest valid PNG, so the shell has a real image to show.
+    pathlib.Path(args[-1]).write_bytes(base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="))
+elif cmd == "slurp":
+    if state.get("slurp_cancel"):
+        done(1)
+    print("10,10 100x100")
+elif cmd == "curl":
+    if not state.get("offline"):
+        today = datetime.date.today()
+        print(json.dumps({
+            "current_condition": [{"weatherDesc": [{"value": "Partly cloudy "}], "temp_C": "11"}],
+            "weather": [
+                {"date": str(today + datetime.timedelta(days=day)),
+                 "hourly": [{"time": str(hour * 100), "weatherDesc": [{"value": "Light rain"}], "tempC": str(hour // 3)} for hour in range(0, 24, 3)]}
+                for day in range(2)
+            ],
+        }))
+elif cmd == "khal":
+    # Next week's dates keep this valid whatever day the tests run. Like the real
+    # thing, it prints a list per day and repeats an event on each day it covers.
+    def day(offset):
+        return (datetime.date.today() + datetime.timedelta(days=offset)).isoformat()
+
+    lecture = {"title": "Galois Theory", "location": "HXLY 342", "start-date": day(1), "start-time": "11:00", "end-date": day(1), "end-time": "12:00"}
+    trip = {"title": "Conference", "location": "", "start-date": day(1), "start-time": "", "end-date": day(2), "end-time": ""}
+    print(json.dumps([trip, lecture]))
+    print(json.dumps([trip]))
+elif cmd == "theme-switch":
+    colors = pathlib.Path(os.environ["QUIET_COLORS"])
+    data = json.loads(colors.read_text())
+    data.update({"name": args[0], "accent": "8aa4b8", "bg": "161a20", "text": "c8d0d8"})
+    colors.write_text(json.dumps(data))
+done()

@@ -708,11 +708,6 @@ let
           ../modules/nixos/profiles/security.nix
           inputs.home-manager.nixosModules.home-manager
           {
-            # The example's workstation defines `users.users.demo`, not the
-            # `profiles.desktop` default of `user` — point the desktop
-            # profile's group grants at the account that actually exists.
-            profiles.desktop.user = "demo";
-
             home-manager = {
               useGlobalPkgs = true;
               useUserPackages = true;

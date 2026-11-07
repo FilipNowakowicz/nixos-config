@@ -13,8 +13,6 @@ guarantee.
 - `home/theme/module.nix` — the Home Manager module. Auto-discovers themes,
   validates them, renders every theme's app configs at build time, and ships the
   `theme-switch` runtime switcher.
-- `home/theme/mako-config.template` — Mako config with `@bg@`/`@text@`/`@orange@`
-  placeholders, interpolated by the module.
 - `home/files/scripts/theme-switch.sh` — the runtime switcher's script body,
   wrapped by the module (which injects the paths it needs).
 
@@ -35,8 +33,8 @@ Each theme is a small Nix attrset:
 `home/theme/module.nix` discovers every enabled theme whose wallpaper exists and,
 for each, generates under `~/.config/themes/<name>/`:
 
-- `kitty-theme.conf`, `hypr-colors.conf`, `hyprlock-colors.conf`,
-  `waybar-colors.css`, `mako-config`, a `wallpaper` symlink, and
+- `kitty-theme.conf`, `hypr-colors.lua`, `hyprlock-colors.conf`,
+  `quiet-colors.json`, a `wallpaper` symlink, and
 - `vars` — a shell-sourceable file (`bg=…`, `amber=…`, …) consumed by the
   runtime switcher.
 
@@ -90,7 +88,7 @@ reload mechanics are fixed — not a generic theming framework.
   imports = [ inputs.nixos-fleet.homeModules.runtime-theme ];
 
   themes = {
-    # Your own theme set: a directory with themes/, mako-config.template,
+    # Your own theme set: a directory with themes/,
     # and active.nix. Defaults to this repo's home/theme.
     themeDir = ./theme;
 
@@ -113,7 +111,7 @@ neovim/GTK colorscheme intent is exposed through the internal
 ### What it reloads (`desktop-runtime.nix`)
 
 `theme-switch` regenerates and live-reloads a fixed set of Wayland UI tools:
-**kitty**, **waybar**, and **swaybg**. That list lives in one place,
+**kitty** and **swaybg**. That list lives in one place,
 [`home/profiles/desktop-runtime.nix`](../home/profiles/desktop-runtime.nix), and
 is imported by both the module's `theme-switch` `runtimeInputs` and the desktop
 install list (`home/profiles/desktop.nix`), so the packages you install and the

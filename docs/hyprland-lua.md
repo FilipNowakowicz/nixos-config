@@ -1,9 +1,7 @@
 # Hyprland Lua configuration
 
-Hyprland 0.57 uses `home/files/hypr/hyprland.lua`. Home Manager installs it
-alongside the legacy `hyprland.conf` for transition compatibility. Theme generation
-retains both `hypr-colors.lua` and `hypr-colors.conf`, with corresponding links under
-`~/.config/hypr`. Hyprlock continues to use its existing colour format.
+Hyprland 0.57 uses `home/files/hypr/hyprland.lua`. Theme generation writes
+`hypr-colors.lua`, linked under `~/.config/hypr`. Hyprlock keeps its own colour format.
 
 The Lua configuration preserves the existing 51 key and mouse bindings, Dvorak
 input, layouts, window rules and workspace gestures. This migration does not

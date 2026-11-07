@@ -59,6 +59,7 @@ in
         "/var/lib/tailscale"
         "/var/lib/bluetooth"
         "/var/lib/fprint"
+        "/var/lib/tudor"
         "/var/lib/sbctl"
         "/var/lib/usbguard"
         # libvirt domain definitions + Whonix KVM disk images. Persisted only

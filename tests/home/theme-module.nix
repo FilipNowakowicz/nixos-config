@@ -61,16 +61,25 @@ let
   kittyText = files."themes/mono-mesh/kitty-theme.conf".text;
 
   failures = lib.runTests {
-    # Both formats and links must survive the old-session -> Lua transition.
-    testHyprlandTransitionColors = {
-      expr =
-        lib.hasInfix "$col_active   = rgb(${monoTheme.colors.amber})"
-          files."themes/mono-mesh/hypr-colors.conf".text
-        &&
-          lib.hasInfix "active = \"rgb(${monoTheme.colors.amber})\""
-            files."themes/mono-mesh/hypr-colors.lua".text
-        && lib.hasInfix "/hypr/colors.conf" files."themes/links.sh".text
-        && lib.hasInfix "/hypr/colors.lua" files."themes/links.sh".text;
+    testQuietShellColors = {
+      expr = builtins.fromJSON files."themes/mono-mesh/quiet-colors.json".text;
+      expected = {
+        name = "mono-mesh";
+        inherit (monoTheme.colors) bg text;
+        accent = monoTheme.colors.amber;
+        themes = builtins.fromJSON (
+          builtins.toJSON (builtins.fromJSON files."themes/mono-mesh/quiet-colors.json".text).themes
+        );
+      };
+    };
+
+    testHyprlandLuaColors = {
+      expr = lib.all (line: lib.hasInfix line files."themes/mono-mesh/hypr-colors.lua".text) [
+        "return {"
+        "active = \"rgb(${monoTheme.colors.amber})\""
+        "inactive = \"rgb(${monoTheme.colors.brown})\""
+        "shadow = \"rgba(${monoTheme.colors.bg}cc)\""
+      ];
       expected = true;
     };
 
@@ -130,7 +139,6 @@ let
       expr = map (p: p.pname) (import ../../home/profiles/desktop-runtime.nix { inherit pkgs; });
       expected = [
         "kitty"
-        "waybar"
         "swaybg"
       ];
     };

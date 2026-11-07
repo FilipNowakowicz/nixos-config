@@ -8,7 +8,6 @@ THEMES_DIR="$HOME/.config/themes"
 REPO_THEMES_DIR="$(dirname "$ACTIVE_FILE")/themes"
 LINKS_FILE="$THEMES_DIR/links.sh"
 LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/theme-switch.lock"
-WAYBAR_PENDING_RELOAD="${XDG_STATE_HOME:-$HOME/.local/state}/waybar/needs-reload"
 
 exec 9>"$LOCK_FILE"
 flock 9
@@ -29,29 +28,10 @@ theme_built() {
   [[ -d "$THEMES_DIR/$1" && -f "$THEMES_DIR/$1/vars" ]]
 }
 
-waybar_pids() {
-  ps -eo pid=,comm=,args= |
-    awk '$2 == ".waybar-wrapped" && $3 == "waybar" { print $1 }
-         $2 == "waybar" { print $1 }' |
-    sort -n -u
-}
-
 swaybg_pids() {
   ps -eo pid=,comm=,args= |
     awk '($2 == "swaybg" || $2 == ".swaybg-wrapped") && $0 ~ /swaybg -m fill -i .*current[.]png/ { print $1 }' |
     sort -n -u
-}
-
-waybar_visible() {
-  # Visible waybar sits at layer level 2 ("top"); SIGUSR1 drops it to level 1
-  # ("bottom") where it stays running but unseen. Checking the layer level is
-  # the authoritative signal — the launcher uses the same check.
-  hyprctl layers 2>/dev/null | awk '
-    /^[[:space:]]*Layer level 2/  { in_top = 1; next }
-    /^[[:space:]]*Layer level/    { in_top = 0; next }
-    in_top && /namespace: waybar/ { found = 1; exit }
-    END { exit !found }
-  '
 }
 
 # Get current theme from active.nix
@@ -125,44 +105,10 @@ bg='' brown='' amber=''
 # shellcheck source=/dev/null
 source "$THEMES_DIR/$THEME/vars"
 
-if [[ -f /tmp/control-center.json ]]; then
-  control_center_pid=$(
-    sed -n 's/.*"pid"[[:space:]]*:[[:space:]]*\([0-9]\+\).*/\1/p' \
-      /tmp/control-center.json | head -1
-  )
-  if [[ -n ${control_center_pid:-} ]] && kill -0 "$control_center_pid" 2>/dev/null; then
-    kill -USR2 "$control_center_pid" 2>/dev/null || true
-  fi
-fi
+quiet-shell-ipc reloadTheme >/dev/null 2>&1 || true
 
 # Reload apps
-# Probe the running parser, not the installed package or config filenames.
-# During a rebuild the old compositor can outlive the package/config switch.
-lua_config=false
-if [[ $(hyprctl eval 'assert(type(hl) == "table")' 2>/dev/null) == ok ]]; then
-  lua_config=true
-fi
-
-if $lua_config; then
-  hyprctl eval "hl.config({general={col={active_border='rgb($amber)',inactive_border='rgb($brown)'}},decoration={shadow={color='rgba(${bg}cc)'}}})" >/dev/null
-else
-  hyprctl keyword general:col.active_border "rgb($amber)" >/dev/null
-  hyprctl keyword general:col.inactive_border "rgb($brown)" >/dev/null
-  hyprctl keyword decoration:shadow:color "rgba(${bg}cc)" >/dev/null
-fi
-
-if waybar_visible; then
-  while IFS= read -r pid; do
-    [[ -n $pid ]] || continue
-    kill -USR2 "$pid" 2>/dev/null || true
-  done < <(waybar_pids)
-  rm -f "$WAYBAR_PENDING_RELOAD"
-else
-  # Defer the reload until the bar is un-hidden so SIGUSR2 doesn't bring it
-  # back into view. waybar-toggle consumes this flag on its next show.
-  mkdir -p "$(dirname "$WAYBAR_PENDING_RELOAD")"
-  : >"$WAYBAR_PENDING_RELOAD"
-fi
+hyprctl eval "hl.config({general={col={active_border='rgb($amber)',inactive_border='rgb($brown)'}},decoration={shadow={color='rgba(${bg}cc)'}}})" >/dev/null
 
 # Warm the kernel page cache so swaybg's decode is CPU-bound, not disk-bound.
 # Cold reads of large wallpapers (mono-mesh.jpg 5.2M, desert-dusk.png 8M) push
@@ -187,13 +133,6 @@ fi
 ps -eo pid=,comm= |
   awk '$2 == ".kitty-wrapped" || $2 == "kitty" { print $1 }' |
   xargs -r kill -USR1 2>/dev/null || true
-
-if ! systemctl --user restart mako.service 2>/dev/null; then
-  pkill -x mako 2>/dev/null || true
-  sleep 0.2
-  systemctl --user restart mako.service 2>/dev/null || true
-fi
-systemctl --user reset-failed mako.service 2>/dev/null || true
 
 notify-send "Theme changed" "Switched to: $THEME" || true
 echo "✓ Theme switched to $THEME"

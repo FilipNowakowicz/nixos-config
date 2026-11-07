@@ -75,7 +75,7 @@ ls -l /dev/dri/displaylink           # evdi symlink present once a sink is creat
 hyprctl monitors all                 # the DisplayLink output should be listed
 ```
 
-Once it appears, give it a deterministic place in `home/files/hypr/hyprland.conf`
+Once it appears, give it a deterministic place in `home/files/hypr/hyprland.lua`
 (replace the catch-all `monitor = ,preferred,auto,1`), e.g.:
 
 ```

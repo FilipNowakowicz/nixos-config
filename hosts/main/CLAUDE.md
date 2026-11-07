@@ -52,6 +52,7 @@ Hardware and desktop state:
 
 - `/var/lib/bluetooth` — pairings
 - `/var/lib/fprint` — fingerprint enrollments
+- `/var/lib/tudor` — fingerprint sensor pairing data
 - `/var/lib/usbguard` — rule hashes
 - `/var/lib/systemd/backlight` — screen brightness across reboots
 - `/var/lib/systemd/rfkill` — radio block state across reboots
@@ -233,17 +234,17 @@ In the anonymous specialisation all three mechanisms are removed and
   Hyprland `exec-once` fires only at session login, so `nh os switch` /
   `home-manager switch` leaves any changed helper running its pre-rebuild
   binary — and if the process dies for any other reason, nothing brings it
-  back either, since `exec-once` has no `Restart=`. Waybar itself hit the
-  crash case: `journalctl --user -u waybar` showed it periodically dying with
+  back either, since `exec-once` has no `Restart=`. The old bar hit the
+  crash case: its journal showed it periodically dying with
   "Error reading events from display: Broken pipe", correlating with
   `nixos-switch`/`switch-to-configuration` runs elsewhere on the system (a
   session-adjacent service restart, e.g. ACPI/DisplayLink, apparently severs
   the Wayland connection) — not, as first suspected, with charger/AC events.
   Long-running per-session processes — any GUI/Wayland client, not just
-  background helper scripts (the control-center daemon, the waybar-autohide
-  watcher, waybar itself) — belong in `systemd.user.services` bound to
+  background helper scripts (`quiet-shell` is the example) — belong in
+  `systemd.user.services` bound to
   `nixos-fake-graphical-session.target` with `Restart=always` so both a
   rebuild and a crash self-heal. Reserve `exec-once` for true one-shot startup
   commands. When restarting such a helper by hand: `pkill -f
-control_center` self-matches the shell running the command (its argv contains
+<name>` self-matches the shell running the command (its argv contains
   the token) — kill by PID instead.

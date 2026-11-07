@@ -1,0 +1,13 @@
+schema: learning-candidate/v1
+id: 2026-11-07-blacklisted-module-loader-needs-boot-trigger
+date: 2026-11-07
+expires: 2027-02-07
+status: open
+route: implement-fix
+best_form: test
+evidence: [hosts/main/default.nix bluetooth-load-btusb, "boot 2026-11-07 02:21: bluetooth.service never started; busctl introspect org.bluez started the chain and hci0 appeared", "journalctl -b -1: loader started at the same second as a browser process, not at boot"]
+observation: a oneshot only requiredBy bluetooth.service never ran, because bluetooth.target follows the hci0 udev device and hci0 needs btusb loaded; earlier boots only worked because a browser happened to D-Bus-activate org.bluez
+proposed_upgrade: add a main-ci eval or VM check that bluetooth-load-btusb is pulled in at boot independently of bluetooth.service, and stays disabled in the anonymous specialisation
+type: repo-fix
+dedupe_key: main:blacklisted-module-loader-boot-trigger
+targets: [hosts/main/default.nix, hosts/main/anonymous.nix]
