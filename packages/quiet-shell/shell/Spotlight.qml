@@ -3,36 +3,21 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import "Search.js" as Search
 
-// The launcher. A leading > runs the rest as a command.
+// The launcher. A leading > runs the rest as a command. It learns what you pick,
+// so the same few letters and Enter keep doing what you meant.
 Item {
     id: root
     implicitWidth: 640
-    implicitHeight: 62 + (list.visible ? list.implicitHeight + 10 : 0) + (suggestions.visible ? 96 : 0) + (none.visible ? 44 : 0)
+    implicitHeight: 62 + (list.visible ? list.implicitHeight + 10 : 0) + (none.visible ? 44 : 0)
 
     property int selected: 0
     readonly property string query: input.text.trim()
     readonly property var apps: DesktopEntries.applications.values.filter(a => !a.noDisplay).slice().sort((a, b) => a.name.localeCompare(b.name))
-
-    function score(text, q) {
-        const t = text.toLowerCase();
-        if (t === q) return 0;
-        if (t.startsWith(q)) return 1;
-        return t.includes(q) ? 2 : -1;
-    }
     readonly property bool clipboardMode: Ui.clipboard
+    readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/quiet-shell"
 
-    function calculate(text) {
-        if (!/^[\d\s+\-*\/().,%^]+$/.test(text) || !/\d/.test(text) || !/[+\-*\/%^(]/.test(text))
-            return null;
-        const source = text.replace(/,/g, ".").replace(/\^/g, "**").replace(/([\d.]+)%/g, "($1/100)");
-        try {
-            const value = new Function("return (" + source + ");")();
-            return Number.isFinite(value) ? String(+value.toFixed(10)) : null;
-        } catch (e) {
-            return null;
-        }
-    }
     readonly property var actions: [
         { title: "Lock Screen", note: "Run", run: () => Ui.session("lock") },
         { title: "Sleep", note: "Run", run: () => Ui.session("sleep") },
@@ -47,6 +32,19 @@ Item {
     ]
     property var clips: []
     property var files: []
+    property var memory: ({ picks: {}, typed: {} })
+    property var rates: null
+
+    function used(key) {
+        return Search.frecency(memory.picks[key], Date.now());
+    }
+    // The name counts most, then what the app is (a "Web Browser") and its keywords.
+    function appScore(a, q) {
+        const s = Search.score(a.name, q);
+        if (s >= 0 && s <= 2) return s;
+        const extra = [a.genericName].concat(Array.from(a.keywords || [])).filter(k => k);
+        return extra.some(k => Search.wordsMatch(k, q)) ? 2 : s;
+    }
 
     readonly property var results: {
         if (clipboardMode) {
@@ -60,20 +58,67 @@ Item {
             return [{ group: "Command", title: cmd || "Type a command", note: "Run", kind: "command", value: cmd }];
         }
         const q = query.toLowerCase();
-        const answer = calculate(query);
+        const answer = Search.calculate(query);
         const sums = answer === null ? [] : [{ group: "Calculator", title: answer, note: "Copy", kind: "copy", value: answer, glyph: "calculator" }];
-        const found = apps.map(a => ({ a, s: score(a.name, q) })).filter(x => x.s >= 0)
-            .sort((x, y) => x.s - y.s).slice(0, 4)
-            .map(x => ({ group: "Applications", title: x.a.name, note: "Open", kind: "app", value: x.a, icon: x.a.icon }));
+        const converted = answer === null ? Search.convert(query, rates) : null;
+        const conversions = converted ? [{ group: "Conversion", title: converted.title, note: converted.note, kind: "copy", value: converted.value, glyph: "calculator" }] : [];
+        const found = apps.map(a => ({ a, s: appScore(a, q) })).filter(x => x.s >= 0)
+            .sort((x, y) => x.s - y.s || used("app:" + y.a.id) - used("app:" + x.a.id))
+            .slice(0, 4)
+            .map(x => ({ group: "Applications", title: x.a.name, note: "Open", kind: "app", value: x.a, icon: x.a.icon, key: "app:" + x.a.id, match: x.s }));
+        // An app's own actions, like a private window. The last word typed has to be
+        // part of the action, so "firefox" alone lists the app and not all its actions.
+        const last = q.split(/\s+/).pop();
+        const appActions = [];
+        if (q.length >= 2)
+            for (const a of apps)
+                for (const act of Array.from(a.actions || []))
+                    if (Search.wordsMatch(a.name + " " + act.name, q) && Search.wordsMatch(act.name, last))
+                        appActions.push({ group: "Actions", title: act.name, note: a.name, kind: "app", value: act, icon: act.icon || a.icon, key: "action:" + a.id + "/" + act.id, match: Search.score(act.name, q) });
+        appActions.sort((x, y) => used(y.key) - used(x.key));
+        appActions.splice(3);
         const windows = ToplevelManager.toplevels.values
             .filter(t => (t.title + " " + t.appId).toLowerCase().includes(q)).slice(0, 3)
             .map(t => ({ group: "Open windows", title: t.title || t.appId, note: "Switch", kind: "window", value: t }));
-        const system = actions.filter(a => score(a.title, q) >= 0).slice(0, 3)
-            .map(a => ({ group: "System", title: a.title, note: a.note, kind: "action", value: a.run, glyph: "power" }));
-        const inFiles = files.map(f => ({ group: "Files", title: f.name, note: f.folder, kind: "file", value: f.path, glyph: "folder" }));
-        const web = answer === null ? [{ group: "Web", title: "Search the web for " + query, note: "Open", kind: "web", value: query, glyph: "globe" }] : [];
-        return sums.concat(found, windows, system, inFiles, web);
+        const system = actions.filter(a => Search.score(a.title, q) >= 0).slice(0, 3)
+            .map(a => ({ group: "System", title: a.title, note: a.note, kind: "action", value: a.run, glyph: "power", key: "system:" + a.title, match: Search.score(a.title, q) }));
+        const inFiles = files.map(f => ({ group: "Files", title: f.name, note: f.folder, kind: "file", value: f.path, glyph: "folder", key: "file:" + f.path, match: Search.score(f.name, q) }));
+        const web = answer === null && !converted ? [{ group: "Web", title: "Search the web for " + query, note: "Open", kind: "web", value: query, glyph: "globe" }] : [];
+        const all = sums.concat(conversions, found, appActions, windows, system, inFiles, web);
+        const hit = Search.topHit(all, memory, q, Date.now());
+        if (hit >= 0) {
+            const top = Object.assign({}, all[hit], { group: "Top Hit" });
+            all.splice(hit, 1);
+            all.unshift(top);
+        }
+        return all;
     }
+
+    // What Ctrl+Enter does on top of the usual action.
+    function altOf(item) {
+        if (!item) return null;
+        if (item.kind === "file")
+            return { label: "Show in folder", run: () => Quickshell.execDetached(["xdg-open", item.value.slice(0, item.value.lastIndexOf("/")) || "/"]) };
+        if (item.kind === "window")
+            return { label: "Close window", run: () => item.value.close() };
+        if (item.kind === "command" && item.value)
+            return { label: "Run in terminal", run: () => Quickshell.execDetached(["kitty", "--hold", "sh", "-c", item.value]) };
+        return null;
+    }
+    // What Ctrl+C copies, when nothing in the field is selected.
+    function copyOf(item) {
+        if (!item) return "";
+        if (item.kind === "file" || item.kind === "copy" || item.kind === "web" || item.kind === "command") return item.value;
+        if (item.kind === "window") return item.title;
+        return "";
+    }
+
+    function learn(item) {
+        if (!item || !item.key) return;
+        memory = Search.remember(memory, query.toLowerCase(), item.key, Date.now());
+        memoryFile.setText(JSON.stringify(memory));
+    }
+
     onQueryChanged: {
         files = [];
         fileSearch.running = false;
@@ -111,11 +156,46 @@ Item {
             }
         }
     }
+    FileView {
+        id: memoryFile
+        path: root.stateDir + "/spotlight.json"
+        printErrors: false
+        onLoaded: {
+            try {
+                const m = JSON.parse(text());
+                root.memory = { picks: m.picks || {}, typed: m.typed || {} };
+            } catch (e) {
+                console.warn("quiet-shell: bad spotlight memory", e);
+            }
+        }
+    }
+    // The script keeps its own copy for half a day, so asking each time is cheap.
+    property real ratesAt: 0
+    Process {
+        id: ratesRead
+        command: ["python3", Qt.resolvedUrl("scripts/rates.py").toString().replace("file://", "")]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    if (text.trim()) {
+                        root.rates = JSON.parse(text);
+                        root.ratesAt = Date.now();
+                    }
+                } catch (e) {
+                    console.warn("quiet-shell: bad rates", e);
+                }
+            }
+        }
+    }
 
-    onResultsChanged: selected = Math.min(selected, Math.max(results.length - 1, 0))
+    onResultsChanged: {
+        selected = Math.min(selected, Math.max(results.length - 1, 0));
+        if (visible) Ui.spotlightResults = results.map(r => r.group + ": " + r.title);
+    }
 
     function launch(item) {
         if (!item) return;
+        learn(item);
         if (item.kind === "app") item.value.execute();
         if (item.kind === "window") Dockable.revealWayland(item.value);
         if (item.kind === "command" && item.value) Quickshell.execDetached(["sh", "-c", item.value]);
@@ -127,8 +207,30 @@ Item {
         if (item.kind === "action") item.value();
         else Ui.close();
     }
+    function launchAlt(item) {
+        const alt = altOf(item);
+        if (!alt) return launch(item);
+        learn(item);
+        alt.run();
+        Ui.close();
+    }
+    function copy(item) {
+        const text = copyOf(item);
+        if (!text) return false;
+        learn(item);
+        Quickshell.execDetached(["wl-copy", text]);
+        Ui.close();
+        return true;
+    }
 
-    onVisibleChanged: if (visible) { input.text = ""; selected = 0; input.forceActiveFocus(); }
+    onVisibleChanged: {
+        if (!visible) return;
+        input.text = "";
+        selected = 0;
+        input.forceActiveFocus();
+        if (!ratesRead.running && Date.now() - ratesAt > 3600000)
+            ratesRead.running = true;
+    }
 
     MouseArea { anchors.fill: parent }
     Glass { anchors.fill: parent; radius: 31 }
@@ -153,40 +255,23 @@ Item {
             Keys.onDownPressed: root.selected = root.results.length ? (root.selected + 1) % root.results.length : 0
             Keys.onUpPressed: root.selected = root.results.length ? (root.selected + root.results.length - 1) % root.results.length : 0
             Keys.onEscapePressed: Ui.close()
-            onAccepted: root.launch(root.results[root.selected])
+            Keys.onPressed: event => {
+                const item = root.results[root.selected];
+                const ctrl = event.modifiers & Qt.ControlModifier;
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                    if (ctrl) root.launchAlt(item);
+                    else root.launch(item);
+                    event.accepted = true;
+                } else if (ctrl && event.key === Qt.Key_C && input.selectedText === "") {
+                    event.accepted = root.copy(item);
+                }
+            }
             Label {
                 visible: input.text === ""
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.clipboardMode ? "Search clipboard history" : "Search apps, files and settings"
                 font.pixelSize: 22
                 color: Theme.dim
-            }
-        }
-    }
-
-    RowLayout {
-        id: suggestions
-        visible: root.query === "" && !root.clipboardMode
-        y: 62
-        x: 14
-        width: parent.width - 28
-        height: 84
-        spacing: 4
-        Repeater {
-            model: Dockable.suggested
-            Press {
-                required property var modelData
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                radius: 16
-                name: modelData.name
-                onClicked: { modelData.launch(); Ui.close(); }
-                Column {
-                    anchors.centerIn: parent
-                    spacing: 6
-                    AppIcon { anchors.horizontalCenter: parent.horizontalCenter; size: 44; icon: modelData.icon; fallback: modelData.name }
-                    Label { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.name; font.pixelSize: 11 }
-                }
             }
         }
     }
@@ -214,6 +299,8 @@ Item {
                 id: rowItem
                 required property var modelData
                 required property int index
+                readonly property bool current: index === root.selected
+                readonly property var alt: current ? root.altOf(modelData) : null
                 Layout.fillWidth: true
                 spacing: 0
                 Label {
@@ -230,7 +317,7 @@ Item {
                     implicitHeight: 46
                     radius: 14
                     name: rowItem.modelData.title
-                    rest: rowItem.index === root.selected ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.26) : "transparent"
+                    rest: rowItem.current ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.26) : "transparent"
                     hover: rest
                     onClicked: root.launch(rowItem.modelData)
                     RowLayout {
@@ -240,7 +327,14 @@ Item {
                         spacing: 12
                         AppIcon { size: 30; icon: rowItem.modelData.icon || ""; fallback: rowItem.modelData.title; glyph: rowItem.modelData.kind === "command" ? "terminal" : rowItem.modelData.glyph || "" }
                         Label { Layout.fillWidth: true; text: rowItem.modelData.title; font.pixelSize: 14 }
-                        Label { Layout.maximumWidth: 220; text: rowItem.modelData.note; font.pixelSize: 12; color: Theme.dim }
+                        Label { Layout.maximumWidth: 220; text: rowItem.modelData.note; font.pixelSize: 12; color: Theme.dim; elide: Text.ElideLeft }
+                        // The second action, shown only where it would apply.
+                        Label {
+                            visible: rowItem.alt !== null
+                            text: rowItem.alt ? "Ctrl ↵ " + rowItem.alt.label : ""
+                            font.pixelSize: 11
+                            color: Theme.faint
+                        }
                     }
                 }
             }
