@@ -49,10 +49,8 @@ in
     nixpkgs.overlays = [
       (_: previous: {
         displaylink = lib.makeOverridable (
-          {
-            evdi ? null,
-          }:
-          previous.displaylink.override { linuxPackages = config.boot.kernelPackages; }
+          # Accepts (and ignores) the legacy `evdi` argument.
+          _: previous.displaylink.override { linuxPackages = config.boot.kernelPackages; }
         ) { };
       })
     ];
