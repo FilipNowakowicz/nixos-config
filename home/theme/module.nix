@@ -169,6 +169,13 @@ let
       $bg     = rgb(${theme.colors.bg})
       $amber  = rgb(${theme.colors.amber})
       $orange = rgb(${theme.colors.orange})
+      $muted  = rgba(${theme.colors.text}b3)
+      $glass  = rgba(${theme.colors.text}d9)
+      $field  = rgba(${theme.colors.bg}80)
+      $edge   = rgba(${theme.colors.text}2e)
+      # No theme defines a red, and a failed unlock should read as an error
+      # in every theme, so this one stays fixed.
+      $fail   = rgb(cc241d)
     '';
 
     # Quiet shell colors, plus the theme list for its picker

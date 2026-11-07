@@ -700,12 +700,19 @@ def escape_cancels_a_password_request():
 
 
 @test
-def lock_screen_text_is_safe_markup():
+def lock_screen_battery_shows_only_when_it_matters():
     script = repo / "home/files/hypr/lock-status.sh"
-    set_fake(playing=True)
-    out = sh("bash", str(script), "media").stdout
-    assert out.strip() == "Miles Davis — Blue &lt;in&gt; Green &amp; More", out
-    assert sh("bash", str(script), "battery").stdout.strip() == "64%"
+    level, status = run / "power/BAT0/capacity", run / "power/BAT0/status"
+    try:
+        assert sh("bash", str(script), "battery").stdout.strip() == ""
+        level.write_text("15\n")
+        assert sh("bash", str(script), "battery").stdout.strip() == "15%"
+        status.write_text("Charging\n")
+        assert sh("bash", str(script), "battery").stdout.strip() == "15% · Charging"
+        assert sh("bash", str(script), "media").stdout == ""
+    finally:
+        level.write_text("64\n")
+        status.write_text("Discharging\n")
 
 
 @test

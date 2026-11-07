@@ -231,10 +231,6 @@ in
       "hypr/lock-status".source = lib.getExe (
         pkgs.writeShellApplication {
           name = "lock-status";
-          runtimeInputs = [
-            pkgs.gnused
-            pkgs.playerctl
-          ];
           text = builtins.readFile ../../files/hypr/lock-status.sh;
         }
       );
@@ -263,9 +259,12 @@ in
           lock_cmd = "pidof hyprlock || ${pkgs.hyprlock}/bin/hyprlock";
         };
         listener = [
+          # Idle locks only: a few seconds to move the mouse and carry on
+          # without a password. Manual and before-sleep locks go through
+          # lock_cmd above and always ask.
           {
             timeout = 300;
-            on-timeout = "pidof hyprlock > /dev/null || ${pkgs.hyprlock}/bin/hyprlock";
+            on-timeout = "pidof hyprlock > /dev/null || ${pkgs.hyprlock}/bin/hyprlock --grace 5";
           }
           {
             timeout = 330;
