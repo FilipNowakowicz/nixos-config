@@ -39,6 +39,7 @@ Item {
                     opacity: Dockable.isHidden(card.modelData) ? 0.45 : 1
                     toplevel: card.modelData.wayland ?? null
                     appId: card.appId
+                    lit: badge.lit
                 }
                 AppIcon {
                     id: badge
@@ -47,6 +48,7 @@ Item {
                     size: 20
                     icon: Dockable.iconOf(card.appId)
                     fallback: Dockable.nameOf(card.appId || "?")
+                    lit: card.index === Ui.switcherIndex || card.hovered
                 }
                 Label {
                     x: 38

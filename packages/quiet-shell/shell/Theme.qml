@@ -14,6 +14,10 @@ Singleton {
     property string name: "mono-mesh"
     property var themes: []
 
+    // App icons stay grey until pointed at, chosen or focused. Kept across restarts.
+    property bool monoIcons: true
+    onMonoIconsChanged: if (iconsFile.loaded) iconsFile.setText(monoIcons ? "mono" : "colour")
+
     readonly property real glassAlpha: 0.42
     readonly property color glass: Qt.rgba(bg.r, bg.g, bg.b, glassAlpha)
     readonly property color hairline: Qt.rgba(text.r, text.g, text.b, 0.15)
@@ -40,6 +44,15 @@ Singleton {
     // theme-switch replaces a symlink, which a file watcher only survives once, so
     // it also calls this. The watcher just covers edits made by hand.
     function reload() { colors.reload(); }
+
+    FileView {
+        id: iconsFile
+        property bool loaded: false
+        path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/quiet-shell/icons"
+        printErrors: false
+        onLoaded: { root.monoIcons = text().trim() !== "colour"; loaded = true; }
+        onLoadFailed: loaded = true
+    }
 
     FileView {
         id: colors

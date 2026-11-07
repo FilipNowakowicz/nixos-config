@@ -264,5 +264,27 @@ Item {
             }
         }
         FailRow { Layout.fillWidth: true; writeKey: "theme" }
+        Label {
+            visible: root.kind === "theme"
+            Layout.leftMargin: 10
+            Layout.topMargin: 10
+            Layout.bottomMargin: 2
+            text: "App icons"
+            font.pixelSize: 11
+            font.weight: Font.DemiBold
+            color: Theme.dim
+        }
+        Repeater {
+            model: root.kind === "theme" ? [{ mono: false, title: "Colour" }, { mono: true, title: "Monochrome", note: "Colour on hover" }] : []
+            DetailRow {
+                required property var modelData
+                Layout.fillWidth: true
+                name: modelData.title + " app icons"
+                title: modelData.title
+                note: modelData.note || ""
+                selected: Theme.monoIcons === modelData.mono
+                onClicked: Theme.monoIcons = modelData.mono
+            }
+        }
     }
 }

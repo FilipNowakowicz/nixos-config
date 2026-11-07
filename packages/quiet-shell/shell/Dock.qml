@@ -30,6 +30,7 @@ Item {
                     size: 44
                     icon: item.modelData.icon
                     fallback: item.modelData.name
+                    lit: item.hovered || item.activeFocus || item.modelData.windows.some(Dockable.isActive)
                     opacity: item.minimized ? 0.45 : 1
                     scale: item.hovered ? 1.1 : 1
                     Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }

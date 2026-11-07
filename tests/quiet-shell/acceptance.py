@@ -125,6 +125,9 @@ WIFI_TOGGLE, WIFI_LABEL = (1603, 73), (1660, 73)
 FOCUS_TOGGLE = (1603, 283)
 AWAKE, NIGHT, THEME = (1784, 213), (1874, 213), (1777, 283)
 SOUND_GO = (1889, 343)
+# The App icons rows under the eight themes in the Theme detail, and the dock's only app.
+ICONS_COLOUR, ICONS_MONO = (1740, 392), (1740, 426)
+DOCK_FIRST = (960, 1040)
 VOLUME_Y, BRIGHT_Y = 343, 393
 CC_ICON, BATTERY, CLOCK = (1778, 21), (1732, 21), (1850, 21)
 tests = []
@@ -503,6 +506,35 @@ def wifi_password_joins_without_leaking():
     wait(lambda: ui()["sys"]["wifi"]["ssid"] == "Kavarna Guest", "readback")
     assert "correct horse" not in json.dumps(fake()["log"]), "password reached argv"
     wait(lambda: not ui()["writes"], "write to confirm")
+
+
+@test
+def app_icons_choose_colour_or_monochrome():
+    # nested.sh keeps the shell's state in the run.
+    icons = run / "state/quiet-shell/icons"
+
+    def choose(at, mono):
+        open_controls()
+        click(*THEME)
+        wait(lambda: ui()["detail"] == "theme", "theme detail")
+        time.sleep(0.3)
+        click(*at)
+        wait(lambda: ui()["monoIcons"] == mono, "monochrome icons" if mono else "colour icons")
+        wait(lambda: icons.exists() and icons.read_text().strip() == ("mono" if mono else "colour"), "the choice to be saved")
+
+    choose(ICONS_COLOUR, False)
+    shot("app-icons-colour")
+    restart_shell()
+    wait(lambda: "monoIcons" in ui() and not ui()["monoIcons"], "colour to come back", timeout=10)
+    choose(ICONS_MONO, True)
+    shot("app-icons-mono")
+    clean()
+    move(960, 1079)
+    wait(lambda: ui()["dock"], "dock reveal")
+    time.sleep(0.3)
+    move(*DOCK_FIRST)
+    time.sleep(0.4)
+    shot("dock-icon-lit")
 
 
 @test

@@ -313,6 +313,7 @@ Item {
                     color: Theme.dim
                 }
                 Press {
+                    id: rowPress
                     Layout.fillWidth: true
                     implicitHeight: 46
                     radius: 14
@@ -325,7 +326,7 @@ Item {
                         anchors.leftMargin: 12
                         anchors.rightMargin: 14
                         spacing: 12
-                        AppIcon { size: 30; icon: rowItem.modelData.icon || ""; fallback: rowItem.modelData.title; glyph: rowItem.modelData.kind === "command" ? "terminal" : rowItem.modelData.glyph || "" }
+                        AppIcon { size: 30; lit: rowItem.current || rowPress.hovered; icon: rowItem.modelData.icon || ""; fallback: rowItem.modelData.title; glyph: rowItem.modelData.kind === "command" ? "terminal" : rowItem.modelData.glyph || "" }
                         Label { Layout.fillWidth: true; text: rowItem.modelData.title; font.pixelSize: 14 }
                         Label { Layout.maximumWidth: 220; text: rowItem.modelData.note; font.pixelSize: 12; color: Theme.dim; elide: Text.ElideLeft }
                         // The second action, shown only where it would apply.

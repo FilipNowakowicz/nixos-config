@@ -48,6 +48,7 @@ Item {
         size: 32
         visible: !picture.visible
         icon: root.source ? root.source.appIcon : ""
+        lit: root.hovered
         fallback: root.entry ? root.entry.app : ""
         glyph: root.source ? "" : "bell"
     }

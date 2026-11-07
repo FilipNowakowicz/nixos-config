@@ -8,6 +8,7 @@ Item {
     property var toplevel: null
     property string appId
     property int iconSize: 64
+    property bool lit: false
     property size captureSize: Qt.size(432, 240)
 
     property bool late: false
@@ -19,6 +20,7 @@ Item {
         size: root.iconSize
         icon: Dockable.iconOf(root.appId)
         fallback: Dockable.nameOf(root.appId || "?")
+        lit: root.lit
     }
     ScreencopyView {
         id: capture
