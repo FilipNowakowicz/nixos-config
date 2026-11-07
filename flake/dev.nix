@@ -17,6 +17,7 @@
 }:
 let
   controlCenterPackage = pkgs.callPackage ../packages/control-center { };
+  quietShellPackage = pkgs.callPackage ../packages/quiet-shell { };
 
   tailscaleAclPackage =
     pkgs.runCommand "tailscale-acl"
@@ -92,6 +93,7 @@ in
 
   packages = {
     control-center = controlCenterPackage;
+    quiet-shell = quietShellPackage;
     inherit (pkgs)
       deadnix
       lazyactions
@@ -258,6 +260,9 @@ in
         inherit nixpkgs system;
       };
       control-center-capabilities = import ../tests/packages/control-center-capabilities.nix {
+        inherit nixpkgs system;
+      };
+      quiet-shell-status = import ../tests/packages/quiet-shell-status.nix {
         inherit nixpkgs system;
       };
     };

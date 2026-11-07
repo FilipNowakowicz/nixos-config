@@ -4,9 +4,6 @@ from gi.repository import Gtk
 
 from ..actions import (
     act_open_sound_settings,
-    act_set_default_sink,
-    act_set_sink_volume,
-    act_toggle_sink_mute,
 )
 from ..constants import G
 
@@ -16,9 +13,8 @@ class VolumeViewMixin:
         view = self._box(Gtk.Orientation.VERTICAL, spacing=12, css="panel-stack")
         mute_btn = self._icon_btn(G["volume"])
         def _on_vol_mute(_b):
-            self._pending_set("audio.sink_muted",
-                              not self.state["audio"]["sink_muted"], ttl_s=2)
-            act_toggle_sink_mute()
+            target = not self.effective("audio.sink_muted", self.state["audio"]["sink_muted"])
+            self._request_setting("audio.sink_muted", target, "Output mute")
         mute_btn.connect("clicked", _on_vol_mute)
         view.append(self._detail_header("Volume", right_widget=mute_btn))
         hero = self._hero_card_ref()
@@ -28,54 +24,72 @@ class VolumeViewMixin:
         slider = self._slider_row(G["volume"])
         main.append(slider.widget)
         view.append(main)
-        self._bind_slider(slider, act_set_sink_volume)
+        self._bind_setting_slider(slider, "audio.sink_volume_pct", "Volume")
         slider.glyph_btn.connect("clicked", _on_vol_mute)
 
-        view.append(self._section_label("Output Devices", action="Detect"))
+        view.append(self._section_label("Output Devices"))
         out = self._box(Gtk.Orientation.VERTICAL, spacing=2, css="drawer-list")
         view.append(out)
         settings_btn = self._ghost_btn("Open Sound Settings")
 
+        launch_error = self._label("Couldn’t open Sound Settings. Try again.")
+        launch_error.set_wrap(True)
+        launch_error.set_visible(False)
+
         def _open_pavucontrol(_b):
-            self._hide_window()
-            act_open_sound_settings()
+            if act_open_sound_settings():
+                launch_error.set_visible(False)
+                self._hide_window()
+            else:
+                launch_error.set_visible(True)
         settings_btn.connect("clicked", _open_pavucontrol)
         view.append(settings_btn)
+        view.append(launch_error)
 
         def refresh(s):
             a = s["audio"]
             muted = self.effective("audio.sink_muted", a["sink_muted"])
             mute_btn.set_label(G["volume_mute"] if muted else G["volume"])
+            self._name_control(mute_btn, "Unmute audio" if muted else "Mute audio")
 
             hero.icon.set_label(self._sink_icon_glyph(a["sink_name"]))
             hero.title.set_label(self._short(a["sink_name"], 28))
-            hero.sub.set_label("default sink")
+            hero.sub.set_label("Default output")
             hero.big.set_label(str(a["sink_volume_pct"]))
             hero.small.set_label("muted" if muted else "level")
 
-            self._set_slider_polled(slider, a["sink_volume_pct"])
+            self._set_slider_polled(slider, self.effective("audio.sink_volume_pct", a["sink_volume_pct"]))
             slider.glyph_btn.set_label(G["volume_mute"] if muted else G["volume"])
+            self._name_control(slider.glyph_btn, "Unmute audio" if muted else "Mute audio")
 
+            key = "audio.default_sink"
+            self.effective(key, a.get("sink_node_name"))
+            request = self._settings.requests.get(key)
+            pending = request is not None and request.phase in ("writing", "confirming")
+            snapshot = {"devices": a["sinks"], "intent": request.target if pending else None}
+            if not self._list_changed(out, snapshot):
+                return
             self._clear(out)
             if not a["sinks"]:
                 out.append(self._drawer_item(
-                    G["volume"], "No output devices", "—", "—",
-                    subtle=True,
+                    G["volume"], "No output devices", "—", "—", subtle=True,
                 ))
-            else:
-                for sink in a["sinks"]:
-                    row = self._drawer_item(
-                        self._sink_icon_glyph(sink["desc"]),
-                        self._short(sink["desc"], 28),
-                        f"id {sink['id']}",
-                        "Active" if sink["default"] else "Switch",
-                        active=sink["default"],
-                    )
-                    if not sink["default"]:
-                        def _switch(_b, sid=sink["id"]):
-                            act_set_default_sink(sid)
-                        row.connect("clicked", _switch)
-                    out.append(row)
+            for device in a["sinks"]:
+                switching = pending and request.target == device.get("name")
+                row = self._drawer_item(
+                    self._sink_icon_glyph(device["desc"]), self._short(device["desc"], 28),
+                    "Switching…" if switching else "Audio output",
+                    "Waiting" if switching else "Active" if device["default"] else "Switch",
+                    active=device["default"],
+                )
+                row._item_key = device.get("name")
+                def switch(_button, name=device.get("name")):
+                    current = next((d for d in self.state["audio"]["sinks"] if d.get("name") == name), None)
+                    if current is not None and name:
+                        self._request_setting(key, name, "Output device")
+                row.connect("clicked", switch)
+                out.append(row)
+            self._restore_list_focus(out)
 
         self._refreshers.append(refresh)
         refresh(self.state)

@@ -19,6 +19,7 @@
   networkmanager,
   networkmanagerapplet,
   mullvad-vpn,
+  pipewire,
   power-profiles-daemon,
   systemd,
   tailscale,
@@ -37,6 +38,7 @@ let
     networkmanager
     networkmanagerapplet
     mullvad-vpn
+    pipewire
     power-profiles-daemon
     systemd
     tailscale

@@ -11,6 +11,7 @@ import signal
 import subprocess
 import threading
 import time
+from copy import deepcopy
 from types import SimpleNamespace
 
 from gi.repository import Gdk, GLib, Gtk, Gtk4LayerShell, Pango
@@ -21,6 +22,7 @@ from .constants import (
     G,
     PANEL_CONTENT_WIDTH,
     PANEL_MARGIN,
+    PANEL_PADDING,
     PANEL_TOTAL_WIDTH,
     SLOW_STATE_KEYS,
     VIEWS,
@@ -28,6 +30,7 @@ from .constants import (
 from .css import build_css
 from .gather import gather_fast_state, gather_slow_state
 from .state_file import clear_state, read_state, write_state
+from .settings import OrderedWriter, Settings, command_for
 from .theme import load_colors
 from .views.bluetooth import BluetoothViewMixin
 from .views.dnd import DndViewMixin
@@ -67,22 +70,36 @@ class ControlCenter(
         self._refreshers = []
         self._fast_poll_id = 0
         self._slow_poll_id = 0
+        self._reveal_source_id = 0
+        self._dismiss_source_id = 0
         self._theme_reload_signal_id = 0
         self._fast_gathering = False
         self._slow_gathering = False
         # Optimistic overrides while slow writes (e.g. tailscale up) catch up.
         # key -> (target_value, expires_at)
         self._pending = {}
+        self._settings = Settings()
+        self._writer = OrderedWriter()
+        self._observed_at = {}
+        self._write_status = None
+        self._gtk_settings = None
+        self._motion_signal_id = 0
+        self._reduced_motion = False
         self.connect("activate", self._build)
         self.connect("shutdown", self._on_shutdown)
 
     # ── Window + stack ────────────────────────────────────────
 
     def _build(self, _app):
+        self._gtk_settings = Gtk.Settings.get_default()
+        if self._gtk_settings is not None:
+            self._reduced_motion = not self._gtk_settings.get_property("gtk-enable-animations")
+            self._motion_signal_id = self._gtk_settings.connect("notify::gtk-enable-animations", self._sync_motion)
         self._install_css_provider()
 
         self.win = Gtk.ApplicationWindow(application=self)
         self.win.set_decorated(False)
+        self.win.set_title("Control Centre")
         # Resizable must stay True: the four-edge-anchored layer surface needs
         # to be stretched to fill the output. set_resizable(False) pins it to the
         # content size, which breaks the full-surface click-outside catcher.
@@ -115,7 +132,7 @@ class ControlCenter(
 
         self.stack = Gtk.Stack()
         self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT)
-        self.stack.set_transition_duration(260)
+        self.stack.set_transition_duration(0 if self._reduced_motion else 180)
         self.stack.set_size_request(PANEL_CONTENT_WIDTH, -1)
         # Height follows the visible view, not the tallest one — otherwise the
         # compact home view is padded down to the VPN view's height, leaving
@@ -130,6 +147,14 @@ class ControlCenter(
         self.stack.add_named(self._build_volume_view(), "volume")
         self.stack.add_named(self._build_microphone_view(), "microphone")
         self.stack.set_visible_child_name(self.initial_view)
+        self._scroller = Gtk.ScrolledWindow()
+        self._scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self._scroller.set_propagate_natural_height(True)
+        self._scroller.set_min_content_height(1)
+        self._scroller.set_child(self.stack)
+        self.stack.connect("notify::visible-child-name", lambda *_: self._scroller.get_vadjustment().set_value(0))
+        self._sync_panel_height()
+        self.win.connect("realize", self._bind_surface_size)
 
         # Entrance animation: a CROSSFADE revealer fades the panel content in on
         # every show. CROSSFADE (not a slide) keeps the panel at full size during
@@ -139,8 +164,8 @@ class ControlCenter(
         # on show and reset to hidden on hide so the next show re-animates.
         self._revealer = Gtk.Revealer()
         self._revealer.set_transition_type(Gtk.RevealerTransitionType.CROSSFADE)
-        self._revealer.set_transition_duration(240)
-        self._revealer.set_child(self.stack)
+        self._revealer.set_transition_duration(0 if self._reduced_motion else 240)
+        self._revealer.set_child(self._scroller)
         self._revealer.set_reveal_child(False)
 
         panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -151,6 +176,17 @@ class ControlCenter(
         panel.set_margin_top(PANEL_MARGIN)
         panel.set_margin_end(PANEL_MARGIN)
         panel.append(self._revealer)
+        self._write_status = self._box(Gtk.Orientation.HORIZONTAL, spacing=8, css="write-status")
+        self._write_status_label = self._label("")
+        self._write_status_label.set_wrap(True)
+        self._write_status_label.set_max_width_chars(28)
+        self._write_status_label.set_hexpand(True)
+        self._write_retry = Gtk.Button(label="Retry")
+        self._write_retry.connect("clicked", self._retry_setting)
+        self._write_status.append(self._write_status_label)
+        self._write_status.append(self._write_retry)
+        self._write_status.set_visible(False)
+        panel.append(self._write_status)
 
         # Transparent full-surface root: pins the panel top-right and dismisses
         # the window when a click lands outside the panel's bounds.
@@ -182,8 +218,7 @@ class ControlCenter(
         self.win.set_child(root)
         if self._visible:
             self.win.present()
-            GLib.timeout_add(10, self._reveal_panel)
-            GLib.timeout_add(250, self._arm_dismiss)
+            self._schedule_show()
             self._set_mako_mode(True)
         else:
             self.win.set_visible(False)
@@ -203,17 +238,49 @@ class ControlCenter(
         self._hide_window()
         return True
 
+    def _bind_surface_size(self, _window):
+        surface = self.win.get_surface()
+        if surface is not None:
+            surface.connect("notify::height", self._sync_panel_height)
+        self._sync_panel_height()
+
+    def _sync_panel_height(self, *_args):
+        surface = self.win.get_surface()
+        height = surface.get_height() if surface is not None else 0
+        if height <= 1:
+            monitors = self.win.get_display().get_monitors()
+            height = monitors.get_item(0).get_geometry().height if monitors.get_n_items() else 720
+        # Reserve room for the setting status and its Retry action. Short views
+        # retain their natural size; long ones scroll inside the output bounds.
+        limit = max(80, height - 2 * PANEL_MARGIN - 2 * PANEL_PADDING - 64)
+        if self._scroller.get_max_content_height() != limit:
+            self._scroller.set_max_content_height(limit)
+
     def _arm_dismiss(self):
-        self._dismiss_armed = True
+        self._dismiss_source_id = 0
+        self._dismiss_armed = self._visible
         return False  # one-shot
 
     def _reveal_panel(self):
+        self._reveal_source_id = 0
         # Flip the revealer open one tick after present() so the CROSSFADE
         # actually animates (a value set while the surface maps is treated as
         # the initial state and plays no transition).
-        if self._revealer is not None:
+        if self._visible and self._revealer is not None:
             self._revealer.set_reveal_child(True)
         return False  # one-shot
+
+    def _cancel_show(self):
+        for name in ("_reveal_source_id", "_dismiss_source_id"):
+            source = getattr(self, name)
+            if source:
+                GLib.source_remove(source)
+                setattr(self, name, 0)
+
+    def _schedule_show(self):
+        self._cancel_show()
+        self._reveal_source_id = GLib.timeout_add(10, self._reveal_panel)
+        self._dismiss_source_id = GLib.timeout_add(250, self._arm_dismiss)
 
     def _set_mako_mode(self, on):
         """Add/remove the mako `cc-open` mode so notifications re-anchor away
@@ -230,6 +297,13 @@ class ControlCenter(
             pass
 
     def _on_shutdown(self, *_args):
+        self._cancel_show()
+        if self._motion_signal_id:
+            self._gtk_settings.disconnect(self._motion_signal_id)
+            self._motion_signal_id = 0
+        if getattr(self, "_dnd_timer_id", 0):
+            GLib.source_remove(self._dnd_timer_id)
+            self._dnd_timer_id = 0
         if self._fast_poll_id:
             GLib.source_remove(self._fast_poll_id)
             self._fast_poll_id = 0
@@ -257,14 +331,13 @@ class ControlCenter(
         write_state(os.getpid(), self._current_view, self._visible)
 
     def _show_window(self):
-        if self.win is None:
+        if self.win is None or self._visible:
             return
         self._visible = True
         self._dismiss_armed = False
         self._revealer.set_reveal_child(False)
         self.win.present()
-        GLib.timeout_add(10, self._reveal_panel)
-        GLib.timeout_add(250, self._arm_dismiss)
+        self._schedule_show()
         self._set_mako_mode(True)
         self._write_presence()
         self._tick_fast()
@@ -275,6 +348,7 @@ class ControlCenter(
             return
         self._visible = False
         self._dismiss_armed = False
+        self._cancel_show()
         self._revealer.set_reveal_child(False)
         self.win.set_visible(False)
         self._set_mako_mode(False)
@@ -306,12 +380,13 @@ class ControlCenter(
             return True
         self._fast_gathering = True
         previous = self.state
+        started_at = time.monotonic()
         def _worker():
             try:
                 state = gather_fast_state(previous)
             except Exception:
                 state = None
-            GLib.idle_add(self._apply_fast_state, state)
+            GLib.idle_add(self._apply_fast_state, state, started_at)
         threading.Thread(target=_worker, daemon=True).start()
         return True
 
@@ -322,23 +397,24 @@ class ControlCenter(
             return True
         self._slow_gathering = True
         previous = self.state
+        started_at = time.monotonic()
         def _worker():
             try:
                 state = gather_slow_state(previous)
             except Exception:
                 state = None
-            GLib.idle_add(self._apply_slow_state, state)
+            GLib.idle_add(self._apply_slow_state, state, started_at)
         threading.Thread(target=_worker, daemon=True).start()
         return True
 
-    def _apply_fast_state(self, state):
+    def _apply_fast_state(self, state, started_at=None):
         self._fast_gathering = False
         self._refresh_theme_css()
-        return self._apply_state(state, FAST_STATE_KEYS)
+        return self._apply_state(state, FAST_STATE_KEYS, started_at)
 
-    def _apply_slow_state(self, state):
+    def _apply_slow_state(self, state, started_at=None):
         self._slow_gathering = False
-        return self._apply_state(state, SLOW_STATE_KEYS)
+        return self._apply_state(state, SLOW_STATE_KEYS, started_at)
 
     def _refresh_ui(self):
         for fn in self._refreshers:
@@ -346,11 +422,15 @@ class ControlCenter(
                 fn(self.state)
             except Exception:
                 pass
+        self._refresh_write_status()
         return False
 
-    def _apply_state(self, state, keys=None):
+    def _apply_state(self, state, keys=None, started_at=None):
         if state is None:
             return False
+        for key in state if keys is None else keys:
+            if key in state:
+                self._observed_at[key] = started_at if started_at is not None else time.monotonic()
         if keys is None:
             self.state = state
         else:
@@ -371,12 +451,21 @@ class ControlCenter(
                 self._css_provider,
             )
         self._css_provider = Gtk.CssProvider()
-        self._css_provider.load_from_data(build_css(self.colors).encode())
+        css = build_css(self.colors)
+        if self._reduced_motion:
+            css += "\n* { transition-duration: 0s; animation-duration: 0s; }\n"
+        self._css_provider.load_from_data(css.encode())
         Gtk.StyleContext.add_provider_for_display(
             display,
             self._css_provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
+
+    def _sync_motion(self, *_args):
+        self._reduced_motion = not self._gtk_settings.get_property("gtk-enable-animations")
+        self.stack.set_transition_duration(0 if self._reduced_motion else 180)
+        self._revealer.set_transition_duration(0 if self._reduced_motion else 240)
+        self._install_css_provider()
 
     def _refresh_theme_css(self, force=False):
         colors = load_colors()
@@ -387,6 +476,16 @@ class ControlCenter(
 
     @staticmethod
     def _set_class(widget, klass, on):
+        if (klass == "on" and isinstance(widget, Gtk.Switch)
+                and (widget.get_state() != bool(on) or widget.get_active() != bool(on))):
+            # Even setting the same state can interrupt a native switch's
+            # pointer animation before it emits notify::active.
+            widget._updating = True
+            try:
+                widget.set_state(bool(on))
+                widget.set_active(bool(on))
+            finally:
+                widget._updating = False
         if on:
             if not widget.has_css_class(klass):
                 widget.add_css_class(klass)
@@ -402,7 +501,81 @@ class ControlCenter(
             container.remove(child)
             child = nxt
 
+    @staticmethod
+    def _list_changed(container, contents):
+        """Keep live rows (and keyboard focus) when a poll changes no content."""
+        if getattr(container, "_contents", None) == contents:
+            return False
+        container._contents = deepcopy(contents)
+        container._focus_restore = None
+        root = container.get_root()
+        focused = root.get_focus() if isinstance(root, Gtk.Window) else None
+        row = focused
+        while row is not None and row.get_parent() is not container:
+            row = row.get_parent()
+        if row is not None:
+            index, child = 0, container.get_first_child()
+            while child is not None and child is not row:
+                index += 1
+                child = child.get_next_sibling()
+            container._focus_restore = (getattr(row, "_item_key", None), index)
+        return True
+
+    @staticmethod
+    def _restore_list_focus(container):
+        restore = getattr(container, "_focus_restore", None)
+        if restore is None:
+            return
+        container._focus_restore = None
+        key, index = restore
+        rows, child = [], container.get_first_child()
+        while child is not None:
+            rows.append(child)
+            child = child.get_next_sibling()
+        if rows:
+            target = next((row for row in rows if key is not None
+                           and getattr(row, "_item_key", None) == key), rows[min(index, len(rows) - 1)])
+            target.grab_focus()
+
     # ── Pending overrides for slow writes ─────────────────────
+
+    def _request_setting(self, key, target, label):
+        command = command_for(key, target)
+        token = self._settings.begin(key, target, label)
+        self._writer.submit(key, token, command,
+                            lambda *args: GLib.idle_add(self._setting_done, *args))
+        self._refresh_ui()
+
+    def _setting_done(self, key, token, outcome, completed_at):
+        if self._settings.complete(key, token, outcome, completed_at):
+            self._refresh_ui()
+            self._tick_fast()
+            self._tick_slow()
+        return False
+
+    def _retry_setting(self, _button):
+        latest = self._settings.latest()
+        if latest and latest[1].phase in ("failed", "unknown"):
+            key, request = latest
+            self._request_setting(key, request.target, request.label)
+
+    def _refresh_write_status(self):
+        if self._write_status is None:
+            return
+        latest = self._settings.latest()
+        self._write_status.set_visible(latest is not None)
+        if latest is None:
+            return
+        _key, request = latest
+        text = {
+            "writing": f"Updating {request.label}…",
+            "confirming": f"Waiting for {request.label}…",
+            "confirmed": f"{request.label} updated",
+            "failed": f"Couldn’t change {request.label}. Try again.",
+            "unknown": f"Couldn’t confirm {request.label}. Check its state.",
+        }[request.phase]
+        self._write_status_label.set_label(text)
+        self._write_retry.set_visible(request.phase in ("failed", "unknown"))
 
     def _pending_set(self, key, target, ttl_s=None):
         self._pending[key] = (
@@ -413,6 +586,8 @@ class ControlCenter(
     def effective(self, key, polled):
         """Return the user-intended value if a pending write is in flight
         and hasn't yet been observed in the polled state; otherwise polled."""
+        if key in self._settings.requests:
+            return self._settings.effective(key, polled, self._observed_at.get(key.split(".")[0], 0))
         entry = self._pending.get(key)
         if entry is None:
             return polled
@@ -427,91 +602,36 @@ class ControlCenter(
 
     # ── Slider drag/click/scroll binding ──────────────────────
 
+    def _bind_setting_slider(self, slider, key, label):
+        self._bind_slider(slider, lambda pct: self._request_setting(key, pct, label))
+
     def _bind_slider(self, slider, on_set):
         """Wire a slider SimpleNamespace to user input. on_set(pct) called
         on click/drag/scroll. Refresh ticks should call _set_slider_polled
         instead of _set_slider so they skip during active drags."""
-        track = slider.fill.get_parent()
-        track.set_can_target(True)
         slider._dragging = False
-        slider._last_pct = -1
+        slider._updating = False
+        slider._settle_until = 0
 
-        def _on_track_width(*_):
-            if slider._last_pct >= 0:
-                self._set_slider(slider, slider._last_pct)
-        track.connect("notify::width", _on_track_width)
-
-        def pos_to_pct(x):
-            w = track.get_width()
-            if w <= 0:
-                return None
-            return max(0, min(100, round(x / w * 100)))
-
-        last = {"t": 0.0}
-
-        def fire(pct, force=False):
-            if pct is None:
+        def changed(scale):
+            if slider._updating:
                 return
-            now = time.monotonic()
-            if not force and pct == slider._last_pct and now - last["t"] < 0.08:
-                return  # throttle drag-update spam
-            last["t"] = now
-            slider._last_pct = pct
-            self._set_slider(slider, pct)
+            pct = round(scale.get_value())
+            slider.value.set_label(str(pct))
+            slider._settle_until = time.monotonic() + 0.4
             on_set(pct)
 
-        click = Gtk.GestureClick()
-
-        def on_released(_g, _n, x, _y):
-            fire(pos_to_pct(x), force=True)
-        click.connect("released", on_released)
-        track.add_controller(click)
-
-        drag = Gtk.GestureDrag()
-        ds = {"base_x": 0.0}
-
-        def on_begin(_g, sx, _sy):
-            slider._dragging = True
-            ds["base_x"] = sx
-            fire(pos_to_pct(sx), force=True)
-
-        def on_update(_g, ox, _oy):
-            fire(pos_to_pct(ds["base_x"] + ox))
-
-        def on_end(_g, ox, _oy):
-            fire(pos_to_pct(ds["base_x"] + ox), force=True)
-
-            def _release(_sl=slider):
-                _sl._dragging = False
-                return False
-            GLib.timeout_add(200, _release)
-        drag.connect("drag-begin", on_begin)
-        drag.connect("drag-update", on_update)
-        drag.connect("drag-end", on_end)
-        track.add_controller(drag)
-
-        scroll = Gtk.EventControllerScroll.new(
-            Gtk.EventControllerScrollFlags.VERTICAL,
-        )
-
-        def on_scroll(_c, _dx, dy):
-            cur = slider._last_pct
-            if cur < 0:
-                try:
-                    cur = int(slider.value.get_label() or "0")
-                except ValueError:
-                    cur = 0
-            step = 5
-            # Negative dy = wheel up = increase
-            new = max(0, min(100, cur - int(dy) * step))
-            fire(new, force=True)
-            return True
-        scroll.connect("scroll", on_scroll)
-        slider.widget.add_controller(scroll)
+        slider.scale.connect("value-changed", changed)
+        gesture = Gtk.GestureClick()
+        gesture.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        gesture.connect("pressed", lambda *_: setattr(slider, "_dragging", True))
+        gesture.connect("released", lambda *_: setattr(slider, "_dragging", False))
+        gesture.connect("cancel", lambda *_: setattr(slider, "_dragging", False))
+        slider.scale.add_controller(gesture)
 
     def _set_slider_polled(self, slider, pct):
         """Variant of _set_slider that skips when user is dragging."""
-        if getattr(slider, "_dragging", False):
+        if getattr(slider, "_dragging", False) or time.monotonic() < getattr(slider, "_settle_until", 0):
             return
         self._set_slider(slider, pct)
         slider._last_pct = int(pct)
@@ -539,6 +659,20 @@ class ControlCenter(
             for c in css if isinstance(css, (list, tuple)) else (css,):
                 lbl.add_css_class(c)
         return lbl
+
+    @staticmethod
+    def _name_control(widget, name):
+        # Gtk.Button.set_label labels the button by its child glyph. That
+        # relation takes precedence over an explicit accessible label.
+        widget._control_name = name
+        widget.set_tooltip_text(name)
+        def apply(*_args):
+            widget.reset_relation(Gtk.AccessibleRelation.LABELLED_BY)
+            widget.update_property([Gtk.AccessibleProperty.LABEL], [widget._control_name])
+        apply()
+        if isinstance(widget, Gtk.Button) and not getattr(widget, "_name_handler", False):
+            widget.connect("notify::label", apply)
+            widget._name_handler = True
 
     @staticmethod
     def _center_icon(label):
@@ -575,16 +709,24 @@ class ControlCenter(
         return row
 
     def _switch(self, css=None):
-        """Visual switch. Toggle .on class via _set_class()."""
-        sw = Gtk.Button()
+        """Native switch with keyboard, pointer and checked-state semantics."""
+        sw = Gtk.Switch()
+        sw.set_valign(Gtk.Align.CENTER)
         sw.add_css_class("switch")
         if css:
             for c in css if isinstance(css, (list, tuple)) else (css,):
                 sw.add_css_class(c)
-        knob = Gtk.Box()
-        knob.add_css_class("switch-knob")
-        sw.set_child(knob)
         return sw
+
+    @staticmethod
+    def _connect_switch(switch, callback):
+        def changed(widget, _property):
+            if not getattr(widget, "_updating", False):
+                callback(widget)
+        # Record intent before the native animation completes: a poll between
+        # the click and state-set must not erase the user's request.
+        switch.connect("notify::active", changed)
+        switch.connect("state-set", lambda *_args: True)
 
     @staticmethod
     def _toggle_class(widget, klass):
@@ -623,39 +765,23 @@ class ControlCenter(
         )
 
     def _slider_row(self, glyph, aux_label=None, aux_view=None):
-        """Build a slider row. Returns SimpleNamespace(widget, fill, value, aux)."""
+        """Build a slider row. Returns SimpleNamespace(widget, scale, value, aux)."""
         row = self._box(Gtk.Orientation.HORIZONTAL, spacing=12, css="slider-row")
-        row.set_size_request(376, -1)
+        row.set_hexpand(True)
 
-        gbtn = Gtk.Button(label=glyph)
-        gbtn.add_css_class("glyph-btn")
+        gbtn = Gtk.Label(label=glyph) if glyph == G["sun"] else Gtk.Button(label=glyph)
+        gbtn.add_css_class("slider-icon" if glyph == G["sun"] else "glyph-btn")
         row.append(gbtn)
 
-        track = Gtk.Box()
-        track.add_css_class("slider-track")
+        track = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1 if glyph == G["sun"] else 0, 100, 1)
+        track.set_draw_value(False)
         track.set_hexpand(True)
-        # No overflow:hidden here — it would clip the 16px knob down to the 8px
-        # track height. The fill is rounded (border-radius) so it stays tidy
-        # without clipping, and the knob is free to protrude as a real handle.
-        fill = Gtk.Box()
-        fill.add_css_class("slider-fill")
-        fill.set_size_request(0, -1)
-        # Pin the fill's own expand flag off: hexpand propagates UP from any
-        # child, so the knob's hexpand below would otherwise make the fill
-        # report as expandable and the track would stretch it to full width
-        # (every knob pinned to the far right, ignoring the value). With an
-        # explicit False the fill keeps its value-driven size_request width.
-        fill.set_hexpand(False)
-        knob = Gtk.Box()
-        knob.add_css_class("slider-knob")
-        # hexpand so the knob is allocated the fill's full content width;
-        # halign=END then parks it at the fill's right edge (the value
-        # position). Without hexpand the horizontal box packs this single child
-        # at the start, leaving the knob at the left regardless of value.
-        knob.set_hexpand(True)
-        knob.set_halign(Gtk.Align.END)
-        fill.append(knob)
-        track.append(fill)
+        track.add_css_class("setting-scale")
+        name = {G["volume"]: "Volume", G["sun"]: "Brightness", G["mic"]: "Microphone level"}.get(glyph, "Level")
+        track.update_property([Gtk.AccessibleProperty.LABEL], [name])
+        gbtn.set_tooltip_text(name)
+        action_name = {G["volume"]: "Mute audio", G["mic"]: "Mute microphone"}.get(glyph, name)
+        self._name_control(gbtn, action_name)
         row.append(track)
 
         val = self._label("0", "slider-value", xalign=1)
@@ -666,30 +792,29 @@ class ControlCenter(
         aux = None
         aux_text = None
         if aux_label:
-            aux = Gtk.Button()
+            aux = Gtk.Button(label=G["chevron_right"])
             aux.add_css_class("slider-aux")
-            aux.set_size_request(74, -1)
-            aux_text = self._label(aux_label, "slider-aux-label", xalign=1)
-            aux_text.set_ellipsize(Pango.EllipsizeMode.END)
-            aux_text.set_max_width_chars(11)
-            aux_text.set_size_request(74, -1)
-            aux.set_child(aux_text)
+            aux.set_tooltip_text(aux_label)
+            self._name_control(aux, aux_label)
             if aux_view:
                 aux.connect("clicked", lambda _b, v=aux_view: self.go_to(v))
             row.append(aux)
+        elif glyph == G["sun"]:
+            row.append(Gtk.Box(width_request=24))
 
         return SimpleNamespace(
-            widget=row, glyph_btn=gbtn, fill=fill, value=val, aux=aux,
+            widget=row, glyph_btn=gbtn, scale=track, value=val, aux=aux,
             aux_label=aux_text,
         )
 
     def _set_slider(self, slider, pct):
         pct = max(0, min(100, pct))
-        track = slider.fill.get_parent()
-        w = track.get_width()
-        if w > 0:
-            slider.fill.set_size_request(round(pct / 100 * w), -1)
-        slider.value.set_label(str(int(pct)))
+        slider._updating = True
+        try:
+            slider.scale.set_value(pct)
+            slider.value.set_label(str(int(pct)))
+        finally:
+            slider._updating = False
 
     @staticmethod
     def _short(name, n=22):
@@ -842,6 +967,7 @@ class ControlCenter(
         return btn
 
     def _drawer_row(self, glyph, name, subtitle, control_widget):
+        control_widget.set_tooltip_text(name)
         row = self._box(Gtk.Orientation.HORIZONTAL, spacing=10, css="drawer-row")
         icon = self._label(glyph, "di-icon", xalign=0.5)
         self._center_icon(icon)
@@ -873,6 +999,9 @@ class ControlCenter(
 
     def _icon_btn(self, glyph, danger=False):
         btn = Gtk.Button(label=glyph)
+        name = {G["volume"]: "Mute audio", G["mic"]: "Mute microphone"}.get(glyph, "Control")
+        btn.set_tooltip_text(name)
+        self._name_control(btn, name)
         btn.add_css_class("icon-btn")
         if danger:
             btn.add_css_class("danger")
@@ -882,11 +1011,14 @@ class ControlCenter(
         row = self._box(Gtk.Orientation.HORIZONTAL, spacing=8, css="panel-header")
         back = Gtk.Button(label=G["chevron_left"])
         back.add_css_class("back-btn")
+        back.set_tooltip_text("Back")
+        self._name_control(back, "Back")
         back.connect("clicked", lambda _b: self.go_back())
         row.append(back)
         row.append(self._label(title, ["panel-title", "with-back"]))
         row.append(Gtk.Box(hexpand=True))
         if right_widget is not None:
+            right_widget.set_tooltip_text(title)
             row.append(right_widget)
         elif meta:
             row.append(self._label(meta, "panel-meta", xalign=1))

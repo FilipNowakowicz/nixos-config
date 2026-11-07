@@ -6,6 +6,7 @@
 }:
 let
   inherit (config.fleet) hostName skipHeavyPackages;
+  quietShellEnabled = config.fleet.quietShell;
   nixRepo = "${config.home.homeDirectory}/nix";
   privateUserJs = ../../files/firefox/private-user.js;
   langgraphPython = pkgs.python3.withPackages (
@@ -59,6 +60,7 @@ let
     };
 
   controlCenter = pkgs.callPackage ../../../packages/control-center { };
+  quietShell = pkgs.callPackage ../../../packages/quiet-shell { };
   waybarStyle =
     lib.replaceStrings
       [ ''@import "colors.css";'' ]
@@ -283,6 +285,7 @@ in
       batteryNotify
       claudeLatest
       launcher
+      quietShell
       lazyactions
 
       (writeShellApplication {
@@ -389,9 +392,20 @@ in
       # Remove it only after the new Lua session has passed live acceptance.
       "hypr/hyprland.conf".source = ../../files/hypr/hyprland.conf;
       "hypr/hyprland.lua".source = ../../files/hypr/hyprland.lua;
+      "hypr/shell.lua".text = "return { quiet = ${lib.boolToString quietShellEnabled} }\n";
 
       # Hyprlock
       "hypr/hyprlock.conf".source = ../../files/hypr/hyprlock.conf;
+      "hypr/lock-status".source = lib.getExe (
+        pkgs.writeShellApplication {
+          name = "lock-status";
+          runtimeInputs = [
+            pkgs.gnused
+            pkgs.playerctl
+          ];
+          text = builtins.readFile ../../files/hypr/lock-status.sh;
+        }
+      );
 
       # Waybar
       "waybar/config".source = ../../files/waybar/config;
@@ -410,7 +424,7 @@ in
     # Config is managed by home/theme/module.nix (per-theme mako-config file,
     # symlinked at ~/.config/mako/config) so runtime theme-switch works without
     # a rebuild. Do not manage mako config here to avoid conflicts.
-    mako.enable = true;
+    mako.enable = !quietShellEnabled;
 
     # ── SwayOSD ────────────────────────────────────────────────────────────
     # Volume/brightness OSD for the media-key binds in hyprland.conf. Runs as
@@ -418,7 +432,7 @@ in
     # long-lived exec-once server survives rebuilds, so after a swayosd bump
     # the stale server silently ignored the new swayosd-client and no popup
     # appeared. As a unit it is restarted on switch and on any crash.
-    swayosd.enable = true;
+    swayosd.enable = !quietShellEnabled;
 
     # ── Hypridle ───────────────────────────────────────────────────────────
     # Hyprland-native idle daemon. Single source of truth for desktop idle
@@ -456,7 +470,7 @@ in
   systemd.user.services = {
     # Bind to the same session target as the other desktop units (the HM
     # module defaults to wayland.systemd.target).
-    swayosd = {
+    swayosd = lib.mkIf (!quietShellEnabled) {
       Unit = {
         After = lib.mkForce [ "nixos-fake-graphical-session.target" ];
         PartOf = lib.mkForce [ "nixos-fake-graphical-session.target" ];
@@ -464,7 +478,8 @@ in
       Install.WantedBy = lib.mkForce [ "nixos-fake-graphical-session.target" ];
     };
 
-    battery-notify = {
+    # The quiet shell warns about low battery itself.
+    battery-notify = lib.mkIf (!quietShellEnabled) {
       Unit = {
         Description = "Battery low notification check";
         After = [ "nixos-fake-graphical-session.target" ];
@@ -485,7 +500,7 @@ in
     # As a bare Hyprland `exec-once`, a crash like that left the bar dead
     # until the next relogin. Running it as a systemd unit instead means any
     # crash — from a rebuild or otherwise — self-heals in a couple seconds.
-    waybar = {
+    waybar = lib.mkIf (!quietShellEnabled) {
       Unit = {
         Description = "Highly customizable Wayland bar (Home Manager-managed)";
         After = [ "nixos-fake-graphical-session.target" ];
@@ -501,7 +516,7 @@ in
       };
     };
 
-    waybar-autohide = {
+    waybar-autohide = lib.mkIf (!quietShellEnabled) {
       Unit = {
         Description = "Auto-hide / hover-reveal controller for the waybar pill";
         After = [ "nixos-fake-graphical-session.target" ];
@@ -517,9 +532,26 @@ in
       };
     };
 
+    # A unit for the same reason as waybar: it heals after a rebuild severs Wayland.
+    quiet-shell = lib.mkIf quietShellEnabled {
+      Unit = {
+        Description = "Quiet desktop shell";
+        After = [ "nixos-fake-graphical-session.target" ];
+        PartOf = [ "nixos-fake-graphical-session.target" ];
+      };
+      Service = {
+        ExecStart = "${quietShell}/bin/quiet-shell";
+        Restart = "always";
+        RestartSec = 2;
+      };
+      Install = {
+        WantedBy = [ "nixos-fake-graphical-session.target" ];
+      };
+    };
+
   };
 
-  systemd.user.timers.battery-notify = {
+  systemd.user.timers.battery-notify = lib.mkIf (!quietShellEnabled) {
     Unit.Description = "Poll battery level every minute";
     Timer = {
       OnBootSec = "1min";

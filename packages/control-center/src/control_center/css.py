@@ -13,24 +13,8 @@ def build_css(colors):
     def rgba(rgb, a):
         return f"rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {a})"
 
-    # Luminance "bead" sheen — a light top-left highlight fading to a soft
-    # bottom shadow. Layered over a solid accent colour it adds depth in any
-    # theme (a hue gradient is invisible when the palette is desaturated).
-    bead = (
-        "linear-gradient(150deg, rgba(255,255,255,0.32) 0%, "
-        "rgba(255,255,255,0.04) 44%, rgba(0,0,0,0.16) 100%)"
-    )
-    # Horizontal-bar variant for slider fills (glossy top, shaded bottom).
-    fill_sheen = (
-        "linear-gradient(180deg, rgba(255,255,255,0.26) 0%, "
-        "rgba(255,255,255,0.0) 55%, rgba(0,0,0,0.18) 100%)"
-    )
-    # `bead` is a white-on-white no-op over a white surface (its highlight
-    # stop and its base colour are the same #fff) — it only reads as depth
-    # over a saturated accent fill. The slider knob's own base IS white, so it
-    # needs an actual two-tone gradient instead: white top-left fading to a
-    # theme-grey shadow, so the ball reads as a sphere rather than a flat disc.
-    knob_sheen = f"linear-gradient(145deg, #ffffff 0%, #ffffff 40%, {rgba(text, 0.38)} 100%)"
+    # Keep controls quiet; accent colour alone communicates an active state.
+    bead = "none"
 
     return f"""
     * {{
@@ -38,7 +22,7 @@ def build_css(colors):
         font-size: 12px;
         color: {rgba(text, 0.92)};
     }}
-    .tile-glyph, .glyph-btn, .chip-glyph, .icon-btn, .back-btn,
+    .tile-glyph, .glyph-btn, .slider-icon, .chip-glyph, .icon-btn, .back-btn,
     .hero-icon-wrap, .vpn-icon, .di-icon,
     .gtile-ic, .gtile-glyph, .foot-btn, .foot-bat-glyph, .foot-bat-meta, .media-btn, .album-art-note {{
         font-family: "JetBrainsMono Nerd Font", "Inter", sans-serif;
@@ -51,8 +35,7 @@ def build_css(colors):
         border-radius: 16px;
         border: 1px solid {rgba(orange, 0.26)};
         background-color: {rgba(bg, 0.985)};
-        background-image: linear-gradient(180deg,
-            rgba(255, 255, 255, 0.028) 0%, rgba(255, 255, 255, 0.0) 24%);
+        background-image: none;
         box-shadow:
             0 12px 32px rgba(0, 0, 0, 0.48),
             inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -181,29 +164,7 @@ def build_css(colors):
         background: rgba(255, 255, 255, 0.10);
         color: {rgba(text, 1.0)};
     }}
-    .slider-track {{
-        min-height: 8px;
-        margin: 9px 0;
-        border-radius: 999px;
-        background: {rgba(text, 0.12)};
-    }}
-    .slider-fill {{
-        min-height: 8px;
-        border-radius: 999px;
-        background-color: {rgba(amber, 1.0)};
-        background-image: {fill_sheen};
-    }}
-    .slider-knob {{
-        min-width: 12px; min-height: 12px;
-        margin-top: -2px;
-        margin-right: -1px;
-        border-radius: 999px;
-        background-color: #ffffff;
-        background-image: {knob_sheen};
-        box-shadow:
-            0 0 0 1px rgba(0, 0, 0, 0.18),
-            0 1px 3px rgba(0, 0, 0, 0.5);
-    }}
+    .slider-icon {{ min-width: 32px; min-height: 32px; font-size: 16px; }}
     .slider-value {{
         min-width: 24px;
         font-weight: 600;
@@ -211,24 +172,16 @@ def build_css(colors):
         font-size: 11px;
     }}
     .slider-aux {{
-        padding: 4px 0;
-        min-width: 74px;
-        min-height: 24px;
+        padding: 0;
+        min-width: 24px;
+        min-height: 32px;
         background: transparent;
         border: none;
         color: {rgba(text, 0.5)};
-        font-size: 10px;
+        font-size: 16px;
         box-shadow: none;
     }}
-    .slider-aux-label {{
-        min-width: 74px;
-        color: {rgba(text, 0.5)};
-        font-size: 10px;
-    }}
-    .slider-aux:hover .slider-aux-label {{ color: {rgba(text, 1.0)}; }}
     .slider-aux:hover {{ color: {rgba(text, 1.0)}; }}
-    .app-slider {{ margin: 6px 0 0 0; min-height: 4px; }}
-    .app-slider .slider-fill {{ min-height: 4px; }}
 
     /* Segmented */
     .segmented {{
@@ -328,6 +281,12 @@ def build_css(colors):
     .theme-swatch.swatch-gilded-contours {{
         background: linear-gradient(90deg, #0d1830 0%, #d3ad7a 50%, #e0c290 100%);
     }}
+
+    scale.setting-scale {{ padding: 8px 0; min-width: 100px; }}
+    scale.setting-scale trough {{ min-height: 6px; padding: 0; border: none; box-shadow: none; border-radius: 3px; background: {rgba(text, 0.12)}; }}
+    scale.setting-scale highlight {{ background: {rgba(amber, 0.85)}; border: none; box-shadow: none; border-radius: 3px; }}
+    scale.setting-scale slider {{ margin: -5px 0; padding: 0; min-width: 16px; min-height: 16px; border-radius: 50%; background: {rgba(text, 1)}; border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }}
+    button:focus-visible, scale:focus-visible {{ outline: 2px solid {rgba(amber, 0.8)}; outline-offset: 2px; }}
 
     /* Now playing (bare media row) */
     .nowplaying {{ padding: 4px 0; }}
@@ -431,13 +390,12 @@ def build_css(colors):
         background: {rgba(amber, 0.28)};
         border-color: {rgba(amber, 0.5)};
     }}
-    .switch-knob {{
+    .switch > slider {{
         min-width: 16px; min-height: 16px;
         border-radius: 999px;
         background: {rgba(text, 0.92)};
     }}
-    .switch.on .switch-knob {{
-        margin-left: 16px;
+    .switch.on > slider {{
         background: {rgba(amber, 1.0)};
     }}
 
@@ -573,21 +531,6 @@ def build_css(colors):
         font-size: 11px;
         margin-bottom: 4px;
     }}
-
-    /* Mic level meter */
-    .level-meter {{
-        padding: 12px;
-        min-height: 64px;
-        border-radius: 11px;
-        border: 1px solid {rgba(orange, 0.14)};
-        background: {rgba(text, 0.03)};
-    }}
-    .meter-bar {{
-        min-width: 6px;
-        background: {rgba(text, 0.16)};
-        border-radius: 2px;
-    }}
-    .meter-bar.active {{ background: {rgba(amber, 1.0)}; }}
 
     /* Ghost button (footer of detail views) */
     .ghost-btn {{

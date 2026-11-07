@@ -88,6 +88,10 @@ let
       target = "${config.xdg.configHome}/mako/config";
     }
     {
+      source = "quiet-colors.json";
+      target = "${config.xdg.configHome}/quiet-shell/colors.json";
+    }
+    {
       source = "wallpaper";
       target = "${config.home.homeDirectory}/.local/share/wallpapers/current.png";
     }
@@ -186,6 +190,14 @@ let
       $amber  = rgb(${theme.colors.amber})
       $orange = rgb(${theme.colors.orange})
     '';
+
+    # Quiet shell colors, plus the theme list for its picker
+    "themes/${themeName}/quiet-colors.json".text = builtins.toJSON {
+      name = themeName;
+      inherit (theme.colors) bg text;
+      accent = theme.colors.amber;
+      themes = builtins.attrNames validThemes;
+    };
 
     # Waybar colors
     "themes/${themeName}/waybar-colors.css".text = ''
