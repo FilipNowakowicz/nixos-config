@@ -18,6 +18,21 @@ done
 echo 64 >"$run/power/BAT0/capacity"
 echo Discharging >"$run/power/BAT0/status"
 export QUIET_TEST_AUTH="file://$repo/tests/quiet-shell/fakes/TestAuth.qml"
+# Spotlight's memory and exchange rates stay with the run, not the real home.
+export XDG_STATE_HOME="$run/state"
+# An app with its own actions, which run a fake so tests can see them.
+export XDG_DATA_HOME="$run/data"
+mkdir -p "$XDG_DATA_HOME/applications"
+cat >"$XDG_DATA_HOME/applications/quiet-notes.desktop" <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=Quiet Notes
+Exec=nm-connection-editor notes
+Actions=new-note;
+[Desktop Action new-note]
+Name=New Note
+Exec=nm-connection-editor new-note
+DESKTOP
 export QUIET_TIMEZONE=Europe/Warsaw QUIET_FAKE_STATE="$run/state.json" QUIET_COLORS="$run/colors.json" QUIET_POWER_SUPPLY="$run/power"
 [[ -f $QUIET_COLORS ]] || cat >"$QUIET_COLORS" <<'JSON'
 {"name":"gilded-contours","bg":"071126","accent":"d3ad7a","text":"f0d5a2",

@@ -255,5 +255,8 @@ in
       quiet-shell-status = import ../tests/packages/quiet-shell-status.nix {
         inherit nixpkgs system;
       };
+      quiet-shell-search = import ../tests/packages/quiet-shell-search.nix {
+        inherit nixpkgs system;
+      };
     };
 }

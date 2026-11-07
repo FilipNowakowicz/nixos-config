@@ -216,6 +216,12 @@ elif cmd == "slurp":
     if state.get("slurp_cancel"):
         done(1)
     print("10,10 100x100")
+elif cmd == "curl" and any("frankfurter" in a for a in args):
+    # Exchange rates are their own setting, so tests can convert money while the weather stays offline.
+    if state.get("rates", True):
+        print(json.dumps({"base": "EUR", "date": "2026-11-06", "rates": {"USD": 1.1, "PLN": 4.3, "GBP": 0.85}}))
+    else:
+        done(22)
 elif cmd == "curl":
     if not state.get("offline"):
         today = datetime.date.today()

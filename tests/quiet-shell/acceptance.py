@@ -968,6 +968,70 @@ def spotlight_finds_files_and_the_web():
     wait(lambda: any(c[:1] == ["xdg-open"] and "zzqq%20what" in c[1] for c in fake()["log"]), "web search")
 
 
+def ctrl(name):
+    sh("wtype", "-M", "ctrl", "-k", name, "-m", "ctrl")
+    time.sleep(0.2)
+
+
+@test
+def spotlight_converts_units_and_money():
+    spotlight("5 km in mi")
+    shot("spotlight-units")
+    key("Return")
+    wait(lambda: fake().get("clipboard") == "3.1069", "kilometres in miles")
+    spotlight("100 usd to pln")
+    wait(lambda: ui()["results"][:1] == ["Conversion: 390.91 PLN"], "rates from the fake bank")
+    shot("spotlight-currency")
+    key("Return")
+    wait(lambda: fake().get("clipboard") == "390.91", "dollars in zloty")
+
+
+@test
+def spotlight_file_shortcuts():
+    # Earlier tests may have made it the top hit, so look for it in any group.
+    spotlight("report")
+    wait(lambda: ui()["results"][0].endswith(": quiet-report.txt"), "the file first")
+    shot("spotlight-file-hint")
+    ctrl("Return")
+    wait(lambda: any(c[:1] == ["xdg-open"] and c[1].endswith("/notes") for c in fake()["log"]), "its folder to open")
+    spotlight("report")
+    wait(lambda: ui()["results"][0].endswith(": quiet-report.txt"), "the file again")
+    ctrl("c")
+    wait(lambda: str(fake().get("clipboard", "")).endswith("notes/quiet-report.txt"), "its path to copy")
+
+
+@test
+def spotlight_learns_what_a_query_means():
+    spotlight("lo")
+    results = ui()["results"]
+    assert results.index("System: Log Out") > results.index("System: Lock Screen"), results
+    for _ in range(results.index("System: Log Out")):
+        key("Down")
+    key("Return")
+    wait(lambda: ui()["confirm"] == "Log Out", "log out to ask")
+    key("Escape")
+    wait(lambda: ui()["confirm"] == "", "cancel")
+    spotlight("lo")
+    wait(lambda: ui()["results"][:1] == ["Top Hit: Log Out"], "the last pick on top")
+    shot("spotlight-top-hit")
+    key("Return")
+    wait(lambda: ui()["confirm"] == "Log Out", "Enter alone to pick it")
+    key("Escape")
+    wait(lambda: ui()["confirm"] == "", "cancel again")
+
+
+@test
+def spotlight_offers_app_actions():
+    spotlight("notes")
+    assert "Applications: Quiet Notes" in ui()["results"], ui()["results"]
+    assert not any(r.startswith("Actions: ") for r in ui()["results"]), "the app alone lists no actions"
+    spotlight("notes new")
+    wait(lambda: ui()["results"][:1] == ["Actions: New Note"], "the app's own action")
+    shot("spotlight-actions")
+    key("Return")
+    wait(lambda: ["nm-connection-editor", "new-note"] in fake()["log"], "the action to run")
+
+
 @test
 def clipboard_history_copies_an_entry():
     shell("clipboard")
@@ -1142,12 +1206,6 @@ def reveal_dock():
     move(960, 1079)
     wait(lambda: ui()["dock"], "dock reveal")
     time.sleep(0.3)
-
-
-@test
-def app_icons_come_from_desktop_entries():
-    icons = ui()["suggested"]
-    assert "spotify-client" in icons and "org.xfce.thunar" in icons, icons
 
 
 @test

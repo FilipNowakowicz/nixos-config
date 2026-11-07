@@ -9,7 +9,6 @@ import Quickshell.Wayland
 Singleton {
     id: root
     readonly property string hiddenWorkspace: "special:minimized"
-    readonly property var suggestedIds: ["firefox", "kitty", "thunar", "discord", "spotify"]
 
     function entry(id) {
         return DesktopEntries.heuristicLookup(id);
@@ -126,13 +125,6 @@ Singleton {
             app.windows[(at + 1) % app.windows.length].wayland.activate();
     }
 
-    readonly property var suggested: {
-        DesktopEntries.applications.values;
-        return suggestedIds.map(id => {
-            const e = entry(id);
-            return { id, name: nameOf(id), icon: e ? e.icon : id, launch() { if (e) e.execute(); } };
-        });
-    }
     readonly property var apps: {
         DesktopEntries.applications.values;
         const out = [];

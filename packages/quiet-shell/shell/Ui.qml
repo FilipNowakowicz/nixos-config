@@ -102,6 +102,7 @@ Singleton {
     onDetailChanged: refocus()
 
     property bool clipboard: false       // Spotlight is showing clipboard history
+    property var spotlightResults: []    // "Group: Title" of each row, for tests
 
     // One path for these, so nothing can reach them without being asked.
     function session(name) {
