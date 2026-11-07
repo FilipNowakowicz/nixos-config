@@ -71,6 +71,8 @@ ShellRoot {
         onPressed: Ui.commitSwitcher()
         onReleased: Ui.commitSwitcher()
     }
+    // The switcher leaves the keyboard with Hyprland, so Escape arrives this way.
+    GlobalShortcut { appid: "quiet-shell"; name: "switcher-cancel"; onPressed: Ui.switcher = false }
 
     // Asks for passwords on behalf of apps. Tests load a stand-in, because polkit needs the system bus.
     PolkitAgent { id: polkit }

@@ -14,7 +14,9 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "quiet-shell"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: Ui.blocking ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    // The switcher leaves the keyboard with Hyprland. Handing it back after a switch
+    // refocused the window the switch had just left.
+    WlrLayershell.keyboardFocus: Ui.blocking && !Ui.switcher ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     readonly property bool focused: Ui.focusedScreen === "" || !screen || Ui.focusedScreen === screen.name
     readonly property bool fullscreenApp: {

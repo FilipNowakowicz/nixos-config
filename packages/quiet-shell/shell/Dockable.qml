@@ -85,7 +85,8 @@ Singleton {
     }
     function reveal(t) {
         if (isHidden(t)) restore(t);
-        else t.wayland.activate();
+        // Hyprland ignores a toplevel activate request from a shell without the keyboard.
+        else Hyprland.dispatch("hl.dsp.focus({window=\"address:0x" + t.address + "\"})");
     }
     // While a surface holds the keyboard, closing it hands focus back to the old window
     // and undoes the switch. So surfaces close first, and the switch follows.

@@ -101,8 +101,19 @@ hl.bind("SUPER + n", hl.dsp.exec_cmd("quiet-shell-ipc notifications"))
 hl.bind("SUPER + o", hl.dsp.exec_cmd("quiet-shell-ipc overview"))
 hl.bind("SUPER + Tab", hl.dsp.global("quiet-shell:switcher"))
 hl.bind("SUPER + SHIFT + Tab", hl.dsp.global("quiet-shell:switcher-back"))
--- Transparent, or pressing Tab cancels this release and a quick tap leaves the switcher open.
+-- Releasing SUPER ends the switcher. The release bind misses it while Tab is still down,
+-- which a quick tap often leaves, and the key event alone missed some long holds, so both
+-- send it; a second one does nothing. Transparent, or pressing Tab cancels the release.
+-- 133 and 134 are the SUPER keys. The switcher leaves the keyboard here, so Escape (9)
+-- cancels it this way too.
 hl.bind("SUPER + Super_L", hl.dsp.global("quiet-shell:switcher-done"), { release = true, transparent = true })
+hl.on("input.keyboard.key", function(keycode, _, pressed)
+	if pressed == 0 and (keycode == 133 or keycode == 134) then
+		hl.dispatch(hl.dsp.global("quiet-shell:switcher-done"))
+	elseif pressed == 1 and keycode == 9 then
+		hl.dispatch(hl.dsp.global("quiet-shell:switcher-cancel"))
+	end
+end)
 hl.bind("SUPER + SHIFT + s", hl.dsp.exec_cmd("quiet-shell-ipc screenshot"))
 hl.bind("SUPER + slash", hl.dsp.exec_cmd("quiet-shell-ipc shortcuts"))
 hl.bind("SUPER + minus", hl.dsp.window.move({ workspace = "special:minimized", follow = false }))
