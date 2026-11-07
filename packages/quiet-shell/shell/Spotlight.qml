@@ -36,9 +36,9 @@ Item {
     readonly property var actions: [
         { title: "Lock Screen", note: "Run", run: () => Ui.session("lock") },
         { title: "Sleep", note: "Run", run: () => Ui.session("sleep") },
-        { title: "Restart…", note: "Run", run: () => Ui.session("restart") },
-        { title: "Shut Down…", note: "Run", run: () => Ui.session("shutdown") },
-        { title: "Log Out…", note: "Run", run: () => Ui.session("logout") },
+        { title: "Restart", note: "Run", run: () => Ui.session("restart") },
+        { title: "Shut Down", note: "Run", run: () => Ui.session("shutdown") },
+        { title: "Log Out", note: "Run", run: () => Ui.session("logout") },
         { title: "Focus", note: Sys.focusMode ? "Turn off" : "Turn on", run: () => { Sys.focusMode = !Sys.focusMode; Ui.close(); } },
         { title: "Night Mode", note: Sys.night ? "Turn off" : "Turn on", run: () => { Sys.toggleNight(); Ui.close(); } },
         { title: "Keep Awake", note: Sys.awake ? "Turn off" : "Turn on", run: () => { Sys.toggleAwake(); Ui.close(); } },

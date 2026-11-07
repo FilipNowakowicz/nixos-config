@@ -17,6 +17,8 @@ ColumnLayout {
         if (c.includes("rain") || c.includes("drizzle") || c.includes("shower")) return "cloud-rain";
         if (c.includes("fog") || c.includes("mist") || c.includes("haze")) return "cloud-fog";
         if (c.includes("cloud") || c.includes("overcast")) return "cloud";
+        // wttr.in says Sunny by day and Clear by night.
+        if (c.includes("clear")) return "moon";
         return "sun";
     }
     function days() {
@@ -32,23 +34,47 @@ ColumnLayout {
     Item {
         visible: Sys.weather !== null
         Layout.fillWidth: true
-        implicitHeight: 62
+        implicitHeight: forecast.implicitHeight + 24
         Glass { anchors.fill: parent; radius: 22 }
-        RowLayout {
-            anchors.fill: parent
+        ColumnLayout {
+            id: forecast
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
             anchors.leftMargin: 16
             anchors.rightMargin: 16
-            spacing: 12
-            Icon { name: Sys.weather ? root.weatherIcon(Sys.weather.condition) : "sun"; size: 24 }
-            Column {
+            spacing: 10
+            RowLayout {
                 Layout.fillWidth: true
-                Label { width: parent.width; text: Sys.weather ? Sys.weather.place : ""; font.weight: Font.Medium }
-                Label { width: parent.width; text: Sys.weather ? Sys.weather.condition : ""; font.pixelSize: 12; color: Theme.dim }
+                spacing: 12
+                Icon { name: Sys.weather ? root.weatherIcon(Sys.weather.condition) : "sun"; size: 24 }
+                Column {
+                    Layout.fillWidth: true
+                    Label { width: parent.width; text: Sys.weather ? Sys.weather.place : ""; font.weight: Font.Medium }
+                    Label { width: parent.width; text: Sys.weather ? Sys.weather.condition : ""; font.pixelSize: 12; color: Theme.dim }
+                }
+                Label { text: Sys.weather ? Sys.weather.temperature : ""; font.pixelSize: 22; font.features: { "tnum": 1 } }
             }
-            Label { text: Sys.weather ? Sys.weather.temperature : ""; font.pixelSize: 22; font.features: { "tnum": 1 } }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 0
+                Repeater {
+                    model: Sys.weather ? Sys.weather.hours : []
+                    Column {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        spacing: 4
+                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.time; font.pixelSize: 11; color: Theme.dim; font.features: { "tnum": 1 } }
+                        Icon { anchors.horizontalCenter: parent.horizontalCenter; name: root.weatherIcon(modelData.condition); size: 16 }
+                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.temperature; font.pixelSize: 12; font.features: { "tnum": 1 } }
+                    }
+                }
+            }
         }
     }
     Item {
+        visible: !root.compact
         Layout.fillWidth: true
         implicitHeight: calendar.implicitHeight + 24
         Glass { anchors.fill: parent; radius: 22 }
@@ -60,7 +86,6 @@ ColumnLayout {
             spacing: 6
             Label { text: Qt.formatDate(root.now, "dddd d MMMM"); font.weight: Font.DemiBold; font.pixelSize: 15 }
             Grid {
-                visible: !root.compact
                 columns: 7
                 width: parent.width
                 Repeater {

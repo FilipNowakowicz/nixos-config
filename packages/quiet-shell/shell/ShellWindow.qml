@@ -34,12 +34,31 @@ PanelWindow {
         anchors.fill: parent
         focus: true
         Keys.onEscapePressed: Ui.back()
-        Keys.onReturnPressed: event => { if (Ui.switcher) Ui.commitSwitcher(); else event.accepted = false; }
+        Keys.onPressed: event => {
+            if (Ui.panel === "controls" && Ui.detail === "" && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)))
+                event.accepted = controls.pressLetter(event.text.toLowerCase());
+        }
+        Keys.onReturnPressed: event => {
+            if (Ui.switcher) Ui.commitSwitcher();
+            else if (Ui.overview) Ui.close();
+            else event.accepted = false;
+        }
         Keys.onReleased: event => {
             if (Ui.switcher && (event.key === Qt.Key_Super_L || event.key === Qt.Key_Super_R || event.key === Qt.Key_Meta))
                 Ui.commitSwitcher();
         }
-        Keys.onTabPressed: event => { if (Ui.switcher) Ui.stepSwitcher(1); else event.accepted = false; }
+        Keys.onTabPressed: event => {
+            const forward = !(event.modifiers & Qt.ShiftModifier);
+            if (Ui.switcher) Ui.stepSwitcher(1);
+            else if (overview.item) overview.item.step(forward ? 1 : -1);
+            else if (Ui.panel === "controls") win.stepFocus(forward);
+            else event.accepted = false;
+        }
+        Keys.onBacktabPressed: event => {
+            if (overview.item) overview.item.step(-1);
+            else if (Ui.panel === "controls") win.stepFocus(false);
+            else event.accepted = false;
+        }
 
         MouseArea {
             anchors.fill: parent
@@ -70,6 +89,7 @@ PanelWindow {
 
         // Built only while open: live window capture should cost nothing at rest.
         Loader {
+            id: overview
             anchors.fill: parent
             active: (Ui.overview || opacity > 0) && win.focused
             opacity: Ui.overview ? 1 : 0
@@ -154,9 +174,27 @@ PanelWindow {
         }
     }
 
+    // The Tab order covers the whole window, so keep it inside the panel rather than
+    // walking through the bar's desktop dots to get there.
+    function stepFocus(forward) {
+        let item = root.Window.activeFocusItem;
+        for (let hops = 0; item && hops < 200; hops++) {
+            item = item.nextItemInFocusChain(forward);
+            for (let up = item; up; up = up.parent) {
+                if (up === controls) {
+                    item.forceActiveFocus(Qt.TabFocusReason);
+                    return;
+                }
+            }
+        }
+    }
+
     Connections {
         target: Ui
         function onRefocus() { root.forceActiveFocus(); }
+        // A hidden control can't hand the keyboard back, and the letters need it.
+        function onPanelChanged() { root.forceActiveFocus(); }
+        function onDetailChanged() { root.forceActiveFocus(); }
     }
     Timer {
         id: hideTop

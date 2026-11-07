@@ -19,6 +19,15 @@ Singleton {
     readonly property bool btOn: state.bluetooth ? state.bluetooth.on : false
     readonly property var btDevices: state.bluetooth ? state.bluetooth.devices : []
     readonly property var btNearby: state.bluetooth ? state.bluetooth.nearby : []
+    readonly property var buds: state.bluetooth ? state.bluetooth.buds || null : null
+    readonly property bool budsConnected: !!buds && buds.connected
+    // What the Buds say themselves, read on demand: a read means reconnecting to them.
+    property var budsInfo: null
+    onBudsConnectedChanged: {
+        budsInfo = null;
+        if (budsConnected)
+            budsSettle.restart();
+    }
     readonly property bool tailscaleOn: state.vpn ? state.vpn.tailscale : false
     readonly property bool mullvadOn: state.vpn ? state.vpn.mullvad : false
     readonly property bool vpnOn: tailscaleOn || mullvadOn
@@ -126,6 +135,8 @@ Singleton {
                             Quickshell.execDetached(w.options.undo);
                     } else
                         root.setWrite(key, Object.assign({}, w, { exited: true }));
+                    if (code === 0 && w.options.after)
+                        w.options.after();
                 }
                 root.refresh();
                 destroy();
@@ -193,6 +204,41 @@ Singleton {
     function toggleBluetooth() {
         const want = !btOn;
         write("bluetooth", ["bluetoothctl", "power", want ? "on" : "off"], s => s.bluetooth && s.bluetooth.on === want, "Bluetooth didn't turn " + (want ? "on." : "off."));
+    }
+    function toggleBuds() {
+        if (!buds)
+            return;
+        const want = !buds.connected;
+        const command = want ? ["sh", "-c", 'bluetoothctl power on && bluetoothctl connect "$0"', buds.addr] : ["bluetoothctl", "disconnect", buds.addr];
+        write("buds", command, s => !!s.bluetooth && !!s.bluetooth.buds && s.bluetooth.buds.connected === want, "The Buds didn't " + (want ? "connect." : "disconnect."), { timeout: 15000 });
+    }
+    function setBudsMode(mode) {
+        if (!budsConnected)
+            return;
+        write("buds-mode", ["quiet-buds", "set", buds.addr, mode], () => !!budsInfo && budsInfo.mode === mode, "Noise control didn't change.", {
+            timeout: 15000,
+            after: () => root.budsInfo = Object.assign({}, root.budsInfo, { mode })
+        });
+    }
+    function refreshBuds() {
+        if (budsConnected && !budsRead.running) {
+            budsRead.command = ["quiet-buds", "read", buds.addr];
+            budsRead.running = true;
+        }
+    }
+    // Right after connecting, the Buds aren't ready for a second client yet.
+    Timer { id: budsSettle; interval: 2000; onTriggered: root.refreshBuds() }
+    Process {
+        id: budsRead
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    root.budsInfo = JSON.parse(text);
+                } catch (e) {
+                    // Keep the last reading. The card falls back to BlueZ's battery figure.
+                }
+            }
+        }
     }
     function toggleDevice(dev) {
         const want = !dev.connected;
@@ -367,7 +413,7 @@ Singleton {
         write("theme", ["theme-switch", name], () => Theme.name === name, "The theme didn't change.");
     }
     function mediaCommand(verb) {
-        Quickshell.execDetached(["playerctl", verb]);
+        Quickshell.execDetached(["playerctl", "--player=spotify", verb]);
         settle.restart();
     }
 

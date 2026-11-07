@@ -7,6 +7,7 @@ A key `fail` listing command names makes those exit 1 without changing state, an
 """
 
 import base64
+import datetime
 import fcntl
 import json
 import os
@@ -92,6 +93,9 @@ elif cmd == "bluetoothctl":
         for addr, (name, on) in state["devices"].items():
             if on:
                 print(f"Device {addr} {name}")
+    elif args[0] == "info":
+        if args[1] == state.get("buds"):
+            print("UUID: Vendor specific (2e73a4ad-332d-41fc-90e2-16bef06523f2)\nBattery Percentage: 0x5a (90)")
     elif args[0] == "power":
         state["bt"] = args[1] == "on"
     elif args[0] in ("connect", "disconnect"):
@@ -159,16 +163,28 @@ elif cmd == "powerprofilesctl":
     else:
         state["profile"] = args[1]
 elif cmd == "playerctl":
+    # Unscoped, playerctl follows whichever player was active last, like a browser video.
+    spotify = args[0] == "--player=spotify"
+    if spotify:
+        args = args[1:]
     if args[0] == "status":
         print("Playing" if state["playing"] else "Paused")
     elif args[:2] == ["metadata", "title"]:
         print("Blue <in> Green & More")
     elif args[:2] == ["metadata", "artist"]:
         print("Miles Davis")
+    elif args[0] == "metadata" and not spotify:
+        print("Playing\tA browser video\tSome channel\t")
     elif args[0] == "metadata":
         print(f"{'Playing' if state['playing'] else 'Paused'}\tBlue in Green\tMiles Davis\t")
-    elif args[0] == "play-pause":
+    elif args[0] == "play-pause" and spotify:
         state["playing"] = not state["playing"]
+elif cmd == "quiet-buds":
+    if args[0] == "read":
+        print(json.dumps({"left": 88, "right": 92, "case": 40, "mode": state.get("buds_mode", "off")}))
+    else:
+        state["buds_mode"] = args[2]
+        print(json.dumps({"mode": args[2]}))
 elif cmd == "pgrep":
     done(0 if state["night"] else 1)
 elif cmd == "pkill":
@@ -202,7 +218,15 @@ elif cmd == "slurp":
     print("10,10 100x100")
 elif cmd == "curl":
     if not state.get("offline"):
-        print("Partly cloudy|+11°C")
+        today = datetime.date.today()
+        print(json.dumps({
+            "current_condition": [{"weatherDesc": [{"value": "Partly cloudy "}], "temp_C": "11"}],
+            "weather": [
+                {"date": str(today + datetime.timedelta(days=day)),
+                 "hourly": [{"time": str(hour * 100), "weatherDesc": [{"value": "Light rain"}], "tempC": str(hour // 3)} for hour in range(0, 24, 3)]}
+                for day in range(2)
+            ],
+        }))
 elif cmd == "theme-switch":
     colors = pathlib.Path(os.environ["QUIET_COLORS"])
     data = json.loads(colors.read_text())
