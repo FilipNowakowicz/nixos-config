@@ -10,7 +10,11 @@ Item {
     property color hover: Theme.fillHover
     property color rest: "transparent"
     readonly property bool hovered: area.containsMouse
+    property Item dragTarget: null
+    readonly property bool dragging: area.drag.active
     signal clicked
+    signal pressedAt(real x, real y)
+    signal dropped
     signal secondaryClicked
 
     activeFocusOnTab: true
@@ -36,6 +40,9 @@ Item {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         acceptedButtons: Qt.LeftButton | Qt.RightButton
+        drag.target: root.dragTarget
+        onPressed: mouse => root.pressedAt(mouse.x, mouse.y)
+        onReleased: if (drag.active) root.dropped()
         onClicked: mouse => mouse.button === Qt.RightButton ? root.secondaryClicked() : root.clicked()
     }
 }

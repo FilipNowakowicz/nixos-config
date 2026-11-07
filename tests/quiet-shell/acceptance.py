@@ -506,6 +506,68 @@ def wifi_password_joins_without_leaking():
 
 
 @test
+def overview_drags_a_window_to_another_desktop():
+    here = json.loads(sh("hyprctl", "-j", "activeworkspace").stdout)["id"]
+    windows = [c for c in clients() if c["workspace"]["id"] == here]
+    assert len(windows) == 2, windows
+    used = sorted(w["id"] for w in json.loads(sh("hyprctl", "-j", "workspaces").stdout) if 0 < w["id"] <= 10)
+    empty = next(i for i in range(1, 11) if i not in used)
+    desks = sorted(used + [empty])
+    shell("overview")
+    wait(lambda: ui()["overview"], "overview")
+    time.sleep(0.5)
+    ox, oy = origin()
+    # The first tile of two side by side, and the empty desktop in the row above.
+    tile = (ox + 408, oy + 573)
+    desk = (ox + 48 + desks.index(empty) * 184 + 85, oy + 72)
+    extra = dict(QUIET_DRAG_SHOT=str(shots / "overview-drag.png"), QUIET_DRAG_OUTPUT=output)
+    subprocess.run([sys.executable, str(repo / "tests/quiet-shell/drag.py"), *map(str, tile + desk)], env={**env, **extra}, check=True, timeout=30)
+    moved = lambda: [c for c in clients() if c["workspace"]["id"] == empty]
+    wait(lambda: len(moved()) == 1, "the window to reach the empty desktop")
+    assert ui()["overview"], "dragging must leave the overview open"
+    shell("close")
+    sh("hyprctl", "dispatch", f'hl.dsp.window.move({{workspace={here},window="address:{moved()[0]["address"]}",follow=false}})')
+    wait(lambda: not moved(), "the window to return")
+
+
+@test
+def password_requests_appear_in_the_shell():
+    shell("testAuth")
+    wait(lambda: ui()["auth"] != "", "the request")
+    time.sleep(0.4)
+    shot("auth")
+    click(100, 500)
+    assert ui()["auth"] != "", "a click outside must not dismiss it"
+    click(960, 540)
+    typed("wrong")
+    key("Return")
+    wait(lambda: ui()["authFailed"], "the failure")
+    time.sleep(0.3)
+    shot("auth-failed")
+    typed("correct horse")
+    key("Return")
+    wait(lambda: ui()["auth"] == "", "the request to finish")
+
+
+@test
+def escape_cancels_a_password_request():
+    shell("testAuth")
+    wait(lambda: ui()["auth"] != "", "the request")
+    time.sleep(0.3)
+    key("Escape")
+    wait(lambda: ui()["auth"] == "", "escape to cancel")
+
+
+@test
+def lock_screen_text_is_safe_markup():
+    script = repo / "home/files/hypr/lock-status.sh"
+    set_fake(playing=True)
+    out = sh("bash", str(script), "media").stdout
+    assert out.strip() == "Miles Davis — Blue &lt;in&gt; Green &amp; More", out
+    assert sh("bash", str(script), "battery").stdout.strip() == "64%"
+
+
+@test
 def only_the_chosen_network_shows_progress():
     set_fake(ssid="Harbour 5G", known=["Harbour 5G", "Harbour 2.4G", "Open Cafe"], stick=["nmcli"])
     open_controls()

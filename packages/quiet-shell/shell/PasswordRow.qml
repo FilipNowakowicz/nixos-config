@@ -5,11 +5,17 @@ import QtQuick.Layouts
 Item {
     id: root
     property string network
+    property string action: "Join"
+    property string placeholder: "Password"
     signal submitted(string password)
     signal cancelled
 
     implicitHeight: 44
-    function ask() { input.text = ""; input.forceActiveFocus(); }
+    function ask(visibleText) {
+        reveal.toggled = !!visibleText;
+        input.text = "";
+        input.forceActiveFocus();
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -41,7 +47,7 @@ Item {
             Label {
                 anchors.verticalCenter: parent.verticalCenter
                 visible: input.text === ""
-                text: "Password"
+                text: root.placeholder
                 color: Theme.dim
             }
         }
@@ -57,15 +63,15 @@ Item {
         }
         Press {
             id: join
-            implicitWidth: 46
+            implicitWidth: actionLabel.implicitWidth + 20
             implicitHeight: 26
             radius: 9
             rest: Theme.fill
             enabled: input.text !== ""
             opacity: enabled ? 1 : 0.5
-            name: "Join " + root.network
+            name: root.action + " " + root.network
             onClicked: root.submitted(input.text)
-            Label { anchors.centerIn: parent; text: "Join"; font.pixelSize: 12; font.weight: Font.Medium }
+            Label { id: actionLabel; anchors.centerIn: parent; text: root.action; font.pixelSize: 12; font.weight: Font.Medium }
         }
     }
 }

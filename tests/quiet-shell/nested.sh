@@ -17,6 +17,7 @@ for c in nm-connection-editor hyprlock grim slurp curl fd xdg-open cliphist wl-c
 done
 echo 64 >"$run/power/BAT0/capacity"
 echo Discharging >"$run/power/BAT0/status"
+export QUIET_TEST_AUTH="file://$repo/tests/quiet-shell/fakes/TestAuth.qml"
 export QUIET_TIMEZONE=Europe/Warsaw QUIET_FAKE_STATE="$run/state.json" QUIET_COLORS="$run/colors.json" QUIET_POWER_SUPPLY="$run/power"
 [[ -f $QUIET_COLORS ]] || cat >"$QUIET_COLORS" <<'JSON'
 {"name":"gilded-contours","bg":"071126","accent":"d3ad7a","text":"f0d5a2",

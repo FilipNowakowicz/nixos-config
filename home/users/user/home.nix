@@ -396,6 +396,16 @@ in
 
       # Hyprlock
       "hypr/hyprlock.conf".source = ../../files/hypr/hyprlock.conf;
+      "hypr/lock-status".source = lib.getExe (
+        pkgs.writeShellApplication {
+          name = "lock-status";
+          runtimeInputs = [
+            pkgs.gnused
+            pkgs.playerctl
+          ];
+          text = builtins.readFile ../../files/hypr/lock-status.sh;
+        }
+      );
 
       # Waybar
       "waybar/config".source = ../../files/waybar/config;

@@ -43,6 +43,10 @@ Set `QUIET_TRAY_PYTHON` to a Python with `dbus-next` to include the tray test, w
 `fakes/tray.py`. Start from a fresh session each run, because tests pair a device and close
 windows.
 
+`drag.py` presses, drags and releases with a virtual pointer, which `wlrctl` can't do.
+Password requests use `fakes/TestAuth.qml`, because the private session has no system bus,
+so the real polkit flow has to be tried by hand with `pkexec true`.
+
 Not covered: physical `SUPER` chords, because `wtype` chords do not match binds; real
 network, Bluetooth and audio changes; and hardware frame pacing.
 

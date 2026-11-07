@@ -16,6 +16,8 @@ Singleton {
     property bool pinned: false
     property bool dragging: false
     property var confirm: null           // { title, body, action, command }
+    property var auth: null              // polkit's request for a password
+    onAuthChanged: refocus()
     property var hud: null               // { kind, level, muted }
     property var dockMenu: null          // { app, x }
     property int deskHud: 0
@@ -74,12 +76,25 @@ Singleton {
 
     // Hyprland sends no focus event when the focused monitor is unplugged, so it can
     // name a screen that's gone. Then every remaining screen counts, or nothing shows.
+    // Quickshell can also lose its answer if a refresh overlaps a new monitor, so the
+    // last focus event, which arrives in order, comes first.
+    property string lastFocusEvent: ""
+    Connections {
+        target: Hyprland
+        function onRawEvent(event) {
+            if (event.name === "focusedmon")
+                root.lastFocusEvent = event.data.split(",")[0];
+            else if (event.name === "monitorremoved" && event.data === root.lastFocusEvent)
+                root.lastFocusEvent = "";
+        }
+    }
     readonly property string focusedScreen: {
         const m = Hyprland.focusedMonitor;
-        return m && Quickshell.screens.some(s => s.name === m.name) ? m.name : "";
+        const candidates = [lastFocusEvent, m ? m.name : ""];
+        return candidates.find(name => Quickshell.screens.some(s => s.name === name)) ?? "";
     }
     readonly property bool topShown: topRevealed || pinned || panel !== ""
-    readonly property bool blocking: panel !== "" || spotlight || overview || confirm !== null || switcher || screenshot || cheatSheet
+    readonly property bool blocking: panel !== "" || spotlight || overview || confirm !== null || switcher || screenshot || cheatSheet || auth !== null
 
     // A focused field can disappear, which would leave the keyboard with nowhere to go.
     signal refocus
@@ -184,7 +199,9 @@ Singleton {
         overview = want;
     }
     function back() {
-        if (detail === "mullvad")
+        if (auth)
+            auth.cancelAuthenticationRequest();
+        else if (detail === "mullvad")
             detail = "vpn";
         else if (detail !== "")
             detail = "";

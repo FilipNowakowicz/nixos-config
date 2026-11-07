@@ -81,6 +81,13 @@ SHIM
 chmod +x "$run/bin/systemctl"
 : >"$run/held-back.log"
 
+# The lock screen from this checkout, since ~/.config still has the installed one.
+sed "s|~/.config/hypr/lock-status|bash '$repo/home/files/hypr/lock-status.sh'|" \
+  "$repo/home/files/hypr/hyprlock.conf" >"$run/hyprlock.conf"
+rm -f "$run/bin/hyprlock"
+printf '#!/bin/sh\nexec "%s" -c "%s" "$@"\n' "$(command -v hyprlock)" "$run/hyprlock.conf" >"$run/bin/hyprlock"
+chmod +x "$run/bin/hyprlock"
+
 cat >"$run/hypr.lua" <<LUA
 -- The real config, with the quiet shell on and the autostart replaced below.
 local real_loadfile = loadfile
@@ -93,7 +100,6 @@ end
 dofile("$repo/home/files/hypr/hyprland.lua")
 hl.bind("SUPER + SHIFT + Escape", hl.dsp.exit())
 hl.on("hyprland.start", function()
-  hl.exec_cmd("/run/current-system/sw/libexec/polkit-gnome-authentication-agent-1")
   hl.exec_cmd("'$self' --wallpaper '$theme'")
   hl.exec_cmd("quiet-shell >'$run/shell.log' 2>&1")
 end)

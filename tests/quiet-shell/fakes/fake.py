@@ -159,7 +159,13 @@ elif cmd == "powerprofilesctl":
     else:
         state["profile"] = args[1]
 elif cmd == "playerctl":
-    if args[0] == "metadata":
+    if args[0] == "status":
+        print("Playing" if state["playing"] else "Paused")
+    elif args[:2] == ["metadata", "title"]:
+        print("Blue <in> Green & More")
+    elif args[:2] == ["metadata", "artist"]:
+        print("Miles Davis")
+    elif args[0] == "metadata":
         print(f"{'Playing' if state['playing'] else 'Paused'}\tBlue in Green\tMiles Davis\t")
     elif args[0] == "play-pause":
         state["playing"] = not state["playing"]

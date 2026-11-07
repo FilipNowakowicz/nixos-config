@@ -139,6 +139,8 @@ PanelWindow {
 
         Confirm { visible: Ui.confirm !== null && win.focused; z: 10 }
 
+        AuthPrompt { visible: Ui.auth !== null && win.focused; z: 11 }
+
         Dock {
             id: dock
             anchors.horizontalCenter: parent.horizontalCenter

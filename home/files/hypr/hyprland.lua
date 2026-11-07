@@ -160,9 +160,9 @@ if os.getenv("DESKTOP_TEST") ~= "1" then
 		hl.exec_cmd(
 			"dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_SESSION_TYPE DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE MOZ_ENABLE_WAYLAND NIXOS_OZONE_WL LIBVA_DRIVER_NAME AQ_DRM_DEVICES __GLX_VENDOR_LIBRARY_NAME && systemctl --user start nixos-fake-graphical-session.target"
 		)
-		hl.exec_cmd("/run/current-system/sw/libexec/polkit-gnome-authentication-agent-1")
 		hl.exec_cmd("swaybg -m fill -i ~/.local/share/wallpapers/current.png")
 		if not shell.quiet then
+			hl.exec_cmd("/run/current-system/sw/libexec/polkit-gnome-authentication-agent-1")
 			hl.exec_cmd("control-center --daemon")
 		end
 	end)

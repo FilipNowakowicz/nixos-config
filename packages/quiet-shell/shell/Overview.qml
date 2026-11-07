@@ -10,7 +10,18 @@ Item {
 
     Rectangle { anchors.fill: parent; color: Qt.rgba(0, 0, 0, 0.34) }
 
-    readonly property var workspaces: Hyprland.workspaces.values.filter(w => w.id > 0).sort((a, b) => a.id - b.id)
+    // The desktops in use, plus one empty one to drag a window onto.
+    readonly property var desks: {
+        const used = {};
+        for (const ws of Hyprland.workspaces.values)
+            if (ws.id > 0 && ws.id <= 10)
+                used[ws.id] = ws;
+        const empty = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].find(id => !used[id]);
+        return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            .filter(id => used[id] || id === empty)
+            .map(id => ({ id, workspace: used[id] ?? null }));
+    }
+    readonly property int deskWidth: Math.min(170, (width - 48 - side.width - 200 - (desks.length - 1) * 14) / desks.length)
     readonly property var windows: {
         const ws = Hyprland.focusedWorkspace;
         return ws ? ws.toplevels.values.filter(t => t.wayland) : [];
@@ -21,20 +32,35 @@ Item {
         y: 24
         spacing: 14
         Repeater {
-            model: root.workspaces
+            model: root.desks
             Press {
                 id: desk
                 required property var modelData
-                readonly property bool active: Hyprland.focusedWorkspace === modelData
-                width: 170
+                readonly property bool active: !!Hyprland.focusedWorkspace && Hyprland.focusedWorkspace.id === modelData.id
+                readonly property int count: modelData.workspace ? modelData.workspace.toplevels.values.length : 0
+                width: root.deskWidth
                 height: 112
                 radius: 12
                 name: "Desktop " + modelData.id
                 rest: "transparent"
                 onClicked: Hyprland.dispatch("hl.dsp.focus({workspace=" + modelData.id + "})")
-                Glass { width: 170; height: 96; radius: 11; lit: !desk.active; tint: desk.active ? Theme.fillHover : Theme.glass }
+                Glass { width: parent.width; height: 96; radius: 11; lit: !desk.active; tint: desk.active || drop.containsDrag ? Theme.fillHover : Theme.glass }
+                Rectangle {
+                    width: parent.width
+                    height: 96
+                    radius: 11
+                    color: "transparent"
+                    visible: drop.containsDrag
+                    border.width: 2
+                    border.color: Theme.accent
+                }
                 Label { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; text: "Desktop " + desk.modelData.id; font.pixelSize: 11 }
-                Label { x: 0; y: 0; width: 170; height: 96; horizontalAlignment: Text.AlignHCenter; text: desk.modelData.toplevels.values.length + (desk.modelData.toplevels.values.length === 1 ? " window" : " windows"); font.pixelSize: 12; color: Theme.dim }
+                Label { x: 0; y: 0; width: parent.width; height: 96; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; text: desk.count === 0 ? "Empty" : desk.count === 1 ? "1 window" : desk.count + " windows"; font.pixelSize: 12; color: Theme.dim }
+                DropArea {
+                    id: drop
+                    anchors.fill: parent
+                    onDropped: if (!desk.active) Dockable.move(ghost.window, desk.modelData.id, false)
+                }
             }
         }
     }
@@ -68,7 +94,16 @@ Item {
                 radius: 12
                 name: modelData.title
                 rest: "transparent"
+                opacity: dragging ? 0.3 : 1
+                dragTarget: ghost
                 onClicked: { Dockable.revealWayland(modelData.wayland); Ui.close(); }
+                onPressedAt: (x, y) => {
+                    const at = mapToItem(root, x, y);
+                    ghost.x = at.x - ghost.width / 2;
+                    ghost.y = at.y - ghost.height / 2;
+                }
+                onDraggingChanged: if (dragging) ghost.window = modelData
+                onDropped: { ghost.Drag.drop(); ghost.window = null; }
                 // Always there underneath, so a failed capture still leaves a usable tile.
                 Glass { anchors.fill: parent; radius: 12 }
                 AppIcon {
@@ -86,6 +121,26 @@ Item {
                 }
                 Label { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 8; text: tile.modelData.title; font.pixelSize: 12 }
             }
+        }
+    }
+
+    // What the pointer carries while a window is dragged onto a desktop.
+    Item {
+        id: ghost
+        property var window: null
+        visible: window !== null
+        width: 220
+        height: 140
+        z: 5
+        Drag.active: visible
+        Drag.hotSpot: Qt.point(width / 2, height / 2)
+        Glass { anchors.fill: parent; radius: 12 }
+        ScreencopyView {
+            anchors.fill: parent
+            anchors.margins: 4
+            captureSource: ghost.window ? ghost.window.wayland : null
+            live: true
+            constraintSize: Qt.size(Math.max(width, 1), Math.max(height, 1))
         }
     }
 
