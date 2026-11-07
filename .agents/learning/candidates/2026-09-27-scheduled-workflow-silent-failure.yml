@@ -12,3 +12,4 @@ agent: claude
 type: repo-fix
 dedupe_key: ci:scheduled-workflow-silent-failure
 targets: [.github/workflows/tailscale-acl-drift.yml, scripts/check-tailscale-acl-drift.sh]
+review_note: "Reviewed 2026-11-07; keep open. The drift script still uses curl -sf and the workflow has no failure issue reporting. Add HTTP/auth diagnostics with mocked responses, then deduplicated scheduled-failure reporting; verify current credential health separately without exposing or rotating credentials in this review."

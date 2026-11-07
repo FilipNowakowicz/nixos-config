@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-09-27-search-all-refs-before-reimplementing
 date: 2026-09-27
 expires: 2027-03-27
-status: open
+status: promoted
 route: promote-skill
 best_form: skill
 evidence: [user correction 2026-09-27; GSP fix bfe099e lived only on local fix/swayosd-codex-earpods while HEAD was another branch; agent re-implemented it as a duplicate branch; landed via #411]

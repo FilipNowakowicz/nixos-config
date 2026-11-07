@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-11-07-nested-hyprland-virtual-keyboard-binds
 date: 2026-11-07
 expires: 2027-05-07
-status: open
+status: promoted
 route: promote-doc
 best_form: doc
 evidence: [tests/quiet-shell/acceptance.py:94 key() uses wtype, "nested Hyprland 0.57 + real hyprland.lua (DESKTOP_TEST=1, HEADLESS-1 only): wtype -M logo -k 2 -m logo and a chord.py-style zwp_virtual_keyboard with Mod4 left activeworkspace at 1; keys typed into the focused foot as plain text (dfff2122); hyprctl devices showed active_keymap error; input:virtualkeyboard:share_states=1 did not help"]

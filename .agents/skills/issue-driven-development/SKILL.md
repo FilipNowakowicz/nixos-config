@@ -20,6 +20,12 @@ If the source item is still vague, use `issue-tdd` first.
      sections an implementation agent needs (problem/desired outcome or
      summary, acceptance criteria, non-goals, validation, risk/rollback). If it
      reports missing sections, use `issue-tdd` to fill them in before editing.
+   - When resuming work that is missing from the current tree, or when the
+     running/booted system differs from it, search other refs before
+     reimplementing: `git log --all --oneline -S '<distinctive-token>' --
+     <path>` and `git reflog --all`. A sibling branch can contain the change
+     that produced the live generation. Inspect the matching diff first;
+     a missing file on HEAD does not prove the work was lost.
 2. Confirm or restate the acceptance criteria in concrete terms:
    - What behavior changes?
    - What must not change?

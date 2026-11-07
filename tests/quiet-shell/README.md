@@ -36,7 +36,7 @@ a command or make it succeed without changing anything.
    and `qs` on `QUIET_TOOLS`:
 
    ```sh
-   QUIET_TOOLS=... python3 acceptance.py RUNDIR HEADLESS-1 [name-filter]
+   QUIET_TOOLS=... uv run --python 3.12 --no-project python acceptance.py RUNDIR HEADLESS-1 [name-filter]
    ```
 
 Set `QUIET_TRAY_PYTHON` to a Python with `dbus-next` to include the tray test, which uses
@@ -50,3 +50,23 @@ so the real polkit flow has to be tried by hand. This system has no `pkexec`, bu
 terminal outside a tty session `systemctl start fprintd.service` asks for a password.
 
 Not covered: real network, Bluetooth and audio changes; and hardware frame pacing.
+
+## Keyboard and focus probes
+
+The Hyprland 0.57 probes found that a SUPER release bind can be missed when
+another key is still held, even with `transparent`, `ignore_mods` or
+`non_consuming`. The switcher therefore also observes `input.keyboard.key`;
+keep the real key-order cases in `super_tab_switches_with_real_key_order`.
+A layer shell without keyboard focus can have a toplevel activation request
+ignored; select the window through `hl.dsp.focus` as the switcher does.
+
+With `QUIET_REAL_CONFIG=1`, virtual-keyboard SUPER chords have also reached
+the client as plain keys without firing binds. Do not infer a passing bind
+from successful input injection: verify the resulting workspace/window or
+shell state. Inspect registration with `hyprctl -j binds`; to isolate Lua
+logic, append exports of the relevant locals to a private test copy of the
+config and call them with `hyprctl eval`. That checks logic, not physical
+keyboard delivery, which still needs a separate probe.
+
+`nested.sh` fakes `setsid`, so launch probe windows directly rather than
+through it.

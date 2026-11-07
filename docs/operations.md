@@ -412,6 +412,15 @@ that commit is the exact trigger that can flip the override's argument
 signature and break eval — the comment is the fix, or at least the fastest
 path to it, before treating the failure as a fresh investigation.
 
+A module/package argument mismatch can also originate inside the pinned
+nixpkgs revision: for example, its DisplayLink module passed `evdi` while the
+package expected `linuxPackages`. Inspect the earliest failing job with
+`gh run view <run-id> --log-failed`, then compare the module and package at the
+revision recorded in `flake.lock`. If a temporary compatibility overlay is
+needed, give it a clear removal condition. Evaluate the real `main` toplevel
+as well as building `main-ci`: CI deliberately skips DisplayLink's unfree
+hardware dependency, so its closure alone cannot catch this mismatch.
+
 Rules of thumb:
 
 - Shared flake, library, or global module changes: run `light` and affected host builds; use `hosts` when impact is broad.
@@ -555,7 +564,7 @@ The installed `.git/hooks/pre-commit` pins a specific `nix-store` path. After a
 `nix-collect-garbage` reaps that path, `git commit` in the primary checkout
 aborts with `/nix/store/...-pre-commit-<ver>/bin/pre-commit: No such file or
 directory` and leaves the commit unmade with files still staged. This is
-distinct from a fresh `/tmp` worktree that simply lacks a flake-generated
+distinct from a fresh worktree that simply lacks a flake-generated
 `.pre-commit-config.yaml` — here the config exists, only the hook's binary
 path is dead. Re-run the commit through the dev shell — `nix develop -c git
 commit -m ...` — whose `shellHook` reinstalls the hook against a live store
