@@ -28,8 +28,31 @@ Item {
         { title: "Night Mode", note: Sys.night ? "Turn off" : "Turn on", run: () => { Sys.toggleNight(); Ui.close(); } },
         { title: "Keep Awake", note: Sys.awake ? "Turn off" : "Turn on", run: () => { Sys.toggleAwake(); Ui.close(); } },
         { title: "Wi-Fi", note: Sys.wifiOn ? "Turn off" : "Turn on", run: () => { Sys.toggleWifi(); Ui.close(); } },
-        { title: "Bluetooth", note: Sys.btOn ? "Turn off" : "Turn on", run: () => { Sys.toggleBluetooth(); Ui.close(); } }
+        { title: "Bluetooth", note: Sys.btOn ? "Turn off" : "Turn on", run: () => { Sys.toggleBluetooth(); Ui.close(); } },
+        { title: "Time Zone", note: Sys.timezone || "Choose", run: () => { input.text = "time zone "; } }
     ]
+    // Every zone tzdata places, for "time zone <city>" (or "tz <city>").
+    property var zones: []
+    FileView {
+        path: Quickshell.env("QUIET_ZONE_TAB") || ""
+        printErrors: false
+        onLoaded: root.zones = ["UTC"].concat(text().split("\n").filter(l => l && !l.startsWith("#")).map(l => l.split("\t")[2]).filter(z => z).sort())
+    }
+    function zoneResults(wanted) {
+        const words = wanted.toLowerCase();
+        return zones.filter(z => !words || Search.wordsMatch(z.replace(/[\/_]/g, " "), words)).slice(0, 8).map(z => {
+            const parts = z.split("/");
+            const current = z === Sys.timezone;
+            return {
+                group: "Time Zone",
+                title: parts[parts.length - 1].replace(/_/g, " "),
+                note: (parts.length > 1 ? parts.slice(0, -1).join(" / ").replace(/_/g, " ") + " · " : "") + (current ? "Current" : "Set"),
+                kind: "action",
+                value: () => { if (!current) Sys.setTimezone(z); Ui.close(); },
+                glyph: "clock"
+            };
+        });
+    }
     property var clips: []
     property var files: []
     property var memory: ({ picks: {}, typed: {} })
@@ -53,6 +76,9 @@ Item {
                 .map(c => ({ group: "Clipboard", title: c.text, note: "Copy", kind: "clip", value: c.line, glyph: "clipboard" }));
         }
         if (query === "") return [];
+        const zoneQuery = /^(?:tz|time ?zone)(?:\s+(.*))?$/i.exec(query);
+        if (zoneQuery)
+            return zoneResults((zoneQuery[1] || "").trim());
         if (query.startsWith(">")) {
             const cmd = query.slice(1).trim();
             return [{ group: "Command", title: cmd || "Type a command", note: "Run", kind: "command", value: cmd }];

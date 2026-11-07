@@ -229,6 +229,14 @@ def media():
     return {"playing": bits[0] == "Playing", "title": bits[1], "artist": bits[2], "art": bits[3]}
 
 
+def timezone():
+    """The zone /etc/localtime names, as timedatectl sets it."""
+    try:
+        return os.readlink("/etc/localtime").partition("zoneinfo/")[2] or None
+    except OSError:
+        return None
+
+
 def night():
     return run("pgrep", "-x", "wlsunset") is not None
 
@@ -253,5 +261,6 @@ print(json.dumps({
     "battery": battery(),
     "media": media(),
     "night": night(),
+    "timezone": timezone(),
     "awake": awake(),
 }))

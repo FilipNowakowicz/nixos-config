@@ -431,11 +431,30 @@ Singleton {
     function setProfile(name) {
         write("profile", ["powerprofilesctl", "set", name], s => s.profile === name, "Power mode didn't change.");
     }
+    // A unit of its own, as Keep Awake is: started as the shell's child, wlsunset
+    // lived in the shell's unit and a shell restart turned night mode off.
+    readonly property var nightOn: ["sh", "-c", 'where=$(python3 "$0") && exec systemd-run --user --unit=night-light.service --collect wlsunset $where',
+        Qt.resolvedUrl("scripts/location.py").toString().replace("file://", "")]
     function toggleNight() {
         const want = !night;
-        const location = Qt.resolvedUrl("scripts/location.py").toString().replace("file://", "");
-        const cmd = want ? ["sh", "-c", 'where=$(python3 "$0") && setsid -f wlsunset $where >/dev/null 2>&1', location] : ["pkill", "-x", "wlsunset"];
-        write("night", cmd, s => !!s.night === want, "Night mode didn't change.");
+        write("night", want ? nightOn : ["systemctl", "--user", "stop", "night-light.service"], s => !!s.night === want, "Night mode didn't change.");
+    }
+    // The zone moves the sun, so a running night mode restarts with the new position.
+    function setTimezone(zone) {
+        write("timezone", ["timedatectl", "set-timezone", zone], s => s.timezone === zone, "The time zone didn't change.",
+            { target: zone, timeout: 90000 });
+    }
+    readonly property string timezone: state.timezone || ""
+    property string knownZone: ""
+    onTimezoneChanged: {
+        const moved = knownZone !== "" && timezone !== "" && timezone !== knownZone;
+        knownZone = timezone || knownZone;
+        if (!moved)
+            return;
+        // QML's Date keeps the offset it read at start until told.
+        Date.timeZoneUpdated();
+        if (night)
+            Quickshell.execDetached(["sh", "-c", 'systemctl --user stop night-light.service; "$@"', "sh"].concat(nightOn));
     }
     function toggleAwake() {
         const want = !awake;

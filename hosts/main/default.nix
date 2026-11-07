@@ -110,9 +110,12 @@ in
 
   system.stateVersion = "24.11";
 
-  time.timeZone = "Europe/London";
-
   profiles = {
+    # Chosen from the shell's Spotlight when travelling; kept in /persist.
+    runtimeTimezone = {
+      enable = true;
+      default = "Europe/London";
+    };
     # deploy-rs passes store settings for remote builds; trust the local admin
     # user so the daemon accepts those restricted options without warning.
     nix.extraTrustedUsers = [ "user" ];

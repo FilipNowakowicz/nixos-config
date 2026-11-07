@@ -215,7 +215,7 @@ if [[ $homeserver_gcp_smoke == "true" ]]; then
   sep=","
 fi
 if [[ $profile_tests == "true" ]]; then
-  for profile in profile-security profile-observability profile-hardening; do
+  for profile in profile-security profile-observability profile-hardening profile-runtime-timezone; do
     tests_matrix+="${sep}"'{"name":"'"$profile"'","command":"profile-test","target":"'"$profile"'"}'
     sep=","
   done

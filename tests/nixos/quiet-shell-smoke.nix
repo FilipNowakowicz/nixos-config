@@ -84,6 +84,13 @@ in
           exec ${pkgs.hyprland}/bin/start-hyprland > /tmp/hyprland.log 2>&1
         fi
       '';
+      # Stands in for the password prompt: the test session has no polkit agent.
+      security.polkit.extraConfig = ''
+        polkit.addRule(function(action, subject) {
+          if (action.id == "org.freedesktop.timedate1.set-timezone" && subject.user == "user")
+            return polkit.Result.YES;
+        });
+      '';
       services.pipewire = {
         enable = true;
         # The VM has no sound card; app streams need a sink to play into.
@@ -230,6 +237,21 @@ in
           retry(lambda _: next_month in screen_text(), timeout=timedelta(seconds=15))
           machine.screenshot("calendar-next-month")
           session("quiet-shell-ipc close")
+
+      with subtest("Spotlight sets the time zone"):
+          machine.succeed("timedatectl set-timezone Europe/London")
+          # Type literally: switch the Dvorak layout to plain US while typing.
+          session("hyprctl eval \"hl.config({ input = { kb_variant = [[]] } })\"")
+          session("quiet-shell-ipc spotlight")
+          wait_for(lambda s: s["spotlight"], "spotlight-empty")
+          machine.send_chars("tz warsaw")
+          retry(lambda _: "Time Zone: Warsaw" in state()["results"], timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=2))
+          machine.screenshot("spotlight-timezone")
+          machine.send_key("ret")
+          machine.wait_until_succeeds("readlink /etc/localtime | grep -q Europe/Warsaw", timeout=timedelta(seconds=20))
+          retry(lambda _: state()["sys"]["timezone"] == "Europe/Warsaw" and not state()["writes"], timeout=timedelta(seconds=20))
+          session("hyprctl eval \"hl.config({ input = { kb_variant = [[dvorak]] } })\"")
 
       with subtest("tray icons are grey until pointed at"):
           session("setsid ${trayPython}/bin/python3 ${../quiet-shell/fakes/tray.py} /tmp/tray.log >/dev/null 2>&1 &")

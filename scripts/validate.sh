@@ -192,6 +192,9 @@ build_profile_test() {
   profile-hardening)
     build_attrs ".#legacyPackages.${system}.ciTests.profile-hardening"
     ;;
+  profile-runtime-timezone)
+    build_attrs ".#legacyPackages.${system}.ciTests.profile-runtime-timezone"
+    ;;
   *)
     echo "Unknown profile test target: $1" >&2
     exit 1
@@ -339,7 +342,8 @@ profile-tests)
   build_attrs \
     ".#legacyPackages.${system}.ciTests.profile-security" \
     ".#legacyPackages.${system}.ciTests.profile-observability" \
-    ".#legacyPackages.${system}.ciTests.profile-hardening"
+    ".#legacyPackages.${system}.ciTests.profile-hardening" \
+    ".#legacyPackages.${system}.ciTests.profile-runtime-timezone"
   ;;
 
 heavy)
@@ -349,7 +353,8 @@ heavy)
     ".#legacyPackages.${system}.ciTests.quiet-shell-smoke" \
     ".#legacyPackages.${system}.ciTests.profile-security" \
     ".#legacyPackages.${system}.ciTests.profile-observability" \
-    ".#legacyPackages.${system}.ciTests.profile-hardening"
+    ".#legacyPackages.${system}.ciTests.profile-hardening" \
+    ".#legacyPackages.${system}.ciTests.profile-runtime-timezone"
   ;;
 
 cve-reports)
