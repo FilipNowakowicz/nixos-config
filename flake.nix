@@ -90,24 +90,6 @@
         };
       };
 
-      libfprintGoodixOverlay =
-        final: prev:
-        let
-          rev = "882735c6366fbe30149eea5cfd6d0ddff880f0e4";
-        in
-        {
-          libfprint-2-tod1-goodix = prev.libfprint-2-tod1-goodix.overrideAttrs (_: {
-            # Launchpad has become intermittently unreachable during builds.
-            # Use a fixed GitHub mirror for the same upstream revision instead.
-            src = final.fetchFromGitHub {
-              owner = "hadess";
-              repo = "libfprint-2-tod1-goodix";
-              inherit rev;
-              hash = "sha256-Uv+Rr4V31DyaZFOj79Lpyfl3G6zVWShh20roI0AvMPU=";
-            };
-          });
-        };
-
       hostRegistry = import ./lib/hosts.nix;
 
       inherit (nixpkgs) lib;
@@ -116,7 +98,6 @@
         inherit nixpkgs;
         overlays = [
           lazyactionsOverlay
-          libfprintGoodixOverlay
         ];
       };
       inherit (pkgsHelper) mkPkgs overlays;
