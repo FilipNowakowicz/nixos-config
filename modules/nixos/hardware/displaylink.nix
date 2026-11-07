@@ -39,6 +39,24 @@ let
 in
 {
   config = lib.mkIf enable {
+    # The pinned nixpkgs ships a displaylink package that takes `linuxPackages`
+    # (to find evdi), but its NixOS module still calls
+    # `pkgs.displaylink.override { inherit evdi; }`, which fails evaluation with
+    # "called with unexpected argument 'evdi'". Newer nixpkgs master passes
+    # `linuxPackages = config.boot.kernelPackages` instead. Accept the old call
+    # and bind the package to our (evdi-patched) kernelPackages. Remove once the
+    # locked nixpkgs includes the module fix.
+    nixpkgs.overlays = [
+      (_: previous: {
+        displaylink = lib.makeOverridable (
+          {
+            evdi ? null,
+          }:
+          previous.displaylink.override { linuxPackages = config.boot.kernelPackages; }
+        ) { };
+      })
+    ];
+
     # Work around nixpkgs#575192: copying evdi.ko directly skips Kbuild's
     # certificate generation, so the kernel module aggregator fails. Remove
     # this override once upstream evdi installs through modules_install.
