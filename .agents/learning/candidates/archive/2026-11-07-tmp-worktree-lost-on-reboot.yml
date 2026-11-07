@@ -1,0 +1,12 @@
+schema: learning-candidate/v1
+id: 2026-11-07-tmp-worktree-lost-on-reboot
+date: 2026-11-07
+expires: 2027-02-07
+status: promoted
+route: promote-doc
+best_form: doc
+evidence: [pr-#439, "main rebooted mid-validation (exit 137, uptime 0:21 after); /tmp/nix-spotlight worktree wiped; git worktree prune: gitdir points to non-existent location", "CLAUDE.md Environment: Fresh /tmp/nix-* linked worktrees"]
+observation: /tmp is tmpfs on main, so uncommitted work in /tmp/nix-* worktrees dies on reboot/OOM; recovered only because git add -A had written blobs (git fsck --dangling + cat-file); git worktree prune also drops the index
+proposed_upgrade: point CLAUDE.md worktree guidance at ~/worktrees/nix-* (already used) instead of /tmp; add recovery note - before pruning, git fsck --no-reflogs --dangling and match blobs by content; commit WIP early on long validation
+type: workflow-gotcha
+dedupe_key: worktree:tmp-lost-on-reboot

@@ -11,3 +11,4 @@ proposed_upgrade: add a lib/tests check that rejects exec-once lines in home/fil
 type: workflow-gotcha
 dedupe_key: hyprland:exec-once-daemon-stale-after-rebuild
 targets: [home/files/hypr/hyprland.conf, home/users/user/home.nix]
+review_note: "Reviewed 2026-11-07; keep open. The old conf and swayosd startup are gone, and quiet-shell has a restarting user unit, but the Lua start handler still launches swaybg directly. Define the daemon policy for the Lua config and add a regression check before closing."

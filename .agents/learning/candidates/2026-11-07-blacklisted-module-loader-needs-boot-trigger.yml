@@ -11,3 +11,4 @@ proposed_upgrade: add a main-ci eval or VM check that bluetooth-load-btusb is pu
 type: repo-fix
 dedupe_key: main:blacklisted-module-loader-boot-trigger
 targets: [hosts/main/default.nix, hosts/main/anonymous.nix]
+review_note: "Reviewed 2026-11-07; keep open for regression coverage. main now starts a 10-second loader timer from timers.target and the anonymous specialization disables it. Add an evaluated configuration check for both enabled and anonymous configurations; the runtime fix alone does not satisfy the proposed test."

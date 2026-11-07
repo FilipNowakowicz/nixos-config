@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-11-07-hyprland-release-bind-misses-held-key
+date: 2026-11-07
+expires: 2027-05-07
+status: promoted
+route: promote-doc
+best_form: doc
+evidence: [pr-#438, 722ead0, home/files/hypr/hyprland.lua switcher-done handler, tests/quiet-shell/acceptance.py super_tab_switches_with_real_key_order]
+observation: Hyprland 0.57 never fires a SUPER release bind (any of transparent/ignore_mods/non_consuming) when SUPER comes up while another key is still held; hl.on("input.keyboard.key", fn(keycode_xkb, time_ms, state)) does see it. A layer shell without keyboard focus also gets its toplevel activate ignored, so focus via hl.dsp.focus. tests/quiet-shell/nested.sh fakes setsid, so launch test windows without it.
+proposed_upgrade: add these three gotchas to tests/quiet-shell/README.md or packages/quiet-shell/shell/README.md; key-order probes via chord.py proved each
+agent: claude
+type: workflow-gotcha
+dedupe_key: hyprland:release-bind-misses-modifier-release-with-key-held
+triggers: [home/files/hypr/hyprland.lua, packages/quiet-shell/shell/ShellWindow.qml, tests/quiet-shell/chord.py]
+targets: [tests/quiet-shell/README.md]
