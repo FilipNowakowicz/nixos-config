@@ -13,11 +13,13 @@ Item {
     component Row: Press {
         id: row
         property string title
+        property string note
         Layout.fillWidth: true
         implicitHeight: 30
         radius: 9
         name: title
-        Label { x: 10; width: parent.width - 20; anchors.verticalCenter: parent.verticalCenter; text: row.title }
+        Label { x: 10; width: parent.width - 20 - (noteText.implicitWidth + 8); anchors.verticalCenter: parent.verticalCenter; text: row.title }
+        Label { id: noteText; anchors.right: parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter; visible: text !== ""; width: text === "" ? 0 : implicitWidth; text: row.note; font.pixelSize: 11; color: Theme.dim }
     }
     ColumnLayout {
         id: body
@@ -30,6 +32,7 @@ Item {
             Row {
                 required property var modelData
                 title: modelData.title || root.app.name
+                note: Dockable.isHidden(modelData) ? "Minimised" : modelData.workspace ? "Desktop " + modelData.workspace.id : ""
                 onClicked: { Ui.close(); Dockable.revealAfterClose(modelData); }
             }
         }

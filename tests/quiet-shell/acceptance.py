@@ -506,6 +506,29 @@ def wifi_password_joins_without_leaking():
 
 
 @test
+def focus_toggles_from_its_label():
+    open_controls()
+    before = ui()["focus"]
+    click(1650, 282)
+    wait(lambda: ui()["focus"] != before, "the label to toggle focus")
+    click(1650, 282)
+    wait(lambda: ui()["focus"] == before, "the label to toggle it back")
+
+
+@test
+def super_tab_switches_with_real_key_order():
+    addresses = [c["address"] for c in clients() if c["workspace"]["id"] > 0][:2]
+    for steps in (["S+", "T+", "15", "T-", "15", "S-"], ["S+", "T+", "60", "T-", "600", "S-"]):
+        sh("hyprctl", "dispatch", f'hl.dsp.focus({{window="address:{addresses[0]}"}})')
+        time.sleep(0.3)
+        sh("hyprctl", "dispatch", f'hl.dsp.focus({{window="address:{addresses[1]}"}})')
+        time.sleep(0.3)
+        sh(sys.executable, str(repo / "tests/quiet-shell/chord.py"), *steps)
+        wait(lambda: json.loads(sh("hyprctl", "-j", "activewindow").stdout)["address"] == addresses[0], "the switch")
+        assert ui()["switcher"] == -1, "the switcher must not stay open"
+
+
+@test
 def overview_drags_a_window_to_another_desktop():
     here = json.loads(sh("hyprctl", "-j", "activeworkspace").stdout)["id"]
     windows = [c for c in clients() if c["workspace"]["id"] == here]

@@ -10,6 +10,22 @@ Item {
 
     Rectangle { anchors.fill: parent; color: Qt.rgba(0, 0, 0, 0.34) }
 
+    // A capture ends for good when its window changes size, which every window sharing a
+    // desktop does when one moves. So start them again once the layout has settled.
+    property bool capturing: true
+    Timer {
+        id: recapture
+        interval: 600
+        onTriggered: { root.capturing = false; Qt.callLater(() => root.capturing = true); }
+    }
+    Connections {
+        target: Hyprland
+        function onRawEvent(event) {
+            if (["openwindow", "closewindow", "movewindow"].includes(event.name))
+                recapture.restart();
+        }
+    }
+
     // The desktops in use, plus one empty one to drag a window onto.
     readonly property var desks: {
         const used = {};
@@ -112,12 +128,15 @@ Item {
                     icon: DesktopEntries.heuristicLookup(tile.modelData.wayland.appId)?.icon ?? ""
                     fallback: tile.modelData.wayland.appId || "?"
                 }
-                ScreencopyView {
+                Loader {
                     anchors.fill: parent
                     anchors.margins: 4
-                    captureSource: tile.modelData.wayland
-                    live: true
-                    constraintSize: Qt.size(Math.max(width, 1), Math.max(height, 1))
+                    active: root.capturing
+                    sourceComponent: ScreencopyView {
+                        captureSource: tile.modelData.wayland
+                        live: true
+                        constraintSize: Qt.size(960, 600)
+                    }
                 }
                 Label { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 8; text: tile.modelData.title; font.pixelSize: 12 }
             }
@@ -140,7 +159,7 @@ Item {
             anchors.margins: 4
             captureSource: ghost.window ? ghost.window.wayland : null
             live: true
-            constraintSize: Qt.size(Math.max(width, 1), Math.max(height, 1))
+            constraintSize: Qt.size(440, 280)
         }
     }
 

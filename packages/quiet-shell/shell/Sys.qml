@@ -168,11 +168,21 @@ Singleton {
             // A failed attempt leaves a profile behind that would look like a saved network.
             secret ? { target: name, input: password + "\n", timeout: 30000, undo: ["nmcli", "connection", "delete", "id", name] } : { target: name, timeout: 30000 });
     }
+    // Neither command says when it's done, so this is about how long a scan takes.
+    property bool scanning: false
+    Timer { id: scanTimer; onTriggered: root.scanning = false }
+    function showScanning(seconds) {
+        scanning = true;
+        scanTimer.interval = seconds * 1000;
+        scanTimer.restart();
+    }
     function rescanWifi() {
         Quickshell.execDetached(["nmcli", "dev", "wifi", "rescan"]);
+        showScanning(10);
     }
     function scanBluetooth() {
         Quickshell.execDetached(["bluetoothctl", "--timeout", "15", "scan", "on"]);
+        showScanning(15);
     }
     function pairDevice(dev) {
         write("bt-" + dev.addr,

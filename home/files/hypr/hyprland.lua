@@ -105,7 +105,8 @@ if shell.quiet then
 	hl.bind("SUPER + o", hl.dsp.exec_cmd("quiet-shell-ipc overview"))
 	hl.bind("SUPER + Tab", hl.dsp.exec_cmd("quiet-shell-ipc switcher 1"))
 	hl.bind("SUPER + SHIFT + Tab", hl.dsp.exec_cmd("quiet-shell-ipc switcher -1"))
-	hl.bind("SUPER + Super_L", hl.dsp.exec_cmd("quiet-shell-ipc switcherDone"), { release = true })
+	-- Transparent, or pressing Tab cancels this release and a quick tap leaves the switcher open.
+	hl.bind("SUPER + Super_L", hl.dsp.exec_cmd("quiet-shell-ipc switcherDone"), { release = true, transparent = true })
 	hl.bind("SUPER + SHIFT + s", hl.dsp.exec_cmd("quiet-shell-ipc screenshot"))
 	hl.bind("SUPER + slash", hl.dsp.exec_cmd("quiet-shell-ipc shortcuts"))
 	hl.bind("SUPER + minus", hl.dsp.window.move({ workspace = "special:minimized", follow = false }))

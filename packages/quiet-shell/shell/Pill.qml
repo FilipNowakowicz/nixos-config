@@ -41,9 +41,9 @@ Item {
         height: 44
         radius: 14
         rest: "transparent"
-        name: root.name + " details"
-        visible: root.detail !== ""
-        onClicked: Ui.detail = root.detail
+        // With nothing to open, the whole pill is the toggle.
+        name: root.detail !== "" ? root.name + " details" : root.name + " label"
+        onClicked: root.detail !== "" ? Ui.detail = root.detail : root.toggle()
     }
     Column {
         anchors.left: circle.right

@@ -23,6 +23,8 @@ export QUIET_TIMEZONE=Europe/Warsaw QUIET_FAKE_STATE="$run/state.json" QUIET_COL
 {"name":"gilded-contours","bg":"071126","accent":"d3ad7a","text":"f0d5a2",
  "themes":["acid-statue","cold-concrete","desert-dusk","gilded-contours","lunar-peaks","mono-mesh","nighthawks","obsidian-ridge"]}
 JSON
+# Keybindings call quiet-shell-ipc, which sits next to the built shell.
+[[ ${QUIET_COMMAND:-} != */* ]] || PATH="$(dirname "$QUIET_COMMAND"):$PATH"
 parent=$WAYLAND_DISPLAY
 [[ $parent == /* ]] || parent="$XDG_RUNTIME_DIR/$parent"
 cat >"$run/hypr.lua" <<LUA

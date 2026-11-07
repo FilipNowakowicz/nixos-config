@@ -36,7 +36,11 @@ Item {
                 onClicked: Ui.back()
                 Icon { anchors.centerIn: parent; name: "chevron-left"; size: 15 }
             }
-            Label { text: root.title; font.weight: Font.DemiBold; font.pixelSize: 14 }
+            Label { Layout.fillWidth: true; text: root.title; font.weight: Font.DemiBold; font.pixelSize: 14 }
+            Spinner {
+                Layout.rightMargin: 9
+                visible: Sys.scanning && (root.kind === "wifi" || root.kind === "bluetooth")
+            }
         }
 
         // Wi-Fi

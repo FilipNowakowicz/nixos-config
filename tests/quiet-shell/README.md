@@ -44,10 +44,12 @@ Set `QUIET_TRAY_PYTHON` to a Python with `dbus-next` to include the tray test, w
 windows.
 
 `drag.py` presses, drags and releases with a virtual pointer, which `wlrctl` can't do.
+`chord.py` does the same for keys, in real order, which `wtype` chords can't do.
 Password requests use `fakes/TestAuth.qml`, because the private session has no system bus,
-so the real polkit flow has to be tried by hand with `pkexec true`.
+so the real polkit flow has to be tried by hand. This system has no `pkexec`, but from a
+terminal outside a tty session `systemctl start fprintd.service` asks for a password.
 
-Not covered: physical `SUPER` chords, because `wtype` chords do not match binds; real
+Not covered: real
 network, Bluetooth and audio changes; and hardware frame pacing.
 
 ## Trying it on real hardware
