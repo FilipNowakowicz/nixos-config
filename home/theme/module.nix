@@ -282,7 +282,9 @@ in
       };
       Service = {
         ExecStart = "${pkgs.swaybg}/bin/swaybg -m fill -i ${config.home.homeDirectory}/.local/share/wallpapers/current.png";
-        Restart = "on-failure";
+        # A severed Wayland connection can end swaybg cleanly; come back anyway.
+        Restart = "always";
+        RestartSec = 2;
       };
       Install.WantedBy = [ "graphical-session.target" ];
     };
