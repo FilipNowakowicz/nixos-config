@@ -47,6 +47,9 @@
       # D-Bus activation files; greetd's PAM hook initializes and unlocks the
       # login collection when the desktop session is entered with a password.
       gnome.gnome-keyring.enable = true;
+      # gnome-keyring brings gcr's SSH agent along, but every shell points
+      # SSH_AUTH_SOCK at the Home Manager ssh-agent, so the second one sat idle.
+      gnome.gcr-ssh-agent.enable = false;
     };
 
     security.pam.services.greetd.enableGnomeKeyring = true;

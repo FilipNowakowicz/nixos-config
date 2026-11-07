@@ -129,9 +129,6 @@ in
           machine.wait_until_succeeds("su user -c '${inSession} hyprctl monitors' | grep -q Monitor", timeout=timedelta(seconds=60))
           errors = session("hyprctl configerrors").strip()
           assert errors in ("", "no errors"), f"config errors: {errors}"
-          # Hyprland picks a random default wallpaper when nothing draws one; a plain
-          # background keeps text capture and screenshots the same every run.
-          session("hyprctl eval \"hl.config({ misc = { disable_hyprland_logo = true, force_default_wallpaper = 0 } })\"")
 
       with subtest("the shell starts and answers IPC"):
           machine.succeed("su user -c '${inSession} setsid quiet-shell > /tmp/shell.log 2>&1 &'")

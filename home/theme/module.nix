@@ -45,7 +45,7 @@ let
   # than discovered from the environment.
   themeSwitch = pkgs.writeShellApplication {
     name = "theme-switch";
-    # The themed UI tools (kitty/swaybg) come from the single shared
+    # The themed UI tools (kitty) come from the single shared
     # list so they cannot drift from the desktop install list; hyprland is
     # added here for `hyprctl` reloads (the compositor itself is system-level).
     runtimeInputs =
@@ -160,6 +160,7 @@ let
         active = "rgb(${theme.colors.amber})",
         inactive = "rgb(${theme.colors.brown})",
         shadow = "rgba(${theme.colors.bg}cc)",
+        background = "rgb(${theme.colors.bg})",
       }
     '';
 
@@ -267,6 +268,23 @@ in
     home.packages = [ themeSwitch ];
     xdg.configFile = themeConfigs // {
       "themes/links.sh".text = themeLinksSnippet;
+    };
+
+    # The wallpaper is a unit of its own so it outlives whatever started it: a
+    # theme switch from the shell used to leave swaybg inside the shell's unit,
+    # and a shell restart took the wallpaper with it. theme-switch restarts this
+    # unit; swaybg reads the image only at start.
+    systemd.user.services.wallpaper = {
+      Unit = {
+        Description = "Desktop wallpaper";
+        PartOf = [ "graphical-session.target" ];
+        After = [ "graphical-session.target" ];
+      };
+      Service = {
+        ExecStart = "${pkgs.swaybg}/bin/swaybg -m fill -i ${config.home.homeDirectory}/.local/share/wallpapers/current.png";
+        Restart = "on-failure";
+      };
+      Install.WantedBy = [ "graphical-session.target" ];
     };
 
     # Symlink active theme configs into live app paths on every activation.

@@ -137,10 +137,7 @@ let
     # construction and this assertion guards the shared source itself.
     testRuntimeThemeContract = {
       expr = map (p: p.pname) (import ../../home/profiles/desktop-runtime.nix { inherit pkgs; });
-      expected = [
-        "kitty"
-        "swaybg"
-      ];
+      expected = [ "kitty" ];
     };
 
     # The docs/theme.md `homeModules.runtime-theme` example — overriding

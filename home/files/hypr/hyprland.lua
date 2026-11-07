@@ -80,6 +80,11 @@ hl.config({
 })
 hl.config({ misc = {
 	vrr = 2,
+	-- Before the wallpaper unit draws, or while a theme switch restarts it, show the
+	-- theme's background instead of a random default wallpaper.
+	disable_hyprland_logo = true,
+	force_default_wallpaper = 0,
+	background_color = colors.background,
 } })
 hl.config({ animations = {
 	enabled = true,
@@ -302,6 +307,5 @@ if os.getenv("DESKTOP_TEST") ~= "1" then
 		hl.exec_cmd(
 			"dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_SESSION_TYPE DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE MOZ_ENABLE_WAYLAND NIXOS_OZONE_WL LIBVA_DRIVER_NAME AQ_DRM_DEVICES __GLX_VENDOR_LIBRARY_NAME && systemctl --user start nixos-fake-graphical-session.target"
 		)
-		hl.exec_cmd("swaybg -m fill -i ~/.local/share/wallpapers/current.png")
 	end)
 end
