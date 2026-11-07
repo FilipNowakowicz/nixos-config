@@ -280,6 +280,10 @@ in
     };
   };
 
+  # The shell's notes file (SUPER+SHIFT+N). Created empty if missing, never
+  # overwritten; the restic backup lists it and would warn if it were absent.
+  systemd.user.tmpfiles.rules = [ "f %h/notes.md 0600 - - -" ];
+
   systemd.user.services = {
     # A unit so it heals by itself when a rebuild severs its Wayland connection.
     quiet-shell = {

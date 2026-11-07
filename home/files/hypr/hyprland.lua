@@ -129,6 +129,15 @@ hl.window_rule({
 	size = "monitor_w*0.45 monitor_h*0.55",
 	tag = "+keep-float",
 })
+-- Notes (SUPER+SHIFT+N) open as a note pad over the work, not a tile.
+hl.window_rule({
+	name = "float-notes",
+	match = { class = "^quiet-notes$" },
+	float = true,
+	center = true,
+	size = "monitor_w*0.4 monitor_h*0.6",
+	tag = "+keep-float",
+})
 hl.window_rule({ name = "float-dialogs", match = { modal = true }, float = true, center = true, tag = "+keep-float" })
 hl.window_rule({ name = "float-progress", match = { title = "^File Operation Progress$" }, float = true, tag = "+keep-float" })
 -- Picture-in-Picture sits in the corner on every desktop.
@@ -220,6 +229,7 @@ hl.bind("SUPER + apostrophe", hl.dsp.window.close())
 hl.bind("SUPER + b", hl.dsp.exec_cmd("firefox"))
 hl.bind("SUPER + BackSpace", hl.dsp.exec_cmd("hyprlock"))
 hl.bind("SUPER + Escape", hl.dsp.exec_cmd("quiet-shell-ipc system"))
+hl.bind("SUPER + SHIFT + n", hl.dsp.exec_cmd("quiet-shell-ipc notes"))
 hl.bind("SUPER + c", hl.dsp.exec_cmd("quiet-shell-ipc controls"))
 hl.bind("SUPER + W", hl.dsp.exec_cmd("quiet-shell-ipc pin"))
 hl.bind("SUPER + Space", hl.dsp.exec_cmd("quiet-shell-ipc spotlight"))

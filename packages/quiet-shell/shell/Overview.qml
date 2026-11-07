@@ -222,5 +222,6 @@ Item {
         spacing: 12
         ControlCentre { width: 340 }
         NotificationCentre { compact: true; visible: Ui.detail === "" }
+        NotesCard { width: 340; visible: Ui.detail === "" }
     }
 }

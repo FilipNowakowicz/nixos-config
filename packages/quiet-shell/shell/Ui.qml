@@ -66,6 +66,7 @@ Singleton {
             ["SUPER + V", "Clipboard history"],
             ["SUPER + W", "Keep the bar open"],
             ["SUPER + slash", "Shortcuts"],
+            ["SUPER + SHIFT + n", "Notes"],
             ["Capture"],
             ["SUPER + SHIFT + s", "Screenshot or copy text"],
             ["System"],

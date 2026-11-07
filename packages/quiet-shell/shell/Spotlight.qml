@@ -29,7 +29,8 @@ Item {
         { title: "Keep Awake", note: Sys.awake ? "Turn off" : "Turn on", run: () => { Sys.toggleAwake(); Ui.close(); } },
         { title: "Wi-Fi", note: Sys.wifiOn ? "Turn off" : "Turn on", run: () => { Sys.toggleWifi(); Ui.close(); } },
         { title: "Bluetooth", note: Sys.btOn ? "Turn off" : "Turn on", run: () => { Sys.toggleBluetooth(); Ui.close(); } },
-        { title: "Time Zone", note: Sys.timezone || "Choose", run: () => { input.text = "time zone "; } }
+        { title: "Time Zone", note: Sys.timezone || "Choose", run: () => { input.text = "time zone "; } },
+        { title: "Notes", note: "Open", run: () => { Ui.close(); Sys.openNotes(); } }
     ]
     // Every zone tzdata places, for "time zone <city>" (or "tz <city>").
     property var zones: []

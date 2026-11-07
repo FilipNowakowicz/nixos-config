@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import Quickshell.Services.Pipewire
 
 // System state and writes. A write is only "done" once a fresh readback shows the
@@ -465,6 +466,15 @@ Singleton {
     }
     function setTheme(name) {
         write("theme", ["theme-switch", name], () => Theme.name === name, "The theme didn't change.", { target: name });
+    }
+    // One Markdown file for quick thoughts and todos, opened in a floating Neovim.
+    readonly property string notesPath: Quickshell.env("HOME") + "/notes.md"
+    function openNotes() {
+        const open = ToplevelManager.toplevels.values.find(t => t.appId === "quiet-notes");
+        if (open)
+            Dockable.revealWayland(open);
+        else
+            Quickshell.execDetached(["kitty", "--class", "quiet-notes", "--title", "Notes", "nvim", notesPath]);
     }
     function mediaCommand(verb) {
         Quickshell.execDetached(["playerctl", "--player=spotify", verb]);

@@ -108,8 +108,9 @@ in
       };
       environment.systemPackages = [
         pkgs.foot
-        # Only for its icon, which the fake tray item shows.
+        # Its icon for the fake tray item, and with Neovim the notes window.
         pkgs.kitty
+        pkgs.neovim
         fakePlayerctl
         quietShell
       ];
@@ -123,7 +124,12 @@ in
           if cmd.startswith("quiet-shell-ipc"):
               # A call can find the shell momentarily busy under software
               # rendering; one that keeps failing still fails the test.
-              return machine.wait_until_succeeds(f"su user -c '${inSession} {cmd}'", timeout=timedelta(seconds=5))
+              try:
+                  return machine.wait_until_succeeds(f"su user -c '${inSession} {cmd}'", timeout=timedelta(seconds=5))
+              except BaseException:
+                  print("IPC failed:", machine.execute(f"su user -c '${inSession} {cmd}' 2>&1")[1])
+                  print(machine.execute("tail -n 25 /tmp/shell.log")[1])
+                  raise
           return machine.succeed(f"su user -c '${inSession} {cmd}'")
 
       def state():
@@ -216,6 +222,11 @@ in
           session("quiet-shell-ipc overview")
           wait_for(lambda s: s["overview"], "overview-window")
           session("quiet-shell-ipc close")
+          # Let the previews finish fading out first. Closing a window while its
+          # preview is mid-capture can end the shell's Wayland connection with
+          # "invalid object": the compositor drops the capture frame itself.
+          retry(lambda _: not state()["overview"], timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=2))
           machine.succeed("pkill -u user -x foot")
           machine.wait_until_fails("su user -c '${inSession} hyprctl clients' | grep -q preview-source", timeout=timedelta(seconds=10))
 
@@ -252,6 +263,28 @@ in
           machine.wait_until_succeeds("readlink /etc/localtime | grep -q Europe/Warsaw", timeout=timedelta(seconds=20))
           retry(lambda _: state()["sys"]["timezone"] == "Europe/Warsaw" and not state()["writes"], timeout=timedelta(seconds=20))
           session("hyprctl eval \"hl.config({ input = { kb_variant = [[dvorak]] } })\"")
+
+      with subtest("notes open once, float, and show in the overview"):
+          machine.succeed("printf '# Ideas\\nanki generator\\npersonal dashboard\\n' > /home/user/notes.md && chown user /home/user/notes.md")
+          session("quiet-shell-ipc overview")
+          wait_for(lambda s: s["overview"], "overview-notes")
+          session("quiet-shell-ipc close")
+
+          def notes_windows():
+              clients = json.loads(session("hyprctl -j clients"))
+              return [c for c in clients if c["class"] == "quiet-notes"]
+
+          session("quiet-shell-ipc notes")
+          retry(lambda _: len(notes_windows()) == 1, timeout=timedelta(seconds=30))
+          assert notes_windows()[0]["floating"], notes_windows()
+          machine.sleep(timedelta(seconds=2))
+          machine.screenshot("notes-window")
+          # Asking again focuses the open pad rather than starting another.
+          session("quiet-shell-ipc notes")
+          machine.sleep(timedelta(seconds=3))
+          assert len(notes_windows()) == 1, notes_windows()
+          machine.succeed("pkill -u user -x .kitty-wrapped")
+          retry(lambda _: not notes_windows(), timeout=timedelta(seconds=10))
 
       with subtest("tray icons are grey until pointed at"):
           session("setsid ${trayPython}/bin/python3 ${../quiet-shell/fakes/tray.py} /tmp/tray.log >/dev/null 2>&1 &")

@@ -50,6 +50,7 @@ in
         "/home/user/.codex"
         "/home/user/.claude"
         "/home/user/.claude.json"
+        "/home/user/notes.md" # quick notes (SUPER+SHIFT+N)
         "/home/user/.config/sops"
         "/etc/machine-id"
         "/etc/ssh/ssh_host_ed25519_key"
