@@ -98,6 +98,18 @@
         inherit nixpkgs;
         overlays = [
           lazyactionsOverlay
+          # Temporary fix for nixpkgs#582673; remove after the pinned package is fixed.
+          (_: prev: {
+            opencode =
+              if prev.opencode.version == "2.2.5" && prev.stdenv.hostPlatform.system == "x86_64-linux" then
+                prev.opencode.overrideAttrs (old: {
+                  node_modules = old.node_modules.overrideAttrs {
+                    outputHash = "sha256-prx9dX7kUvs/E3zopkaPk5LXh3xJAy5sZeum/W8L7cA=";
+                  };
+                })
+              else
+                prev.opencode;
+          })
         ];
       };
       inherit (pkgsHelper) mkPkgs overlays;

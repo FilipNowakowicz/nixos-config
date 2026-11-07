@@ -1,0 +1,13 @@
+schema: learning-candidate/v1
+id: 2026-11-07-quiet-shell-restart-test-session-scope
+date: 2026-11-07
+expires: 2027-02-07
+status: open
+route: implement-fix
+best_form: test
+evidence: ["dfc6c404ea5b3651eb75cb94334a541c36fc8c85", "tests/quiet-shell/acceptance.py:1191-1200 restart_shell"]
+observation: restart_shell scans all same-user processes and sends SIGTERM based only on QUIET_SHELL_PATH appearing in argv. Testing the installed package can select the live desktop shell using the same store path. The audit stopped before this test and used a local runner requiring matching private HYPRLAND_INSTANCE_SIGNATURE and XDG_RUNTIME_DIR before signalling; no live process was signalled.
+proposed_upgrade: Restrict restart_shell to the exact private session and process identity, fail closed if identity cannot be read, and add a regression check with two processes sharing the same package path but different runtime/compositor identities so only the private target can be signalled.
+type: repo-fix
+dedupe_key: quiet-shell-tests:restart-must-scope-process-to-private-session
+targets: [tests/quiet-shell/acceptance.py]
