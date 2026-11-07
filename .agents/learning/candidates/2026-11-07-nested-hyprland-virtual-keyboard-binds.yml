@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-11-07-nested-hyprland-virtual-keyboard-binds
+date: 2026-11-07
+expires: 2027-05-07
+status: open
+route: promote-doc
+best_form: doc
+evidence: [tests/quiet-shell/acceptance.py:94 key() uses wtype, "nested Hyprland 0.57 + real hyprland.lua (DESKTOP_TEST=1, HEADLESS-1 only): wtype -M logo -k 2 -m logo and a chord.py-style zwp_virtual_keyboard with Mod4 left activeworkspace at 1; keys typed into the focused foot as plain text (dfff2122); hyprctl devices showed active_keymap error; input:virtualkeyboard:share_states=1 did not help"]
+observation: in a nested Hyprland with the real config, virtual-keyboard SUPER binds never fire; the keys reach the focused client without modifiers, so bind tests silently test nothing
+proposed_upgrade: note in tests/quiet-shell/README.md that SUPER binds cannot be driven by virtual keyboard there; test bind logic by appending a _G export of the config's locals to a test copy and calling it via hyprctl eval, and assert bind registration via hyprctl -j binds
+type: workflow-gotcha
+dedupe_key: quiet-shell-tests:virtual-keyboard-binds-dont-fire-nested
+triggers: [tests/quiet-shell/nested.sh, wtype, chord.py, hyprctl eval]
+targets: [tests/quiet-shell/README.md]
