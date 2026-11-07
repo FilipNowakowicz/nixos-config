@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.Pipewire
 
 // System state and writes. A write is only "done" once a fresh readback shows the
 // target. Until then the key is pending, and if it never shows, it fails with Retry.
@@ -10,6 +11,14 @@ Singleton {
 
     property var state: ({})
     property var writes: ({})
+
+    // Apps playing sound. Quickshell fills in a node's properties and volume only
+    // while something tracks it, so this list must not depend on either. A playback
+    // stream counts as a sink here: it takes the app's audio in.
+    readonly property var appStreams: Pipewire.nodes.values.filter(n => n.isStream && n.isSink && n.audio)
+    function streamName(node) {
+        return node.properties["application.name"] || node.description || node.nickname || node.name;
+    }
     property bool focusMode: false
     onFocusModeChanged: if (focusFile.loaded) focusFile.setText(focusMode ? "on" : "off")
     readonly property int failedCount: Object.keys(writes).filter(k => writes[k].status === "failed").length
@@ -63,6 +72,8 @@ Singleton {
 
     function has(section) { return state[section] !== undefined && state[section] !== null; }
     function pending(key) { return !!(writes[key] && writes[key].status === "pending"); }
+    // For a list where one write picks one row: only that row is busy.
+    function pendingFor(key, target) { return pending(key) && writes[key].options.target === target; }
     function failed(key) { return !!(writes[key] && writes[key].status === "failed"); }
     function failMessage(key) { return writes[key] ? writes[key].message : ""; }
 
@@ -366,10 +377,10 @@ Singleton {
     }
 
     function setMullvadCountry(code) {
-        write("mullvad-location", ["mullvad", "relay", "set", "location", code], s => s.vpn && s.vpn.country === code, "Mullvad's location didn't change.", { timeout: 15000 });
+        write("mullvad-location", ["mullvad", "relay", "set", "location", code], s => s.vpn && s.vpn.country === code, "Mullvad's location didn't change.", { timeout: 15000, target: code });
     }
     function setExitNode(name) {
-        write("exit-node", ["tailscale", "set", "--exit-node=" + name], s => s.vpn && s.vpn.exitNode === name, "The exit node didn't change.", { timeout: 15000 });
+        write("exit-node", ["tailscale", "set", "--exit-node=" + name], s => s.vpn && s.vpn.exitNode === name, "The exit node didn't change.", { timeout: 15000, target: name });
     }
     function openNetworkSettings() {
         Ui.close();
@@ -409,7 +420,7 @@ Singleton {
         const key = "default.configured.audio." + role;
         const list = role === "sink" ? "sinks" : "sources";
         write("device-" + role, ["pw-metadata", "-n", "default", "0", key, JSON.stringify({ name })],
-            s => s.devices && s.devices[list].some(d => d.name === name && d.active), "The device didn't change.");
+            s => s.devices && s.devices[list].some(d => d.name === name && d.active), "The device didn't change.", { target: name });
     }
     function setProfile(name) {
         write("profile", ["powerprofilesctl", "set", name], s => s.profile === name, "Power mode didn't change.");
@@ -428,7 +439,7 @@ Singleton {
         write("awake", cmd, s => !!s.awake === want, "Keep awake didn't change.");
     }
     function setTheme(name) {
-        write("theme", ["theme-switch", name], () => Theme.name === name, "The theme didn't change.");
+        write("theme", ["theme-switch", name], () => Theme.name === name, "The theme didn't change.", { target: name });
     }
     function mediaCommand(verb) {
         Quickshell.execDetached(["playerctl", "--player=spotify", verb]);

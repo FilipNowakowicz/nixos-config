@@ -36,6 +36,14 @@ let
     export HYPRLAND_INSTANCE_SIGNATURE
     exec "$@"
   '';
+  # Stands in for Spotify: reports a track and records every command it gets.
+  # It comes first on PATH; the shell only appends its own tools.
+  fakePlayerctl = pkgs.writeShellScriptBin "playerctl" ''
+    case "$*" in
+      *metadata*) printf 'Playing\tTest Song\tTest Artist\t\n' ;;
+      *) echo "$*" >> /tmp/playerctl.log ;;
+    esac
+  '';
 in
 (import "${nixpkgs}/nixos/lib/testing-python.nix" {
   inherit system pkgs;
@@ -71,7 +79,25 @@ in
           exec ${pkgs.hyprland}/bin/start-hyprland > /tmp/hyprland.log 2>&1
         fi
       '';
-      environment.systemPackages = [ quietShell ];
+      services.pipewire = {
+        enable = true;
+        # The VM has no sound card; app streams need a sink to play into.
+        extraConfig.pipewire."10-null-sink"."context.objects" = [
+          {
+            factory = "adapter";
+            args = {
+              "factory.name" = "support.null-audio-sink";
+              "node.name" = "smoke-sink";
+              "media.class" = "Audio/Sink";
+              "audio.position" = "FL,FR";
+            };
+          }
+        ];
+      };
+      environment.systemPackages = [
+        fakePlayerctl
+        quietShell
+      ];
     };
 
     testScript = ''
@@ -122,6 +148,30 @@ in
           # The config's layout is Dvorak, where S sits on the QWERTY semicolon key.
           machine.send_key("meta_l-shift-semicolon")
           wait_for(lambda s: s["screenshot"], "screenshot-picker")
+          session("quiet-shell-ipc close")
+
+      with subtest("the control centre drives the player from the keyboard"):
+          session("quiet-shell-ipc controls")
+          wait_for(lambda s: s["panel"] == "controls" and s["sys"]["media"], "now-playing")
+          # Dvorak again: J and K sit on the QWERTY c and v keys.
+          for key in ("spc", "c", "v"):
+              machine.send_key(key)
+          machine.wait_until_succeeds("test $(wc -l < /tmp/playerctl.log) -ge 3", timeout=timedelta(seconds=10))
+          sent = [line.split()[-1] for line in machine.succeed("cat /tmp/playerctl.log").splitlines()]
+          assert sent == ["play-pause", "next", "previous"], sent
+          session("quiet-shell-ipc close")
+
+      with subtest("sound details list each playing app"):
+          machine.succeed(
+              "su user -c '${inSession} setsid pw-cat --playback --raw --format s16 --rate 48000 --channels 2"
+              " -P \"{ application.name = SmokeTone }\" /dev/zero > /tmp/tone.log 2>&1 &'"
+          )
+          status, _ = machine.execute("for _ in $(seq 30); do su user -c '${inSession} pw-dump' | grep -q SmokeTone && exit 0; sleep 1; done; exit 1")
+          if status != 0:
+              print(machine.execute("cat /tmp/tone.log; su user -c '${inSession} systemctl --user status pipewire wireplumber' | head -30")[1])
+              raise AssertionError("test stream never appeared")
+          session("quiet-shell-ipc detail sound")
+          wait_for(lambda s: s["detail"] == "sound" and "SmokeTone" in s["streams"], "sound-apps")
           session("quiet-shell-ipc close")
 
       with subtest("the shell does not redraw while idle"):

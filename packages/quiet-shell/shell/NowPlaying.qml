@@ -13,6 +13,14 @@ Item {
         Icon { anchors.horizontalCenter: parent.horizontalCenter; name: "music"; size: 22; color: Theme.dim }
         Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Not playing"; font.pixelSize: 12; color: Theme.dim }
     }
+    KeyHint {
+        visible: root.media !== null && Ui.panel === "controls"
+        anchors.right: parent.right
+        anchors.rightMargin: 16
+        anchors.top: parent.top
+        anchors.topMargin: 11
+        text: "K ␣ J"
+    }
     Rectangle {
         id: art
         visible: root.media !== null
@@ -51,7 +59,7 @@ Item {
         anchors.bottomMargin: 7
         visible: root.media !== null
         Repeater {
-            model: [["skip-back", "previous", "Previous track"], [root.media && root.media.playing ? "pause" : "play", "play-pause", "Play or pause"], ["skip-forward", "next", "Next track"]]
+            model: [["skip-back", "previous", "Previous track (K)"], [root.media && root.media.playing ? "pause" : "play", "play-pause", "Play or pause (Space)"], ["skip-forward", "next", "Next track (J)"]]
             Press {
                 required property var modelData
                 Layout.alignment: Qt.AlignHCenter
