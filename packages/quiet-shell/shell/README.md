@@ -1,7 +1,6 @@
 # Quiet shell
 
-A quiet, auto-hiding desktop shell for Hyprland, built on Quickshell. It replaces
-Waybar, the GTK control centre, the launcher and mako once enabled.
+A quiet, auto-hiding desktop shell for Hyprland, built on Quickshell.
 
 Everything goes through `scripts/status.sh` and ordinary system commands, so tests
 swap those commands with fakes rather than using a separate test mode.

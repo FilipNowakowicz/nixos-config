@@ -6,6 +6,5 @@
 with pkgs;
 [
   kitty
-  waybar
   swaybg
 ]

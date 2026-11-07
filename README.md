@@ -226,12 +226,11 @@ Files: `hosts/main/impermanence.nix`,
 ```bash
 # Apps — run from a clean clone
 nix run .#doctor           # clean-clone documentation, eval, and format checks
-nix run .#control-center   # GTK4 Wayland control panel
 nix run .#tailscale-acl    # print the generated Tailscale ACL JSON
 nix run .#inventory-json   # print the generated host inventory JSON
 
 # Packages
-nix build .#control-center
+nix build .#quiet-shell
 nix build .#tailscale-acl
 nix build .#inventory-data
 nix build .#installer-iso

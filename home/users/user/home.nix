@@ -6,7 +6,6 @@
 }:
 let
   inherit (config.fleet) hostName skipHeavyPackages;
-  quietShellEnabled = config.fleet.quietShell;
   nixRepo = "${config.home.homeDirectory}/nix";
   privateUserJs = ../../files/firefox/private-user.js;
   langgraphPython = pkgs.python3.withPackages (
@@ -17,105 +16,7 @@ let
     ]
   );
 
-  launcher =
-    let
-      python = pkgs.python3.withPackages (ps: [ ps.pygobject3 ]);
-      src = pkgs.writeText "launcher.py" (builtins.readFile ../../files/scripts/launcher.py);
-    in
-    pkgs.stdenv.mkDerivation {
-      name = "launcher";
-      dontUnpack = true;
-
-      nativeBuildInputs = with pkgs; [
-        gobject-introspection
-        wrapGAppsHook4
-      ];
-
-      buildInputs = with pkgs; [
-        glib
-        pango
-        gdk-pixbuf
-        graphene
-        harfbuzz
-        gtk4
-        gtk4-layer-shell
-      ];
-
-      installPhase = ''
-        mkdir -p $out/bin $out/libexec
-        cp ${src} $out/libexec/launcher.py
-        cat > $out/bin/launcher <<EOF
-        #!${pkgs.bash}/bin/sh
-        exec ${python}/bin/python3 $out/libexec/launcher.py "\$@"
-        EOF
-        chmod +x $out/bin/launcher
-      '';
-
-      preFixup = ''
-        gappsWrapperArgs+=(
-          --set GDK_BACKEND wayland
-          --set GTK4_LAYER_SHELL_LIB "${pkgs.gtk4-layer-shell}/lib/libgtk4-layer-shell.so.0"
-        )
-      '';
-    };
-
-  controlCenter = pkgs.callPackage ../../../packages/control-center { };
   quietShell = pkgs.callPackage ../../../packages/quiet-shell { };
-  waybarStyle =
-    lib.replaceStrings
-      [ ''@import "colors.css";'' ]
-      [ ''@import url("file://${config.xdg.configHome}/waybar/colors.css");'' ]
-      (builtins.readFile ../../files/waybar/style.css);
-
-  batteryNotify = pkgs.writeShellApplication {
-    name = "battery-notify";
-    runtimeInputs = with pkgs; [
-      libnotify
-      coreutils
-      findutils
-    ];
-    text = ''
-      STATE_FILE="''${XDG_RUNTIME_DIR:-/tmp}/battery-notify-level"
-
-      bat_dir=$(find /sys/class/power_supply -maxdepth 1 -name 'BAT*' 2>/dev/null | head -1)
-      [[ -z "$bat_dir" ]] && exit 0
-
-      capacity=$(cat "$bat_dir/capacity")
-      status=$(cat "$bat_dir/status")
-
-      # Clear state and exit when on AC power
-      [[ "$status" == "Charging" || "$status" == "Full" ]] && { rm -f "$STATE_FILE"; exit 0; }
-
-      if (( capacity <= 5 )); then
-        level="critical"
-      elif (( capacity <= 15 )); then
-        level="warning-low"
-      elif (( capacity <= 30 )); then
-        level="warning"
-      else
-        level="ok"
-      fi
-
-      prev_level=$(cat "$STATE_FILE" 2>/dev/null || echo "ok")
-      [[ "$level" == "$prev_level" ]] && exit 0
-
-      case "$level" in
-        critical)
-          notify-send -u critical -i battery-caution "Battery Critical" "''${capacity}% — plug in now"
-          ;;
-        warning-low)
-          notify-send -u critical -i battery-low "Battery Low" "''${capacity}% remaining"
-          ;;
-        warning)
-          notify-send -u normal -i battery-low "Battery Warning" "''${capacity}% remaining"
-          ;;
-        ok) ;;
-      esac
-
-      echo "$level" > "$STATE_FILE"
-    '';
-  };
-
   claudeLatest = pkgs.writeShellApplication {
     name = "claude";
     runtimeInputs = [ pkgs.nodejs ];
@@ -124,59 +25,11 @@ let
     '';
   };
 
-  # Auto-hide controller for the waybar pill. Run as a systemd user service
-  # (below) rather than a Hyprland `exec-once` so a `home-manager switch`
-  # restarts it and it self-restarts on crash — `exec-once` only fires at
-  # login, so a rebuild would otherwise leave the watcher dead until relogin.
-  waybarAutohide = pkgs.writeShellApplication {
-    name = "waybar-autohide";
-    runtimeInputs = with pkgs; [
-      hyprland
-      procps
-      gawk
-      coreutils
-    ];
-    text = builtins.readFile ../../files/scripts/waybar-autohide.sh;
-  };
-
-  waybarAnchor =
-    let
-      python = pkgs.python3;
-      src = pkgs.writeText "waybar-anchor.py" (builtins.readFile ../../files/scripts/waybar-anchor.py);
-      runtimePath = lib.makeBinPath (
-        with pkgs;
-        [
-          mako
-          wireplumber
-        ]
-      );
-    in
-    pkgs.writeShellScriptBin "waybar-anchor" ''
-      export PATH="${runtimePath}:$PATH"
-      exec ${python}/bin/python3 ${src} "$@"
-    '';
 in
 {
   # theme-switch is provided by the theme module (home/theme/module.nix).
   home.packages =
     (with pkgs; [
-      (writeShellApplication {
-        name = "waybar-weather";
-        runtimeInputs = with pkgs; [
-          curl
-          coreutils
-        ];
-        text = builtins.readFile ../../files/scripts/waybar-weather.sh;
-      })
-
-      (writeShellApplication {
-        name = "waybar-toggle";
-        runtimeInputs = with pkgs; [ coreutils ];
-        text = builtins.readFile ../../files/scripts/waybar-toggle.sh;
-      })
-
-      waybarAutohide
-
       (writeShellApplication {
         name = "hypr-display-mode";
         runtimeInputs = with pkgs; [
@@ -194,20 +47,6 @@ in
           libnotify
         ];
         text = builtins.readFile ../../files/scripts/hypr-layout-cycle.sh;
-      })
-
-      waybarAnchor
-
-      controlCenter
-
-      (writeShellApplication {
-        name = "clipboard-pick";
-        runtimeInputs = with pkgs; [
-          cliphist
-          fzf
-          wl-clipboard
-        ];
-        text = builtins.readFile ../../files/scripts/clipboard-pick.sh;
       })
 
       (writeShellApplication {
@@ -282,9 +121,7 @@ in
         '';
       })
 
-      batteryNotify
       claudeLatest
-      launcher
       quietShell
       lazyactions
 
@@ -366,7 +203,6 @@ in
       shellAliases = {
         rebuild = "nh os switch --hostname ${hostName} .";
         theme = "theme-switch";
-        cb = "clipboard-pick";
         copilot = "steam-run gh copilot";
       };
 
@@ -388,11 +224,7 @@ in
       "kitty/kitty.conf".source = ../../files/kitty/kitty.conf;
 
       # Hyprland
-      # Keep the legacy entrypoint while an existing 0.56 session watches it.
-      # Remove it only after the new Lua session has passed live acceptance.
-      "hypr/hyprland.conf".source = ../../files/hypr/hyprland.conf;
       "hypr/hyprland.lua".source = ../../files/hypr/hyprland.lua;
-      "hypr/shell.lua".text = "return { quiet = ${lib.boolToString quietShellEnabled} }\n";
 
       # Hyprlock
       "hypr/hyprlock.conf".source = ../../files/hypr/hyprlock.conf;
@@ -406,10 +238,6 @@ in
           text = builtins.readFile ../../files/hypr/lock-status.sh;
         }
       );
-
-      # Waybar
-      "waybar/config".source = ../../files/waybar/config;
-      "waybar/style.css".text = waybarStyle;
     };
   };
 
@@ -419,20 +247,6 @@ in
 
     # ── Cliphist ────────────────────────────────────────────────────────────
     cliphist.enable = true;
-
-    # ── Mako ───────────────────────────────────────────────────────────────
-    # Config is managed by home/theme/module.nix (per-theme mako-config file,
-    # symlinked at ~/.config/mako/config) so runtime theme-switch works without
-    # a rebuild. Do not manage mako config here to avoid conflicts.
-    mako.enable = !quietShellEnabled;
-
-    # ── SwayOSD ────────────────────────────────────────────────────────────
-    # Volume/brightness OSD for the media-key binds in hyprland.conf. Runs as
-    # a Home Manager user service rather than a Hyprland `exec-once`: a
-    # long-lived exec-once server survives rebuilds, so after a swayosd bump
-    # the stale server silently ignored the new swayosd-client and no popup
-    # appeared. As a unit it is restarted on switch and on any crash.
-    swayosd.enable = !quietShellEnabled;
 
     # ── Hypridle ───────────────────────────────────────────────────────────
     # Hyprland-native idle daemon. Single source of truth for desktop idle
@@ -468,72 +282,8 @@ in
   };
 
   systemd.user.services = {
-    # Bind to the same session target as the other desktop units (the HM
-    # module defaults to wayland.systemd.target).
-    swayosd = lib.mkIf (!quietShellEnabled) {
-      Unit = {
-        After = lib.mkForce [ "nixos-fake-graphical-session.target" ];
-        PartOf = lib.mkForce [ "nixos-fake-graphical-session.target" ];
-      };
-      Install.WantedBy = lib.mkForce [ "nixos-fake-graphical-session.target" ];
-    };
-
-    # The quiet shell warns about low battery itself.
-    battery-notify = lib.mkIf (!quietShellEnabled) {
-      Unit = {
-        Description = "Battery low notification check";
-        After = [ "nixos-fake-graphical-session.target" ];
-        PartOf = [ "nixos-fake-graphical-session.target" ];
-      };
-      Service = {
-        Type = "oneshot";
-        ExecStart = "${batteryNotify}/bin/battery-notify";
-      };
-      Install = {
-        WantedBy = [ "nixos-fake-graphical-session.target" ];
-      };
-    };
-
-    # A `nixos-switch` restarts session-adjacent system services (ACPI,
-    # DisplayLink, etc.) and that's occasionally enough to sever waybar's
-    # Wayland connection ("Error reading events from display: Broken pipe").
-    # As a bare Hyprland `exec-once`, a crash like that left the bar dead
-    # until the next relogin. Running it as a systemd unit instead means any
-    # crash — from a rebuild or otherwise — self-heals in a couple seconds.
-    waybar = lib.mkIf (!quietShellEnabled) {
-      Unit = {
-        Description = "Highly customizable Wayland bar (Home Manager-managed)";
-        After = [ "nixos-fake-graphical-session.target" ];
-        PartOf = [ "nixos-fake-graphical-session.target" ];
-      };
-      Service = {
-        ExecStart = "${pkgs.waybar}/bin/waybar";
-        Restart = "always";
-        RestartSec = 2;
-      };
-      Install = {
-        WantedBy = [ "nixos-fake-graphical-session.target" ];
-      };
-    };
-
-    waybar-autohide = lib.mkIf (!quietShellEnabled) {
-      Unit = {
-        Description = "Auto-hide / hover-reveal controller for the waybar pill";
-        After = [ "nixos-fake-graphical-session.target" ];
-        PartOf = [ "nixos-fake-graphical-session.target" ];
-      };
-      Service = {
-        ExecStart = "${waybarAutohide}/bin/waybar-autohide";
-        Restart = "always";
-        RestartSec = 2;
-      };
-      Install = {
-        WantedBy = [ "nixos-fake-graphical-session.target" ];
-      };
-    };
-
-    # A unit for the same reason as waybar: it heals after a rebuild severs Wayland.
-    quiet-shell = lib.mkIf quietShellEnabled {
+    # A unit so it heals by itself when a rebuild severs its Wayland connection.
+    quiet-shell = {
       Unit = {
         Description = "Quiet desktop shell";
         After = [ "nixos-fake-graphical-session.target" ];
@@ -548,15 +298,5 @@ in
         WantedBy = [ "nixos-fake-graphical-session.target" ];
       };
     };
-
-  };
-
-  systemd.user.timers.battery-notify = lib.mkIf (!quietShellEnabled) {
-    Unit.Description = "Poll battery level every minute";
-    Timer = {
-      OnBootSec = "1min";
-      OnUnitActiveSec = "1min";
-    };
-    Install.WantedBy = [ "timers.target" ];
   };
 }

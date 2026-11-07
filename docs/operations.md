@@ -521,24 +521,15 @@ Deploy](#automated-homeserver-deploy) workflow.
 
 ## Desktop Apps
 
-The control center is now built from the repo-local package at
-`packages/control-center/`.
-
-Run the flake app directly during development:
+The desktop shell is built from the repo-local package at `packages/quiet-shell/`,
+and Home Manager runs it as the `quiet-shell` user service.
 
 ```bash
-nix run .#control-center
+nix build .#quiet-shell
+systemctl --user restart quiet-shell
 ```
 
-Build the package output without launching it:
-
-```bash
-nix build '.#packages.x86_64-linux.control-center'
-```
-
-Home Manager installs the same packaged `control-center` binary on `main`, so
-desktop behavior should be debugged from the package source rather than from a
-deleted `home/files/scripts/control_center.py` script path.
+Its tests are in `tests/quiet-shell/`.
 
 ## Formatting And Hooks
 

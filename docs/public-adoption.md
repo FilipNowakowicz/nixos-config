@@ -91,7 +91,7 @@ A new visitor should be able to run these without secrets or hardware:
 nix run .#doctor
 nix run .#tailscale-acl
 nix run .#inventory-json
-nix build .#control-center
+nix build .#quiet-shell
 bash scripts/validate.sh light
 ```
 
@@ -121,7 +121,7 @@ High-signal artifacts make the repo easier to link:
 - a generated inventory sample;
 - a generated Tailscale ACL sample;
 - a short "what to copy first" section for new NixOS users;
-- screenshots only for real UI outputs such as `control-center`, not as the
+- screenshots only for real UI outputs such as `quiet-shell`, not as the
   main selling point.
 
 ## Sample Artifacts
@@ -213,7 +213,7 @@ the Track 1–4 work above, per the #127 acceptance criteria.
    and `nginx.proxyLocation` attrset shape.
 
 3. **`home/profiles/desktop-runtime.nix`** — the single shared list of
-   theme-reloaded Wayland UI packages (`kitty`, `waybar`, `swaybg`) consumed by
+   theme-reloaded Wayland UI packages (`kitty`, `swaybg`) consumed by
    both `home/profiles/desktop.nix` and `home/theme/module.nix` so the install
    list and the theme-switch runtime inputs cannot drift. What it does: a tiny
    `{ pkgs }: [ ... ]` package list with a documented anti-drift contract.
@@ -230,95 +230,19 @@ the Track 1–4 work above, per the #127 acceptance criteria.
 
 ### Keep-as-reference candidates
 
-4. **`packages/control-center`** — a GTK4/Wayland system control panel
-   (network, bluetooth, power, theme, Tailscale/Mullvad toggles) already built
-   as a flake-buildable package (`nix build .#control-center`) with its own
-   `README.md`. What it does: a polished, real piece of UI infra. Coupling:
-   moderate — it is general-purpose GTK4 Wayland code, but its feature set
-   (Mullvad + Tailscale coexistence, specific hyprland/waybar integration
-   assumptions) is shaped around this fleet's desktop stack and is already
-   documented as personal-reference UI rather than a generic applet.
-   Recommendation: **keep as reference** — it already has a flake output and
-   docs; the missing piece for "promote" status (a clean-clone boundary test
-   that builds it without `hosts/` and a documented option surface for
-   reusing only parts of it) is a larger UI-extraction effort than this issue's
-   discovery scope, and the control panel's value is as a real-UI showcase
-   (Track 4), not as an importable module.
+4. **`packages/quiet-shell`** — the Quickshell desktop shell: bar, control centre,
+   launcher, notifications, overview and window switcher, with its own tests.
+   Coupling: moderate, since it's shaped around this fleet's Hyprland setup.
+   Recommendation: **keep as reference** — a real-UI showcase rather than an
+   importable module.
 
-5. **`home/files/scripts/{launcher.py,waybar-anchor.py,theme-switch.sh,
-waybar-weather.sh,hypr-display-mode.sh,waybar-toggle.sh,clipboard-pick.sh}`**
-   — the Hyprland/Waybar runtime helper scripts wired through
-   `home/users/user/home.nix`. What they do: a pill-style app launcher,
-   waybar status helpers, the theme-switch runtime driver, and small
-   Hyprland display/clipboard utilities. Coupling: low on private identifiers
-   (no hostnames/keys), but each is hand-tuned to this fleet's specific
-   monitor names (`DVI-I-1`/`eDP-1`), color/theme file layout, and waybar
-   module wiring — extracting them as standalone packages would require
-   generalizing those assumptions into options. Recommendation: **keep as
-   reference** — genuinely useful as copy-and-adapt examples for a Hyprland
-   desktop (and the README/theme docs already frame them that way), but
-   promoting them to `packages.*` would mean inventing a generic
-   Hyprland-desktop option surface this repo does not need and the issue's
-   non-goals warn against ("do not turn `hosts/` into a generic distribution").
-
-6. **`modules/nixos/profiles/{backup,security,sops-base,machine-common,
-impermanence-base,user}.nix`** — the shared host baseline profiles
-   (restic backup-class scheduling, firewall/coredump/fail2ban hardening,
-   sops bootstrap + SSH-key `authorizedKeys`, SSH defaults, btrfs
-   rollback-on-boot, primary-user account). What they do: form the
-   `services-hardened`-adjacent baseline every host imports. Coupling: real —
-   `backup.nix` keys off `hostMeta.backup` from the private host registry,
-   `sops-base.nix` imports `lib/pubkeys.nix` (a real public key) and assumes
-   sops/age bootstrap, `user.nix`/`impermanence-base.nix` assume this fleet's
-   specific account, btrfs subvolume layout (`@root`/`@root-blank`), and
-   persistence directories. Recommendation: **keep as reference** — these
-   patterns (class-based backup pruning, sops bootstrap shape, impermanence
-   rollback) are exactly the kind of thing `docs/architecture.md` already
-   explains conceptually; turning them into standalone outputs would require
-   inventing a generic identity/disk/backup-target option surface, which is
-   explicitly out of scope ("do not turn `hosts/` into a generic
-   distribution"). `services-hardened` (already promoted) is the right home
-   for any hardening pattern that does generalize cleanly.
-
-7. **`hosts/gcp-builder`** — the on-demand remote-Nix-builder host shape
-   (disposable microVM-style box: broad passwordless sudo, trusted-user wiring,
-   power-on/off automation referenced from `scripts/validate.sh`). What it
-   does: documents a clean "ephemeral remote builder" pattern others could
-   copy. Coupling: high — hostnames, Tailscale firewall scoping, GCP
-   provisioning via `scripts/deploy-gcp.sh`/Terraform, and `lib/hosts.nix`
-   registry entries are all fleet-specific. Recommendation: **keep as
-   reference** — `hosts/gcp-builder/CLAUDE.md` already documents the
-   provisioning runbook; that's the right level of reuse (a documented
-   pattern to adapt) rather than a flake output, since a generic "remote
-   builder module" would need to abstract away cloud provider, identity, and
-   network specifics this repo intentionally keeps concrete.
-
-### Reject candidates
-
-8. **`lib/pubkeys.nix` / `lib/recovery-pubkeys.nix`** — three-line lists of
-   this fleet's real SSH public keys, imported by `sops-base.nix`/`user.nix`.
-   What they do: supply `authorizedKeys.keys`. Coupling: total — they _are_
-   private identifiers (real `user@NixOS` / `recovery@main` keys).
-   Recommendation: **reject** — these cannot be generalized; they are the
-   textbook example of "private identifier", and any reusable module that
-   needs authorized keys should take them as an option argument (which
-   `modules/nixos/profiles/user.nix` effectively already could, if promoted —
-   but the _data_ itself stays personal).
-
-9. **`home/profiles/workflow-packs/*`** (`browsing`, `coding`, `latex`,
-   `learning`) — small `lib.mkEnableOption`-gated package-list toggles
-   (Chromium, VS Code, TeX Live, Anki) already exported as
-   `homeModules.profiles-workflow-packs`. What they do: opt-in app bundles.
-   Coupling: none beyond personal taste in app choice. Recommendation:
-   **reject** as a _new_ candidate — it is already a named flake output
-   (`homeModules.profiles-workflow-packs`); any further "promotion" work
-   (docs, boundary test) belongs to Track 1, not to a new extraction issue.
-
-### Summary
+5. **`home/files/scripts/{theme-switch.sh,hypr-display-mode.sh}`** — the theme
+   driver and a small Hyprland display utility, hand-tuned to this fleet's monitor
+   names and theme layout. Recommendation: **keep as reference**.
 
 Of 9 candidates surveyed: **3 promote** (`lib/dashboards.nix`,
 `lib/generators.nix`, `home/profiles/desktop-runtime.nix`), **4 keep as
-reference** (`control-center`, the Hyprland/Waybar scripts, the shared host
+reference** (`quiet-shell`, the Hyprland scripts, the shared host
 baseline profiles, `gcp-builder`), and **2 reject** (the pubkey lists, and
 `workflow-packs` as a _new_ candidate — it is already an existing output).
 

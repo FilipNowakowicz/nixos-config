@@ -482,8 +482,8 @@ in
         wants = lib.mkForce [ "nixos-fake-graphical-session.target" ];
       };
 
-      # The control center owns Bluetooth status/control now, so suppress the
-      # redundant Blueman tray icon instead of autostarting blueman-applet.
+      # The shell owns Bluetooth status and control, so suppress the redundant
+      # Blueman tray icon instead of autostarting blueman-applet.
       blueman-applet.enable = false;
 
       # The upstream dbus-broker unit is Type=notify-reload with no ExecReload,

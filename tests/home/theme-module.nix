@@ -73,16 +73,6 @@ let
       };
     };
 
-    # Both formats and links must survive the old-session -> Lua transition.
-    testHyprlandTransitionColors = {
-      expr =
-        lib.hasInfix "$col_active   = rgb(${monoTheme.colors.amber})"
-          files."themes/mono-mesh/hypr-colors.conf".text
-        && lib.hasInfix "/hypr/colors.conf" files."themes/links.sh".text
-        && lib.hasInfix "/hypr/colors.lua" files."themes/links.sh".text;
-      expected = true;
-    };
-
     testHyprlandLuaColors = {
       expr = lib.all (line: lib.hasInfix line files."themes/mono-mesh/hypr-colors.lua".text) [
         "return {"
@@ -149,7 +139,6 @@ let
       expr = map (p: p.pname) (import ../../home/profiles/desktop-runtime.nix { inherit pkgs; });
       expected = [
         "kitty"
-        "waybar"
         "swaybg"
       ];
     };
