@@ -25,6 +25,7 @@ write_colors() {
 wallpaper() {
   local old
   old=$(cat "$run/swaybg.pid" 2>/dev/null || true)
+  # shellcheck disable=SC2016
   setsid -f sh -c 'echo $$ >"$1"; exec swaybg -m fill -i "$2"' sh "$run/swaybg.pid" "$themes/$1/wallpaper" >/dev/null 2>&1
   [[ -z $old ]] || kill "$old" 2>/dev/null || true
 }
@@ -62,6 +63,7 @@ nix build "$repo#quiet-shell" --out-link "$run/package"
 
 theme=$(basename "$(dirname "$(readlink "$HOME/.local/share/wallpapers/current.png")")")
 write_colors "$theme"
+# shellcheck disable=SC2016
 printf '#!/bin/sh\nexec "%s" --theme "$1"\n' "$self" >"$run/bin/theme-switch"
 chmod +x "$run/bin/theme-switch"
 
@@ -85,6 +87,7 @@ chmod +x "$run/bin/systemctl"
 sed "s|~/.config/hypr/lock-status|bash '$repo/home/files/hypr/lock-status.sh'|" \
   "$repo/home/files/hypr/hyprlock.conf" >"$run/hyprlock.conf"
 rm -f "$run/bin/hyprlock"
+# shellcheck disable=SC2016
 printf '#!/bin/sh\nexec "%s" -c "%s" "$@"\n' "$(command -v hyprlock)" "$run/hyprlock.conf" >"$run/bin/hyprlock"
 chmod +x "$run/bin/hyprlock"
 
