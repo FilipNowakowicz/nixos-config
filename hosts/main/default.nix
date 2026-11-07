@@ -227,7 +227,9 @@ in
       }
     ];
     pam.services = lib.mkIf (!config.profiles.ci) {
-      hyprlock.fprintAuth = true;
+      # hyprlock reads the fingerprint itself, so a password works at the same time.
+      # Through PAM it would have to wait for the fingerprint attempt to end.
+      hyprlock.fprintAuth = false;
       greetd.fprintAuth = true;
     };
   };
