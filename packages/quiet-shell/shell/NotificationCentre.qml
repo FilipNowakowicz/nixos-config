@@ -9,7 +9,9 @@ ColumnLayout {
 
     // Read on opening, because the shell stays up across midnight.
     property date now: new Date()
-    onVisibleChanged: if (visible) { now = new Date(); Sys.refreshWeather(); }
+    // A day of this month, or 0 while the agenda shows what's next.
+    property int picked: 0
+    onVisibleChanged: if (visible) { now = new Date(); picked = 0; Sys.refreshWeather(); Sys.refreshAgenda(); }
     function weatherIcon(condition) {
         const c = condition.toLowerCase();
         if (c.includes("thunder")) return "cloud-lightning";
@@ -20,6 +22,26 @@ ColumnLayout {
         // wttr.in says Sunny by day and Clear by night.
         if (c.includes("clear")) return "moon";
         return "sun";
+    }
+    function dateOf(day) { return new Date(now.getFullYear(), now.getMonth(), day); }
+    function stamp(date) { return Qt.formatDate(date, "yyyy-MM-dd"); }
+    function eventsOn(day) {
+        const at = stamp(dateOf(day));
+        return Sys.agenda.filter(e => e.day <= at && at <= e.until);
+    }
+    // Something that began earlier stays on its days, but leaves this list so a
+    // week-long event can't hold the top of it all week.
+    function upcoming() {
+        const today = stamp(now), clock = Qt.formatTime(now, "HH:mm");
+        return Sys.agenda.filter(e => e.day > today || e.day === today && (!e.end || e.until > today || e.end > clock)).slice(0, 3);
+    }
+    function details(event) {
+        const time = event.start ? event.start + "–" + event.end : "All day";
+        if (picked)
+            return [time, event.location].filter(Boolean).join(" · ");
+        const relative = { [stamp(now)]: "Today", [stamp(dateOf(now.getDate() + 1))]: "Tomorrow" };
+        const day = relative[event.day] || Qt.formatDate(new Date(event.day + "T00:00:00"), "ddd d MMM");
+        return [day, event.start, event.location].filter(Boolean).join(" · ");
     }
     function days() {
         const y = now.getFullYear(), m = now.getMonth();
@@ -84,7 +106,7 @@ ColumnLayout {
             y: 12
             width: parent.width - 28
             spacing: 6
-            Label { text: Qt.formatDate(root.now, "dddd d MMMM"); font.weight: Font.DemiBold; font.pixelSize: 15 }
+            Label { text: Qt.formatDate(root.picked ? root.dateOf(root.picked) : root.now, "dddd d MMMM"); font.weight: Font.DemiBold; font.pixelSize: 15 }
             Grid {
                 columns: 7
                 width: parent.width
@@ -94,13 +116,44 @@ ColumnLayout {
                 }
                 Repeater {
                     model: root.days()
-                    Item {
+                    Press {
                         required property int modelData
                         readonly property bool today: modelData === root.now.getDate()
+                        readonly property bool chosen: modelData > 0 && modelData === root.picked
                         width: parent.width / 7
                         height: 24
-                        Rectangle { anchors.centerIn: parent; visible: parent.today; width: 22; height: 22; radius: 11; color: Theme.on }
+                        enabled: modelData > 0
+                        name: modelData > 0 ? Qt.formatDate(root.dateOf(modelData), "d MMMM") : ""
+                        onClicked: root.picked = chosen ? 0 : modelData
+                        Rectangle { anchors.centerIn: parent; visible: parent.today || parent.chosen; width: 22; height: 22; radius: 11; color: parent.today ? Theme.on : Theme.fillHover }
                         Label { anchors.centerIn: parent; visible: parent.modelData > 0; text: parent.modelData; font.pixelSize: 12; color: parent.today ? Theme.onText : Theme.text; font.weight: parent.today ? Font.DemiBold : Font.Normal }
+                        Rectangle {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.bottom: parent.bottom
+                            anchors.bottomMargin: 2
+                            visible: parent.modelData > 0 && root.eventsOn(parent.modelData).length > 0
+                            width: 3
+                            height: 3
+                            radius: 1.5
+                            color: parent.today ? Theme.onText : Theme.dim
+                        }
+                    }
+                }
+            }
+            Column {
+                visible: !root.compact && Sys.agenda.length > 0
+                width: parent.width
+                topPadding: 4
+                spacing: 8
+                Label { visible: !root.picked; text: "Up next"; font.pixelSize: 11; color: Theme.dim }
+                Label { visible: root.picked && root.eventsOn(root.picked).length === 0; text: "Nothing on"; font.pixelSize: 12; color: Theme.dim }
+                Repeater {
+                    model: root.picked ? root.eventsOn(root.picked).slice(0, 6) : root.upcoming()
+                    Column {
+                        required property var modelData
+                        width: parent.width
+                        Label { width: parent.width; text: parent.modelData.title; font.pixelSize: 13 }
+                        Label { width: parent.width; text: root.details(parent.modelData); font.pixelSize: 11; color: Theme.dim; font.features: { "tnum": 1 } }
                     }
                 }
             }

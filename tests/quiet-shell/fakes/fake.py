@@ -227,6 +227,16 @@ elif cmd == "curl":
                 for day in range(2)
             ],
         }))
+elif cmd == "khal":
+    # Next week's dates keep this valid whatever day the tests run. Like the real
+    # thing, it prints a list per day and repeats an event on each day it covers.
+    def day(offset):
+        return (datetime.date.today() + datetime.timedelta(days=offset)).isoformat()
+
+    lecture = {"title": "Galois Theory", "location": "HXLY 342", "start-date": day(1), "start-time": "11:00", "end-date": day(1), "end-time": "12:00"}
+    trip = {"title": "Conference", "location": "", "start-date": day(1), "start-time": "", "end-date": day(2), "end-time": ""}
+    print(json.dumps([trip, lecture]))
+    print(json.dumps([trip]))
 elif cmd == "theme-switch":
     colors = pathlib.Path(os.environ["QUIET_COLORS"])
     data = json.loads(colors.read_text())
