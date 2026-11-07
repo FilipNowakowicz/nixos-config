@@ -112,6 +112,17 @@ assert_contains "$flake_lock_output" "run_packages=true"
 assert_contains "$flake_lock_output" "tests=true"
 assert_contains "$flake_lock_output" '{"name":"main-ci"}'
 
+assert_contains "$flake_lock_output" '{"name":"quiet-shell-smoke","command":"smoke-quiet-shell","target":""}'
+
+quiet_shell_smoke='{"name":"quiet-shell-smoke","command":"smoke-quiet-shell","target":""}'
+for path in packages/quiet-shell/shell/Spotlight.qml home/files/hypr/hyprland.lua home/theme/module.nix tests/quiet-shell/acceptance.py; do
+  quiet_output="$(run_plan "$path")"
+  assert_contains "$quiet_output" "tests=true"
+  assert_contains "$quiet_output" "$quiet_shell_smoke"
+done
+assert_not_contains "$main_output" "$quiet_shell_smoke"
+assert_not_contains "$(run_plan $'home/neovim/packs/nix.nix')" "$quiet_shell_smoke"
+
 meta_output="$(run_plan $'.agents/learning/scripts/validate-candidates.sh')"
 assert_contains "$meta_output" "run_lint=true"
 assert_contains "$meta_output" "run_eval=false"

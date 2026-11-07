@@ -285,7 +285,10 @@ light)
     ".#checks.${system}.mac-sops-bootstrap" \
     ".#checks.${system}.observability-alerts-lint" \
     ".#checks.${system}.secrets-directory" \
-    ".#checks.${system}.lib-scan-plaintext-secrets"
+    ".#checks.${system}.lib-scan-plaintext-secrets" \
+    ".#checks.${system}.quiet-shell-status" \
+    ".#checks.${system}.quiet-shell-search" \
+    ".#checks.${system}.theme-module"
   ;;
 
 host)
@@ -317,6 +320,15 @@ smoke-homeserver-gcp)
   build_attrs ".#legacyPackages.${system}.ciTests.homeserver-gcp-smoke"
   ;;
 
+smoke-quiet-shell)
+  if [[ ! -e /dev/kvm ]]; then
+    echo "error: /dev/kvm missing; the quiet-shell smoke test cannot run here." >&2
+    exit 1
+  fi
+  ensure_builder
+  build_attrs ".#legacyPackages.${system}.ciTests.quiet-shell-smoke"
+  ;;
+
 profile-test)
   ensure_builder
   build_profile_test "${target:?Usage: $0 profile-test <name>}"
@@ -334,6 +346,7 @@ heavy)
   ensure_builder
   build_attrs \
     ".#legacyPackages.${system}.ciTests.homeserver-gcp-smoke" \
+    ".#legacyPackages.${system}.ciTests.quiet-shell-smoke" \
     ".#legacyPackages.${system}.ciTests.profile-security" \
     ".#legacyPackages.${system}.ciTests.profile-observability" \
     ".#legacyPackages.${system}.ciTests.profile-hardening"
