@@ -52,6 +52,7 @@ Hardware and desktop state:
 
 - `/var/lib/bluetooth` — pairings
 - `/var/lib/fprint` — fingerprint enrollments
+- `/var/lib/tudor` — fingerprint sensor pairing data
 - `/var/lib/usbguard` — rule hashes
 - `/var/lib/systemd/backlight` — screen brightness across reboots
 - `/var/lib/systemd/rfkill` — radio block state across reboots

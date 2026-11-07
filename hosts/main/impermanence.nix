@@ -29,6 +29,7 @@
     "/var/lib/tailscale" # tailnet node identity + peers
     "/var/lib/bluetooth" # Bluetooth pairings
     "/var/lib/fprint" # fingerprint enrollments
+    "/var/lib/tudor" # fingerprint sensor pairing data
     "/var/lib/usbguard" # USBGuard rule hashes
     "/var/lib/fail2ban" # banned-IP database (resets to empty without this)
     "/var/cache/tuigreet" # tuigreet --remember last-user cache

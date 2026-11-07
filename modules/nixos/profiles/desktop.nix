@@ -104,6 +104,9 @@ in
       polkit_gnome
       gnome-themes-extra
     ];
+    # Hyprland starts polkit-gnome from here, and without this nothing can ask for a
+    # password, so polkit just refuses. `fprintd-enroll` is one thing that needs it.
+    environment.pathsToLink = [ "/libexec" ];
 
     # ── Fonts ──────────────────────────────────────────────────────────────
     # `enableDefaultPackages` already pulls dejavu_fonts, liberation_ttf, and
