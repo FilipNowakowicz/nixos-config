@@ -272,6 +272,24 @@ Singleton {
     function nudgeMute() {
         nudge("volume", ["sh", "-c", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && wpctl get-volume @DEFAULT_AUDIO_SINK@"]);
     }
+    property var agenda: []
+    // Called when the centre opens. This only reads the local copy, so it costs nothing.
+    function refreshAgenda() { agendaRead.running = true; }
+    Process {
+        id: agendaRead
+        running: true
+        command: ["python3", Qt.resolvedUrl("scripts/agenda.py").toString().replace("file://", "")]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    root.agenda = JSON.parse(text);
+                } catch (e) {
+                    // Keep the last reading. The list hides if there has never been one.
+                }
+            }
+        }
+    }
+
     function nudgeBrightness(step) {
         nudge("brightness", ["brightnessctl", "-m", "set", Math.abs(step) + "%" + (step < 0 ? "-" : "+")]);
     }

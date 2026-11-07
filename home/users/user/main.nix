@@ -1,6 +1,9 @@
 { lib, pkgs, ... }:
 {
-  imports = [ ../../profiles/python-development.nix ];
+  imports = [
+    ../../profiles/calendar.nix
+    ../../profiles/python-development.nix
+  ];
 
   home.packages = with pkgs; [
     galaxy-buds-client

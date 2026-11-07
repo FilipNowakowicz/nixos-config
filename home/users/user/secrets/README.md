@@ -7,6 +7,7 @@ Managed files in this directory:
 - `gh-hosts.yaml`
 - `gcloud-application_default_credentials.json`
 - `user-identity.yaml`
+- `calendar-feeds.yaml`, declared by `home/profiles/calendar.nix`
 
 If any of these files are committed, they must be `sops`-encrypted first. The
 matching Home Manager declarations are in `home/users/user/secrets.nix`.

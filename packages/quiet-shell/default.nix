@@ -11,6 +11,7 @@
   fd,
   grim,
   hyprlock,
+  khal,
   mullvad-vpn,
   networkmanager,
   networkmanagerapplet,
@@ -41,6 +42,7 @@ let
     fd
     grim
     hyprlock
+    khal
     mullvad-vpn
     networkmanager
     networkmanagerapplet

@@ -8,8 +8,8 @@ import subprocess
 import sys
 import tempfile
 
-status, fake, location, buds_script = sys.argv[1:5]
-COMMANDS = "nmcli bluetoothctl tailscale mullvad wpctl pw-dump brightnessctl powerprofilesctl playerctl pgrep systemctl".split()
+status, fake, location, buds_script, agenda = sys.argv[1:6]
+COMMANDS = "nmcli bluetoothctl tailscale mullvad wpctl pw-dump brightnessctl powerprofilesctl playerctl pgrep systemctl khal".split()
 
 with tempfile.TemporaryDirectory() as tmp:
     root = pathlib.Path(tmp)
@@ -56,6 +56,13 @@ with tempfile.TemporaryDirectory() as tmp:
         [sys.executable, status], env={"PATH": str(root / "nothing"), "QUIET_POWER_SUPPLY": str(root / "none")}))
     for key in ("wifi", "bluetooth", "vpn", "sink", "devices", "brightness", "profile", "battery", "media"):
         assert empty[key] is None, (key, empty[key])
+
+    # An event khal repeats on each day it covers is one event. No khal, no agenda.
+    listed = json.loads(subprocess.check_output([sys.executable, agenda], env=env))
+    assert [e["title"] for e in listed] == ["Conference", "Galois Theory"], listed
+    assert listed[0]["day"] < listed[0]["until"] and listed[0]["start"] == "", listed
+    assert listed[1]["start"] == "11:00" and listed[1]["location"] == "HXLY 342", listed
+    assert subprocess.check_output([sys.executable, agenda], env={"PATH": str(root / "nothing")}) == b""
 print("quiet-shell status: ok")
 
 # A real status message from Buds4 Pro, with the left bud away. Frames are the only

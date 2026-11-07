@@ -17,6 +17,7 @@ pkgs.runCommand "quiet-shell-status-tests"
       ${../../packages/quiet-shell/shell/scripts/status.py} \
       ${../quiet-shell/fakes/fake.py} \
       ${../../packages/quiet-shell/shell/scripts/location.py} \
-      ${../../packages/quiet-shell/shell/scripts/buds.py}
+      ${../../packages/quiet-shell/shell/scripts/buds.py} \
+      ${../../packages/quiet-shell/shell/scripts/agenda.py}
     touch $out
   ''

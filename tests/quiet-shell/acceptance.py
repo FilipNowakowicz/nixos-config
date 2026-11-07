@@ -1015,6 +1015,16 @@ def notification_centre_groups_by_app():
 
 
 @test
+def agenda_appears_in_the_centre():
+    shell("notifications")
+    wait(lambda: ui()["agenda"], "agenda", timeout=8)
+    assert [e["title"] for e in ui()["agenda"]] == ["Conference", "Galois Theory"], ui()["agenda"]
+    time.sleep(0.5)
+    shot("agenda")
+    shell("close")
+
+
+@test
 def dock_labels_and_right_click_menu():
     start = len(clients())
     reveal_dock()
