@@ -259,6 +259,7 @@ flake-eval)
   ;;
 
 light)
+  bash .agents/learning/promotions/bluetooth-boot-trigger.sh
   bash .agents/learning/promotions/mullvad-cli-package-unit.sh
   # The pre-commit derivation is intentionally excluded from CI: its hooks
   # (statix, deadnix, treefmt, shellcheck, secrets-directory) are already
