@@ -44,6 +44,9 @@ let
       *) echo "$*" >> /tmp/playerctl.log ;;
     esac
   '';
+  # Selects the whole screen, as a drag from corner to corner would.
+  fakeSlurp = pkgs.writeShellScriptBin "slurp" "echo '0,0 1280x800'";
+  shotPath = lib.makeBinPath ([ fakeSlurp ] ++ quietShell.runtime) + ":/run/current-system/sw/bin";
 in
 (import "${nixpkgs}/nixos/lib/testing-python.nix" {
   inherit system pkgs;
@@ -126,6 +129,9 @@ in
           machine.wait_until_succeeds("su user -c '${inSession} hyprctl monitors' | grep -q Monitor", timeout=timedelta(seconds=60))
           errors = session("hyprctl configerrors").strip()
           assert errors in ("", "no errors"), f"config errors: {errors}"
+          # Hyprland picks a random default wallpaper when nothing draws one; a plain
+          # background keeps text capture and screenshots the same every run.
+          session("hyprctl eval \"hl.config({ misc = { disable_hyprland_logo = true, force_default_wallpaper = 0 } })\"")
 
       with subtest("the shell starts and answers IPC"):
           machine.succeed("su user -c '${inSession} setsid quiet-shell > /tmp/shell.log 2>&1 &'")
@@ -172,6 +178,23 @@ in
               raise AssertionError("test stream never appeared")
           session("quiet-shell-ipc detail sound")
           wait_for(lambda s: s["detail"] == "sound" and "SmokeTone" in s["streams"], "sound-apps")
+          session("quiet-shell-ipc close")
+
+      with subtest("text capture reads the words on screen"):
+          session("quiet-shell-ipc shortcuts")
+          wait_for(lambda s: s["cheatSheet"], "text-source")
+          # One session for both: wl-copy serves the clipboard from a child that a
+          # finishing su session would take with it.
+          session(
+              "env PATH=${shotPath} sh -c \"python3 ${quietShell}/share/quiet-shell/scripts/screenshot.py text"
+              " > /tmp/ocr.json && sleep 1 && wl-paste > /tmp/pasted.txt\""
+          )
+          text = json.loads(machine.succeed("cat /tmp/ocr.json"))["text"]
+          # The moving wallpaper shows through, so OCR varies a little run to run.
+          labels = ["Maximise", "Fullscreen", "Focus left", "Focus right", "Overview", "Notifications", "Lock", "Browser"]
+          found = [label for label in labels if label in text]
+          assert len(found) >= 5, f"OCR read only {found} from the sheet: {text!r}"
+          assert machine.succeed("cat /tmp/pasted.txt").strip() == text, "OCR text was not copied"
           session("quiet-shell-ipc close")
 
       with subtest("the shell does not redraw while idle"):

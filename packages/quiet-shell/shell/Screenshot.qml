@@ -13,13 +13,13 @@ Item {
         anchors.centerIn: parent
         spacing: 4
         Repeater {
-            model: [["area", "Area", "square-dashed"], ["window", "Window", "app-window"], ["screen", "Screen", "monitor"]]
+            model: [["area", "Area", "square-dashed"], ["window", "Window", "app-window"], ["screen", "Screen", "monitor"], ["text", "Text", "scan-text"]]
             Press {
                 required property var modelData
                 implicitWidth: 76
                 implicitHeight: 60
                 radius: 16
-                name: "Capture " + modelData[1].toLowerCase()
+                name: modelData[0] === "text" ? "Copy text from an area" : "Capture " + modelData[1].toLowerCase()
                 onClicked: Sys.screenshot(modelData[0])
                 Column {
                     anchors.centerIn: parent

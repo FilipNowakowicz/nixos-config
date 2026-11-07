@@ -67,9 +67,7 @@ Singleton {
             ["SUPER + W", "Keep the bar open"],
             ["SUPER + slash", "Shortcuts"],
             ["Capture"],
-            ["SUPER + SHIFT + s", "Screenshot tool"],
-            ["SUPER + SHIFT + P", "Copy the screen"],
-            ["SUPER + CTRL + P", "Copy an area"],
+            ["SUPER + SHIFT + s", "Screenshot or copy text"],
             ["System"],
             ["SUPER + BackSpace", "Lock"]
         ]

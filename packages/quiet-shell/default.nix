@@ -22,6 +22,7 @@
   slurp,
   systemd,
   tailscale,
+  tesseract,
   tzdata,
   util-linux,
   wireplumber,
@@ -31,6 +32,13 @@
 }:
 
 let
+  # Text capture reads English and Polish; by default tesseract bundles every language.
+  ocr = tesseract.override {
+    enableLanguages = [
+      "eng"
+      "pol"
+    ];
+  };
   # status.py and Sys.qml call these by name, so the shell behaves the same however
   # it is launched. Tests put fakes first on PATH instead of a separate test mode.
   runtime = [
@@ -53,6 +61,7 @@ let
     slurp
     systemd
     tailscale
+    ocr
     util-linux
     wireplumber
     wl-clipboard
@@ -82,6 +91,9 @@ stdenvNoCC.mkDerivation {
       --add-flags "ipc -p $out/share/quiet-shell call shell"
     runHook postInstall
   '';
+
+  # Tests run the helper scripts with the same tools the shell gives them.
+  passthru = { inherit runtime; };
 
   meta = {
     description = "Quiet, auto-hiding desktop shell for Hyprland";

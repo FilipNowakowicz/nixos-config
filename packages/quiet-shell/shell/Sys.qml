@@ -346,9 +346,15 @@ Singleton {
         id: capture
         stdout: StdioCollector {
             onStreamFinished: {
-                const path = text.trim();
-                if (path)
-                    Notify.post("Screenshot saved", "Copied to the clipboard", false, path);
+                if (!text.trim())
+                    return;  // Cancelled.
+                const result = JSON.parse(text);
+                if (result.path)
+                    Notify.post("Screenshot saved", "Copied to the clipboard", false, result.path);
+                else if (result.text)
+                    Notify.post("Text copied", result.text.length > 120 ? result.text.slice(0, 120) + "…" : result.text, false);
+                else
+                    Notify.post("No text found", "Nothing was copied.", false);
             }
         }
         onExited: code => { if (code !== 0) Notify.post("Screenshot failed", "Nothing was saved.", false); }

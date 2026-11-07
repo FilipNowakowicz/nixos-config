@@ -18,8 +18,6 @@ in
       [
         # ── Wayland utilities ──────────────────────────────────────────────────
         wl-clipboard
-        grim # screenshot
-        slurp # region select (used with grim)
         hyprlock
         brightnessctl
         cliphist
