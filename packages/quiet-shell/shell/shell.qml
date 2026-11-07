@@ -72,7 +72,7 @@ ShellRoot {
         onReleased: Ui.commitSwitcher()
     }
 
-    // Replaces polkit-gnome. Tests load a stand-in, because polkit needs the system bus.
+    // Asks for passwords on behalf of apps. Tests load a stand-in, because polkit needs the system bus.
     PolkitAgent { id: polkit }
     Loader { id: testAuth; active: false; source: Quickshell.env("QUIET_TEST_AUTH") ?? "" }
     Connections {

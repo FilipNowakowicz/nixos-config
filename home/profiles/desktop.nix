@@ -6,7 +6,7 @@
 let
   isDark = (config.themes._activeThemeColorscheme or { }).background or "dark" == "dark";
   inherit (config.fleet) enableSpotify skipHeavyPackages;
-  # Theme-reloaded Wayland UI tools (kitty/waybar/swaybg); shared with
+  # Theme-reloaded Wayland UI tools (kitty/swaybg); shared with
   # theme-switch's runtimeInputs in home/theme/module.nix.
   themedRuntime = import ./desktop-runtime.nix { inherit pkgs; };
 in

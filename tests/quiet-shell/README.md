@@ -49,24 +49,4 @@ Password requests use `fakes/TestAuth.qml`, because the private session has no s
 so the real polkit flow has to be tried by hand. This system has no `pkexec`, but from a
 terminal outside a tty session `systemctl start fprintd.service` asks for a password.
 
-Not covered: real
-network, Bluetooth and audio changes; and hardware frame pacing.
-
-## Trying it on real hardware
-
-`try-tty.sh` starts a second Hyprland with the built shell and the real `hyprland.lua`.
-It needs no rebuild and changes nothing in `~/.config`. Press Ctrl+Alt+F2, log in and run
-it, then use Ctrl+Alt+F1 and Ctrl+Alt+F2 to move between sessions. Leave with
-SUPER+SHIFT+Escape.
-
-If the screen hangs, try Ctrl+Alt+F1 before the power button. Each run moves the last
-run's logs to `hyprland.previous.log` and `shell.previous.log`, so a hang leaves evidence.
-
-Sleep and idle are inhibited until you leave, because hypridle in the first session can't
-see input in the second and would otherwise suspend the machine. Hyprland imports its environment into the shared systemd user manager and stops
-`graphical-session.target` on exit, which would take down the first session's services.
-The launcher filters those calls, and logs what it filtered to `held-back.log`.
-
-The session has its own D-Bus, so the shell can own notifications while mako keeps
-running in the first session. Apps there can't see apps here: media playing on tty1 won't
-appear, and Firefox can't open the same profile twice.
+Not covered: real network, Bluetooth and audio changes; and hardware frame pacing.

@@ -204,15 +204,11 @@ build_package() {
   all)
     build_attrs \
       ".#packages.${system}.inventory-data" \
-      ".#packages.${system}.control-center" \
       ".#packages.${system}.tailscale-acl" \
       ".#packages.${system}.installer-iso"
     ;;
   inventory-data)
     build_attrs ".#packages.${system}.inventory-data"
-    ;;
-  control-center)
-    build_attrs ".#packages.${system}.control-center"
     ;;
   tailscale-acl)
     build_attrs ".#packages.${system}.tailscale-acl"
@@ -280,7 +276,6 @@ light)
     ".#checks.${system}.invariants-mac" \
     ".#checks.${system}.invariants-registry-security" \
     ".#checks.${system}.invariants-installer" \
-    ".#checks.${system}.control-center-capabilities" \
     ".#checks.${system}.lib-doctor" \
     ".#checks.${system}.lib-generators" \
     ".#checks.${system}.lib-generators-structured" \

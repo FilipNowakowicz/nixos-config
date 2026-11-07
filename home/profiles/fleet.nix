@@ -7,8 +7,6 @@
       description = "Fleet host name used by user-level commands.";
     };
 
-    quietShell = lib.mkEnableOption "the Quickshell desktop shell in place of Waybar, the GTK control centre, the launcher and mako";
-
     skipHeavyPackages = lib.mkOption {
       type = lib.types.bool;
       default = false;

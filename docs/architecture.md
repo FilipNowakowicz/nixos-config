@@ -114,6 +114,5 @@ useful, flake `apps`.
 
 Current example:
 
-- `packages/control-center/` owns the GTK4 control center source tree and its
-  runtime wrapper; Home Manager should consume the packaged output instead of
-  embedding a standalone `home/files/scripts/control_center.py` copy.
+- `packages/quiet-shell/` owns the Quickshell desktop shell and its runtime
+  wrapper; Home Manager consumes the packaged output.

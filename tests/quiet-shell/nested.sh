@@ -38,11 +38,10 @@ hl.monitor({ output = "", mode = "1920x1080@60", position = "auto", scale = 1 })
 hl.layer_rule({ name = "quiet-glass", match = { namespace = "quiet-shell" }, blur = true, ignore_alpha = 0.02 })
 LUA
 config="$run/hypr.lua"
-# QUIET_REAL_CONFIG=1 loads the repo's own hyprland.lua with the quiet shell enabled.
+# QUIET_REAL_CONFIG=1 loads the repo's own hyprland.lua.
 if [[ ${QUIET_REAL_CONFIG:-} == 1 ]]; then
   mkdir -p "$HOME/.config/hypr"
   echo 'return { active = "rgb(d3ad7a)", inactive = "rgb(0d1830)", shadow = "rgba(071126cc)" }' >"$HOME/.config/hypr/colors.lua"
-  echo 'return { quiet = true }' >"$HOME/.config/hypr/shell.lua"
   config="$repo/home/files/hypr/hyprland.lua"
   export DESKTOP_TEST=1
 fi

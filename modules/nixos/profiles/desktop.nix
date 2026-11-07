@@ -1,24 +1,5 @@
+{ pkgs, ... }:
 {
-  config,
-  lib,
-  pkgs,
-  ...
-}:
-let
-  cfg = config.profiles.desktop;
-in
-{
-  options.profiles.desktop.user = lib.mkOption {
-    type = lib.types.str;
-    default = "user";
-    description = ''
-      Name of the primary interactive user account to grant
-      desktop-specific group memberships (e.g. `/dev/input` access for
-      swayosd-server's libinput backend). Adopters whose primary user is
-      not named `user` must set this to match.
-    '';
-  };
-
   config = {
     # ── Compositor & Wayland ───────────────────────────────────────────────
     programs = {
@@ -30,9 +11,6 @@ in
         enableZshIntegration = true;
       };
     };
-
-    # swayosd-server needs /dev/input access for its libinput backend
-    users.users.${cfg.user}.extraGroups = [ "input" ];
 
     services = {
       # ── Keyboard ──────────────────────────────────────────────────────────
@@ -101,12 +79,8 @@ in
     environment.systemPackages = with pkgs; [
       gnome-keyring
       networkmanagerapplet
-      polkit_gnome
       gnome-themes-extra
     ];
-    # Hyprland starts polkit-gnome from here, and without this nothing can ask for a
-    # password, so polkit just refuses. `fprintd-enroll` is one thing that needs it.
-    environment.pathsToLink = [ "/libexec" ];
 
     # ── Fonts ──────────────────────────────────────────────────────────────
     # `enableDefaultPackages` already pulls dejavu_fonts, liberation_ttf, and

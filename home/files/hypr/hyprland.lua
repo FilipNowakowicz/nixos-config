@@ -1,8 +1,5 @@
 -- Behaviour-preserving migration for Hyprland 0.57.
 local colors = dofile(os.getenv("HOME") .. "/.config/hypr/colors.lua")
--- Written by Home Manager from fleet.quietShell. Missing means the classic shell.
-local shell_file = loadfile(os.getenv("HOME") .. "/.config/hypr/shell.lua")
-local shell = shell_file and shell_file() or { quiet = false }
 if os.getenv("DESKTOP_TEST") ~= "1" then
 	hl.on("hyprland.start", function()
 		hl.exec_cmd("hypr-display-mode auto")
@@ -97,21 +94,19 @@ hl.bind("SUPER + Return", hl.dsp.exec_cmd("kitty"))
 hl.bind("SUPER + apostrophe", hl.dsp.window.close())
 hl.bind("SUPER + b", hl.dsp.exec_cmd("firefox"))
 hl.bind("SUPER + BackSpace", hl.dsp.exec_cmd("hyprlock"))
-hl.bind("SUPER + c", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc controls" or "control-center"))
-hl.bind("SUPER + W", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc pin" or "waybar-toggle"))
-hl.bind("SUPER + Space", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc spotlight" or "launcher"))
-if shell.quiet then
-	hl.bind("SUPER + n", hl.dsp.exec_cmd("quiet-shell-ipc notifications"))
-	hl.bind("SUPER + o", hl.dsp.exec_cmd("quiet-shell-ipc overview"))
-	hl.bind("SUPER + Tab", hl.dsp.global("quiet-shell:switcher"))
-	hl.bind("SUPER + SHIFT + Tab", hl.dsp.global("quiet-shell:switcher-back"))
-	-- Transparent, or pressing Tab cancels this release and a quick tap leaves the switcher open.
-	hl.bind("SUPER + Super_L", hl.dsp.global("quiet-shell:switcher-done"), { release = true, transparent = true })
-	hl.bind("SUPER + SHIFT + s", hl.dsp.exec_cmd("quiet-shell-ipc screenshot"))
-	hl.bind("SUPER + slash", hl.dsp.exec_cmd("quiet-shell-ipc shortcuts"))
-	hl.bind("SUPER + minus", hl.dsp.window.move({ workspace = "special:minimized", follow = false }))
-	hl.layer_rule({ name = "quiet-glass", match = { namespace = "quiet-shell" }, blur = true, ignore_alpha = 0.02 })
-end
+hl.bind("SUPER + c", hl.dsp.exec_cmd("quiet-shell-ipc controls"))
+hl.bind("SUPER + W", hl.dsp.exec_cmd("quiet-shell-ipc pin"))
+hl.bind("SUPER + Space", hl.dsp.exec_cmd("quiet-shell-ipc spotlight"))
+hl.bind("SUPER + n", hl.dsp.exec_cmd("quiet-shell-ipc notifications"))
+hl.bind("SUPER + o", hl.dsp.exec_cmd("quiet-shell-ipc overview"))
+hl.bind("SUPER + Tab", hl.dsp.global("quiet-shell:switcher"))
+hl.bind("SUPER + SHIFT + Tab", hl.dsp.global("quiet-shell:switcher-back"))
+-- Transparent, or pressing Tab cancels this release and a quick tap leaves the switcher open.
+hl.bind("SUPER + Super_L", hl.dsp.global("quiet-shell:switcher-done"), { release = true, transparent = true })
+hl.bind("SUPER + SHIFT + s", hl.dsp.exec_cmd("quiet-shell-ipc screenshot"))
+hl.bind("SUPER + slash", hl.dsp.exec_cmd("quiet-shell-ipc shortcuts"))
+hl.bind("SUPER + minus", hl.dsp.window.move({ workspace = "special:minimized", follow = false }))
+hl.layer_rule({ name = "quiet-glass", match = { namespace = "quiet-shell" }, blur = true, ignore_alpha = 0.02 })
 hl.bind("SUPER + M", hl.dsp.exec_cmd("hypr-layout-cycle"))
 hl.bind("SUPER + h", hl.dsp.focus({ direction = "left" }))
 hl.bind("SUPER + j", hl.dsp.focus({ direction = "down" }))
@@ -149,12 +144,12 @@ hl.bind("SUPER + SHIFT + 9", hl.dsp.window.move({ workspace = 9 }))
 hl.bind("SUPER + SHIFT + 0", hl.dsp.window.move({ workspace = 10 }))
 hl.bind("SUPER + CTRL + P", hl.dsp.exec_cmd('grim -g "$(slurp)" - | wl-copy'))
 hl.bind("SUPER + SHIFT + P", hl.dsp.exec_cmd("grim - | wl-copy"))
-hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc brightness 5" or "swayosd-client --brightness raise"))
-hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc brightness -5" or "swayosd-client --brightness lower"))
-hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc volume 5" or "swayosd-client --output-volume raise"))
-hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc volume -5" or "swayosd-client --output-volume lower"))
-hl.bind("XF86AudioMute", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc mute" or "swayosd-client --output-volume mute-toggle"))
-hl.bind("SUPER + V", hl.dsp.exec_cmd(shell.quiet and "quiet-shell-ipc clipboard" or "kitty --class clipboard-picker -e clipboard-pick"))
+hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("quiet-shell-ipc brightness 5"))
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("quiet-shell-ipc brightness -5"))
+hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("quiet-shell-ipc volume 5"))
+hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("quiet-shell-ipc volume -5"))
+hl.bind("XF86AudioMute", hl.dsp.exec_cmd("quiet-shell-ipc mute"))
+hl.bind("SUPER + V", hl.dsp.exec_cmd("quiet-shell-ipc clipboard"))
 hl.bind("SUPER + T", hl.dsp.window.float({ action = "toggle" }))
 if os.getenv("DESKTOP_TEST") ~= "1" then
 	hl.on("hyprland.start", function()
@@ -162,9 +157,5 @@ if os.getenv("DESKTOP_TEST") ~= "1" then
 			"dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_SESSION_TYPE DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE MOZ_ENABLE_WAYLAND NIXOS_OZONE_WL LIBVA_DRIVER_NAME AQ_DRM_DEVICES __GLX_VENDOR_LIBRARY_NAME && systemctl --user start nixos-fake-graphical-session.target"
 		)
 		hl.exec_cmd("swaybg -m fill -i ~/.local/share/wallpapers/current.png")
-		if not shell.quiet then
-			hl.exec_cmd("/run/current-system/sw/libexec/polkit-gnome-authentication-agent-1")
-			hl.exec_cmd("control-center --daemon")
-		end
 	end)
 end
