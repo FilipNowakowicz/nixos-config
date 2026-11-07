@@ -225,6 +225,7 @@ build_package() {
 
 case "$command" in
 docs)
+  bash .agents/learning/promotions/quiet-shell-private-restart.sh
   bash scripts/check-doc-links.sh
   bash scripts/agent-run-issue.sh --self-test
   bash scripts/agent-session.sh --self-test
