@@ -253,7 +253,90 @@ let
     in
     if assertion == null then throw "missing assertion '${name}'" else assertion.check cfg;
 
+  bluetoothBootConfig = {
+    hardware.bluetooth.enable = true;
+    boot.blacklistedKernelModules = [ "btusb" ];
+    systemd.services.bluetooth-load-btusb.enable = true;
+    systemd.timers.bluetooth-load-btusb = {
+      enable = true;
+      wantedBy = [ "timers.target" ];
+      timerConfig.OnActiveSec = "10s";
+    };
+  };
+  checkBluetoothTimer =
+    timer:
+    invariants.mainBluetoothDriverHasBootTrigger.check (
+      lib.recursiveUpdate bluetoothBootConfig { systemd.timers.bluetooth-load-btusb = timer; }
+    );
+
   failures = lib.runTests {
+    testBluetoothDriverHasIndependentBootTrigger = {
+      expr = (invariants.mainBluetoothDriverHasBootTrigger.check bluetoothBootConfig).passed;
+      expected = true;
+    };
+
+    testBluetoothDriverRejectsOriginalServiceOnlyTrigger = {
+      expr =
+        (invariants.mainBluetoothDriverHasBootTrigger.check (
+          bluetoothBootConfig
+          // {
+            systemd = {
+              services.bluetooth-load-btusb = {
+                enable = true;
+                requiredBy = [ "bluetooth.service" ];
+              };
+              timers = { };
+            };
+          }
+        )).passed;
+      expected = false;
+    };
+
+    testBluetoothDriverRejectsDisabledTimer = {
+      expr = (checkBluetoothTimer { enable = false; }).passed;
+      expected = false;
+    };
+
+    testBluetoothDriverRejectsMissingBootTarget = {
+      expr = (checkBluetoothTimer { wantedBy = [ "bluetooth.target" ]; }).passed;
+      expected = false;
+    };
+
+    testBluetoothDriverRejectsMissingActivation = {
+      expr = (checkBluetoothTimer { timerConfig.OnActiveSec = null; }).passed;
+      expected = false;
+    };
+
+    testBluetoothDriverRejectsWrongTimerService = {
+      expr = (checkBluetoothTimer { timerConfig.Unit = "unrelated.service"; }).passed;
+      expected = false;
+    };
+
+    testBluetoothDriverRejectsDisabledLoader = {
+      expr =
+        (invariants.mainBluetoothDriverHasBootTrigger.check (
+          lib.recursiveUpdate bluetoothBootConfig { systemd.services.bluetooth-load-btusb.enable = false; }
+        )).passed;
+      expected = false;
+    };
+
+    testBluetoothDriverAllowsDeliberatelyDisabledBluetooth = {
+      expr =
+        (invariants.mainBluetoothDriverHasBootTrigger.check {
+          hardware.bluetooth.enable = false;
+        }).passed;
+      expected = true;
+    };
+
+    testBluetoothDriverAllowsNormalUdevLoading = {
+      expr =
+        (invariants.mainBluetoothDriverHasBootTrigger.check {
+          hardware.bluetooth.enable = true;
+          boot.blacklistedKernelModules = [ ];
+        }).passed;
+      expected = true;
+    };
+
     testBoolCheckPasses = {
       expr = (lib.elemAt sampleResults 0).passed;
       expected = true;
