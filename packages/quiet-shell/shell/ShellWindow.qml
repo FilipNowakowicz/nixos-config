@@ -37,8 +37,12 @@ PanelWindow {
         focus: true
         Keys.onEscapePressed: Ui.back()
         Keys.onPressed: event => {
-            if (Ui.panel === "controls" && Ui.detail === "" && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)))
+            if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
+                return;
+            if (Ui.panel === "controls" && Ui.detail === "")
                 event.accepted = controls.pressLetter(event.text.toLowerCase());
+            else if (Ui.panel === "system")
+                event.accepted = menus.pressLetter(event.text.toLowerCase());
         }
         Keys.onReturnPressed: event => {
             if (Ui.switcher) Ui.commitSwitcher();
@@ -123,7 +127,7 @@ PanelWindow {
             Behavior on opacity { NumberAnimation { duration: Theme.motion } }
         }
 
-        Menus { anchors.fill: parent; visible: win.focused }
+        Menus { id: menus; anchors.fill: parent; visible: win.focused }
 
         Banner { id: banner; visible: win.focused && Ui.panel === "" && !Ui.overview }
 

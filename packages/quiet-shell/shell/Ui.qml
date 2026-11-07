@@ -69,6 +69,7 @@ Singleton {
             ["Capture"],
             ["SUPER + SHIFT + s", "Screenshot or copy text"],
             ["System"],
+            ["SUPER + Escape", "Power menu"],
             ["SUPER + BackSpace", "Lock"]
         ]
     ]
@@ -109,9 +110,9 @@ Singleton {
     function session(name) {
         const lost = "Open apps will close, and anything unsaved will be lost.";
         const asks = {
-            restart: { title: "Restart now?", body: lost, action: "Restart", command: ["systemctl", "reboot"] },
-            shutdown: { title: "Shut down now?", body: lost, action: "Shut Down", command: ["systemctl", "poweroff"] },
-            logout: { title: "Log out now?", body: lost, action: "Log Out", command: ["hyprctl", "dispatch", "hl.dsp.exit()"] }
+            restart: { title: "Restart now?", body: lost, action: "Restart", key: "r", command: ["systemctl", "reboot"] },
+            shutdown: { title: "Shut down now?", body: lost, action: "Shut Down", key: "d", command: ["systemctl", "poweroff"] },
+            logout: { title: "Log out now?", body: lost, action: "Log Out", key: "o", command: ["hyprctl", "dispatch", "hl.dsp.exit()"] }
         };
         close();
         if (name === "sleep") Quickshell.execDetached(["systemctl", "suspend"]);

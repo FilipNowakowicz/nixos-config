@@ -13,6 +13,7 @@ ShellRoot {
     IpcHandler {
         target: "shell"
         function controls(): void { Ui.open("controls"); }
+        function system(): void { Ui.open("system"); }
         // Opens one control's details directly, e.g. `detail sound`.
         function detail(kind: string): void {
             if (Ui.panel !== "controls")

@@ -242,5 +242,22 @@ in
           # dmabuf ERROR there is expected and harmless.
           for bad in (".qml:", "is not a type", "is not installed", "ReferenceError", "TypeError"):
               assert bad not in shell_log, f"shell log reports a failure ({bad}):\n{shell_log}"
+
+      with subtest("the power menu works from the keyboard"):
+          # Dvorak on QWERTY scancodes: r is the o key, n is l, o is s.
+          machine.send_key("meta_l-esc")
+          wait_for(lambda s: s["panel"] == "system", "power-menu")
+          machine.send_key("o")
+          wait_for(lambda s: s["confirm"] == "Restart", "power-confirm")
+          machine.send_key("l")
+          retry(lambda _: state()["confirm"] == "", timeout=timedelta(seconds=10))
+          # Log Out is the one action the VM survives: confirm it and the session ends.
+          hyprland = machine.succeed("pgrep -u user -x .Hyprland-wrapp || pgrep -u user -f 'Hyprland --watchdog'").split()[0]
+          machine.send_key("meta_l-esc")
+          retry(lambda _: state()["panel"] == "system", timeout=timedelta(seconds=10))
+          machine.send_key("s")
+          retry(lambda _: state()["confirm"] == "Log Out", timeout=timedelta(seconds=10))
+          machine.send_key("ret")
+          machine.wait_until_fails(f"kill -0 {hyprland}", timeout=timedelta(seconds=20))
     '';
   }
