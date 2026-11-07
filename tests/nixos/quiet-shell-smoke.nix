@@ -212,6 +212,25 @@ in
           machine.succeed("pkill -u user -x foot")
           machine.wait_until_fails("su user -c '${inSession} hyprctl clients' | grep -q preview-source", timeout=timedelta(seconds=10))
 
+      with subtest("the calendar moves with Vim keys"):
+          def screen_text():
+              session(
+                  "env PATH=${shotPath} sh -c \"python3 ${quietShell}/share/quiet-shell/scripts/screenshot.py text > /tmp/cal.json\""
+              )
+              return json.loads(machine.succeed("cat /tmp/cal.json"))["text"]
+
+          session("quiet-shell-ipc notifications")
+          wait_for(lambda s: s["panel"] == "notifications", "calendar")
+          # Dvorak on QWERTY scancodes: l is the p key. l moves a day, L a month.
+          machine.send_key("p")
+          tomorrow = machine.succeed("date -d tomorrow '+%A %-d %B'").strip()
+          retry(lambda _: tomorrow in screen_text(), timeout=timedelta(seconds=15))
+          machine.send_key("shift-p")
+          next_month = machine.succeed("date -d \"$(date -d tomorrow +%Y-%m-01) +1 month\" +%B").strip()
+          retry(lambda _: next_month in screen_text(), timeout=timedelta(seconds=15))
+          machine.screenshot("calendar-next-month")
+          session("quiet-shell-ipc close")
+
       with subtest("tray icons are grey until pointed at"):
           session("setsid ${trayPython}/bin/python3 ${../quiet-shell/fakes/tray.py} /tmp/tray.log >/dev/null 2>&1 &")
           session("quiet-shell-ipc pin")
@@ -255,6 +274,9 @@ in
           hyprland = machine.succeed("pgrep -u user -x .Hyprland-wrapp || pgrep -u user -f 'Hyprland --watchdog'").split()[0]
           machine.send_key("meta_l-esc")
           retry(lambda _: state()["panel"] == "system", timeout=timedelta(seconds=10))
+          # The menu takes the keyboard a moment after it opens; slow under software
+          # rendering, so let it settle before typing.
+          machine.sleep(timedelta(seconds=1))
           machine.send_key("s")
           retry(lambda _: state()["confirm"] == "Log Out", timeout=timedelta(seconds=10))
           machine.send_key("ret")

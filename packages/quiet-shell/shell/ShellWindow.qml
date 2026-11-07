@@ -43,6 +43,8 @@ PanelWindow {
                 event.accepted = controls.pressLetter(event.text.toLowerCase());
             else if (Ui.panel === "system")
                 event.accepted = menus.pressLetter(event.text.toLowerCase());
+            else if (Ui.panel === "notifications")
+                event.accepted = notifications.pressKey(event.text);
         }
         Keys.onReturnPressed: event => {
             if (Ui.switcher) Ui.commitSwitcher();
@@ -119,6 +121,7 @@ PanelWindow {
         }
 
         NotificationCentre {
+            id: notifications
             visible: (Ui.panel === "notifications" || opacity > 0) && win.focused
             x: parent.width - width - 8 + (Ui.panel === "notifications" ? 0 : 20)
             y: 42

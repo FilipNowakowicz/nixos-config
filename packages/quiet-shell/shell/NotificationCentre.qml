@@ -9,9 +9,15 @@ ColumnLayout {
 
     // Read on opening, because the shell stays up across midnight.
     property date now: new Date()
-    // A day of this month, or 0 while the agenda shows what's next.
-    property int picked: 0
-    onVisibleChanged: if (visible) { now = new Date(); picked = 0; Sys.refreshWeather(); Sys.refreshAgenda(); }
+    // The month on show, and the day picked in it; null while the agenda shows
+    // what's next.
+    property date shown: new Date(now.getFullYear(), now.getMonth(), 1)
+    property var picked: null
+    onVisibleChanged: if (visible) { now = new Date(); toToday(); Sys.refreshWeather(); Sys.refreshAgenda(); }
+    function toToday() {
+        shown = new Date(now.getFullYear(), now.getMonth(), 1);
+        picked = null;
+    }
     function weatherIcon(condition) {
         const c = condition.toLowerCase();
         if (c.includes("thunder")) return "cloud-lightning";
@@ -23,10 +29,11 @@ ColumnLayout {
         if (c.includes("clear")) return "moon";
         return "sun";
     }
-    function dateOf(day) { return new Date(now.getFullYear(), now.getMonth(), day); }
+    function dateOf(day) { return new Date(shown.getFullYear(), shown.getMonth(), day); }
     function stamp(date) { return Qt.formatDate(date, "yyyy-MM-dd"); }
-    function eventsOn(day) {
-        const at = stamp(dateOf(day));
+    function sameDay(a, b) { return !!a && !!b && stamp(a) === stamp(b); }
+    function eventsOn(date) {
+        const at = stamp(date);
         return Sys.agenda.filter(e => e.day <= at && at <= e.until);
     }
     // Something that began earlier stays on its days, but leaves this list so a
@@ -39,18 +46,51 @@ ColumnLayout {
         const time = event.start ? event.start + "–" + event.end : "All day";
         if (picked)
             return [time, event.location].filter(Boolean).join(" · ");
-        const relative = { [stamp(now)]: "Today", [stamp(dateOf(now.getDate() + 1))]: "Tomorrow" };
+        const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const relative = { [stamp(now)]: "Today", [stamp(tomorrow)]: "Tomorrow" };
         const day = relative[event.day] || Qt.formatDate(new Date(event.day + "T00:00:00"), "ddd d MMM");
         return [day, event.start, event.location].filter(Boolean).join(" · ");
     }
     function days() {
-        const y = now.getFullYear(), m = now.getMonth();
+        const y = shown.getFullYear(), m = shown.getMonth();
         const first = (new Date(y, m, 1).getDay() + 6) % 7;
         const count = new Date(y, m + 1, 0).getDate();
         const out = [];
         for (let i = 0; i < first; i++) out.push(0);
         for (let d = 1; d <= count; d++) out.push(d);
         return out;
+    }
+    function pick(date) {
+        picked = date;
+        shown = new Date(date.getFullYear(), date.getMonth(), 1);
+    }
+    function moveDays(step) {
+        const from = picked || now;
+        pick(new Date(from.getFullYear(), from.getMonth(), from.getDate() + step));
+    }
+    function moveMonths(step) {
+        const from = picked || now;
+        const target = new Date(from.getFullYear(), from.getMonth() + step, 1);
+        // Keep the day where the month has it, or take its last day.
+        const last = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+        pick(new Date(target.getFullYear(), target.getMonth(), Math.min(from.getDate(), last)));
+    }
+    // Vim-style, laid out as the grid is: h and l a day, j and k a week, H and L a
+    // month, t back to today.
+    function pressKey(text) {
+        const moves = {
+            h: () => moveDays(-1),
+            l: () => moveDays(1),
+            j: () => moveDays(7),
+            k: () => moveDays(-7),
+            H: () => moveMonths(-1),
+            L: () => moveMonths(1),
+            t: () => toToday()
+        };
+        if (compact || !moves[text])
+            return false;
+        moves[text]();
+        return true;
     }
 
     Item {
@@ -106,7 +146,30 @@ ColumnLayout {
             y: 12
             width: parent.width - 28
             spacing: 6
-            Label { text: Qt.formatDate(root.picked ? root.dateOf(root.picked) : root.now, "dddd d MMMM"); font.weight: Font.DemiBold; font.pixelSize: 15 }
+            RowLayout {
+                width: parent.width
+                spacing: 2
+                Label {
+                    Layout.fillWidth: true
+                    text: root.picked ? Qt.formatDate(root.picked, "dddd d MMMM")
+                        : root.shown.getMonth() === root.now.getMonth() && root.shown.getFullYear() === root.now.getFullYear() ? Qt.formatDate(root.now, "dddd d MMMM")
+                        : Qt.formatDate(root.shown, "MMMM yyyy")
+                    font.weight: Font.DemiBold
+                    font.pixelSize: 15
+                }
+                Repeater {
+                    model: [["chevron-left", -1, "Previous month (H)"], ["chevron-right", 1, "Next month (L)"]]
+                    Press {
+                        required property var modelData
+                        implicitWidth: 24
+                        implicitHeight: 24
+                        radius: 12
+                        name: modelData[2]
+                        onClicked: root.moveMonths(modelData[1])
+                        Icon { anchors.centerIn: parent; name: parent.modelData[0]; size: 14; color: Theme.dim }
+                    }
+                }
+            }
             Grid {
                 columns: 7
                 width: parent.width
@@ -117,25 +180,38 @@ ColumnLayout {
                 Repeater {
                     model: root.days()
                     Press {
+                        id: cell
                         required property int modelData
-                        readonly property bool today: modelData === root.now.getDate()
-                        readonly property bool chosen: modelData > 0 && modelData === root.picked
+                        readonly property date date: root.dateOf(modelData)
+                        readonly property bool today: modelData > 0 && root.sameDay(date, root.now)
+                        readonly property bool chosen: modelData > 0 && root.sameDay(date, root.picked)
                         width: parent.width / 7
                         height: 24
                         enabled: modelData > 0
-                        name: modelData > 0 ? Qt.formatDate(root.dateOf(modelData), "d MMMM") : ""
-                        onClicked: root.picked = chosen ? 0 : modelData
-                        Rectangle { anchors.centerIn: parent; visible: parent.today || parent.chosen; width: 22; height: 22; radius: 11; color: parent.today ? Theme.on : Theme.fillHover }
-                        Label { anchors.centerIn: parent; visible: parent.modelData > 0; text: parent.modelData; font.pixelSize: 12; color: parent.today ? Theme.onText : Theme.text; font.weight: parent.today ? Font.DemiBold : Font.Normal }
+                        name: modelData > 0 ? Qt.formatDate(date, "d MMMM") : ""
+                        // One circle per day: the button's own hover box stacked with it.
+                        hover: "transparent"
+                        onClicked: root.picked = chosen ? null : date
+                        Rectangle {
+                            anchors.centerIn: parent
+                            visible: cell.today || cell.chosen || cell.hovered && cell.modelData > 0
+                            width: 22
+                            height: 22
+                            radius: 11
+                            color: cell.today ? Theme.on : Theme.fillHover
+                            border.width: cell.today && cell.chosen ? 2 : 0
+                            border.color: Theme.text
+                        }
+                        Label { anchors.centerIn: parent; visible: cell.modelData > 0; text: cell.modelData; font.pixelSize: 12; color: cell.today ? Theme.onText : Theme.text; font.weight: cell.today ? Font.DemiBold : Font.Normal }
                         Rectangle {
                             anchors.horizontalCenter: parent.horizontalCenter
                             anchors.bottom: parent.bottom
                             anchors.bottomMargin: 2
-                            visible: parent.modelData > 0 && root.eventsOn(parent.modelData).length > 0
+                            visible: cell.modelData > 0 && root.eventsOn(cell.date).length > 0
                             width: 3
                             height: 3
                             radius: 1.5
-                            color: parent.today ? Theme.onText : Theme.dim
+                            color: cell.today ? Theme.onText : Theme.dim
                         }
                     }
                 }
@@ -146,7 +222,7 @@ ColumnLayout {
                 topPadding: 4
                 spacing: 8
                 Label { visible: !root.picked; text: "Up next"; font.pixelSize: 11; color: Theme.dim }
-                Label { visible: root.picked && root.eventsOn(root.picked).length === 0; text: "Nothing on"; font.pixelSize: 12; color: Theme.dim }
+                Label { visible: !!root.picked && root.eventsOn(root.picked).length === 0; text: "Nothing on"; font.pixelSize: 12; color: Theme.dim }
                 Repeater {
                     model: root.picked ? root.eventsOn(root.picked).slice(0, 6) : root.upcoming()
                     Column {
