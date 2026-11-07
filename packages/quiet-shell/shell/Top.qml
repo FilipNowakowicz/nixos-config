@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
@@ -164,7 +165,17 @@ Item {
                         name: modelData.tooltipTitle || modelData.title || modelData.id
                         onClicked: modelData.onlyMenu ? root.showMenu(trayItem) : modelData.activate()
                         onSecondaryClicked: modelData.hasMenu ? root.showMenu(trayItem) : modelData.secondaryActivate()
-                        Image { anchors.fill: parent; source: trayItem.modelData.icon; sourceSize: Qt.size(36, 36) }
+                        // Grey like the dock's app icons, with colour while pointed at.
+                        property real grey: Theme.monoIcons && !hovered && !activeFocus ? 1 : 0
+                        Behavior on grey { NumberAnimation { duration: Theme.motion; easing.type: Easing.OutCubic } }
+                        Image {
+                            anchors.fill: parent
+                            source: trayItem.modelData.icon
+                            sourceSize: Qt.size(36, 36)
+                            opacity: 1 - 0.12 * trayItem.grey
+                            layer.enabled: trayItem.grey > 0
+                            layer.effect: MultiEffect { saturation: -trayItem.grey }
+                        }
                     }
                 }
                 Icon { visible: Sys.focusMode; name: "bell-off"; size: 15 }

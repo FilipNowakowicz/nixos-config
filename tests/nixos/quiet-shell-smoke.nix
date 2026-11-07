@@ -32,6 +32,7 @@ let
   # Runs a command as the desktop user inside the Hyprland session.
   inSession = pkgs.writeShellScript "in-session" ''
     export XDG_RUNTIME_DIR=${runtime} WAYLAND_DISPLAY=wayland-1
+    export DBUS_SESSION_BUS_ADDRESS=unix:path=${runtime}/bus XDG_DATA_DIRS=/run/current-system/sw/share
     HYPRLAND_INSTANCE_SIGNATURE=$(ls ${runtime}/hypr | head -n 1)
     export HYPRLAND_INSTANCE_SIGNATURE
     exec "$@"
@@ -44,6 +45,7 @@ let
       *) echo "$*" >> /tmp/playerctl.log ;;
     esac
   '';
+  trayPython = pkgs.python3.withPackages (ps: [ ps.dbus-next ]);
   # Selects the whole screen, as a drag from corner to corner would.
   fakeSlurp = pkgs.writeShellScriptBin "slurp" "echo '0,0 1280x800'";
   shotPath = lib.makeBinPath ([ fakeSlurp ] ++ quietShell.runtime) + ":/run/current-system/sw/bin";
@@ -99,6 +101,8 @@ in
       };
       environment.systemPackages = [
         pkgs.foot
+        # Only for its icon, which the fake tray item shows.
+        pkgs.kitty
         fakePlayerctl
         quietShell
       ];
@@ -109,6 +113,10 @@ in
       from datetime import timedelta
 
       def session(cmd):
+          if cmd.startswith("quiet-shell-ipc"):
+              # A call can find the shell momentarily busy under software
+              # rendering; one that keeps failing still fails the test.
+              return machine.wait_until_succeeds(f"su user -c '${inSession} {cmd}'", timeout=timedelta(seconds=5))
           return machine.succeed(f"su user -c '${inSession} {cmd}'")
 
       def state():
@@ -203,6 +211,13 @@ in
           session("quiet-shell-ipc close")
           machine.succeed("pkill -u user -x foot")
           machine.wait_until_fails("su user -c '${inSession} hyprctl clients' | grep -q preview-source", timeout=timedelta(seconds=10))
+
+      with subtest("tray icons are grey until pointed at"):
+          session("setsid ${trayPython}/bin/python3 ${../quiet-shell/fakes/tray.py} /tmp/tray.log >/dev/null 2>&1 &")
+          session("quiet-shell-ipc pin")
+          wait_for(lambda s: "quiet-test" in s["tray"] and s["top"], "tray-grey")
+          session("quiet-shell-ipc pin")
+          machine.succeed("pkill -u user -f fakes/tray.py || pkill -u user -f tray.py")
 
       with subtest("the shell does not redraw while idle"):
           # A running animation keeps Qt's render loop drawing every frame even
