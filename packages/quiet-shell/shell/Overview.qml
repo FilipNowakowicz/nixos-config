@@ -204,7 +204,7 @@ Item {
         Drag.active: visible
         Drag.hotSpot: Qt.point(width / 2, height / 2)
         Glass { anchors.fill: parent; radius: 12 }
-        ScreencopyView {
+        Capture {
             anchors.fill: parent
             anchors.margins: 4
             captureSource: ghost.window ? ghost.window.wayland : null

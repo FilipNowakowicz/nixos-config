@@ -22,7 +22,7 @@ Item {
         fallback: Dockable.nameOf(root.appId || "?")
         lit: root.lit
     }
-    ScreencopyView {
+    Capture {
         id: capture
         anchors.fill: parent
         captureSource: root.toplevel

@@ -98,6 +98,7 @@ in
         ];
       };
       environment.systemPackages = [
+        pkgs.foot
         fakePlayerctl
         quietShell
       ];
@@ -193,6 +194,15 @@ in
           assert len(found) >= 5, f"OCR read only {found} from the sheet: {text!r}"
           assert machine.succeed("cat /tmp/pasted.txt").strip() == text, "OCR text was not copied"
           session("quiet-shell-ipc close")
+
+      with subtest("window previews render a real window"):
+          session("setsid foot --title=preview-source sh -c \"seq 1 400 | column -c 180; sleep infinity\" >/dev/null 2>&1 &")
+          machine.wait_until_succeeds("su user -c '${inSession} hyprctl clients' | grep -q preview-source", timeout=timedelta(seconds=30))
+          session("quiet-shell-ipc overview")
+          wait_for(lambda s: s["overview"], "overview-window")
+          session("quiet-shell-ipc close")
+          machine.succeed("pkill -u user -x foot")
+          machine.wait_until_fails("su user -c '${inSession} hyprctl clients' | grep -q preview-source", timeout=timedelta(seconds=10))
 
       with subtest("the shell does not redraw while idle"):
           # A running animation keeps Qt's render loop drawing every frame even
