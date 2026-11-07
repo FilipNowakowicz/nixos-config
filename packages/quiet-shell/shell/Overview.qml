@@ -8,7 +8,8 @@ import Quickshell.Wayland
 Item {
     id: root
 
-    Rectangle { anchors.fill: parent; color: Qt.rgba(0, 0, 0, 0.34) }
+    // Nearly solid: a see-through backdrop would show every window twice.
+    Rectangle { anchors.fill: parent; color: Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, 0.94) }
 
     // A capture ends for good when its window changes size, which every window sharing a
     // desktop does when one moves. So start them again once the layout has settled.
@@ -16,8 +17,10 @@ Item {
     Timer {
         id: recapture
         interval: 600
-        onTriggered: { root.capturing = false; Qt.callLater(() => root.capturing = true); }
+        onTriggered: { Hyprland.refreshToplevels(); root.capturing = false; Qt.callLater(() => root.capturing = true); }
     }
+    // Positions come from Hyprland's client list, which is only read on request.
+    Component.onCompleted: Hyprland.refreshToplevels()
     Connections {
         target: Hyprland
         function onRawEvent(event) {
@@ -26,16 +29,26 @@ Item {
         }
     }
 
-    // The desktops in use, plus one empty one to drag a window onto.
+    // The desktops in use, plus one empty one to drag a window onto. Leaving an empty
+    // desktop deletes it, so counting it as used would let Tab walk through all ten.
     readonly property var desks: {
-        const used = {};
+        const known = {};
         for (const ws of Hyprland.workspaces.values)
             if (ws.id > 0 && ws.id <= 10)
-                used[ws.id] = ws;
-        const empty = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].find(id => !used[id]);
-        return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-            .filter(id => used[id] || id === empty)
-            .map(id => ({ id, workspace: used[id] ?? null }));
+                known[ws.id] = ws;
+        const focused = Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : 0;
+        const ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        const used = id => known[id] && (id !== focused || known[id].toplevels.values.length > 0);
+        const empty = ids.find(id => !used(id));
+        return ids
+            .filter(id => used(id) || id === empty || id === focused)
+            .map(id => ({ id, workspace: known[id] ?? null }));
+    }
+    // Stays on this screen: a desktop on another one would take the overview with it.
+    function step(by) {
+        const ids = desks.filter(d => !d.workspace || d.workspace.monitor === Hyprland.focusedMonitor).map(d => d.id);
+        const at = ids.indexOf(Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : 0);
+        Hyprland.dispatch("hl.dsp.focus({workspace=" + ids[(at + by + ids.length) % ids.length] + "})");
     }
     readonly property int deskWidth: Math.min(170, (width - 48 - side.width - 200 - (desks.length - 1) * 14) / desks.length)
     readonly property var windows: {
@@ -53,7 +66,6 @@ Item {
                 id: desk
                 required property var modelData
                 readonly property bool active: !!Hyprland.focusedWorkspace && Hyprland.focusedWorkspace.id === modelData.id
-                readonly property int count: modelData.workspace ? modelData.workspace.toplevels.values.length : 0
                 width: root.deskWidth
                 height: 112
                 radius: 12
@@ -61,17 +73,51 @@ Item {
                 rest: "transparent"
                 onClicked: Hyprland.dispatch("hl.dsp.focus({workspace=" + modelData.id + "})")
                 Glass { width: parent.width; height: 96; radius: 11; lit: !desk.active; tint: desk.active || drop.containsDrag ? Theme.fillHover : Theme.glass }
+                // The desktop in miniature, each window where it really sits.
+                Item {
+                    id: mini
+                    readonly property var monitor: desk.modelData.workspace ? desk.modelData.workspace.monitor : null
+                    readonly property real fit: monitor ? Math.min(width * monitor.scale / monitor.width, height * monitor.scale / monitor.height) : 0
+                    // Screens rarely match the tile's shape, so centre the leftover space.
+                    readonly property real insetX: monitor ? (width - fit * monitor.width / monitor.scale) / 2 : 0
+                    readonly property real insetY: monitor ? (height - fit * monitor.height / monitor.scale) / 2 : 0
+                    x: 6
+                    y: 6
+                    width: parent.width - 12
+                    height: 84
+                    clip: true
+                    Repeater {
+                        model: desk.modelData.workspace ? desk.modelData.workspace.toplevels.values.filter(t => t.wayland && t.lastIpcObject.at) : []
+                        Item {
+                            id: miniWindow
+                            required property var modelData
+                            x: mini.monitor ? mini.insetX + (modelData.lastIpcObject.at[0] - mini.monitor.x) * mini.fit : 0
+                            y: mini.monitor ? mini.insetY + (modelData.lastIpcObject.at[1] - mini.monitor.y) * mini.fit : 0
+                            width: modelData.lastIpcObject.size[0] * mini.fit
+                            height: modelData.lastIpcObject.size[1] * mini.fit
+                            Loader {
+                                anchors.fill: parent
+                                active: root.capturing
+                                sourceComponent: WindowPreview {
+                                    toplevel: miniWindow.modelData.wayland
+                                    appId: miniWindow.modelData.wayland.appId
+                                    iconSize: 20
+                                    captureSize: Qt.size(360, 220)
+                                }
+                            }
+                        }
+                    }
+                }
                 Rectangle {
                     width: parent.width
                     height: 96
                     radius: 11
                     color: "transparent"
-                    visible: drop.containsDrag
+                    visible: drop.containsDrag || desk.active
                     border.width: 2
                     border.color: Theme.accent
                 }
                 Label { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; text: "Desktop " + desk.modelData.id; font.pixelSize: 11 }
-                Label { x: 0; y: 0; width: parent.width; height: 96; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; text: desk.count === 0 ? "Empty" : desk.count === 1 ? "1 window" : desk.count + " windows"; font.pixelSize: 12; color: Theme.dim }
                 DropArea {
                     id: drop
                     anchors.fill: parent
@@ -81,13 +127,21 @@ Item {
         }
     }
 
-    Label {
+    Column {
         anchors.right: side.left
         anchors.rightMargin: 24
         y: 28
-        text: Qt.formatTime(clock.date, "HH:mm")
-        font.pixelSize: 40
-        font.weight: Font.Medium
+        Label {
+            anchors.right: parent.right
+            text: Qt.formatTime(clock.date, "HH:mm")
+            font.pixelSize: 40
+            font.weight: Font.Medium
+        }
+        Label {
+            anchors.right: parent.right
+            text: Qt.formatDate(clock.date, "dddd d MMMM")
+            color: Theme.dim
+        }
     }
     SystemClock { id: clock; precision: SystemClock.Minutes }
 

@@ -510,13 +510,18 @@ in
       #   usb 1-14: device descriptor read/64, error -71
       #
       # Keep btusb blacklisted above and load it here after early boot settles.
+      # The timer below starts this at boot: bluetooth.target only follows the
+      # hci0 device, which cannot exist until btusb is loaded, so otherwise
+      # Bluetooth stays off until something happens to activate org.bluez.
       bluetooth-load-btusb = {
         description = "Load Intel Bluetooth USB driver after early boot settles";
         requiredBy = [ "bluetooth.service" ];
         before = [ "bluetooth.service" ];
-        serviceConfig.Type = "oneshot";
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
         script = ''
-          sleep 5
           ${pkgs.kmod}/bin/modprobe btusb
         '';
       };
@@ -549,6 +554,13 @@ in
         '';
       };
 
+    };
+
+    # A timer rather than multi-user.target, so the delay never holds up boot.
+    timers.bluetooth-load-btusb = {
+      description = "Load Intel Bluetooth USB driver after early boot settles";
+      wantedBy = [ "timers.target" ];
+      timerConfig.OnActiveSec = "10s";
     };
   };
 

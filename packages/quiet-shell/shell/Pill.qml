@@ -1,7 +1,8 @@
 import QtQuick
 import QtQuick.Layouts
 
-// The wide control: a round toggle, then a label that opens details.
+// The wide control. The whole pill highlights and opens details, and the round icon
+// sits on top as its own switch. With only one action, the icon is just a picture.
 Item {
     id: root
     property string name
@@ -10,6 +11,9 @@ Item {
     property bool on: false
     property string writeKey
     property string detail
+    property bool toggles: true
+    property string hint
+    readonly property bool single: !toggles || detail === ""
     signal toggle
 
     implicitWidth: 166
@@ -17,12 +21,22 @@ Item {
 
     Glass { anchors.fill: parent; radius: 31 }
     Press {
+        anchors.fill: parent
+        radius: 31
+        name: root.single ? root.name : root.name + " details"
+        checkable: root.single && root.detail === ""
+        toggled: root.on
+        onClicked: root.detail !== "" ? Ui.detail = root.detail : root.toggle()
+    }
+    Press {
         id: circle
         x: 11
         anchors.verticalCenter: parent.verticalCenter
         width: 40
         height: 40
         radius: 20
+        enabled: !root.single
+        Accessible.ignored: root.single
         name: root.name
         checkable: true
         toggled: root.on
@@ -32,18 +46,12 @@ Item {
         Icon { anchors.centerIn: parent; visible: !Sys.pending(root.writeKey); name: root.icon; size: 18; color: root.on ? Theme.onText : Theme.text }
         Spinner { anchors.centerIn: parent; visible: Sys.pending(root.writeKey); tint: root.on ? Theme.onText : Theme.text }
     }
-    Press {
-        anchors.left: circle.right
-        anchors.leftMargin: 4
+    KeyHint {
         anchors.right: parent.right
-        anchors.rightMargin: 8
-        anchors.verticalCenter: parent.verticalCenter
-        height: 44
-        radius: 14
-        rest: "transparent"
-        // With nothing to open, the whole pill is the toggle.
-        name: root.detail !== "" ? root.name + " details" : root.name + " label"
-        onClicked: root.detail !== "" ? Ui.detail = root.detail : root.toggle()
+        anchors.rightMargin: 18
+        anchors.top: parent.top
+        anchors.topMargin: 11
+        text: root.hint
     }
     Column {
         anchors.left: circle.right

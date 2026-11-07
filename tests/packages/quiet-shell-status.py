@@ -1,5 +1,6 @@
 """Check status.py against faked commands, and with no commands at all."""
 
+import importlib.util
 import json
 import os
 import pathlib
@@ -7,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 
-status, fake, location = sys.argv[1:4]
+status, fake, location, buds_script = sys.argv[1:5]
 COMMANDS = "nmcli bluetoothctl tailscale mullvad wpctl pw-dump brightnessctl powerprofilesctl playerctl pgrep systemctl".split()
 
 with tempfile.TemporaryDirectory() as tmp:
@@ -56,6 +57,25 @@ with tempfile.TemporaryDirectory() as tmp:
     for key in ("wifi", "bluetooth", "vpn", "sink", "devices", "brightness", "profile", "battery", "media"):
         assert empty[key] is None, (key, empty[key])
 print("quiet-shell status: ok")
+
+# A real status message from Buds4 Pro, with the left bud away. Frames are the only
+# thing standing between a typo and sending the wrong command to real hardware.
+spec = importlib.util.spec_from_file_location("buds", buds_script)
+buds = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(buds)
+captured = bytes.fromhex(
+    "fd410061040d0063000001000000ff2200006701670102000499000404100000010011020000"
+    "00000000000100000000000000010201000100010104000000000001d3dcdd"
+)
+found, rest = buds.frames(captured + captured[:5])
+assert len(found) == 1 and found[0][0] == buds.STATUS and rest == captured[:5], (found, rest)
+assert buds.status(found[0][1]) == {"left": None, "right": 99, "case": None, "mode": "off"}, buds.status(found[0][1])
+corrupt = bytearray(captured)
+corrupt[8] ^= 1
+assert buds.frames(bytes(corrupt))[0] == [], "a bad checksum must never be trusted"
+sent = buds.frame(buds.SET_NOISE_CONTROL, bytes([buds.MODES["anc"]]))
+assert buds.frames(sent)[0] == [(0x78, b"\x01")], sent.hex()
+print("quiet-shell buds: ok")
 
 with tempfile.TemporaryDirectory() as tmp:
     table = pathlib.Path(tmp) / "zone1970.tab"

@@ -16,7 +16,7 @@ Item {
     Rectangle {
         id: art
         visible: root.media !== null
-        x: 14
+        anchors.horizontalCenter: parent.horizontalCenter
         y: 12
         width: 48
         height: 48
@@ -36,11 +36,11 @@ Item {
         visible: root.media !== null
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: 14
+        anchors.leftMargin: 12
         anchors.rightMargin: 12
         y: 63
-        Label { width: parent.width; text: root.media ? root.media.title : ""; font.weight: Font.Medium }
-        Label { width: parent.width; text: root.media ? root.media.artist : ""; font.pixelSize: 12; color: Theme.dim; visible: text !== "" }
+        Label { width: parent.width; horizontalAlignment: Text.AlignHCenter; text: root.media ? root.media.title : ""; font.weight: Font.Medium }
+        Label { width: parent.width; horizontalAlignment: Text.AlignHCenter; text: root.media ? root.media.artist : ""; font.pixelSize: 12; color: Theme.dim; visible: text !== "" }
     }
     RowLayout {
         anchors.left: parent.left

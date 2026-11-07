@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Drive the quiet shell with real input inside a private nested Hyprland.
 
-Usage: acceptance.py RUNDIR OUTPUT [name-filter]. Prepare with nested.sh first.
+Usage: acceptance.py RUNDIR OUTPUT [name-filter, | between several]. Prepare with nested.sh first.
 Each check reads the shell's IPC state and the fake system's state, so a pass means
 the action reached the system and was confirmed, not only that a widget moved.
 """
@@ -530,6 +530,91 @@ def super_tab_switches_with_real_key_order():
 
 
 @test
+def overview_tab_walks_the_desktops():
+    desk = lambda: json.loads(sh("hyprctl", "activeworkspace", "-j").stdout)["id"]
+    start = desk()
+    shell("overview")
+    wait(lambda: ui()["overview"], "overview")
+    time.sleep(0.4)
+    key("Tab")
+    wait(lambda: desk() != start, "Tab to change desktop")
+    shot("overview-tab")
+    sh("wtype", "-M", "shift", "-k", "Tab", "-m", "shift")
+    wait(lambda: desk() == start, "Shift+Tab to come back")
+    key("Return")
+    wait(lambda: not ui()["overview"], "Return to close the overview")
+
+
+@test
+def control_centre_letters_press_their_controls():
+    open_controls()
+    key("n")
+    wait(lambda: fake()["night"], "n to turn night mode on")
+    wait(lambda: ui()["writes"] == [], "confirmed")
+    key("n")
+    wait(lambda: not fake()["night"], "n to turn night mode off")
+    wait(lambda: ui()["writes"] == [], "confirmed")
+    time.sleep(0.2)
+    shot("control-letters")
+    key("w")
+    wait(lambda: ui()["detail"] == "wifi", "w to open Wi-Fi")
+    assert fake()["wifi"], "a letter must not drop the connection"
+    # Letters mean nothing inside a detail view, where a list has the keyboard.
+    key("n")
+    time.sleep(0.5)
+    assert not fake()["night"], "n must not act behind the details"
+
+
+@test
+def control_centre_works_from_the_keyboard():
+    open_controls()
+    # The first stop is the Wi-Fi pill, not a desktop dot in the bar behind the panel.
+    key("Tab")
+    key("Return")
+    wait(lambda: ui()["detail"] == "wifi", "Tab then Return to open Wi-Fi")
+    key("Escape")
+    wait(lambda: ui()["detail"] == "", "Escape to leave Wi-Fi")
+    # Letters still work after focus has been on a control that went away.
+    key("n")
+    wait(lambda: fake()["night"], "n after tabbing")
+    wait(lambda: ui()["writes"] == [], "confirmed")
+    key("n")
+    wait(lambda: not fake()["night"], "n off")
+    wait(lambda: ui()["writes"] == [], "confirmed")
+    # The next stop is the round switch on the same pill.
+    key("Tab")
+    key("Tab")
+    key("Return")
+    wait(lambda: not fake()["wifi"], "Tab to the Wi-Fi switch")
+    wait(lambda: ui()["writes"] == [], "confirmed")
+
+
+@test
+def buds_connect_with_a_letter_and_set_noise_control():
+    addr = "AA:BB:CC:00:00:09"
+    devices = fake()["devices"]
+    set_fake(buds=addr, buds_mode="off", devices={**devices, addr: ["Galaxy Buds", False]})
+    try:
+        open_controls()
+        wait(lambda: ui()["sys"]["bluetooth"]["buds"], "the buds to be found", timeout=8)
+        key("b")
+        wait(lambda: fake()["devices"][addr][1], "b to connect the buds")
+        wait(lambda: ui()["writes"] == [], "connection confirmed", timeout=10)
+        time.sleep(2.6)
+        shot("buds")
+        # The row under the pill, with no failure rows above it.
+        click(1853, 512)
+        wait(lambda: fake()["buds_mode"] == "anc", "ANC")
+        wait(lambda: ui()["writes"] == [], "ANC confirmed", timeout=10)
+        time.sleep(0.3)
+        shot("buds-anc")
+        key("b")
+        wait(lambda: not fake()["devices"][addr][1], "b to disconnect the buds")
+    finally:
+        set_fake(buds=None, devices=devices)
+
+
+@test
 def overview_drags_a_window_to_another_desktop():
     here = json.loads(sh("hyprctl", "-j", "activeworkspace").stdout)["id"]
     windows = [c for c in clients() if c["workspace"]["id"] == here]
@@ -984,7 +1069,9 @@ def weather_appears_in_the_centre():
     set_fake(offline=False)
     shell("notifications")
     wait(lambda: ui()["weather"], "weather", timeout=8)
-    assert ui()["weather"] == {"place": "Warsaw", "condition": "Partly cloudy", "temperature": "11°"}, ui()["weather"]
+    weather = ui()["weather"]
+    assert (weather["place"], weather["condition"], weather["temperature"]) == ("Warsaw", "Partly cloudy", "11°"), weather
+    assert len(weather["hours"]) == 5 and weather["hours"][0]["condition"] == "Light rain", weather
     calls = [" ".join(c) for c in fake()["log"] if c[:1] == ["curl"]]
     assert calls and "52.25,21.0" in calls[-1], calls
     time.sleep(0.4)
@@ -1121,7 +1208,7 @@ time.sleep(0.5)
 passed = failed = 0
 results = {}
 for fn in tests:
-    if only and only not in fn.__name__:
+    if only and not any(part in fn.__name__ for part in only.split("|")):
         continue
     try:
         clean()

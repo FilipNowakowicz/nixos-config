@@ -56,12 +56,23 @@ def wifi():
 # Unnamed devices report an address as their name. While pairing it can be another
 # address of the same device, so comparing against its own address isn't enough.
 ADDRESS = re.compile(r"(?:[0-9A-Fa-f]{2}[-:]){5}[0-9A-Fa-f]{2}")
+GALAXY_MANAGER = "2e73a4ad-332d-41fc-90e2-16bef06523f2"
 LOW_ENERGY = re.compile(r"^LE[-_ ]+|[-_ ]+LE$")
 
 
 def same_device(name):
     """Earbuds and headphones can also advertise a low-energy twin, as in LE_Buds."""
     return LOW_ENERGY.sub("", name).casefold()
+
+
+def galaxy_buds(devices):
+    """Galaxy Buds are the paired device offering Samsung's manager service."""
+    for device in devices:
+        info = run("bluetoothctl", "info", device["addr"]) or ""
+        if GALAXY_MANAGER in info:
+            battery = re.search(r"Battery Percentage: .*\((\d+)\)", info)
+            return {**device, "battery": int(battery.group(1)) if battery else None}
+    return None
 
 
 def bluetooth():
@@ -97,7 +108,7 @@ def bluetooth():
             continue
         names.add(same_device(bits[2]))
         nearby.append({"addr": bits[1], "name": bits[2]})
-    return {"on": "Powered: yes" in show, "devices": devices, "nearby": nearby[:6]}
+    return {"on": "Powered: yes" in show, "devices": devices, "nearby": nearby[:6], "buds": galaxy_buds(devices)}
 
 
 def vpn():
@@ -209,7 +220,7 @@ def battery():
 
 
 def media():
-    out = run("playerctl", "metadata", "--format", "{{status}}\t{{title}}\t{{artist}}\t{{mpris:artUrl}}")
+    out = run("playerctl", "--player=spotify", "metadata", "--format", "{{status}}\t{{title}}\t{{artist}}\t{{mpris:artUrl}}")
     if not out:
         return None
     bits = (out.rstrip("\n").split("\t") + [""] * 4)[:4]

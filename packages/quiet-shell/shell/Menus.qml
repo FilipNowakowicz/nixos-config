@@ -35,11 +35,11 @@ Item {
             width: parent.width - 12
             spacing: 0
             MenuRow { title: "Sleep"; onClicked: Ui.session("sleep") }
-            MenuRow { title: "Restart…"; onClicked: Ui.session("restart") }
-            MenuRow { title: "Shut Down…"; onClicked: Ui.session("shutdown") }
+            MenuRow { title: "Restart"; onClicked: Ui.session("restart") }
+            MenuRow { title: "Shut Down"; onClicked: Ui.session("shutdown") }
             Sep {}
             MenuRow { title: "Lock Screen"; onClicked: Ui.session("lock") }
-            MenuRow { title: "Log Out…"; onClicked: Ui.session("logout") }
+            MenuRow { title: "Log Out"; onClicked: Ui.session("logout") }
         }
     }
 

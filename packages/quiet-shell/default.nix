@@ -72,7 +72,10 @@ stdenvNoCC.mkDerivation {
     makeWrapper ${quickshell}/bin/qs $out/bin/quiet-shell \
       --add-flags "-p $out/share/quiet-shell" \
       --set QUIET_ZONE_TAB ${tzdata}/share/zoneinfo/zone1970.tab \
-      --suffix PATH : ${lib.makeBinPath runtime}
+      --suffix PATH : ${lib.makeBinPath runtime}:$out/bin
+    makeWrapper ${python3}/bin/python3 $out/bin/quiet-buds \
+      --add-flags "$out/share/quiet-shell/scripts/buds.py" \
+      --suffix PATH : ${lib.makeBinPath [ bluez ]}
     makeWrapper ${quickshell}/bin/qs $out/bin/quiet-shell-ipc \
       --add-flags "ipc -p $out/share/quiet-shell call shell"
     runHook postInstall

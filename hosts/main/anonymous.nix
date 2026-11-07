@@ -170,6 +170,10 @@ _: {
           };
         };
         timers = {
+          bluetooth-load-btusb = {
+            enable = lib.mkForce false;
+            wantedBy = lib.mkForce [ ];
+          };
           restic-backups-local.enable = lib.mkForce false;
           restic-check-local.enable = lib.mkForce false;
           btrbk-local.enable = lib.mkForce false;
