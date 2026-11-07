@@ -71,7 +71,11 @@ PanelWindow {
         // Built only while open: live window capture should cost nothing at rest.
         Loader {
             anchors.fill: parent
-            active: Ui.overview && win.focused
+            active: (Ui.overview || opacity > 0) && win.focused
+            opacity: Ui.overview ? 1 : 0
+            scale: Ui.overview ? 1 : 1.04
+            Behavior on opacity { NumberAnimation { duration: Theme.motion } }
+            Behavior on scale { NumberAnimation { duration: Theme.motion; easing.type: Easing.OutCubic } }
             sourceComponent: Overview {}
         }
 

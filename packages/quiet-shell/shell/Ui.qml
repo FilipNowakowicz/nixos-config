@@ -101,7 +101,7 @@ Singleton {
     onPanelChanged: refocus()
     onDetailChanged: refocus()
 
-    property string spotlightQuery: ""
+    property bool clipboard: false       // Spotlight is showing clipboard history
 
     // One path for these, so nothing can reach them without being asked.
     function session(name) {
@@ -171,6 +171,7 @@ Singleton {
         panel = "";
         detail = "";
         spotlight = false;
+        clipboard = false;
         overview = false;
         topRevealed = false;
     }
@@ -185,12 +186,11 @@ Singleton {
     function toggleSpotlight() {
         const want = !spotlight;
         close();
-        spotlightQuery = "";
         spotlight = want;
     }
     function openClipboard() {
         close();
-        spotlightQuery = "cb ";
+        clipboard = true;
         spotlight = true;
     }
     function toggleOverview() {

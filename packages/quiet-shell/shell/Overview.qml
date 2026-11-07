@@ -122,20 +122,15 @@ Item {
                 onDropped: { ghost.Drag.drop(); ghost.window = null; }
                 // Always there underneath, so a failed capture still leaves a usable tile.
                 Glass { anchors.fill: parent; radius: 12 }
-                AppIcon {
-                    anchors.centerIn: parent
-                    size: 72
-                    icon: DesktopEntries.heuristicLookup(tile.modelData.wayland.appId)?.icon ?? ""
-                    fallback: tile.modelData.wayland.appId || "?"
-                }
                 Loader {
                     anchors.fill: parent
                     anchors.margins: 4
                     active: root.capturing
-                    sourceComponent: ScreencopyView {
-                        captureSource: tile.modelData.wayland
-                        live: true
-                        constraintSize: Qt.size(960, 600)
+                    sourceComponent: WindowPreview {
+                        toplevel: tile.modelData.wayland
+                        appId: tile.modelData.wayland ? tile.modelData.wayland.appId : ""
+                        iconSize: 72
+                        captureSize: Qt.size(960, 600)
                     }
                 }
                 Label { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 8; text: tile.modelData.title; font.pixelSize: 12 }

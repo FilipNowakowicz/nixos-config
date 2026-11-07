@@ -1,6 +1,5 @@
 import QtQuick
 import Quickshell.Hyprland
-import Quickshell.Wayland
 
 // SUPER+Tab. Most recent window first, starting on the one before this.
 Item {
@@ -32,28 +31,14 @@ Item {
                 rest: index === Ui.switcherIndex ? Theme.fill : "transparent"
                 name: modelData.title
                 onClicked: { Ui.switcherIndex = index; Ui.commitSwitcher(); }
-                Item {
-                    id: preview
+                WindowPreview {
                     x: 8
                     y: 8
                     width: parent.width - 16
                     height: 120
                     opacity: Dockable.isHidden(card.modelData) ? 0.45 : 1
-                    // Underneath, so a window that can't be captured still has a face.
-                    AppIcon {
-                        anchors.centerIn: parent
-                        visible: !capture.hasContent
-                        size: 64
-                        icon: Dockable.iconOf(card.appId)
-                        fallback: Dockable.nameOf(card.appId || "?")
-                    }
-                    ScreencopyView {
-                        id: capture
-                        anchors.fill: parent
-                        captureSource: card.modelData.wayland ?? null
-                        live: true
-                        constraintSize: Qt.size(Math.max(width, 1), Math.max(height, 1))
-                    }
+                    toplevel: card.modelData.wayland ?? null
+                    appId: card.appId
                 }
                 AppIcon {
                     id: badge

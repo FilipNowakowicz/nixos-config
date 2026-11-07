@@ -20,8 +20,7 @@ Item {
         if (t.startsWith(q)) return 1;
         return t.includes(q) ? 2 : -1;
     }
-    // A leading "cb" lists clipboard history instead of searching.
-    readonly property bool clipboardMode: query === "cb" || query.startsWith("cb ")
+    readonly property bool clipboardMode: Ui.clipboard
 
     function calculate(text) {
         if (!/^[\d\s+\-*\/().,%^]+$/.test(text) || !/\d/.test(text) || !/[+\-*\/%^(]/.test(text))
@@ -50,15 +49,15 @@ Item {
     property var files: []
 
     readonly property var results: {
+        if (clipboardMode) {
+            const wanted = query.toLowerCase();
+            return clips.filter(c => c.text.toLowerCase().includes(wanted)).slice(0, 8)
+                .map(c => ({ group: "Clipboard", title: c.text, note: "Copy", kind: "clip", value: c.line, glyph: "clipboard" }));
+        }
         if (query === "") return [];
         if (query.startsWith(">")) {
             const cmd = query.slice(1).trim();
             return [{ group: "Command", title: cmd || "Type a command", note: "Run", kind: "command", value: cmd }];
-        }
-        if (clipboardMode) {
-            const wanted = query.slice(2).trim().toLowerCase();
-            return clips.filter(c => c.text.toLowerCase().includes(wanted)).slice(0, 8)
-                .map(c => ({ group: "Clipboard", title: c.text, note: "Copy", kind: "clip", value: c.line, glyph: "clipboard" }));
         }
         const q = query.toLowerCase();
         const answer = calculate(query);
@@ -129,7 +128,7 @@ Item {
         else Ui.close();
     }
 
-    onVisibleChanged: if (visible) { input.text = Ui.spotlightQuery; selected = 0; input.forceActiveFocus(); }
+    onVisibleChanged: if (visible) { input.text = ""; selected = 0; input.forceActiveFocus(); }
 
     MouseArea { anchors.fill: parent }
     Glass { anchors.fill: parent; radius: 31 }
@@ -140,7 +139,7 @@ Item {
         width: parent.width - 48
         height: 62
         spacing: 14
-        Icon { name: "search"; size: 21; color: Theme.dim }
+        Icon { name: root.clipboardMode ? "clipboard" : "search"; size: 21; color: Theme.dim }
         TextInput {
             id: input
             Layout.fillWidth: true
@@ -158,7 +157,7 @@ Item {
             Label {
                 visible: input.text === ""
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Search apps, files and settings"
+                text: root.clipboardMode ? "Search clipboard history" : "Search apps, files and settings"
                 font.pixelSize: 22
                 color: Theme.dim
             }
@@ -167,7 +166,7 @@ Item {
 
     RowLayout {
         id: suggestions
-        visible: root.query === ""
+        visible: root.query === "" && !root.clipboardMode
         y: 62
         x: 14
         width: parent.width - 28

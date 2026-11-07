@@ -518,7 +518,8 @@ def focus_toggles_from_its_label():
 @test
 def super_tab_switches_with_real_key_order():
     addresses = [c["address"] for c in clients() if c["workspace"]["id"] > 0][:2]
-    for steps in (["S+", "T+", "15", "T-", "15", "S-"], ["S+", "T+", "60", "T-", "600", "S-"]):
+    taps = [["S+", "T+", "T-", "S-"], ["S+", "T+", "15", "T-", "15", "S-"], ["S+", "T+", "40", "S-", "T-"]] * 3
+    for steps in taps + [["S+", "T+", "60", "T-", "600", "S-"]]:
         sh("hyprctl", "dispatch", f'hl.dsp.focus({{window="address:{addresses[0]}"}})')
         time.sleep(0.3)
         sh("hyprctl", "dispatch", f'hl.dsp.focus({{window="address:{addresses[1]}"}})')
@@ -886,6 +887,7 @@ def spotlight_finds_files_and_the_web():
 def clipboard_history_copies_an_entry():
     shell("clipboard")
     wait(lambda: ui()["spotlight"], "clipboard opens spotlight")
+    wait(lambda: ui()["clipboard"], "clipboard mode, with no text typed for you")
     time.sleep(0.6)
     shot("spotlight-clipboard")
     typed("exam")
