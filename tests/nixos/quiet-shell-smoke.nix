@@ -124,6 +124,20 @@ in
           wait_for(lambda s: s["screenshot"], "screenshot-picker")
           session("quiet-shell-ipc close")
 
+      with subtest("the shell does not redraw while idle"):
+          # A running animation keeps Qt's render loop drawing every frame even
+          # when nothing visible changes. With everything closed, the shell
+          # should be asleep between status refreshes.
+          machine.sleep(timedelta(seconds=3))
+          pid = machine.succeed("pgrep -u user -f -- '-p /nix/store/[^ ]*-quiet-shell' | head -n 1").strip()
+          ticks = "awk '{print $14 + $15}' /proc/" + pid + "/stat"
+          before = int(machine.succeed(ticks))
+          machine.sleep(timedelta(seconds=10))
+          used = int(machine.succeed(ticks)) - before
+          print(f"idle shell used {used} ticks in 10 seconds")
+          # Measured: 33 with one hidden spinner running, 2 without.
+          assert used < 15, f"idle shell used {used}/1000 ticks in 10 seconds"
+
       with subtest("nothing failed to load"):
           machine.succeed("pgrep -u user -f quiet-shell")
           # Panels load lazily, so read the log after every one has opened.

@@ -460,8 +460,10 @@ Singleton {
     }
 
     property bool live: false
+    property bool glance: false
+    // Each refresh spawns about twenty commands, so the idle pace matters for battery.
     Timer {
-        interval: Object.keys(root.writes).length ? 700 : (root.live ? 4000 : 60000)
+        interval: Object.keys(root.writes).length ? 700 : root.live ? 4000 : root.glance ? 15000 : 60000
         running: true
         repeat: true
         triggeredOnStart: true
