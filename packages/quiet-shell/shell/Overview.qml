@@ -184,6 +184,7 @@ Item {
                         toplevel: tile.modelData.wayland
                         appId: tile.modelData.wayland ? tile.modelData.wayland.appId : ""
                         iconSize: 72
+                        lit: tile.hovered
                         captureSize: Qt.size(960, 600)
                     }
                 }
