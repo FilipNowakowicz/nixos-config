@@ -11,9 +11,9 @@ backup configuration. The active fleet is defined in [the host registry](../lib/
 with persistent catch-up and up to 30 minutes of randomized delay. It initializes
 repositories and applies [the retention policy](../lib/backup-policy.nix):
 
-| Class | Retained recovery points |
-| --- | --- |
-| `standard` (`main`) | 7 daily, 4 weekly, 3 monthly |
+| Class                         | Retained recovery points                |
+| ----------------------------- | --------------------------------------- |
+| `standard` (`main`)           | 7 daily, 4 weekly, 3 monthly            |
 | `critical` (`homeserver-gcp`) | 14 daily, 8 weekly, 6 monthly, 2 yearly |
 
 Retention groups snapshots by host, including snapshots with older path lists.
