@@ -880,6 +880,7 @@ let
             "agent->server:53"
             "builder->server:53"
             "ci->server:22"
+            "ci-builder->builder:22"
             "workstation->agent:22"
             "workstation->builder:22"
             "workstation->server:22"
