@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-11-08-quiet-shell-nested-guarded-session
+date: 2026-11-08
+expires: 2027-05-08
+status: open
+route: implement-fix
+best_form: test
+evidence: [tests/quiet-shell/README.md:18 create --guard-host, tests/quiet-shell/README.md step 3 q.sh hyprctl, tests/quiet-shell/nested.sh QUIET_REAL_CONFIG writes $HOME/.config/hypr/colors.lua, agent-desktop src/agent_desktop/worker.py GUARDED_COMMANDS shim output "hyprctl is blocked in a guarded session"]
+observation: quiet-shell README creates the session with --guard-host then drives nested Hyprland via q.sh hyprctl, but the guard shim is on the PATH saved by nested.sh so hyprctl is refused; no headless output means no grim frames. QUIET_REAL_CONFIG=1 also overwrites the real ~/.config/hypr/colors.lua unless HOME is redirected.
+proposed_upgrade: Make the nested harness work under the guard by a sanctioned route (nested.sh creating its headless output itself from its generated Lua or an explicit guard allowance for nested instances) and give QUIET_REAL_CONFIG a private HOME/XDG_CONFIG_HOME; document that a guard refusal must not be bypassed by absolute path.
+type: repo-fix
+dedupe_key: quiet-shell-tests:nested-harness-blocked-by-guard-host
+triggers: [tests/quiet-shell/nested.sh, tests/quiet-shell/q.sh, agent-desktop create --guard-host]
+targets: [tests/quiet-shell/nested.sh, tests/quiet-shell/README.md]
