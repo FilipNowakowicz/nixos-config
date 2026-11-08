@@ -14,8 +14,10 @@ import sys
 import time
 
 
-def run(*cmd, **kwargs):
-    return subprocess.run(cmd, capture_output=True, text=True, check=False, **kwargs)
+def run(*cmd, input=""):
+    # Never inherit stdin: when it isn't a terminal, slurp waits to read window
+    # boxes from it before drawing anything.
+    return subprocess.run(cmd, input=input, capture_output=True, text=True, check=False)
 
 
 def windows():
@@ -34,7 +36,7 @@ def windows():
 
 def read_text(region):
     """The words in a region, through OCR. The picture never touches the disk."""
-    shot = subprocess.run(["grim", "-g", region, "-"], capture_output=True, check=False)
+    shot = subprocess.run(["grim", "-g", region, "-"], stdin=subprocess.DEVNULL, capture_output=True, check=False)
     if shot.returncode != 0:
         sys.exit(1)
     ocr = subprocess.run(["tesseract", "-", "-", "-l", "eng+pol"], input=shot.stdout, capture_output=True, check=False)

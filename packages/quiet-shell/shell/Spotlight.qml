@@ -32,24 +32,53 @@ Item {
         { title: "Time Zone", note: Sys.timezone || "Choose", run: () => { input.text = "time zone "; } },
         { title: "Notes", note: "Open", run: () => { Ui.close(); Sys.openNotes(); } }
     ]
-    // Every zone tzdata places, for "time zone <city>" (or "tz <city>").
-    property var zones: []
+    // One zone per country and more for big ones, from tzdata's zone.tab, found by
+    // city, country or region: "tz norway", "tz oslo" and "tz pacific" all work.
+    property var zoneRows: []
+    property var countries: ({})
+    // Names people type that tzdata's country list spells differently.
+    readonly property var countryAliases: ({ GB: "uk england scotland wales", US: "usa america", AE: "uae", NL: "holland", CZ: "czechia", KR: "south korea", KP: "north korea" })
+    readonly property var zones: [{ zone: "UTC", city: "UTC", place: "Coordinated Universal Time", words: "utc gmt" }].concat(zoneRows.map(r => {
+        const city = r[1].split("/").pop().replace(/_/g, " ");
+        const country = countries[r[0]] || r[0];
+        return {
+            zone: r[1],
+            city: city,
+            place: country + (r[2] ? " · " + r[2] : ""),
+            words: [city, country, r[2] || "", r[1].replace(/[\/_]/g, " "), countryAliases[r[0]] || ""].join(" ").replace(/[(),]/g, " ").toLowerCase()
+        };
+    }).sort((a, b) => a.city.localeCompare(b.city)))
     FileView {
         path: Quickshell.env("QUIET_ZONE_TAB") || ""
         printErrors: false
-        onLoaded: root.zones = ["UTC"].concat(text().split("\n").filter(l => l && !l.startsWith("#")).map(l => l.split("\t")[2]).filter(z => z).sort())
+        onLoaded: root.zoneRows = text().split("\n").filter(l => l && !l.startsWith("#")).map(l => { const f = l.split("\t"); return [f[0], f[2], f[3] || ""]; }).filter(r => r[1])
+    }
+    FileView {
+        path: Quickshell.env("QUIET_COUNTRY_TAB") || ""
+        printErrors: false
+        onLoaded: {
+            const names = {};
+            for (const line of text().split("\n")) {
+                const f = line.split("\t");
+                if (line && !line.startsWith("#") && f.length > 1)
+                    names[f[0]] = f[1];
+            }
+            root.countries = names;
+        }
     }
     function zoneResults(wanted) {
         const words = wanted.toLowerCase();
-        return zones.filter(z => !words || Search.wordsMatch(z.replace(/[\/_]/g, " "), words)).slice(0, 8).map(z => {
-            const parts = z.split("/");
-            const current = z === Sys.timezone;
+        const found = zones.filter(z => !words || Search.wordsMatch(z.words, words));
+        // A city named by the words comes before the cities of a country they name.
+        const byCity = found.filter(z => words && Search.wordsMatch(z.city, words));
+        return byCity.concat(found.filter(z => byCity.indexOf(z) < 0)).slice(0, 8).map(z => {
+            const current = z.zone === Sys.timezone;
             return {
                 group: "Time Zone",
-                title: parts[parts.length - 1].replace(/_/g, " "),
-                note: (parts.length > 1 ? parts.slice(0, -1).join(" / ").replace(/_/g, " ") + " · " : "") + (current ? "Current" : "Set"),
+                title: z.city,
+                note: z.place + " · " + (current ? "Current" : "Set"),
                 kind: "action",
-                value: () => { if (!current) Sys.setTimezone(z); Ui.close(); },
+                value: () => { if (!current) Sys.setTimezone(z.zone); Ui.close(); },
                 glyph: "clock"
             };
         });
@@ -214,6 +243,8 @@ Item {
             }
         }
     }
+
+    Binding { target: Ui; property: "spotlightQuery"; value: input.text }
 
     onResultsChanged: {
         selected = Math.min(selected, Math.max(results.length - 1, 0));

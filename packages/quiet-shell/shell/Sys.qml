@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.Pipewire
+import Quickshell.Services.Mpris
 
 // System state and writes. A write is only "done" once a fresh readback shows the
 // target. Until then the key is pending, and if it never shows, it fails with Retry.
@@ -47,7 +48,11 @@ Singleton {
     readonly property int brightness: state.brightness === undefined || state.brightness === null ? 0 : state.brightness
     readonly property string profile: state.profile || "balanced"
     readonly property var battery: state.battery || null
-    readonly property var media: state.media || null
+    // Spotify over MPRIS: its signals arrive at once, where a poll lagged seconds.
+    readonly property var player: Mpris.players.values.find(p => p.dbusName === "org.mpris.MediaPlayer2.spotify") || null
+    readonly property var media: player && player.trackTitle
+        ? { playing: player.isPlaying, title: player.trackTitle, artist: player.trackArtist, art: player.trackArtUrl }
+        : null
     readonly property bool night: !!state.night
     readonly property bool awake: !!state.awake
 
@@ -284,6 +289,17 @@ Singleton {
     function nudgeMute() {
         nudge("volume", ["sh", "-c", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && wpctl get-volume @DEFAULT_AUDIO_SINK@"]);
     }
+    function toggleMic() {
+        nudge("mic", ["sh", "-c", "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle && wpctl get-volume @DEFAULT_AUDIO_SOURCE@"]);
+    }
+    // Hyprland forgets this on a config reload, which turns the touchpad back on.
+    property bool touchpadOn: true
+    function toggleTouchpad() {
+        const want = !touchpadOn;
+        touchpadOn = want;
+        Ui.showToggle("touchpad", want);
+        Quickshell.execDetached(["sh", Qt.resolvedUrl("scripts/touchpad.sh").toString().replace("file://", ""), String(want)]);
+    }
     property var agenda: []
     // Called when the centre opens. This only reads the local copy, so it costs nothing.
     function refreshAgenda() { agendaRead.running = true; }
@@ -311,7 +327,9 @@ Singleton {
         property var queued: null
         stdout: StdioCollector {
             onStreamFinished: {
-                if (nudger.kind === "volume") {
+                if (nudger.kind === "mic") {
+                    Ui.showToggle("mic", !text.includes("[MUTED]"));
+                } else if (nudger.kind === "volume") {
                     const match = text.match(/([0-9.]+)/);
                     if (match)
                         Ui.showHud("volume", Math.round(parseFloat(match[1]) * 100), text.includes("[MUTED]"));
@@ -477,8 +495,14 @@ Singleton {
             Quickshell.execDetached(["kitty", "--class", "quiet-notes", "--title", "Notes", "nvim", notesPath]);
     }
     function mediaCommand(verb) {
-        Quickshell.execDetached(["playerctl", "--player=spotify", verb]);
-        settle.restart();
+        if (!player)
+            return;
+        if (verb === "play-pause")
+            player.togglePlaying();
+        else if (verb === "next")
+            player.next();
+        else
+            player.previous();
     }
 
     FileView {

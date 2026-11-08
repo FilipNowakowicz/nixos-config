@@ -16,7 +16,6 @@
   networkmanager,
   networkmanagerapplet,
   pipewire,
-  playerctl,
   power-profiles-daemon,
   procps,
   slurp,
@@ -41,6 +40,14 @@ let
   };
   # status.py and Sys.qml call these by name, so the shell behaves the same however
   # it is launched. Tests put fakes first on PATH instead of a separate test mode.
+  # No input method runs here, and Qt's text-input support is the likely reason the
+  # letter typed right after Ctrl+Backspace in Spotlight went missing.
+  textInput = [
+    "zwp_text_input_manager_v1"
+    "zwp_text_input_manager_v2"
+    "zwp_text_input_manager_v3"
+    "qt_text_input_method_manager_v1"
+  ];
   runtime = [
     python3
     bluez
@@ -55,7 +62,6 @@ let
     networkmanager
     networkmanagerapplet
     pipewire
-    playerctl
     power-profiles-daemon
     procps
     slurp
@@ -82,7 +88,9 @@ stdenvNoCC.mkDerivation {
     cp -r . $out/share/quiet-shell
     makeWrapper ${quickshell}/bin/qs $out/bin/quiet-shell \
       --add-flags "-p $out/share/quiet-shell" \
-      --set QUIET_ZONE_TAB ${tzdata}/share/zoneinfo/zone1970.tab \
+      --set QT_WAYLAND_DISABLED_INTERFACES ${lib.concatStringsSep "," textInput} \
+      --set QUIET_ZONE_TAB ${tzdata}/share/zoneinfo/zone.tab \
+      --set QUIET_COUNTRY_TAB ${tzdata}/share/zoneinfo/iso3166.tab \
       --suffix PATH : ${lib.makeBinPath runtime}:$out/bin
     makeWrapper ${python3}/bin/python3 $out/bin/quiet-buds \
       --add-flags "$out/share/quiet-shell/scripts/buds.py" \

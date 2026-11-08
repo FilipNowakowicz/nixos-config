@@ -37,17 +37,11 @@ let
     export HYPRLAND_INSTANCE_SIGNATURE
     exec "$@"
   '';
-  # Stands in for Spotify: reports a track and records every command it gets.
-  # It comes first on PATH; the shell only appends its own tools.
-  fakePlayerctl = pkgs.writeShellScriptBin "playerctl" ''
-    case "$*" in
-      *metadata*) printf 'Playing\tTest Song\tTest Artist\t\n' ;;
-      *) echo "$*" >> /tmp/playerctl.log ;;
-    esac
-  '';
-  trayPython = pkgs.python3.withPackages (ps: [ ps.dbus-next ]);
+  dbusPython = pkgs.python3.withPackages (ps: [ ps.dbus-next ]);
   # Selects the whole screen, as a drag from corner to corner would.
-  fakeSlurp = pkgs.writeShellScriptBin "slurp" "echo '0,0 1280x800'";
+  # Like the real one, it reads window boxes first when stdin isn't a terminal,
+  # so a capture that leaves stdin open hangs here too.
+  fakeSlurp = pkgs.writeShellScriptBin "slurp" "[ -t 0 ] || cat >/dev/null; echo '0,0 1280x800'";
   shotPath = lib.makeBinPath ([ fakeSlurp ] ++ quietShell.runtime) + ":/run/current-system/sw/bin";
 in
 (import "${nixpkgs}/nixos/lib/testing-python.nix" {
@@ -111,7 +105,6 @@ in
         # Its icon for the fake tray item, and with Neovim the notes window.
         pkgs.kitty
         pkgs.neovim
-        fakePlayerctl
         quietShell
       ];
     };
@@ -176,14 +169,19 @@ in
           session("quiet-shell-ipc close")
 
       with subtest("the control centre drives the player from the keyboard"):
+          # A stand-in Spotify on MPRIS, which the shell watches instead of polling.
+          session("setsid ${dbusPython}/bin/python3 ${../quiet-shell/fakes/player.py} /tmp/player.log >/dev/null 2>&1 &")
           session("quiet-shell-ipc controls")
-          wait_for(lambda s: s["panel"] == "controls" and s["sys"]["media"], "now-playing")
+          wait_for(lambda s: s["panel"] == "controls" and s["media"] and s["media"]["playing"], "now-playing")
           # Dvorak again: J and K sit on the QWERTY c and v keys.
           for key in ("spc", "c", "v"):
               machine.send_key(key)
-          machine.wait_until_succeeds("test $(wc -l < /tmp/playerctl.log) -ge 3", timeout=timedelta(seconds=10))
-          sent = [line.split()[-1] for line in machine.succeed("cat /tmp/playerctl.log").splitlines()]
-          assert sent == ["play-pause", "next", "previous"], sent
+          machine.wait_until_succeeds("test $(wc -l < /tmp/player.log) -ge 3", timeout=timedelta(seconds=10))
+          sent = machine.succeed("cat /tmp/player.log").split()
+          # Space while playing asks for a pause outright.
+          assert sent == ["pause", "next", "previous"], sent
+          # The pause shows without waiting for a poll.
+          retry(lambda _: not state()["media"]["playing"], timeout=timedelta(seconds=5))
           session("quiet-shell-ipc close")
 
       with subtest("sound details list each playing app"):
@@ -253,9 +251,27 @@ in
           machine.succeed("timedatectl set-timezone Europe/London")
           # Type literally: switch the Dvorak layout to plain US while typing.
           session("hyprctl eval \"hl.config({ input = { kb_variant = [[]] } })\"")
-          session("quiet-shell-ipc spotlight")
+          def typed(want):
+              seen = []
+              def check(_):
+                  seen.append(state()["query"])
+                  return seen[-1] == want
+              try:
+                  retry(check, timeout=timedelta(seconds=10))
+              except Exception:
+                  raise AssertionError(f"Spotlight got {seen[-1]!r}, not {want!r}")
+
+          # The real key: Hyprland reaches the shell directly, without a process.
+          machine.send_key("meta_l-spc")
           wait_for(lambda s: s["spotlight"], "spotlight-empty")
-          machine.send_chars("tz warsaw")
+          machine.send_chars("tz norway")
+          typed("tz norway")
+          # Norway shares Berlin's clock since 1970, so only zone.tab still names Oslo.
+          retry(lambda _: "Time Zone: Oslo" in state()["results"], timeout=timedelta(seconds=10))
+          # Ctrl+Backspace drops the word, and the very next letter still arrives.
+          machine.send_key("ctrl-backspace")
+          machine.send_chars("warsaw")
+          typed("tz warsaw")
           retry(lambda _: "Time Zone: Warsaw" in state()["results"], timeout=timedelta(seconds=10))
           machine.sleep(timedelta(seconds=2))
           machine.screenshot("spotlight-timezone")
@@ -287,7 +303,7 @@ in
           retry(lambda _: not notes_windows(), timeout=timedelta(seconds=10))
 
       with subtest("tray icons are grey until pointed at"):
-          session("setsid ${trayPython}/bin/python3 ${../quiet-shell/fakes/tray.py} /tmp/tray.log >/dev/null 2>&1 &")
+          session("setsid ${dbusPython}/bin/python3 ${../quiet-shell/fakes/tray.py} /tmp/tray.log >/dev/null 2>&1 &")
           session("quiet-shell-ipc pin")
           wait_for(lambda s: "quiet-test" in s["tray"] and s["top"], "tray-grey")
           session("quiet-shell-ipc pin")
@@ -318,12 +334,16 @@ in
               assert bad not in shell_log, f"shell log reports a failure ({bad}):\n{shell_log}"
 
       with subtest("the power menu works from the keyboard"):
-          # Dvorak on QWERTY scancodes: r is the o key, n is l, o is s.
+          # Dvorak on QWERTY scancodes: r is the o key and o is s.
           machine.send_key("meta_l-esc")
           wait_for(lambda s: s["panel"] == "system", "power-menu")
           machine.send_key("o")
           wait_for(lambda s: s["confirm"] == "Restart", "power-confirm")
-          machine.send_key("l")
+          # Only Enter confirms: the letter again leaves the question open.
+          machine.send_key("o")
+          machine.sleep(timedelta(seconds=1))
+          assert state()["confirm"] == "Restart", "pressing R twice confirmed the restart"
+          machine.send_key("esc")
           retry(lambda _: state()["confirm"] == "", timeout=timedelta(seconds=10))
           # Log Out is the one action the VM survives: confirm it and the session ends.
           hyprland = machine.succeed("pgrep -u user -x .Hyprland-wrapp || pgrep -u user -f 'Hyprland --watchdog'").split()[0]

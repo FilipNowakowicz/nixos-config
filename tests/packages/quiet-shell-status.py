@@ -9,7 +9,7 @@ import sys
 import tempfile
 
 status, fake, location, buds_script, agenda = sys.argv[1:6]
-COMMANDS = "nmcli bluetoothctl tailscale mullvad wpctl pw-dump brightnessctl powerprofilesctl playerctl pgrep systemctl khal".split()
+COMMANDS = "nmcli bluetoothctl tailscale mullvad wpctl pw-dump brightnessctl powerprofilesctl pgrep systemctl khal".split()
 
 with tempfile.TemporaryDirectory() as tmp:
     root = pathlib.Path(tmp)
@@ -50,11 +50,10 @@ with tempfile.TemporaryDirectory() as tmp:
     assert [d["name"] for d in out["devices"]["sinks"] if d["active"]] == ["alsa_output.speakers"]
     assert out["brightness"] == 50 and out["profile"] == "balanced"
     assert out["battery"] == {"level": 64, "charging": True}, out["battery"]
-    assert out["media"]["title"] == "Blue in Green"
 
     empty = json.loads(subprocess.check_output(
         [sys.executable, status], env={"PATH": str(root / "nothing"), "QUIET_POWER_SUPPLY": str(root / "none")}))
-    for key in ("wifi", "bluetooth", "vpn", "sink", "devices", "brightness", "profile", "battery", "media"):
+    for key in ("wifi", "bluetooth", "vpn", "sink", "devices", "brightness", "profile", "battery"):
         assert empty[key] is None, (key, empty[key])
 
     # An event khal repeats on each day it covers is one event. No khal, no agenda.

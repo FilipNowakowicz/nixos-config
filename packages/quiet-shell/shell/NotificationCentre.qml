@@ -75,8 +75,8 @@ ColumnLayout {
         const last = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
         pick(new Date(target.getFullYear(), target.getMonth(), Math.min(from.getDate(), last)));
     }
-    // Vim-style, laid out as the grid is: h and l a day, j and k a week, H and L a
-    // month, t back to today.
+    // Vim-style, laid out as the grid is: h and l a day, j and k a week, H, L, J
+    // and K a month, g or t back to today.
     function pressKey(text) {
         const moves = {
             h: () => moveDays(-1),
@@ -85,6 +85,9 @@ ColumnLayout {
             k: () => moveDays(-7),
             H: () => moveMonths(-1),
             L: () => moveMonths(1),
+            K: () => moveMonths(-1),
+            J: () => moveMonths(1),
+            g: () => toToday(),
             t: () => toToday()
         };
         if (compact || !moves[text])

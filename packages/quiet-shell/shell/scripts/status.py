@@ -219,16 +219,6 @@ def battery():
     return None
 
 
-def media():
-    out = run("playerctl", "--player=spotify", "metadata", "--format", "{{status}}\t{{title}}\t{{artist}}\t{{mpris:artUrl}}")
-    if not out:
-        return None
-    bits = (out.rstrip("\n").split("\t") + [""] * 4)[:4]
-    if not bits[1]:
-        return None
-    return {"playing": bits[0] == "Playing", "title": bits[1], "artist": bits[2], "art": bits[3]}
-
-
 def timezone():
     """The zone /etc/localtime names, as timedatectl sets it."""
     try:
@@ -259,7 +249,6 @@ print(json.dumps({
     "brightness": brightness(),
     "profile": power_profile(),
     "battery": battery(),
-    "media": media(),
     "night": night(),
     "timezone": timezone(),
     "awake": awake(),

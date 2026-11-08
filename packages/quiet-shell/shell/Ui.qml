@@ -18,7 +18,7 @@ Singleton {
     property var confirm: null           // { title, body, action, command }
     property var auth: null              // polkit's request for a password
     onAuthChanged: refocus()
-    property var hud: null               // { kind, level, muted }
+    property var hud: null               // { kind, level, muted } or { kind, on, toggle }
     property var dockMenu: null          // { app, x }
     property int deskHud: 0
     Timer { id: deskTimer; interval: 900; onTriggered: root.deskHud = 0 }
@@ -106,14 +106,15 @@ Singleton {
 
     property bool clipboard: false       // Spotlight is showing clipboard history
     property var spotlightResults: []    // "Group: Title" of each row, for tests
+    property string spotlightQuery: ""   // what is typed, for tests
 
     // One path for these, so nothing can reach them without being asked.
     function session(name) {
         const lost = "Open apps will close, and anything unsaved will be lost.";
         const asks = {
-            restart: { title: "Restart now?", body: lost, action: "Restart", key: "r", command: ["systemctl", "reboot"] },
-            shutdown: { title: "Shut down now?", body: lost, action: "Shut Down", key: "d", command: ["systemctl", "poweroff"] },
-            logout: { title: "Log out now?", body: lost, action: "Log Out", key: "o", command: ["hyprctl", "dispatch", "hl.dsp.exit()"] }
+            restart: { title: "Restart now?", body: lost, action: "Restart", command: ["systemctl", "reboot"] },
+            shutdown: { title: "Shut down now?", body: lost, action: "Shut Down", command: ["systemctl", "poweroff"] },
+            logout: { title: "Log out now?", body: lost, action: "Log Out", command: ["hyprctl", "dispatch", "hl.dsp.exit()"] }
         };
         close();
         if (name === "sleep") Quickshell.execDetached(["systemctl", "suspend"]);
@@ -123,6 +124,11 @@ Singleton {
 
     function showHud(kind, level, muted) {
         hud = { kind, level, muted };
+        hudTimer.restart();
+    }
+    // A switch flipped by its own key, such as mic mute: an icon and a word, no level.
+    function showToggle(kind, on) {
+        hud = { kind, on, toggle: true };
         hudTimer.restart();
     }
     Timer { id: hudTimer; interval: 1400; onTriggered: root.hud = null }

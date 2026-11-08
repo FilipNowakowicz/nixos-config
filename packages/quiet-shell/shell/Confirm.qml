@@ -16,15 +16,14 @@ Item {
         Ui.close();
         Quickshell.execDetached(command);
     }
-    // Enter, or the menu letter again (SUPER+Escape, R, R), confirms; Escape or N
-    // cancels. Tab still reaches both buttons.
+    // Enter confirms and Escape cancels, as the buttons' hints say. Tab still reaches
+    // both. A held key never confirms, so a menu letter can't repeat into "yes".
     Item {
         id: keys
         Keys.onPressed: event => {
-            const letter = event.text.toLowerCase();
-            if (event.key === Qt.Key_Escape || letter === "n")
+            if (event.key === Qt.Key_Escape)
                 Ui.confirm = null;
-            else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || letter === "y" || (root.ask && letter === root.ask.key))
+            else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && !event.isAutoRepeat)
                 root.accept();
             else
                 return;
