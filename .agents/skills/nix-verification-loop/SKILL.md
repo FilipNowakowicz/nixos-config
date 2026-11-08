@@ -131,15 +131,12 @@ build` re-reads sources lazily as it evaluates each derivation — switching
   different branch in the same working tree, or use a separate worktree
   (`EnterWorktree`/`git worktree add`) for the unrelated work instead.
 - **Dry-run the real binary against candidate config before a config-schema
-  migration.** For a service config-schema bump (e.g. the Tempo 2.x->3.x
-  rewrite in `modules/nixos/profiles/observability/backends.nix`, PR #335),
-  `nix build` the exact package from the flake's `nixpkgs` input and run the
-  binary directly against the candidate config
-  (`tempo -config.file=cand.yaml -target=all`) before editing the Nix module.
-  This confirms the new schema's exact keys parse and is cheaper and more
-  authoritative than docs or a full closure build — it disproved a stale
-  assumed requirement (Kafka for monolithic `target=all`) that the upstream
-  docs/issue text got wrong.
+  migration.** Build the exact package from the flake's `nixpkgs` input and
+  validate the candidate configuration with that binary before editing the Nix
+  module. Use its native config-check command when available, or a private
+  throwaway runtime. This confirms the pinned version's schema and requirements
+  more directly than documentation or a closure build. Historical evidence is
+  retained in `docs/observability-stack.md`'s decision appendix.
 - **An anonymous `evaluation warning:` (from `lib.warn`) carries no file/line,
   unlike `meta.problems.removal` warnings — and `--show-trace` doesn't attach
   a stack to it either.** To find the actual call site: copy the suspect flake
