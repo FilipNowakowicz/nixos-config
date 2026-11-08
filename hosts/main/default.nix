@@ -132,10 +132,10 @@ in
   };
 
   nix.settings = {
-    extra-substituters = [ binaryCache.r2.substituter ];
-    # Keep this in sync with the CI signing key used for the R2 binary cache;
+    extra-substituters = [ binaryCache.ciCache.substituter ];
+    # Keep this in sync with the CI binary cache signing key;
     # see lib/binary-cache.nix for the rotation procedure.
-    extra-trusted-public-keys = [ binaryCache.r2.publicKey ];
+    extra-trusted-public-keys = [ binaryCache.ciCache.publicKey ];
   };
 
   programs = {

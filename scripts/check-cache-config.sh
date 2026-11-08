@@ -17,16 +17,16 @@ extract_first_match() {
   fi
 }
 
-setup_cache_url="$(extract_first_match 'https://[^[:space:]]+r2\.dev' .github/actions/setup-nix/action.yml)"
-shared_cache_url="$(extract_first_match 'https://[^"]+r2\.dev' lib/binary-cache.nix)"
+setup_cache_url="$(extract_first_match 'https://nix\.cloudsmith\.io/[^[:space:]]+' .github/actions/setup-nix/action.yml)"
+shared_cache_url="$(extract_first_match 'https://nix\.cloudsmith\.io/[^"]+' lib/binary-cache.nix)"
 
 setup_cache_key="$(
-  sed -n 's/.*trusted-public-keys = .* \(nix-cache-1:[^[:space:]]*\).*/\1/p' \
+  sed -n 's/.*trusted-public-keys = .* \(nixos-nix-cache-[0-9]*:[^[:space:]]*\).*/\1/p' \
     .github/actions/setup-nix/action.yml |
     head -n 1
 )"
 shared_cache_key="$(
-  sed -n 's/.*"\(nix-cache-1:[^"]*\)".*/\1/p' lib/binary-cache.nix | head -n 1
+  sed -n 's/.*"\(nixos-nix-cache-[0-9]*:[^"]*\)".*/\1/p' lib/binary-cache.nix | head -n 1
 )"
 
 if [[ -z $setup_cache_url || -z $shared_cache_url || -z $setup_cache_key || -z $shared_cache_key ]]; then
