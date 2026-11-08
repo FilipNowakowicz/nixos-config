@@ -127,7 +127,7 @@ Commands:
   docs               Check repository Markdown links
   flake-eval         Run flake evaluation only (no builds)
   light              Build lightweight blocking checks
-  host <name>        Build one host closure: main-ci, main, homeserver-gcp, mac, installer
+  host <name>        Build one host closure: main-ci, main, homeserver-gcp, installer
   hosts              Build all host system closures used in CI
   package <name>     Build one package output used in CI, or package all
   profile-test <name>
@@ -167,9 +167,6 @@ build_host() {
     ;;
   gcp-agent)
     build_attrs ".#nixosConfigurations.gcp-agent.config.system.build.toplevel"
-    ;;
-  mac)
-    build_attrs ".#nixosConfigurations.mac.config.system.build.toplevel"
     ;;
   installer)
     build_attrs ".#packages.${system}.installer-iso"
@@ -278,7 +275,6 @@ light)
     ".#checks.${system}.invariants-homeserver-gcp" \
     ".#checks.${system}.invariants-main" \
     ".#checks.${system}.invariants-main-ci" \
-    ".#checks.${system}.invariants-mac" \
     ".#checks.${system}.invariants-registry-security" \
     ".#checks.${system}.invariants-installer" \
     ".#checks.${system}.lib-doctor" \
@@ -287,7 +283,6 @@ light)
     ".#checks.${system}.lib-acl" \
     ".#checks.${system}.lib-invariants" \
     ".#checks.${system}.lib-mini-fleet-flake" \
-    ".#checks.${system}.mac-sops-bootstrap" \
     ".#checks.${system}.observability-alerts-lint" \
     ".#checks.${system}.secrets-directory" \
     ".#checks.${system}.lib-scan-plaintext-secrets" \
@@ -312,7 +307,6 @@ hosts)
     ".#nixosConfigurations.homeserver-gcp.config.system.build.toplevel" \
     ".#nixosConfigurations.gcp-builder.config.system.build.toplevel" \
     ".#nixosConfigurations.gcp-agent.config.system.build.toplevel" \
-    ".#nixosConfigurations.mac.config.system.build.toplevel" \
     ".#packages.${system}.installer-iso"
   ;;
 

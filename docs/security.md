@@ -14,16 +14,12 @@ Current recipient groups:
 | :--------------------- | :------------------------------------------------------- |
 | `&user`                | Personal operator key; root secret for all repo secrets. |
 | `&main_host`           | `main` SSH-host-derived age identity.                    |
-| `&mac_host`            | `mac` SSH-host-derived age identity.                     |
 | `&homeserver_gcp_host` | `homeserver-gcp` SSH-host-derived age identity.          |
 | `&gcp_agent_host`      | `gcp-agent` SSH-host-derived age identity.               |
 
 Host behavior:
 
 - `main` and `homeserver-gcp` use SSH-host-derived age identities through `sops.age.sshKeyPaths`.
-- `mac` also uses a pre-baked encrypted SSH host key committed under
-  `hosts/mac/secrets/`; sops derives `&mac_host` from the persisted private key
-  on boot.
 - `gcp-agent` likewise uses a pre-baked encrypted SSH host key committed under
   `hosts/gcp-agent/secrets/`, installed into the target root during
   `nixos-anywhere` provisioning so sops can decrypt on first boot. It carries
@@ -126,26 +122,25 @@ the inventory into three kinds:
 
 ### Inventory
 
-| Secret                                                               | Owner host(s)                   | Kind     | Rotate with                                                                                                            |
-| :------------------------------------------------------------------- | :------------------------------ | :------- | :--------------------------------------------------------------------------------------------------------------------- |
-| `user_password` / `root_password`                                    | all / `mac`                     | self     | `rotate-secret.sh password <file> <key>`                                                                               |
-| `observability_ingest_password` (+`_htpasswd`)                       | `main`,`mac` / `homeserver-gcp` | self     | `rotate-secret.sh observability` (rotates the pair across all three)                                                   |
-| `adguard_admin_password`                                             | `homeserver-gcp`                | self     | `rotate-secret.sh random`                                                                                              |
-| `grafana_admin_password`                                             | `homeserver-gcp`                | self     | `rotate-secret.sh random` — **but** set it in Grafana too; see caveats                                                 |
-| `grafana_secret_key`                                                 | `homeserver-gcp`                | self     | `rotate-secret.sh random` — **caveat:** re-encrypts datasource secrets                                                 |
-| `restic_password`                                                    | `main`,`homeserver-gcp`         | self     | `restic key add/remove` first, _then_ `rotate-secret.sh set`; see caveats                                              |
-| `initrd_ssh_host_ed25519_key`                                        | `main`                          | self     | `rotate-secret.sh sshkey <file> <key>`                                                                                 |
-| `homeserver_selfdeploy_ssh_key`                                      | `homeserver-gcp`                | self     | `rotate-secret.sh sshkey`, then wire the new public half into nix                                                      |
-| `tailscale_auth_key`                                                 | `homeserver-gcp`                | provider | Tailscale admin console → `rotate-secret.sh set`                                                                       |
-| `b2_credentials` / `restic_repository`                               | `main`,`homeserver-gcp`         | provider | Backblaze B2 console / `b2` CLI → `rotate-secret.sh set`                                                               |
-| `alertmanager_webhook_url`                                           | `homeserver-gcp`                | provider | regenerate at the notification target → `rotate-secret.sh set`                                                         |
-| `heartbeat_ping_url`                                                 | `homeserver-gcp`                | provider | regenerate at the heartbeat service → `rotate-secret.sh set`                                                           |
-| `wpa_supplicant_wlp3s0_conf`                                         | `mac`                           | provider | new Wi-Fi PSK → `rotate-secret.sh set`                                                                                 |
-| `github_runner_homeserver_deploy_token`                              | `homeserver-gcp`                | provider | GitHub fine-grained PAT (browser) → `rotate-secret.sh set`; see worked example                                         |
-| `gh_hosts` (scoped PAT for push/PR)                                  | `gcp-agent`                     | provider | GitHub fine-grained PAT (browser; contents+issues+pull-requests: write) → `sops hosts/gcp-agent/secrets/gh-hosts.yaml` |
-| `claude_credentials` (host-local agent login)                        | `gcp-agent`                     | capture  | re-run `claude` login on `gcp-agent`, capture into `hosts/gcp-agent/secrets/claude-credentials.enc`                    |
-| `claude-credentials.json`, gcloud ADC, gemini oauth, `gh-hosts.yaml` | `&user`                         | capture  | re-run the tool's login, capture the file into sops                                                                    |
-| `git_user_name` / `git_user_email`                                   | `&user`                         | —        | static identity, not a rotating credential                                                                             |
+| Secret                                                               | Owner host(s)             | Kind     | Rotate with                                                                                                            |
+| :------------------------------------------------------------------- | :------------------------ | :------- | :--------------------------------------------------------------------------------------------------------------------- |
+| `user_password`                                                      | all                       | self     | `rotate-secret.sh password <file> <key>`                                                                               |
+| `observability_ingest_password` (+`_htpasswd`)                       | `main` / `homeserver-gcp` | self     | `rotate-secret.sh observability` (rotates the pair)                                                                    |
+| `adguard_admin_password`                                             | `homeserver-gcp`          | self     | `rotate-secret.sh random`                                                                                              |
+| `grafana_admin_password`                                             | `homeserver-gcp`          | self     | `rotate-secret.sh random` — **but** set it in Grafana too; see caveats                                                 |
+| `grafana_secret_key`                                                 | `homeserver-gcp`          | self     | `rotate-secret.sh random` — **caveat:** re-encrypts datasource secrets                                                 |
+| `restic_password`                                                    | `main`,`homeserver-gcp`   | self     | `restic key add/remove` first, _then_ `rotate-secret.sh set`; see caveats                                              |
+| `initrd_ssh_host_ed25519_key`                                        | `main`                    | self     | `rotate-secret.sh sshkey <file> <key>`                                                                                 |
+| `homeserver_selfdeploy_ssh_key`                                      | `homeserver-gcp`          | self     | `rotate-secret.sh sshkey`, then wire the new public half into nix                                                      |
+| `tailscale_auth_key`                                                 | `homeserver-gcp`          | provider | Tailscale admin console → `rotate-secret.sh set`                                                                       |
+| `b2_credentials` / `restic_repository`                               | `main`,`homeserver-gcp`   | provider | Backblaze B2 console / `b2` CLI → `rotate-secret.sh set`                                                               |
+| `alertmanager_webhook_url`                                           | `homeserver-gcp`          | provider | regenerate at the notification target → `rotate-secret.sh set`                                                         |
+| `heartbeat_ping_url`                                                 | `homeserver-gcp`          | provider | regenerate at the heartbeat service → `rotate-secret.sh set`                                                           |
+| `github_runner_homeserver_deploy_token`                              | `homeserver-gcp`          | provider | GitHub fine-grained PAT (browser) → `rotate-secret.sh set`; see worked example                                         |
+| `gh_hosts` (scoped PAT for push/PR)                                  | `gcp-agent`               | provider | GitHub fine-grained PAT (browser; contents+issues+pull-requests: write) → `sops hosts/gcp-agent/secrets/gh-hosts.yaml` |
+| `claude_credentials` (host-local agent login)                        | `gcp-agent`               | capture  | re-run `claude` login on `gcp-agent`, capture into `hosts/gcp-agent/secrets/claude-credentials.enc`                    |
+| `claude-credentials.json`, gcloud ADC, gemini oauth, `gh-hosts.yaml` | `&user`                   | capture  | re-run the tool's login, capture the file into sops                                                                    |
+| `git_user_name` / `git_user_email`                                   | `&user`                   | —        | static identity, not a rotating credential                                                                             |
 
 **Trigger** for any entry: suspected exposure (logged, copied to an untrusted
 host, leaked artifact), a planned periodic rotation, or staff/device change. A
@@ -255,10 +250,6 @@ Tailscale is the primary remote-access layer.
   credentials cannot read or query Loki, Mimir, or OTLP APIs through nginx.
 - `homeserver-gcp` runs blackbox probes from inside the tailnet boundary against `https://<tailnet-fqdn>/` (Vaultwarden; expect `200/301/302`) and `https://<tailnet-fqdn>/grafana/` (Grafana auth-proxy path; expect `200` from the server's tailnet node identity).
 - `main` enables SSH but does not open the normal firewall path for general LAN access.
-- `mac` enables SSH and Syncthing listen ports only on `tailscale0`; it is not
-  a public service host.
-- `main` opens Input Leap and Sunshine ports only on `tailscale0` for the
-  companion Mac workflow.
 
 Tailscale ACL output is generated by `lib/acl.nix`. Access is derived from
 registry metadata in `lib/hosts.nix`: `tailscale.acceptFrom` defines approved
@@ -290,7 +281,7 @@ roles as a local security boundary.
 
 ## Binary Cache Trust
 
-Two hosts (`main`, `mac`) trust an R2-hosted binary cache as an
+`main` trusts an R2-hosted binary cache as an
 `extra-substituters` entry, and a separate pair (`homeserver-gcp`,
 `gcp-builder`) trust a `main.local` cache served by `main`. Both are real trust
 edges in addition to `cache.nixos.org`, and they have different blast radii.
@@ -299,15 +290,15 @@ Both substituter URLs and trusted public keys are defined once in
 [`lib/binary-cache.nix`](../lib/binary-cache.nix) and consumed from there by
 the relevant host configs — a key rotation starts by editing that file.
 
-### R2-hosted CI cache (`main`, `mac`)
+### R2-hosted CI cache (`main`)
 
-`hosts/main/default.nix` and `hosts/mac/default.nix` both reference
+`hosts/main/default.nix` references
 `lib/binary-cache.nix`'s `r2.substituter`
 (`https://pub-706604c9179043ac98604d6de4c65c2c.r2.dev`) as an
-`extra-substituters` entry and trust `r2.publicKey`
+`extra-substituters` entry and trusts `r2.publicKey`
 (`nix-cache-1:eEcFiWPHQpJmlcnNeGoPg6xxOp3itNZiWwFaE+NebIk=`). Anything
 `nix-store`-signed with the matching private key and served from that R2 bucket
-will be substituted and trusted by both workstations without rebuilding from
+will be substituted and trusted by the workstation without rebuilding from
 source — i.e. it can supply build outputs that land in `/nix/store` and get
 activated.
 
@@ -319,8 +310,8 @@ gated by `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `CACHE_SIGNING_KEY`
 secrets at the repo level). Repo admins control these secrets and the workflow
 file, so this is the same shape of edge as the documented
 `homeserver-gcp` runner root-equivalence: **a GitHub repo admin (or anyone who
-can land a workflow change on `main`) effectively controls what `main` and
-`mac` substitute as trusted store paths.** Unlike the `homeserver-gcp` runner
+can land a workflow change on `main`) effectively controls what `main`
+substitutes as trusted store paths.** Unlike the `homeserver-gcp` runner
 edge, this does not grant interactive shell access — it grants the ability to
 have a signed artifact accepted as a build output.
 
@@ -355,15 +346,15 @@ tracked separately — see the linked follow-up issue, if filed.
 2. Update the `CACHE_SIGNING_KEY` GitHub Actions repo secret with the contents
    of the new private key file (Settings → Secrets and variables → Actions).
 3. Update `r2.publicKey` in `lib/binary-cache.nix` to the new public key —
-   `hosts/main/default.nix` and `hosts/mac/default.nix` both consume it from
+   `hosts/main/default.nix` consumes it from
    there, keeping the "Keep this in sync with the CI signing key used for the
    R2 binary cache" comment in `hosts/main/default.nix` accurate.
 4. Update the matching trusted key in `.github/actions/setup-nix/action.yml`
    (checked against `lib/binary-cache.nix` by `scripts/check-cache-config.sh`).
-5. Deploy `main` and `mac` so the new public key is trusted before CI starts
+5. Deploy `main` so the new public key is trusted before CI starts
    signing with the new private key, then merge the workflow/host changes.
 6. Old store paths signed with the retired key remain on R2 but will no longer
-   be trusted by either host once the new key is live; this is expected and
+   be trusted by `main` once the new key is live; this is expected and
    does not require purging the bucket.
 
 ### `main.local` cache (`homeserver-gcp`, `gcp-builder`)
@@ -456,8 +447,6 @@ switch path unless a future reviewed immutable activation flow replaces it.
 Some non-`main` paths intentionally keep broad passwordless root after SSH
 access because the current deploy flow depends on it:
 
-- `hosts/mac` sets `security.sudo.wheelNeedsPassword = false` so deploy-rs can
-  activate the companion workstation over Tailscale.
 - `hosts/homeserver-gcp` sets `security.sudo.wheelNeedsPassword = false` for
   deploy-rs activation over Tailscale-scoped SSH.
 - The stock GCP bootstrap image creates a temporary `bootstrap` user with

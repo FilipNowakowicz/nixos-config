@@ -13,12 +13,11 @@ README high-level; put command-heavy procedures here.
 
 ## Deployment Matrix
 
-| Target           | Status | Command                                  | Notes                                                                |
-| :--------------- | :----- | :--------------------------------------- | :------------------------------------------------------------------- |
-| `main`           | Active | `nh os switch --hostname main .`         | Primary workstation.                                                 |
-| `homeserver-gcp` | Active | `deploy '.#homeserver-gcp'`              | GCP homeserver; see `scripts/deploy-gcp.sh`.                         |
-| `mac`            | Active | `deploy '.#mac'`                         | Companion workstation (2017 MacBook Air); `nh os switch` also works. |
-| `user@wsl`       | Active | `home-manager switch --flake .#user@wsl` | Portable Home Manager profile for WSL.                               |
+| Target           | Status | Command                                  | Notes                                        |
+| :--------------- | :----- | :--------------------------------------- | :------------------------------------------- |
+| `main`           | Active | `nh os switch --hostname main .`         | Primary workstation.                         |
+| `homeserver-gcp` | Active | `deploy '.#homeserver-gcp'`              | GCP homeserver; see `scripts/deploy-gcp.sh`. |
+| `user@wsl`       | Active | `home-manager switch --flake .#user@wsl` | Portable Home Manager profile for WSL.       |
 
 ## main Workstation Operations
 
@@ -89,11 +88,6 @@ Run fixed-argument Nix garbage collection through the allowlisted wrapper:
 ```bash
 sudo nix-gc-14d
 ```
-
-`main` also hosts companion-workstation services for `mac`: Sunshine runs as a
-Home Manager user service tied to `nixos-fake-graphical-session.target`, and
-Input Leap is installed in Home Manager. Their network surface is limited to
-`tailscale0`; the general LAN firewall remains closed.
 
 Clean stale boot artifacts:
 
@@ -281,33 +275,6 @@ Rotate the runner credential by replacing
 `homeserver-gcp`, and removing the old offline runner from the repository
 settings if GitHub keeps a stale registration.
 
-## Mac Companion Workstation
-
-Deploy from `main`:
-
-```bash
-deploy '.#mac'
-```
-
-Local fallback on the Mac:
-
-```bash
-nh os switch --hostname mac .
-```
-
-After Mac changes, check the live host:
-
-```bash
-ssh user@mac.example.ts.net
-systemctl --failed --no-pager
-systemctl --user status syncthing.service --no-pager
-systemctl status tailscaled sshd thermald power-profiles-daemon --no-pager
-```
-
-Syncthing, Input Leap, and Moonlight still need interactive pairing after a
-fresh install. The aliases `input-main`, `input-server`, and `moon-main` are
-installed as helpers, but certificate/device approval remains operator state.
-
 ## Tailscale ACL Drift
 
 The generated ACL artifact is also checked against the live tailnet policy by
@@ -405,9 +372,7 @@ grep -rni "drop this\|once upstream\|drop once" --include="*.nix" .
 ```
 
 An override written to work around an upstream bug often names the exact
-upstream commit that will obsolete it (e.g. `home/users/user/mac.nix`'s
-`moonlight-qt.override { ffmpeg = ffmpeg_8; }`, which names the nixpkgs commit
-that later restored default `ffmpeg` compatibility). A nixpkgs bump landing
+upstream commit that will obsolete it. A nixpkgs bump landing
 that commit is the exact trigger that can flip the override's argument
 signature and break eval — the comment is the fix, or at least the fastest
 path to it, before treating the failure as a fresh investigation.

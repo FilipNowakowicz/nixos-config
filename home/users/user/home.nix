@@ -181,9 +181,6 @@ in
   };
 
   services = {
-    # ── Syncthing ──────────────────────────────────────────────────────────
-    syncthing.enable = lib.mkDefault false;
-
     # ── Cliphist ────────────────────────────────────────────────────────────
     cliphist.enable = true;
 

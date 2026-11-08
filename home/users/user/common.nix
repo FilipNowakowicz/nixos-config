@@ -23,7 +23,7 @@
 
   # user.name and user.email are rendered at activation by secrets.nix via a
   # sops template + programs.git.includes. Hosts with userSecrets.enable = false
-  # (mac, wsl) must set identity manually (`git config --global user.{name,email}`).
+  # (wsl) must set identity manually (`git config --global user.{name,email}`).
   programs.git = {
     enable = true;
     signing = {

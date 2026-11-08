@@ -9,7 +9,6 @@ For deeper context see [`docs/architecture.md`](docs/architecture.md),
 [`docs/operations.md`](docs/operations.md), and
 [`docs/security.md`](docs/security.md). Host-local runbooks live
 under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
-[`hosts/mac/CLAUDE.md`](hosts/mac/CLAUDE.md),
 [`hosts/homeserver-gcp/CLAUDE.md`](hosts/homeserver-gcp/CLAUDE.md),
 [`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md),
 [`hosts/gcp-agent/CLAUDE.md`](hosts/gcp-agent/CLAUDE.md).
@@ -29,7 +28,6 @@ under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
 ## Deploy Commands
 
 - **`main`:** `nh os switch --hostname main .` (alias: `rebuild`).
-- **`mac`:** `deploy '.#mac'` from `main`; local fallback `nh os switch --hostname mac .`.
 - **`homeserver-gcp`:** `deploy '.#homeserver-gcp'` for ongoing updates.
   `scripts/deploy-gcp.sh` is **provisioning/reinstall only** (Terraform apply +
   `nixos-anywhere`), not an ongoing-deploy alias. Note `deploy-rs` can appear
@@ -169,7 +167,7 @@ See [`docs/security.md`](docs/security.md) for the full secrets/exposure model.
 ## Security Preferences
 
 - **Broad passwordless sudo is for deploy/dev exceptions only.** Current broad
-  exceptions are `hosts/mac`, `hosts/homeserver-gcp`, and `hosts/gcp-builder`;
+  exceptions are `hosts/homeserver-gcp` and `hosts/gcp-builder`;
   treat SSH access to those targets as root-equivalent. `gcp-builder`
   additionally grants its trusted Nix user effective root via remote builds, so
   keep it tailnet-only and key-only.
@@ -177,7 +175,7 @@ See [`docs/security.md`](docs/security.md) for the full secrets/exposure model.
   `agentMaintenanceCommands` NOPASSWD allowlist for repeat maintenance commands.
   Do not broaden this to `NOPASSWD: ALL`.
 - **Interactive access relies on SSH keys.** Password hashes are still managed
-  through sops for console/recovery login. `main` and `mac` expose SSH only
+  through sops for console/recovery login. `main` exposes SSH only
   through Tailscale-scoped firewall rules.
 - **Scope secrets appropriately.** Each host should only be able to decrypt the
   secrets it needs, as defined in `.sops.yaml`.

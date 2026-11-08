@@ -20,7 +20,6 @@ let
       })
       [
         "main"
-        "mac"
         "homeserver-gcp"
       ];
 

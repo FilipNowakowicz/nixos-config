@@ -97,7 +97,6 @@
           fprintd.enable = lib.mkForce false;
           fwupd.enable = lib.mkForce false;
           openssh.enable = lib.mkForce false;
-          sunshine.enable = lib.mkForce false;
           tailscale.enable = lib.mkForce false;
 
           prometheus.enable = lib.mkForce false;
@@ -140,7 +139,6 @@
         };
 
         systemd = {
-          user.services.sunshine.enable = lib.mkForce false;
           services = {
             bluetooth-load-btusb = {
               enable = lib.mkForce false;

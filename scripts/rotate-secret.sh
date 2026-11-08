@@ -26,7 +26,7 @@ Usage:
   bash scripts/rotate-secret.sh random   <file> <key> [len]      # generate a random alnum secret (default 48)
   bash scripts/rotate-secret.sh password <file> <key> [method]   # prompt + mkpasswd hash (default yescrypt)
   bash scripts/rotate-secret.sh sshkey   <file> <key> [comment]  # generate an ed25519 key, print the public half
-  bash scripts/rotate-secret.sh observability                    # rotate the telemetry ingest password across main+mac+homeserver
+  bash scripts/rotate-secret.sh observability                    # rotate the telemetry ingest password across main+homeserver
 
 Examples:
   printf '%s' "$NEW_PAT" | bash scripts/rotate-secret.sh set hosts/homeserver-gcp/secrets/secrets.yaml github_runner_homeserver_deploy_token
@@ -147,17 +147,16 @@ cmd_sshkey() {
   next_steps "$file"
 }
 
-# The telemetry ingest credential is split: main+mac hold the raw password,
+# The telemetry ingest credential is split: main holds the raw password,
 # homeserver-gcp holds its htpasswd line. Rotating one side without the other
-# silently breaks authenticated metric/log/trace push, so do all three at once.
+# silently breaks authenticated metric/log/trace push, so do both at once.
 cmd_observability() {
   require_tools sops jq nix mkpasswd base64
   local user=telemetry
   local main=hosts/main/secrets/secrets.yaml
-  local mac=hosts/mac/secrets/secrets.yaml
   local hs=hosts/homeserver-gcp/secrets/secrets.yaml
   local f
-  for f in "$main" "$mac" "$hs"; do [[ -f $f ]] || die "missing $f"; done
+  for f in "$main" "$hs"; do [[ -f $f ]] || die "missing $f"; done
 
   local pw src_pw src_ht
   pw=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 48)
@@ -167,16 +166,14 @@ cmd_observability() {
   printf '%s:%s\n' "$user" "$(printf '%s' "$pw" | mkpasswd -m bcrypt --stdin)" >"$src_ht"
 
   rotate_one "$main" observability_ingest_password "$src_pw"
-  rotate_one "$mac" observability_ingest_password "$src_pw"
   rotate_one "$hs" observability_ingest_htpasswd "$src_ht"
   rm -f "$src_pw" "$src_ht"
 
   echo
-  echo "All three files updated with a new '$user' ingest credential. Next:"
+  echo "Both files updated with a new '$user' ingest credential. Next:"
   echo "  - homeserver-gcp: commit + push (auto-deploys via .github/workflows/deploy-homeserver.yml)"
   echo "  - main:           rebuild"
-  echo "  - mac:            deploy '.#mac'"
-  echo "  Deploy homeserver-gcp BEFORE main/mac so the new htpasswd is live when clients switch."
+  echo "  Deploy homeserver-gcp BEFORE main so the new htpasswd is live when the client switches."
 }
 
 next_steps() {
@@ -186,7 +183,6 @@ next_steps() {
   case $file in
   hosts/homeserver-gcp/*) echo "  homeserver-gcp auto-deploys on push to main (path-filtered)." ;;
   hosts/main/*) echo "  main: rebuild" ;;
-  hosts/mac/*) echo "  mac: deploy '.#mac'  (or local 'nh os switch --hostname mac .')" ;;
   home/*) echo "  user scope: home-manager switch / rebuild as appropriate." ;;
   esac
 }

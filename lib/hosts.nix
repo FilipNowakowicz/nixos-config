@@ -51,17 +51,7 @@ let
       tailscale = {
         tag = "workstation";
         ip4 = "100.111.88.61";
-        acceptFrom.workstation = [
-          22
-          24800
-          47984
-          47989
-          48010
-          47998
-          47999
-          48000
-          48002 # Sunshine A/V UDP streams
-        ];
+        acceptFrom.workstation = [ 22 ];
       };
       backup.class = "standard";
       hardware.diskById = "/dev/disk/by-id/nvme-eui.0025388401c2aa47";
@@ -143,35 +133,6 @@ let
         acceptFrom.workstation = [ 22 ];
       };
       deploy.sshUser = "user";
-    };
-
-    # 2017 MacBook Air (A1466) repurposed as a companion workstation.
-    # Canonical state lives on `main`; mac syncs via Syncthing, so no backup class.
-    # Heaviest packs (latex, learning) are dropped to keep the 128 GB SSD usable;
-    # the workstation dev-tool block from home.nix is preserved.
-    mac = {
-      system = "x86_64-linux";
-      status = "active";
-      homeManager = {
-        role = "desktop";
-        profiles = [ "desktop" ];
-        enableSpotify = false;
-        packs = [
-          "browsing"
-          "coding"
-        ];
-      };
-      tailnetFQDN = "mac.${tailnetDomain}";
-      tailscale = {
-        tag = "workstation";
-        ip4 = "100.73.117.103";
-        acceptFrom.workstation = [
-          22
-          22000
-        ];
-      };
-      deploy.sshUser = "user";
-      hardware.diskById = "/dev/disk/by-id/ata-APPLE_SSD_SM0128G_S2XUNY4M230628";
     };
 
   };
