@@ -42,6 +42,22 @@ let
   # Like the real one, it reads window boxes first when stdin isn't a terminal,
   # so a capture that leaves stdin open hangs here too.
   fakeSlurp = pkgs.writeShellScriptBin "slurp" "[ -t 0 ] || cat >/dev/null; echo '0,0 1280x800'";
+  # Comes before the real one on PATH. Keeps the country and logs each change.
+  fakeMullvad = pkgs.writeShellScriptBin "mullvad" ''
+    country=$(cat /tmp/mullvad-country 2>/dev/null || echo se)
+    case "$1 ''${2:-}" in
+      "status "*)
+        if [ -e /tmp/mullvad-on ]; then printf 'Connected\n    Relay:  %s-sto-wg-001\n' "$country"; else echo Disconnected; fi ;;
+      "relay get") echo "    Location:  country $country" ;;
+      "relay list")
+        for place in "Albania (al)" "Sweden (se)" "UK (gb)"; do
+          printf '%s\n\tCity (cit) @ 1.0N, 2.0W\n\n' "$place"
+        done ;;
+      "relay set") echo "$4" > /tmp/mullvad-country; echo "set $4" >> /tmp/mullvad.log ;;
+      "connect "*) touch /tmp/mullvad-on ;;
+      "disconnect "*) rm -f /tmp/mullvad-on ;;
+    esac
+  '';
   shotPath = lib.makeBinPath ([ fakeSlurp ] ++ quietShell.runtime) + ":/run/current-system/sw/bin";
 in
 (import "${nixpkgs}/nixos/lib/testing-python.nix" {
@@ -106,6 +122,7 @@ in
         pkgs.kitty
         pkgs.neovim
         quietShell
+        fakeMullvad
       ];
     };
 
@@ -199,6 +216,26 @@ in
           assert sent == ["pause", "next", "previous"], sent
           # The pause shows without waiting for a poll.
           retry(lambda _: not state()["media"]["playing"], timeout=timedelta(seconds=5))
+          session("quiet-shell-ipc close")
+
+      with subtest("a track change never shows Not playing"):
+          session("quiet-shell-ipc controls")
+          wait_for(lambda s: s["panel"] == "controls" and s["media"], "cover-before-skip")
+          before = state()["media"]["title"]
+          machine.send_key("c")
+          seen = []
+          def changed(_):
+              media = state()["media"]
+              seen.append(media and media["title"])
+              return seen[-1] not in (None, before)
+          try:
+              retry(changed, timeout=timedelta(seconds=10))
+          except Exception:
+              pass
+          assert None not in seen, f"the card went blank between tracks: {seen}"
+          assert seen and seen[-1] != before, f"the track never changed: {seen}"
+          machine.sleep(timedelta(seconds=2))
+          machine.screenshot("cover-after-skip")
           session("quiet-shell-ipc close")
 
       with subtest("sound details list each playing app"):
@@ -311,6 +348,122 @@ in
           retry(lambda _: (state()["place"] or {}).get("name") == "Warsaw", timeout=timedelta(seconds=10))
           chosen = json.loads(machine.succeed("cat /home/user/.local/state/quiet-shell/location.json"))
           assert chosen["zone"] == "Europe/Warsaw" and round(chosen["lat"]) == 52, chosen
+          session("hyprctl eval \"hl.config({ input = { kb_variant = [[dvorak]] } })\"")
+
+      with subtest("Mullvad answers to letters, Vim keys and Spotlight"):
+          session("hyprctl eval \"hl.config({ input = { kb_variant = [[]] } })\"")
+          def relay():
+              return machine.succeed("cat /tmp/mullvad-country 2>/dev/null || echo se").strip()
+          def settled():
+              return not state()["writes"]
+
+          session("quiet-shell-ipc controls")
+          retry(lambda _: state()["panel"] == "controls", timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=2))
+          machine.send_key("v")
+          wait_for(lambda s: s["detail"] == "vpn", "vpn-key-hints")
+          machine.send_key("m")
+          machine.wait_until_succeeds("test -e /tmp/mullvad-on", timeout=timedelta(seconds=10))
+          retry(lambda _: settled(), timeout=timedelta(seconds=15))
+          machine.send_key("l")
+          wait_for(lambda s: s["detail"] == "mullvad" and s["countries"] == ["al", "se", "gb"], "mullvad-unused-order")
+          # k stops at the top, so this ends on the third row.
+          for letter in ("k", "j", "j", "k", "j"):
+              machine.send_key(letter)
+          machine.sleep(timedelta(seconds=1))
+          machine.screenshot("mullvad-cursor")
+          machine.send_key("ret")
+          machine.wait_until_succeeds("grep -qx 'set gb' /tmp/mullvad.log", timeout=timedelta(seconds=10))
+          retry(lambda _: settled(), timeout=timedelta(seconds=15))
+          assert state()["countries"] == ["al", "se", "gb"], "rows moved under the cursor"
+          machine.send_key("esc")
+          retry(lambda _: state()["detail"] == "vpn", timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=1))
+          machine.send_key("l")
+          wait_for(lambda s: s["detail"] == "mullvad" and s["countries"] == ["gb", "al", "se"], "mullvad-recent-order")
+          # The cursor is back on the top row, the country already in use.
+          machine.send_key("ret")
+          machine.sleep(timedelta(seconds=2))
+          sets = machine.succeed("cat /tmp/mullvad.log").split("\n")
+          assert sets.count("set gb") == 1, f"picking the current country reconnected: {sets}"
+          session("quiet-shell-ipc close")
+          retry(lambda _: state()["panel"] == "", timeout=timedelta(seconds=10))
+
+          machine.send_key("meta_l-spc")
+          wait_for(lambda s: s["spotlight"], "spotlight-mullvad-empty")
+          machine.send_chars("mullvad britain")
+          typed("mullvad britain")
+          retry(lambda _: state()["results"][:1] == ["Mullvad: UK"], timeout=timedelta(seconds=10))
+          machine.send_key("ctrl-backspace")
+          machine.send_chars("alb")
+          typed("mullvad alb")
+          retry(lambda _: state()["results"][:1] == ["Mullvad: Albania"], timeout=timedelta(seconds=10))
+          machine.send_key("ret")
+          retry(lambda _: relay() == "al", timeout=timedelta(seconds=10))
+          retry(lambda _: settled(), timeout=timedelta(seconds=15))
+          retry(lambda _: not state()["spotlight"], timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=1))
+          machine.send_key("meta_l-spc")
+          wait_for(lambda s: s["spotlight"], "spotlight-mullvad-switch")
+          machine.send_chars("mullvad")
+          typed("mullvad")
+          retry(lambda _: any(r.endswith(": Mullvad") for r in state()["results"]), timeout=timedelta(seconds=10))
+          machine.send_key("ret")
+          machine.wait_until_succeeds("test ! -e /tmp/mullvad-on", timeout=timedelta(seconds=10))
+          retry(lambda _: settled(), timeout=timedelta(seconds=15))
+          session("hyprctl eval \"hl.config({ input = { kb_variant = [[dvorak]] } })\"")
+
+      with subtest("Letters open the menus, and j, k, h and l work inside them"):
+          session("hyprctl eval \"hl.config({ input = { kb_variant = [[]] } })\"")
+          def sink():
+              return state()["sys"]["sink"]["level"]
+          def stream_volume():
+              nodes = json.loads(session("pw-dump"))
+              return next(n["info"]["params"]["Props"][0]["channelVolumes"] for n in nodes
+                          if n.get("type", "").endswith("Node") and (n.get("info") or {}).get("props", {}).get("application.name") == "SmokeTone")
+
+          session("quiet-shell-ipc controls")
+          retry(lambda _: state()["panel"] == "controls", timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=2))
+          retry(lambda _: sink() > 0, timeout=timedelta(seconds=10))
+          before = sink()
+          machine.send_key("h")
+          machine.send_key("h")
+          machine.send_key("l")
+          retry(lambda _: sink() == before - 5, timeout=timedelta(seconds=15))
+          machine.send_key("u")
+          wait_for(lambda s: s["detail"] == "bluetooth", "bluetooth-from-letter")
+          machine.send_key("esc")
+          retry(lambda _: state()["detail"] == "", timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=1))
+          machine.send_key("o")
+          wait_for(lambda s: s["detail"] == "sound" and "SmokeTone" in s["streams"], "sound-from-letter")
+          # The output, then the app's slider, which can't go past the end of the list.
+          for letter in ("j", "j"):
+              machine.send_key(letter)
+          retry(lambda _: state()["cursor"].startswith("stream "), timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=1))
+          machine.screenshot("sound-slider-cursor")
+          loud = stream_volume()
+          machine.send_key("h")
+          retry(lambda _: stream_volume() != loud, timeout=timedelta(seconds=10))
+          machine.send_key("esc")
+          retry(lambda _: state()["detail"] == "", timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=1))
+          machine.send_key("t")
+          wait_for(lambda s: s["detail"] == "theme", "theme-from-letter")
+          assert state()["cursor"] == "", "the cursor outlived its menu"
+          # Enter means nothing until j has picked a row.
+          machine.send_key("ret")
+          machine.sleep(timedelta(seconds=1))
+          assert "theme" not in state()["writes"], "Enter acted with no row picked"
+          machine.send_key("j")
+          retry(lambda _: state()["cursor"] != "", timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=1))
+          machine.screenshot("theme-cursor")
+          machine.send_key("ret")
+          retry(lambda _: "theme" in state()["writes"], timeout=timedelta(seconds=10))
+          session("quiet-shell-ipc close")
           session("hyprctl eval \"hl.config({ input = { kb_variant = [[dvorak]] } })\"")
 
       with subtest("notes open once, float, and show in the overview"):

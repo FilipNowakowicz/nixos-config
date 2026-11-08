@@ -9,6 +9,7 @@ Singleton {
 
     property string panel: ""            // "", controls, notifications, system, battery
     property string detail: ""           // "", wifi, bluetooth, vpn, sound, theme
+    property string detailCursor: ""     // Which row or slider j and k are on.
     property bool spotlight: false
     property bool overview: false
     property bool topRevealed: false
@@ -102,7 +103,7 @@ Singleton {
     // A focused field can disappear, which would leave the keyboard with nowhere to go.
     signal refocus
     onPanelChanged: refocus()
-    onDetailChanged: refocus()
+    onDetailChanged: { detailCursor = ""; refocus(); }
 
     property bool clipboard: false       // Spotlight is showing clipboard history
     property var spotlightResults: []    // "Group: Title" of each row, for tests

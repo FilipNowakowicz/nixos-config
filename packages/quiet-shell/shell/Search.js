@@ -199,6 +199,13 @@ function frecency(pick, now) {
     return pick.n * Math.pow(0.5, weeks / 2);
 }
 
+// Puts what has been picked first, best score on top. The rest keep their order.
+function byUse(items, picks, now) {
+    return items.map((item, i) => ({ item, i, used: frecency(picks[item.code], now) }))
+        .sort((a, b) => b.used - a.used || a.i - b.i)
+        .map(x => x.item);
+}
+
 // Records a pick, returning the new memory. `typed` remembers the result chosen
 // for each exact query, so "sm" + Enter becomes a quick key for whatever it picked.
 function remember(memory, query, key, now) {

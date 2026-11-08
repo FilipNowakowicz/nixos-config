@@ -5,6 +5,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.Pipewire
 import Quickshell.Services.Mpris
+import "Search.js" as Search
 
 // System state and writes. A write is only "done" once a fresh readback shows the
 // target. Until then the key is pending, and if it never shows, it fails with Retry.
@@ -50,9 +51,26 @@ Singleton {
     readonly property var battery: state.battery || null
     // Spotify over MPRIS: its signals arrive at once, where a poll lagged seconds.
     readonly property var player: Mpris.players.values.find(p => p.dbusName === "org.mpris.MediaPlayer2.spotify") || null
-    readonly property var media: player && player.trackTitle
+    readonly property var currentTrack: player && player.trackTitle
         ? { playing: player.isPlaying, title: player.trackTitle, artist: player.trackArtist, art: player.trackArtUrl }
         : null
+    // A player reports no track for a moment between songs. Keep showing the last one
+    // through that gap, so only a real stop reads as "Not playing".
+    property var media: null
+    Component.onCompleted: media = currentTrack
+    onCurrentTrackChanged: {
+        if (currentTrack) {
+            trackGap.stop();
+            media = currentTrack;
+        } else {
+            trackGap.restart();
+        }
+    }
+    Timer {
+        id: trackGap
+        interval: 1500
+        onTriggered: root.media = root.currentTrack
+    }
     readonly property bool night: !!state.night
     readonly property bool awake: !!state.awake
 
@@ -403,6 +421,11 @@ Singleton {
     }
 
     function setMullvadCountry(code) {
+        // Setting the same country again would only reconnect the tunnel.
+        if ((state.vpn && state.vpn.country === code) || pending("mullvad-location"))
+            return;
+        countryMemory = Search.remember(countryMemory, "", code, Date.now());
+        countryMemoryFile.setText(JSON.stringify(countryMemory));
         write("mullvad-location", ["mullvad", "relay", "set", "location", code], s => s.vpn && s.vpn.country === code, "Mullvad's location didn't change.", { timeout: 15000, target: code });
     }
     function setExitNode(name) {
@@ -413,7 +436,28 @@ Singleton {
         Quickshell.execDetached(["nm-connection-editor"]);
     }
     property var countries: []
+    // Countries picked before come first, scored as Spotlight scores its results.
+    property var countryMemory: ({ picks: {}, typed: {} })
+    FileView {
+        id: countryMemoryFile
+        path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/quiet-shell/mullvad.json"
+        printErrors: false
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                root.countryMemory = { picks: JSON.parse(text()).picks || {}, typed: {} };
+            } catch (e) {
+                console.warn("quiet-shell: bad mullvad memory", e);
+            }
+        }
+    }
+    function rankCountries(list) {
+        return Search.byUse(list, countryMemory.picks, Date.now());
+    }
     function loadCountries() {
+        // Sorted once here, so rows don't move under the pointer after a pick.
+        countries = rankCountries(countries);
         if (!countryList.running)
             countryList.running = true;
     }
@@ -423,7 +467,9 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    root.countries = JSON.parse(text);
+                    const fresh = root.rankCountries(JSON.parse(text));
+                    if (JSON.stringify(fresh) !== JSON.stringify(root.countries))
+                        root.countries = fresh;
                 } catch (e) {
                     root.countries = [];
                 }

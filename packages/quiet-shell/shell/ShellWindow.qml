@@ -41,6 +41,8 @@ PanelWindow {
                 return;
             if (Ui.panel === "controls" && Ui.detail === "")
                 event.accepted = controls.pressLetter(event.text.toLowerCase());
+            else if (Ui.panel === "controls")
+                event.accepted = controls.pressDetailKey(event);
             else if (Ui.panel === "system")
                 event.accepted = menus.pressLetter(event.text.toLowerCase());
             else if (Ui.panel === "notifications")

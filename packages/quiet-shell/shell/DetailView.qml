@@ -17,6 +17,79 @@ Item {
     readonly property var exitNodes: Sys.state.vpn ? Sys.state.vpn.exitNodes : []
     readonly property string title: ({ wifi: "Wi-Fi", bluetooth: "Bluetooth", vpn: "VPN", sound: "Sound", theme: "Theme", mullvad: "Mullvad location" })[kind] || ""
 
+    // Everything j and k stop on, top to bottom. Hidden rows don't count.
+    function cursorStops(item, found) {
+        for (const child of item.children) {
+            if (!child.visible)
+                continue;
+            if (child.cursorKey !== undefined)
+                found.push(child);
+            else
+                cursorStops(child, found);
+        }
+        return found;
+    }
+    function moveCursor(step) {
+        const stops = cursorStops(body, []);
+        if (!stops.length)
+            return;
+        const at = stops.findIndex(s => s.cursorKey === Ui.detailCursor);
+        Ui.detailCursor = stops[at < 0 ? 0 : Math.max(0, Math.min(stops.length - 1, at + step))].cursorKey;
+        // Enter belongs to the cursor now, not to a row reached with Tab.
+        Ui.refocus();
+    }
+
+    // A letter does what a click on its row does, as on the main panel. Holding one
+    // down must not flip a tunnel back and forth. Every list moves Vim-style, and h and
+    // l move a slider. Enter does nothing until j or k has picked a row.
+    function pressKey(event) {
+        const letter = event.text.toLowerCase();
+        const enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter;
+        const step = letter === "j" || event.key === Qt.Key_Down ? 1 : letter === "k" || event.key === Qt.Key_Up ? -1 : 0;
+        if (kind === "vpn") {
+            const rows = { t: () => Sys.toggleTailscale(), m: () => Sys.toggleMullvad() };
+            if (Sys.has("vpn"))
+                rows.l = () => Ui.detail = "mullvad";
+            if (rows[letter]) {
+                if (!event.isAutoRepeat)
+                    rows[letter]();
+                return true;
+            }
+        }
+        if (kind !== "mullvad") {
+            if (step) {
+                moveCursor(step);
+                return true;
+            }
+            const stop = cursorStops(body, []).find(s => s.cursorKey === Ui.detailCursor);
+            if (!stop)
+                return false;
+            const nudge = letter === "h" || event.key === Qt.Key_Left ? -5 : letter === "l" || event.key === Qt.Key_Right ? 5 : 0;
+            if (nudge && stop.nudge) {
+                stop.nudge(nudge);
+                return true;
+            }
+            if (enter && !stop.nudge && !event.isAutoRepeat) {
+                stop.clicked();
+                return true;
+            }
+            return false;
+        }
+        if (enter) {
+            const row = Sys.countries[locations.currentIndex];
+            if (row && !event.isAutoRepeat)
+                Sys.setMullvadCountry(row.code);
+            return true;
+        }
+        if (!step)
+            return false;
+        locations.currentIndex = Math.max(0, Math.min(locations.count - 1, locations.currentIndex + step));
+        locations.positionViewAtIndex(locations.currentIndex, ListView.Contain);
+        // Enter belongs to the cursor now, not to a row reached with Tab.
+        Ui.refocus();
+        return true;
+    }
+
     Glass { anchors.fill: parent; radius: 26 }
     ColumnLayout {
         id: body
@@ -38,6 +111,7 @@ Item {
                 Icon { anchors.centerIn: parent; name: "chevron-left"; size: 15 }
             }
             Label { Layout.fillWidth: true; text: root.title; font.weight: Font.DemiBold; font.pixelSize: 14 }
+            KeyHint { Layout.rightMargin: 9; text: root.kind === "" ? "" : root.kind === "sound" ? "J K  H L  Enter" : "J K  Enter" }
             Spinner {
                 Layout.rightMargin: 9
                 visible: Sys.scanning && (root.kind === "wifi" || root.kind === "bluetooth")
@@ -146,6 +220,7 @@ Item {
             Layout.fillWidth: true
             name: "Tailscale"
             title: "Tailscale"
+            hint: "T"
             note: Sys.tailscaleOn ? "Connected" : "Off"
             selected: Sys.tailscaleOn
             busy: Sys.pending("tailscale")
@@ -156,6 +231,7 @@ Item {
             Layout.fillWidth: true
             name: "Mullvad"
             title: "Mullvad"
+            hint: "M"
             note: Sys.mullvadOn ? "Connected" : "Off"
             selected: Sys.mullvadOn
             busy: Sys.pending("mullvad")
@@ -167,6 +243,7 @@ Item {
             Layout.fillWidth: true
             name: "Mullvad location"
             title: "Mullvad location"
+            hint: "L"
             note: (Sys.state.vpn && Sys.state.vpn.country || "").toUpperCase()
             onClicked: Ui.detail = "mullvad"
         }
@@ -194,15 +271,18 @@ Item {
 
         // Mullvad location. There are about fifty countries, so this one scrolls.
         ListView {
+            id: locations
             visible: root.kind === "mullvad"
             Layout.fillWidth: true
             Layout.preferredHeight: 300
             clip: true
             model: root.kind === "mullvad" ? Sys.countries : []
             boundsBehavior: Flickable.StopAtBounds
+            onModelChanged: currentIndex = 0
             delegate: DetailRow {
                 required property var modelData
                 width: ListView.view.width
+                marked: ListView.isCurrentItem
                 name: modelData.name
                 title: modelData.name
                 selected: Sys.state.vpn && Sys.state.vpn.country === modelData.code
@@ -256,6 +336,7 @@ Item {
                 ThinSlider {
                     Layout.fillWidth: true
                     name: app.title + " volume"
+                    cursorKey: "stream " + app.modelData.id
                     level: Math.round(app.modelData.audio.volume * 100)
                     onChanged: value => app.modelData.audio.volume = value / 100
                 }
@@ -277,6 +358,7 @@ Item {
                 required property var modelData
                 Layout.fillWidth: true
                 name: modelData.desc
+                cursorKey: "mic " + modelData.desc
                 title: modelData.desc
                 selected: modelData.active
                 busy: Sys.pendingFor("device-source", modelData.name)
