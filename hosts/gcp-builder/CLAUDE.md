@@ -31,14 +31,14 @@ the host-local provisioning runbook.
   `main` does, without sharing a credential with `main` (#304).
 - `nix.buildMachines` is intentionally **not** set on either caller — that would
   make every ordinary build pay an SSH-connect timeout while the builder is off.
-  Instead `scripts/validate.sh` (`host`/`hosts`/`heavy`/`profile-test(s)`/
-  `smoke-*`) calls `ensure_builder`: it starts the VM (via `gcloud`, falling back
+  Instead `scripts/validate.sh` starts the VM (via `gcloud`, falling back
   to `nix shell nixpkgs#google-cloud-sdk -c gcloud` if `gcloud` isn't on `PATH`),
-  waits for SSH over Tailscale, and passes `--builders` for that one invocation.
+  waits for SSH over Tailscale, and runs the whole command on it. See
+  [`docs/remote-builder.md`](../../docs/remote-builder.md).
 - Knobs: `USE_BUILDER=0` disables offload; `BUILDER_ZONE`, `BUILDER_FQDN`,
-  `BUILDER_MAXJOBS` override defaults. Offload is a silent no-op (local build)
-  when neither `gcloud` nor `nix` is available, or the caller's build key isn't
-  present (CI, fresh clones).
+  `BUILDER_MAXJOBS` override defaults. Commands run locally when the caller's build
+  key isn't present (CI, fresh clones), and after a warning if the VM can't be
+  started or reached.
 - **Prerequisite:** the calling host's `gcloud` (or `nix shell` fallback) must be
   authenticated, with the builder's project active
   (`gcloud config set project <id>`).
@@ -144,8 +144,7 @@ Terraform state.
    ```bash
    gcloud compute instances stop gcp-builder --zone "$ZONE"   # prove cold start
    bash scripts/validate.sh host homeserver-gcp
-   # expect: "remote builder: gcp-builder ready; offloading builds"
-   # and nix logging: building '…' on 'ssh-ng://user@gcp-builder.…'
+   # expect: "remote builder: gcp-builder ready"
    ```
 
 ## Build key rotation

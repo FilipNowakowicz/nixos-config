@@ -10,98 +10,27 @@ repo_root="$(
 cd "$repo_root"
 
 # ── On-demand remote builder ─────────────────────────────────────────────────
-# Heavy build commands transparently offload to the on-demand gcp-builder VM:
-# start it (idempotent), wait for SSH over Tailscale, then pass --builders for
-# the invocation. The builder powers itself off when idle. This is a no-op
-# (local build) whenever offload is disabled, gcloud/nix are unavailable, or
-# the build key is absent — e.g. in CI or before a caller host has the build-key
-# wiring deployed. `main` and `gcp-agent` each carry their own dedicated build
-# key at this same path (see hosts/main/nix-remote-build.nix and
-# hosts/gcp-agent/nix-remote-build.nix).
-builder_name="gcp-builder"
-builder_zone="${BUILDER_ZONE:-europe-west2-a}"
-builder_fqdn="${BUILDER_FQDN:-}"
-builder_key="/run/secrets/gcp_builder_build_key" # root-owned; daemon reads it
-builder_maxjobs="${BUILDER_MAXJOBS:-8}"
-builder_features="kvm,nixos-test,big-parallel,benchmark"
-builder_nix_args=()
-gcloud_cmd=()
+# On a host with the build key, heavy commands run entirely on the on-demand
+# gcp-builder VM, including evaluation. If it cannot be reached they run here,
+# after a warning. The VM powers itself off when idle.
+# shellcheck source=scripts/lib/builder.sh
+source "$repo_root/scripts/lib/builder.sh"
 
-builder_enabled() {
-  [[ ${USE_BUILDER:-1} != 0 ]] || return 1
-  [[ -e $builder_key ]] || return 1 # only present on a deployed `main`/`gcp-agent`
-}
-
-# Resolve a `gcloud` invocation: prefer `gcloud` on PATH, falling back to
-# `nix shell nixpkgs#google-cloud-sdk -c gcloud` (gcp-agent does not carry the
-# Google Cloud SDK as a base package). Mirrors scripts/agent-session.sh.
-resolve_gcloud_cmd() {
-  if command -v gcloud >/dev/null 2>&1; then
-    gcloud_cmd=(gcloud)
-  elif command -v nix >/dev/null 2>&1; then
-    gcloud_cmd=(nix shell nixpkgs#google-cloud-sdk -c gcloud)
-  else
-    return 1
-  fi
-}
-
-# Resolve the builder FQDN from the deploy-rs flake output (sourced from the
-# host registry's tailnetFQDN), falling back to the historical literal if
-# `nix eval` fails. BUILDER_FQDN still overrides both.
-resolve_builder_fqdn() {
-  [[ -n $builder_fqdn ]] && return 0
-  builder_fqdn="$(nix eval --raw .#deploy.nodes.gcp-builder.hostname 2>/dev/null || true)"
-  if [[ -z $builder_fqdn ]]; then
-    builder_fqdn="gcp-builder.tail90fc7a.ts.net"
-  fi
-}
-
-ensure_builder() {
-  builder_enabled || {
-    echo "remote builder: disabled (USE_BUILDER=0 or no build key); building locally" >&2
-    return 0
-  }
-  resolve_gcloud_cmd || {
-    echo "remote builder: gcloud unavailable (and no nix fallback); building locally" >&2
-    return 0
-  }
-  resolve_builder_fqdn
-  echo "remote builder: starting $builder_name ..." >&2
-  if ! "${gcloud_cmd[@]}" compute instances start "$builder_name" --zone "$builder_zone" --quiet >/dev/null 2>&1; then
-    echo "remote builder: could not start VM (check gcloud project/auth); building locally" >&2
+offload_to_builder() {
+  [[ ${ON_BUILDER:-0} == 0 ]] || return 0
+  builder_enabled || return 0
+  if ! start_builder; then
+    echo "remote builder: UNAVAILABLE, running on this machine instead" >&2
     return 0
   fi
-  # Readiness probe prefers the caller's own SSH key (authorized via
-  # sops-base), falling back to the dedicated build key if the caller has no
-  # personal key (gcp-agent: -i on an unreadable/absent file is silently
-  # skipped, so this is a no-op on main). The build itself always goes through
-  # $builder_key under --builders, read by root's nix-daemon.
-  local ready=0
-  for _ in $(seq 1 40); do
-    if ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new \
-      -o IdentitiesOnly=no -i "$builder_key" \
-      "user@$builder_fqdn" true 2>/dev/null; then
-      ready=1
-      break
-    fi
-    sleep 3
-  done
-  if [[ $ready != 1 ]]; then
-    echo "remote builder: not reachable after wait; building locally" >&2
-    return 0
-  fi
-  builder_nix_args=(
-    --builders
-    "ssh-ng://user@$builder_fqdn x86_64-linux $builder_key $builder_maxjobs 2 $builder_features"
-  )
-  echo "remote builder: $builder_name ready; offloading builds" >&2
+  BUILDER_READY=1 exec bash "$repo_root/scripts/on-builder.sh" bash scripts/validate.sh "$@"
 }
 
 build_attrs() {
   if [[ ${PRINT_PATHS:-} == "1" ]]; then
-    nix build "$@" ${builder_nix_args[@]+"${builder_nix_args[@]}"} --no-link --print-out-paths --show-trace
+    nix build "$@" --no-link --print-out-paths --show-trace
   else
-    nix build "$@" ${builder_nix_args[@]+"${builder_nix_args[@]}"} --no-link --show-trace
+    nix build "$@" --no-link --show-trace
   fi
 }
 
@@ -110,7 +39,7 @@ show_report_attrs() {
   paths_file="$(mktemp)"
   # Capture nix-build's exit status: process substitution does not propagate it
   # to the shell, so a failed build would otherwise be silently swallowed.
-  nix build "$@" ${builder_nix_args[@]+"${builder_nix_args[@]}"} --no-link --print-out-paths --show-trace >"$paths_file" || rc=$?
+  nix build "$@" --no-link --print-out-paths --show-trace >"$paths_file" || rc=$?
   while IFS= read -r output; do
     cat "$output"
     printf '\n'
@@ -143,6 +72,11 @@ EOF
 
 command="${1:-}"
 target="${2:-}"
+
+case "$command" in
+"" | -h | --help | docs | tf-drift | cve-reports) ;;
+*) offload_to_builder "$@" ;;
+esac
 
 build_host() {
   case "$1" in
@@ -292,7 +226,6 @@ light)
   ;;
 
 host)
-  ensure_builder
   build_host "${target:?Usage: $0 host <name>}"
   ;;
 
@@ -301,7 +234,6 @@ package)
   ;;
 
 hosts)
-  ensure_builder
   build_attrs \
     ".#nixosConfigurations.main-ci.config.system.build.toplevel" \
     ".#nixosConfigurations.homeserver-gcp.config.system.build.toplevel" \
@@ -315,7 +247,6 @@ smoke-homeserver-gcp)
     echo "error: /dev/kvm missing; the homeserver-gcp smoke test cannot run here." >&2
     exit 1
   fi
-  ensure_builder
   build_attrs ".#legacyPackages.${system}.ciTests.homeserver-gcp-smoke"
   ;;
 
@@ -324,19 +255,16 @@ smoke-quiet-shell)
     echo "error: /dev/kvm missing; the quiet-shell smoke test cannot run here." >&2
     exit 1
   fi
-  ensure_builder
   build_attrs \
     ".#legacyPackages.${system}.ciTests.quiet-shell-smoke" \
     ".#legacyPackages.${system}.ciTests.desktop-session"
   ;;
 
 profile-test)
-  ensure_builder
   build_profile_test "${target:?Usage: $0 profile-test <name>}"
   ;;
 
 profile-tests)
-  ensure_builder
   build_attrs \
     ".#legacyPackages.${system}.ciTests.profile-security" \
     ".#legacyPackages.${system}.ciTests.profile-observability" \
@@ -345,7 +273,6 @@ profile-tests)
   ;;
 
 heavy)
-  ensure_builder
   build_attrs \
     ".#legacyPackages.${system}.ciTests.homeserver-gcp-smoke" \
     ".#legacyPackages.${system}.ciTests.quiet-shell-smoke" \

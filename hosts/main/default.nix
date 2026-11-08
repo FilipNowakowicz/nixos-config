@@ -53,7 +53,17 @@ let
     # guard; scope the exception to this flake path only.
     export HOME=/root
     ${pkgs.git}/bin/git config --global --add safe.directory "$flake" || true
-    toplevel=$(${pkgs.nix}/bin/nix build --no-link --print-out-paths \
+    # --remote does the builds on gcp-builder. The caller starts the VM first
+    # (`bash scripts/on-builder.sh true`). It takes no other argument, so this
+    # passwordless command still can only activate this checkout.
+    remote_args=()
+    if [ "''${1:-}" = --remote ]; then
+      remote_args=(
+        --max-jobs 0
+        --builders "ssh-ng://user@${hostRegistry.gcp-builder.tailnetFQDN} x86_64-linux /run/secrets/gcp_builder_build_key 8 2 kvm,nixos-test,big-parallel,benchmark"
+      )
+    fi
+    toplevel=$(${pkgs.nix}/bin/nix build --no-link --print-out-paths "''${remote_args[@]}" \
       "$flake#nixosConfigurations.main.config.system.build.toplevel")
     ${pkgs.nix}/bin/nix-env -p /nix/var/nix/profiles/system --set "$toplevel"
     exec "$toplevel/bin/switch-to-configuration" switch

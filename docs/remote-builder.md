@@ -21,8 +21,8 @@ pattern writeup that ties them together.
 ## The pattern in one sentence
 
 Keep the builder powered off, start it on demand only for the commands that
-benefit, pass `--builders` for that single invocation rather than registering a
-global build machine, and let the builder shut itself down when no one is using
+benefit, run those commands on it rather than registering a global build machine,
+and let the builder shut itself down when no one is using
 it — so a workstation gets cloud-scale build capacity without paying for an
 always-on machine or an SSH-timeout tax on every ordinary rebuild.
 
@@ -31,9 +31,8 @@ always-on machine or an SSH-timeout tax on every ordinary rebuild.
 The obvious approach — register the builder in `nix.buildMachines` on `main` — is
 deliberately **not** used. The builder is off most of the time, so a global build
 machine would make every ordinary `rebuild` pay an SSH-connect timeout before
-falling back to local. Instead the offload is opt-in per invocation: only the
-heavy commands in `scripts/validate.sh` start the VM and pass `--builders` for
-that one build.
+falling back to local. Instead the offload is per invocation: `scripts/validate.sh`
+and `rebuild --remote` start the VM when they need it.
 
 `hosts/main/nix-remote-build.nix` therefore provides only the pieces that must
 live in the system configuration, not a global build machine:
@@ -49,47 +48,53 @@ live in the system configuration, not a global build machine:
 
 ## Lifecycle
 
-The offload is driven by `ensure_builder` in `scripts/validate.sh`, invoked by the
-build-heavy subcommands (`host`, `hosts`, `heavy`, `profile-test(s)`, `smoke-*`):
+`scripts/validate.sh` runs every subcommand on the builder except `docs`,
+`tf-drift` and `cve-reports`. For anything else, use
+`bash scripts/on-builder.sh <command>`. The shared steps are in
+`scripts/lib/builder.sh`:
 
-1. **Gate.** Offload runs only when it can help: `USE_BUILDER != 0` and the
-   build key exists at `/run/secrets/gcp_builder_build_key` (present only on a
-   deployed `main` or `gcp-agent`, each with their own dedicated key — see
-   [Trust boundary](#trust-boundary)). If the key is absent it is a silent
-   no-op and the build runs locally — so CI and fresh clones are unaffected.
-2. **Start.** `gcloud compute instances start gcp-builder` (idempotent),
-   falling back to `nix shell nixpkgs#google-cloud-sdk -c gcloud` if `gcloud`
-   isn't on `PATH` (it isn't on `gcp-agent`'s base packages). If the VM cannot be
-   started — wrong project, missing auth — it logs and falls back to a local
-   build rather than failing the command.
+1. **Gate.** Offload runs when `USE_BUILDER != 0` and the build key exists at
+   `/run/secrets/gcp_builder_build_key` (present only on a deployed `main` or
+   `gcp-agent`, each with their own dedicated key — see
+   [Trust boundary](#trust-boundary)). Without the key the command runs locally,
+   so CI and fresh clones are unaffected.
+2. **Start.** `gcloud compute instances start gcp-builder` (idempotent), falling
+   back to `nix shell nixpkgs#google-cloud-sdk -c gcloud` if `gcloud` isn't on
+   `PATH`. `validate.sh` prints a warning and runs locally if the VM cannot be
+   started or reached. `on-builder.sh` fails instead.
 3. **Wait.** A readiness probe SSHes over the tailnet (`user@<builder-fqdn>`) with
-   a bounded retry (~2 min) until the box answers. The probe uses the caller's own
-   SSH key; the build itself uses the root-only build key under `--builders`.
-4. **Offload.** On success the build appends
-   `--builders "ssh-ng://user@<fqdn> x86_64-linux <key> <maxjobs> 2 <features>"`,
-   with `features = kvm,nixos-test,big-parallel,benchmark` so the KVM-backed
-   nixos test suite can run remotely.
-5. **Self-shutdown.** `builder-idle-shutdown.timer` on the builder checks every
+   a bounded retry (~2 min) until the box answers.
+4. **Copy.** The files Git tracks, with their current contents, go to a new
+   directory under `~/work`. Only encrypted secrets are in that set, and ignored
+   files such as `infra/terraform.tfvars` stay behind.
+5. **Run.** The command runs there, including evaluation, with its output and exit
+   status passed back. Results stay on the builder.
+6. **Self-shutdown.** `builder-idle-shutdown.timer` on the builder checks every
    5 minutes and powers the box off after 20 minutes with no established port-22
-   connection (no interactive session and no in-flight distributed build). The
-   idle stamp lives in `/run` (tmpfs), so a fresh boot gets a full grace window
-   before the first check.
+   connection. The idle stamp lives in `/run` (tmpfs), so a fresh boot gets a full
+   grace window before the first check.
 
-Net effect: a heavy `bash scripts/validate.sh hosts` cold-starts the builder,
-offloads, and the builder powers itself back off ~20 minutes after the last build
-finishes — no manual start/stop in the common path.
+`rebuild --remote` is the exception, because `main` needs the finished system. It
+evaluates locally, passes `--max-jobs 0` and `--builders` for that one invocation
+so that every build step runs on the builder, and copies the closure back.
+`sudo nixos-switch-main --remote` does the same for agents, after
+`bash scripts/on-builder.sh true` has started the VM.
 
 ## Knobs
 
-| Variable          | Default                        | Effect                                   |
-| :---------------- | :----------------------------- | :--------------------------------------- |
-| `USE_BUILDER`     | `1`                            | Set `0` to force a local build.          |
-| `BUILDER_ZONE`    | `europe-west2-a`               | GCE zone of the builder VM.              |
-| `BUILDER_FQDN`    | `gcp-builder.<tailnet>.ts.net` | Tailnet name the offload connects to.    |
-| `BUILDER_MAXJOBS` | `8`                            | Remote `maxjobs` passed to `--builders`. |
+| Variable          | Default                        | Effect                                                |
+| :---------------- | :----------------------------- | :---------------------------------------------------- |
+| `USE_BUILDER`     | `1`                            | Set `0` to run `validate.sh` locally.                 |
+| `BUILDER_ZONE`    | `europe-west2-a`               | GCE zone of the builder VM.                           |
+| `BUILDER_FQDN`    | `gcp-builder.<tailnet>.ts.net` | Tailnet name of the builder.                          |
+| `BUILDER_MAXJOBS` | `8`                            | Remote `maxjobs` passed to `--builders` by `rebuild`. |
 
 Prerequisite: `gcloud` on `main` must be authenticated with the builder's project
 as its active config (`gcloud config set project <id>`).
+
+An agent's plain `nix build` or `nix flake check` is denied by
+`.claude/hooks/guard-bash.sh` on hosts that can offload. Dry runs and
+`--max-jobs 0` builds are allowed, and `LOCAL_BUILD=1` overrides it.
 
 ## Trust boundary
 
@@ -135,4 +140,5 @@ actually appears. Extract helpers only then.
   offload wiring and the operator follow-ups needed to make it live.
 - `hosts/main/nix-remote-build.nix` / `hosts/gcp-agent/nix-remote-build.nix` —
   the consumer-side system wiring on each caller.
-- `scripts/validate.sh` — the `ensure_builder` offload implementation.
+- `scripts/lib/builder.sh`, `scripts/on-builder.sh`, `scripts/validate.sh` and
+  `scripts/rebuild-remote.sh` — the offload implementation.

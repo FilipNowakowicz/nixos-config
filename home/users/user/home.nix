@@ -106,12 +106,21 @@ in
     # Shared aliases and shell functions are in common.nix
     zsh = {
       shellAliases = {
-        rebuild = "nh os switch --hostname ${hostName} .";
         theme = "theme-switch";
         copilot = "steam-run gh copilot";
       };
 
       initContent = ''
+        # Run `rebuild --remote` to do every build step on gcp-builder.
+        rebuild() {
+          if [[ "''${1:-}" == --remote ]]; then
+            shift
+            bash ${nixRepo}/scripts/rebuild-remote.sh "$@"
+          else
+            nh os switch --hostname ${hostName} . "$@"
+          fi
+        }
+
         _theme_switch_completion() {
           local themes
           themes=($(ls ${nixRepo}/home/theme/themes | sed 's/\.nix//'))

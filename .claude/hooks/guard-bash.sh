@@ -10,6 +10,7 @@
 #
 #   ask   — destructive block-device ops, LUKS format/erase, recursive rm of a
 #           top-level path, or a redirect into a raw disk device
+#   deny  — a plain nix build or flake check on a host that can offload to gcp-builder
 #   allow — everything else falls through (exit 0, no output)
 set -uo pipefail
 
@@ -60,6 +61,15 @@ while IFS= read -r stmt; do
   done
   [ -z "$name" ] && continue
   base=$(basename -- "$name")
+
+  # Heavy Nix work belongs on gcp-builder. A dry run or an explicitly offloaded
+  # build is fine, and LOCAL_BUILD=1 deliberately overrides this.
+  if [ "$base" = nix ] && matches "$stmt" '(^|[[:space:]])nix[[:space:]]+(build|flake[[:space:]]+check)([[:space:]]|$)' &&
+    ! matches "$stmt" '(--dry-run|--no-build|--max-jobs[[:space:]]+0|-j[[:space:]]*0)([[:space:]]|$)' &&
+    ! matches "$cmd" '(^|[[:space:];&|])LOCAL_BUILD=1[[:space:]]' &&
+    [ -e /run/secrets/gcp_builder_build_key ]; then
+    emit deny "Run heavy Nix work on gcp-builder: use scripts/validate.sh, or bash scripts/on-builder.sh nix build ... for anything else. Prefix with LOCAL_BUILD=1 only if it must build on this machine."
+  fi
 
   case "$base" in
   mkfs | mkfs.* | wipefs | blkdiscard | sgdisk | sfdisk)

@@ -429,16 +429,17 @@ scripts/agent-review-pr.sh --pr <n> --enable-auto-merge
 
 ## On-Demand Remote Builder
 
-Build-heavy `scripts/validate.sh` subcommands (`host`, `hosts`, `heavy`,
-`profile-test(s)`, `smoke-*`) transparently offload to the on-demand
-`gcp-builder` VM. The script starts the VM (idempotent), waits for SSH over
-Tailscale, and passes `--builders` for that one invocation; the builder powers
-itself off after ~20 minutes idle. No manual start/stop is needed in the common
+`scripts/validate.sh` subcommands, except `docs`, `tf-drift` and `cve-reports`,
+run entirely on the on-demand `gcp-builder` VM. The script starts the VM
+(idempotent), waits for SSH over Tailscale, and runs the command against a copy of
+the checkout; the builder powers itself off after ~20 minutes idle. Use
+`bash scripts/on-builder.sh <command>` for anything else, and `rebuild --remote`
+to build `main` there. No manual start/stop is needed in the common
 path.
 
-Offload is a silent no-op — the build runs locally — whenever it cannot help:
-`USE_BUILDER=0`, `gcloud` is absent, or the build key is not present (CI, fresh
-clones, or a `main` without the wiring deployed). So a cold builder only ever
+The command runs locally when `USE_BUILDER=0` or the build key is not present
+(CI, fresh clones, or a `main` without the wiring deployed), and after a warning
+if the VM cannot be started or reached. So a cold builder only ever
 adds a start-and-wait at the front of a heavy build; it never blocks an ordinary
 `rebuild`, which is why the builder is deliberately not registered in
 `nix.buildMachines`.

@@ -4,7 +4,7 @@
 # gcp-agent is normally powered off and powers itself back off when idle (see
 # the agent-idle-shutdown timer in hosts/gcp-agent/default.nix). This helper is
 # the "start" side of that lifecycle — the agent analog of validate.sh's
-# build-offload-focused ensure_builder, kept separate because its job is to open
+# build-offload-focused start_builder, kept separate because its job is to open
 # an interactive/orchestration session rather than to offload a build.
 #
 # Usage:
