@@ -5,6 +5,7 @@ on:
     branches:
       - main
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   merge_group:
   workflow_dispatch:
 
@@ -94,11 +95,102 @@ jobs:
       - name: Validate planner coverage
         run: bash scripts/test-ci-plan.sh
 
+      - name: Validate builder dispatch and merge-gate contracts
+        run: bash scripts/test-ci-builder.sh
+
       - name: Validate cache config consistency
         run: bash scripts/check-cache-config.sh
 
       - name: Validate CI build-job safeguards
         run: bash scripts/check-ci-build-safeguards.sh
+
+  builder:
+    needs: changes
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && !contains(github.event.pull_request.labels.*.name, 'skip-builder')
+      && (needs.changes.outputs.run_light == 'true'
+          || needs.changes.outputs.run_packages == 'true'
+          || needs.changes.outputs.hosts == 'true'
+          || needs.changes.outputs.tests == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    outputs:
+      available: ${{ steps.probe.outputs.available || 'false' }}
+      completed: ${{ steps.checks.outputs.completed || 'false' }}
+    env:
+      # tag:ci-builder cannot query the tailnet DNS resolver.
+      BUILDER_FQDN: 100.106.144.121
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          persist-credentials: false
+
+      - id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        continue-on-error: true
+        with:
+          credentials_json: ${{ secrets.BUILDER_CI_GCP_KEY }}
+
+      - id: gcloud
+        if: steps.auth.outcome == 'success'
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+        continue-on-error: true
+
+      - id: tailnet
+        uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4
+        continue-on-error: true
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci-builder
+          args: --accept-dns=false
+          hostname: ci-builder-${{ github.run_id }}-${{ github.run_attempt }}
+          retry: "2"
+          log-mode: quiet
+
+      - name: Start builder and probe SSH
+        id: probe
+        env:
+          BUILDER_CI_SSH_KEY: ${{ secrets.BUILDER_CI_SSH_KEY }}
+          CLOUD_OUTCOME: ${{ steps.gcloud.outcome }}
+          TAILNET_OUTCOME: ${{ steps.tailnet.outcome }}
+        run: |
+          export BUILDER_SSH_KEY="$RUNNER_TEMP/builder-ci-key"
+          echo "BUILDER_SSH_KEY=$BUILDER_SSH_KEY" >> "$GITHUB_ENV"
+          umask 077
+          printf '%s\n' "$BUILDER_CI_SSH_KEY" > "$BUILDER_SSH_KEY"
+          source scripts/lib/builder.sh
+          if [[ "$CLOUD_OUTCOME" == success && "$TAILNET_OUTCOME" == success ]] && start_builder; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'Builder unavailable before checks; using GitHub-hosted fallback jobs.'
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run planned checks on builder
+        id: checks
+        if: steps.probe.outputs.available == 'true'
+        env:
+          BUILDER_READY: "1"
+          PLAN_LIGHT: ${{ needs.changes.outputs.run_light }}
+          PLAN_PACKAGES: ${{ needs.changes.outputs.run_packages }}
+          PLAN_HOSTS: ${{ needs.changes.outputs.hosts }}
+          PLAN_TESTS: ${{ needs.changes.outputs.tests }}
+          PLAN_HOSTS_MATRIX: ${{ needs.changes.outputs.hosts_matrix }}
+          PLAN_TESTS_MATRIX: ${{ needs.changes.outputs.tests_matrix }}
+        run: |
+          bash scripts/on-builder.sh env \
+            "PLAN_LIGHT=$PLAN_LIGHT" "PLAN_PACKAGES=$PLAN_PACKAGES" \
+            "PLAN_HOSTS=$PLAN_HOSTS" "PLAN_TESTS=$PLAN_TESTS" \
+            "PLAN_HOSTS_MATRIX=$PLAN_HOSTS_MATRIX" "PLAN_TESTS_MATRIX=$PLAN_TESTS_MATRIX" \
+            nix shell --inputs-from . nixpkgs#git nixpkgs#jq -c bash scripts/ci-builder-checks.sh
+          echo 'completed=true' >> "$GITHUB_OUTPUT"
+
+      - name: Remove temporary SSH key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/builder-ci-key"
 
   eval:
     needs: [push-policy, changes]
@@ -115,8 +207,12 @@ jobs:
         run: bash scripts/validate.sh flake-eval
 
   checks-light:
-    needs: [push-policy, changes]
-    if: needs.changes.outputs.run_light == 'true'
+    needs: [push-policy, changes, builder]
+    if: >-
+      always() && needs.changes.result == 'success'
+      && needs.changes.outputs.run_light == 'true'
+      && (needs.builder.result == 'skipped'
+          || (needs.builder.result == 'success' && needs.builder.outputs.available == 'false'))
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -203,8 +299,12 @@ jobs:
         run: nix run nixpkgs#actionlint
 
   packages:
-    needs: [push-policy, changes]
-    if: needs.changes.outputs.run_packages == 'true'
+    needs: [push-policy, changes, builder]
+    if: >-
+      always() && needs.changes.result == 'success'
+      && needs.changes.outputs.run_packages == 'true'
+      && (needs.builder.result == 'skipped'
+          || (needs.builder.result == 'success' && needs.builder.outputs.available == 'false'))
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -235,8 +335,12 @@ jobs:
         run: bash scripts/push-to-r2.sh
 
   hosts:
-    needs: [push-policy, changes]
-    if: needs.changes.outputs.hosts == 'true'
+    needs: [push-policy, changes, builder]
+    if: >-
+      always() && needs.changes.result == 'success'
+      && needs.changes.outputs.hosts == 'true'
+      && (needs.builder.result == 'skipped'
+          || (needs.builder.result == 'success' && needs.builder.outputs.available == 'false'))
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
@@ -318,8 +422,12 @@ jobs:
         run: bash scripts/write-cache-summary.sh "$CACHE_LABEL" "$RESTORED_BYTES" "$CACHE_HIT"
 
   tests:
-    needs: [push-policy, changes]
-    if: needs.changes.outputs.tests == 'true'
+    needs: [push-policy, changes, builder]
+    if: >-
+      always() && needs.changes.result == 'success'
+      && needs.changes.outputs.tests == 'true'
+      && (needs.builder.result == 'skipped'
+          || (needs.builder.result == 'success' && needs.builder.outputs.available == 'false'))
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
@@ -491,6 +599,7 @@ jobs:
     needs:
       - push-policy
       - changes
+      - builder
       - eval
       - checks-light
       - lint
@@ -500,12 +609,17 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
       - name: Verify all required checks passed
         env:
           RESULT_PUSH_POLICY: ${{ needs.push-policy.result }}
           POLICY_SHOULD_RUN: ${{ needs.push-policy.outputs.should_run }}
           POLICY_REASON: ${{ needs.push-policy.outputs.reason }}
           RESULT_CHANGES: ${{ needs.changes.result }}
+          RESULT_BUILDER: ${{ needs.builder.result }}
+          BUILDER_AVAILABLE: ${{ needs.builder.outputs.available }}
+          BUILDER_COMPLETED: ${{ needs.builder.outputs.completed }}
           RESULT_EVAL: ${{ needs.eval.result }}
           RESULT_CHECKS_LIGHT: ${{ needs.checks-light.result }}
           RESULT_LINT: ${{ needs.lint.result }}
@@ -519,50 +633,4 @@ jobs:
           PLAN_PACKAGES: ${{ needs.changes.outputs.run_packages }}
           PLAN_HOSTS: ${{ needs.changes.outputs.hosts }}
           PLAN_TESTS: ${{ needs.changes.outputs.tests }}
-        run: |
-          if [[ "$POLICY_SHOULD_RUN" != "true" ]]; then
-            echo "Skipping merge gate: $POLICY_REASON"
-            exit 0
-          fi
-
-          require_when_planned() {
-            local name=$1
-            local planned=$2
-            local result=$3
-
-            if [[ "$planned" == "true" ]]; then
-              [[ "$result" == "success" ]] || { echo "FAIL: $name ($result)"; fail=1; }
-            else
-              [[ "$result" == "skipped" ]] || { echo "FAIL: $name should have been skipped ($result)"; fail=1; }
-            fi
-          }
-
-          echo "push-policy:   $RESULT_PUSH_POLICY"
-          echo "policy run:    $POLICY_SHOULD_RUN"
-          echo "policy reason: $POLICY_REASON"
-          echo "changes:       $RESULT_CHANGES"
-          echo "eval:          $RESULT_EVAL"
-          echo "checks-light:  $RESULT_CHECKS_LIGHT"
-          echo "lint:          $RESULT_LINT"
-          echo "packages:      $RESULT_PACKAGES"
-          echo "hosts:         $RESULT_HOSTS"
-          echo "tests:         $RESULT_TESTS"
-          echo "docs-only:     $PLAN_DOCS_ONLY"
-          echo "plan eval:     $PLAN_EVAL"
-          echo "plan lint:     $PLAN_LINT"
-          echo "plan light:    $PLAN_LIGHT"
-          echo "plan packages: $PLAN_PACKAGES"
-          echo "plan hosts:    $PLAN_HOSTS"
-          echo "plan tests:    $PLAN_TESTS"
-
-          fail=0
-          [[ "$RESULT_PUSH_POLICY" == "success" ]] || { echo "FAIL: push-policy ($RESULT_PUSH_POLICY)"; fail=1; }
-          [[ "$RESULT_CHANGES" == "success" ]] || { echo "FAIL: changes ($RESULT_CHANGES)"; fail=1; }
-          require_when_planned "eval" "$PLAN_EVAL" "$RESULT_EVAL"
-          require_when_planned "checks-light" "$PLAN_LIGHT" "$RESULT_CHECKS_LIGHT"
-          require_when_planned "lint" "$PLAN_LINT" "$RESULT_LINT"
-          require_when_planned "packages" "$PLAN_PACKAGES" "$RESULT_PACKAGES"
-          require_when_planned "hosts" "$PLAN_HOSTS" "$RESULT_HOSTS"
-          require_when_planned "tests" "$PLAN_TESTS" "$RESULT_TESTS"
-
-          exit $fail
+        run: bash scripts/ci-merge-gate.sh

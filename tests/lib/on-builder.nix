@@ -15,9 +15,10 @@ pkgs.runCommand "on-builder-contract"
       gnused
       gawk
       rsync
+      jq
     ];
   }
   ''
-    bash "$src/scripts/test-on-builder.sh"
+    bash "$src/scripts/test-ci-builder.sh"
     touch "$out"
   ''

@@ -57,7 +57,7 @@ live in the system configuration, not a global build machine:
    `/run/secrets/gcp_builder_build_key` (present only on a deployed `main` or
    `gcp-agent`, each with their own dedicated key — see
    [Trust boundary](#trust-boundary)). Without the key the command runs locally,
-   so CI and fresh clones are unaffected.
+   so ordinary fresh clones are unaffected. PR CI supplies its existing dedicated key as described below.
 2. **Start.** `gcloud compute instances start gcp-builder` (idempotent), falling
    back to `nix shell nixpkgs#google-cloud-sdk -c gcloud` if `gcloud` isn't on
    `PATH`. `validate.sh` prints a warning and runs locally if the VM cannot be
@@ -82,12 +82,13 @@ so that every build step runs on the builder, and copies the closure back.
 
 ## Knobs
 
-| Variable          | Default                        | Effect                                                |
-| :---------------- | :----------------------------- | :---------------------------------------------------- |
-| `USE_BUILDER`     | `1`                            | Set `0` to run `validate.sh` locally.                 |
-| `BUILDER_ZONE`    | `europe-west2-a`               | GCE zone of the builder VM.                           |
-| `BUILDER_FQDN`    | `gcp-builder.<tailnet>.ts.net` | Tailnet name of the builder.                          |
-| `BUILDER_MAXJOBS` | `8`                            | Remote `maxjobs` passed to `--builders` by `rebuild`. |
+| Variable          | Default                              | Effect                                                                 |
+| :---------------- | :----------------------------------- | :--------------------------------------------------------------------- |
+| `USE_BUILDER`     | `1`                                  | Set `0` to run `validate.sh` locally.                                  |
+| `BUILDER_ZONE`    | `europe-west2-a`                     | GCE zone of the builder VM.                                            |
+| `BUILDER_SSH_KEY` | `/run/secrets/gcp_builder_build_key` | Override the caller’s SSH private-key file (CI uses a temporary file). |
+| `BUILDER_FQDN`    | `gcp-builder.<tailnet>.ts.net`       | Tailnet name of the builder.                                           |
+| `BUILDER_MAXJOBS` | `8`                                  | Remote `maxjobs` passed to `--builders` by `rebuild`.                  |
 
 Prerequisite: `gcloud` on `main` must be authenticated with the builder's project
 as its active config (`gcloud config set project <id>`).
@@ -217,3 +218,68 @@ It does not disable signature checking globally or publish anything to a cache.
 The builder has no notification credentials. Status can be inspected over the
 existing authenticated SSH channel (`cat /var/lib/builder-prebuilt/status.json`);
 notification delivery is intentionally left for a separate decision.
+
+## Pull-request CI on the builder
+
+The `builder` job in `.github/workflows/nix.yml` is a coordinator on a
+**GitHub-hosted Ubuntu runner**. No GitHub runner is installed on the builder.
+Only same-repository `pull_request` events with heavy checks selected by
+`scripts/ci-plan.sh` may use it. Fork PRs never enter the credential-bearing job,
+and docs-only plans do not authenticate, join the tailnet or start the VM.
+The `skip-builder` PR label opts out; adding/removing it triggers a fresh run.
+Push and merge-group events retain the existing GitHub-hosted jobs.
+Evaluation and lint always retain their existing GitHub-hosted jobs.
+
+The job uses existing repository secrets `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`,
+`BUILDER_CI_SSH_KEY` and `BUILDER_CI_GCP_KEY`. The SHA-pinned Tailscale action
+joins with `tag:ci-builder` and `--accept-dns=false`: this tag reaches only the
+builder's SSH port and cannot reach the tailnet resolver. `BUILDER_FQDN` is
+therefore set to the builder's tailnet IP, `100.106.144.121`. The existing
+GCP service account can manage only that VM. The shared startup/SSH probe in
+`scripts/lib/builder.sh` is reused, with `BUILDER_SSH_KEY` pointing to a mode-0600
+file under the runner's temporary directory. It is deleted even on failure;
+Google authentication and Tailscale also perform their own credential cleanup.
+No credential creation, ACL change or deployment is part of this workflow.
+
+Once the probe succeeds, `scripts/on-builder.sh` transfers only tracked files
+and invokes `scripts/ci-builder-checks.sh` with the planner's selectors and
+matrices. No repository checkout credentials or cloud/SSH keys are transferred.
+A minimal pinned-input Nix shell supplies Git and jq; a fresh local Git index
+lets Git-dependent preflight checks inspect the transferred snapshot. It has
+no remote and no push credentials.
+
+Only planned light checks, packages, hosts and VM tests run, with up to four
+commands in flight across those families. Each command calls
+`scripts/validate.sh` with `ON_BUILDER=1`, writes a separate temporary log and
+has its exact exit status joined. Failed logs are printed; successful commands
+print their name and duration. Every planned command is attempted even when
+another fails. The job fails if any check fails, or SSH/transfer is lost after
+the successful readiness probe. Logs and the temporary checkout are cleaned up
+afterward; the Nix store persists. Commands run under Bash with `-euo pipefail`;
+there is no success-masking pipeline around the validation command.
+
+Failure to authenticate, start or reach the builder **before checks start**
+sets `available=false` and runs the original GitHub-hosted heavy jobs. A check
+failure never becomes an unavailable result and never triggers fallback.
+The merge gate accepts either a successful, completed builder job with skipped
+heavy jobs, or every heavy job selected by the original plan passing on GitHub.
+Cancelled jobs, missing completion output, failed checks, failed evaluation or
+failed lint cannot satisfy the gate. Deterministic tests cover these cases,
+concurrent execution, keep-going behavior, malformed plans and docs-only plans:
+
+```bash
+bash scripts/test-ci-builder.sh
+bash scripts/validate.sh light
+```
+
+### PR code is trusted code execution on this machine
+
+Same-repository PR code runs directly as the builder's trusted Nix user, with
+root-equivalent privileges. It can read/change the persistent builder state and
+influence outputs later consumed by other callers. Review same-repository PR
+branches accordingly; never run fork code through this job. Keep **nothing
+valuable** on the builder: no service state, backup, production credentials,
+repository write tokens or private user data. Treat its store and temporary
+workspaces as disposable, and reprovision after suspected compromise. The
+`skip-builder` label selects the isolated GitHub-hosted path when appropriate;
+it is an operational opt-out, not a sandbox for untrusted code on the builder.

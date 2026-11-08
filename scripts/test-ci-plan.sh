@@ -142,4 +142,11 @@ meta_plus_host_output="$(run_plan $'.agents/repo-map/scripts/index.sh\nhosts/mai
 assert_contains "$meta_plus_host_output" "run_light=true"
 assert_contains "$meta_plus_host_output" '{"name":"main-ci"}'
 
+for path in scripts/ci-builder-checks.sh scripts/ci-merge-gate.sh scripts/test-ci-builder.sh scripts/lib/builder.sh scripts/on-builder.sh; do
+  builder_output="$(run_plan "$path")"
+  assert_contains "$builder_output" "run_packages=true"
+  assert_contains "$builder_output" "hosts=true"
+  assert_contains "$builder_output" "tests=true"
+done
+
 echo "ci-plan tests passed"
