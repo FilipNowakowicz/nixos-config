@@ -1,4 +1,4 @@
-{ lib, pkgs, ... }:
+{ pkgs, ... }:
 {
   imports = [
     ../../profiles/calendar.nix
@@ -35,17 +35,4 @@
     };
   };
 
-  systemd.user.services.easyeffects = {
-    Unit = {
-      After = lib.mkForce [
-        "nixos-fake-graphical-session.target"
-        "pipewire.service"
-      ];
-      PartOf = lib.mkForce [
-        "nixos-fake-graphical-session.target"
-        "pipewire.service"
-      ];
-    };
-    Install.WantedBy = lib.mkForce [ "nixos-fake-graphical-session.target" ];
-  };
 }

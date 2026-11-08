@@ -182,7 +182,6 @@ in
     # hyprlock lifecycle independently of the idle timer.
     hypridle = {
       enable = true;
-      systemdTarget = "nixos-fake-graphical-session.target";
       settings = {
         general = {
           after_sleep_cmd = "hyprctl dispatch dpms on";
@@ -241,8 +240,8 @@ in
     tray-watcher = {
       Unit = {
         Description = "Tray icon registry";
-        After = [ "nixos-fake-graphical-session.target" ];
-        PartOf = [ "nixos-fake-graphical-session.target" ];
+        After = [ "graphical-session.target" ];
+        PartOf = [ "graphical-session.target" ];
       };
       Service = {
         Type = "dbus";
@@ -252,18 +251,18 @@ in
         RestartSec = 2;
       };
       Install = {
-        WantedBy = [ "nixos-fake-graphical-session.target" ];
+        WantedBy = [ "graphical-session.target" ];
       };
     };
     quiet-shell = {
       Unit = {
         Description = "Quiet desktop shell";
         After = [
-          "nixos-fake-graphical-session.target"
+          "graphical-session.target"
           "tray-watcher.service"
         ];
         Wants = [ "tray-watcher.service" ];
-        PartOf = [ "nixos-fake-graphical-session.target" ];
+        PartOf = [ "graphical-session.target" ];
       };
       Service = {
         ExecStart = "${quietShell}/bin/quiet-shell";
@@ -271,7 +270,7 @@ in
         RestartSec = 2;
       };
       Install = {
-        WantedBy = [ "nixos-fake-graphical-session.target" ];
+        WantedBy = [ "graphical-session.target" ];
       };
     };
   };

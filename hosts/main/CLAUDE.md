@@ -246,7 +246,7 @@ In the anonymous specialisation all three mechanisms are removed and
   Long-running per-session processes — any GUI/Wayland client, not just
   background helper scripts (`quiet-shell` is the example) — belong in
   `systemd.user.services` bound to
-  `nixos-fake-graphical-session.target` with `Restart=always` so both a
+  `graphical-session.target` with `Restart=always` so both a
   rebuild and a crash self-heal. Reserve `exec-once` for true one-shot startup
   commands. When restarting such a helper by hand: `pkill -f
 <name>` self-matches the shell running the command (its argv contains
