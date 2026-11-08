@@ -122,7 +122,6 @@ jobs:
     env:
       # tag:ci-builder cannot query the tailnet DNS resolver.
       BUILDER_FQDN: 100.106.144.121
-      BUILDER_SSH_KEY: ${{ runner.temp }}/builder-ci-key
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
@@ -158,6 +157,8 @@ jobs:
           CLOUD_OUTCOME: ${{ steps.gcloud.outcome }}
           TAILNET_OUTCOME: ${{ steps.tailnet.outcome }}
         run: |
+          export BUILDER_SSH_KEY="$RUNNER_TEMP/builder-ci-key"
+          echo "BUILDER_SSH_KEY=$BUILDER_SSH_KEY" >> "$GITHUB_ENV"
           umask 077
           printf '%s\n' "$BUILDER_CI_SSH_KEY" > "$BUILDER_SSH_KEY"
           source scripts/lib/builder.sh
@@ -189,7 +190,7 @@ jobs:
 
       - name: Remove temporary SSH key
         if: always()
-        run: rm -f "$BUILDER_SSH_KEY"
+        run: rm -f "$RUNNER_TEMP/builder-ci-key"
 
   eval:
     needs: [push-policy, changes]
