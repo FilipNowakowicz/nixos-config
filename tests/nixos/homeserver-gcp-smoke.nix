@@ -66,31 +66,78 @@ in
         };
 
         users.groups.alertmanager-webhook = { };
-        systemd.services.alertmanager = {
-          requires = [ "smoke-webhook.service" ];
-          after = [ "smoke-webhook.service" ];
-          serviceConfig.SupplementaryGroups = [ "alertmanager-webhook" ];
-        };
-        systemd.services.smoke-webhook = {
-          wantedBy = [ "multi-user.target" ];
-          preStart = ''
-            echo http://127.0.0.1:19093/alerts > /run/smoke-webhook-url
-            chown root:alertmanager-webhook /run/smoke-webhook-url
-            chmod 0440 /run/smoke-webhook-url
-          '';
-          script = ''
-            exec ${pkgs.python3}/bin/python3 - <<'PYTHON'
-            from http.server import BaseHTTPRequestHandler, HTTPServer
-            class Handler(BaseHTTPRequestHandler):
-                def do_POST(self):
-                    body = self.rfile.read(int(self.headers['Content-Length']))
-                    with open('/tmp/webhook-received', 'ab') as output:
-                        output.write(body)
-                    self.send_response(200)
-                    self.end_headers()
-            HTTPServer(('127.0.0.1', 19093), Handler).serve_forever()
-            PYTHON
-          '';
+        systemd.services = {
+          alertmanager = {
+            requires = [ "smoke-webhook.service" ];
+            after = [ "smoke-webhook.service" ];
+            serviceConfig.SupplementaryGroups = [ "alertmanager-webhook" ];
+          };
+          smoke-webhook = {
+            wantedBy = [ "multi-user.target" ];
+            preStart = ''
+              echo http://127.0.0.1:19093/alerts > /run/smoke-webhook-url
+              chown root:alertmanager-webhook /run/smoke-webhook-url
+              chmod 0440 /run/smoke-webhook-url
+            '';
+            script = ''
+              exec ${pkgs.python3}/bin/python3 - <<'PYTHON'
+              from http.server import BaseHTTPRequestHandler, HTTPServer
+              class Handler(BaseHTTPRequestHandler):
+                  def do_POST(self):
+                      body = self.rfile.read(int(self.headers['Content-Length']))
+                      with open('/tmp/webhook-received', 'ab') as output:
+                          output.write(body)
+                      self.send_response(200)
+                      self.end_headers()
+              HTTPServer(('127.0.0.1', 19093), Handler).serve_forever()
+              PYTHON
+            '';
+          };
+          smoke-test-tls-cert = {
+            description = "Generate self-signed TLS cert for smoke test";
+            before = [ "nginx.service" ];
+            wantedBy = [ "nginx.service" ];
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+              ExecStart = pkgs.writeShellScript "gen-smoke-cert" ''
+                mkdir -p /var/lib/nginx/certs
+                ${pkgs.openssl}/bin/openssl req -x509 -newkey rsa:2048 \
+                  -keyout /var/lib/nginx/certs/homeserver-gcp.key \
+                  -out /var/lib/nginx/certs/homeserver-gcp.crt \
+                  -days 1 -nodes -subj '/CN=${testFqdn}'
+                chmod 640 /var/lib/nginx/certs/homeserver-gcp.key
+                chown root:nginx /var/lib/nginx/certs/homeserver-gcp.key
+              '';
+            };
+          };
+          smoke-test-grafana-auth = {
+            description = "Stub Grafana auth_request helper";
+            wantedBy = [ "multi-user.target" ];
+            before = [ "nginx.service" ];
+            serviceConfig = {
+              ExecStart = pkgs.writeShellScript "smoke-test-grafana-auth" ''
+                exec ${pkgs.python3}/bin/python - <<'PY'
+                from http.server import BaseHTTPRequestHandler, HTTPServer
+
+                class Handler(BaseHTTPRequestHandler):
+                    def do_GET(self):
+                        self.send_response(204)
+                        self.send_header("X-Auth-Request-User", "viewer@example.com")
+                        self.send_header("X-Auth-Request-Email", "viewer@example.com")
+                        self.send_header("X-Auth-Request-Name", "Smoke Viewer")
+                        self.send_header("X-Auth-Request-Role", "Viewer")
+                        self.end_headers()
+
+                    def log_message(self, fmt, *args):
+                        pass
+
+                HTTPServer(("127.0.0.1", 3180), Handler).serve_forever()
+                PY
+              '';
+              Restart = "always";
+            };
+          };
         };
 
         services = {
@@ -132,52 +179,6 @@ in
         };
 
         # Generate a throwaway self-signed cert before nginx starts.
-        systemd.services.smoke-test-tls-cert = {
-          description = "Generate self-signed TLS cert for smoke test";
-          before = [ "nginx.service" ];
-          wantedBy = [ "nginx.service" ];
-          serviceConfig = {
-            Type = "oneshot";
-            RemainAfterExit = true;
-            ExecStart = pkgs.writeShellScript "gen-smoke-cert" ''
-              mkdir -p /var/lib/nginx/certs
-              ${pkgs.openssl}/bin/openssl req -x509 -newkey rsa:2048 \
-                -keyout /var/lib/nginx/certs/homeserver-gcp.key \
-                -out /var/lib/nginx/certs/homeserver-gcp.crt \
-                -days 1 -nodes -subj '/CN=${testFqdn}'
-              chmod 640 /var/lib/nginx/certs/homeserver-gcp.key
-              chown root:nginx /var/lib/nginx/certs/homeserver-gcp.key
-            '';
-          };
-        };
-
-        systemd.services.smoke-test-grafana-auth = {
-          description = "Stub Grafana auth_request helper";
-          wantedBy = [ "multi-user.target" ];
-          before = [ "nginx.service" ];
-          serviceConfig = {
-            ExecStart = pkgs.writeShellScript "smoke-test-grafana-auth" ''
-              exec ${pkgs.python3}/bin/python - <<'PY'
-              from http.server import BaseHTTPRequestHandler, HTTPServer
-
-              class Handler(BaseHTTPRequestHandler):
-                  def do_GET(self):
-                      self.send_response(204)
-                      self.send_header("X-Auth-Request-User", "viewer@example.com")
-                      self.send_header("X-Auth-Request-Email", "viewer@example.com")
-                      self.send_header("X-Auth-Request-Name", "Smoke Viewer")
-                      self.send_header("X-Auth-Request-Role", "Viewer")
-                      self.end_headers()
-
-                  def log_message(self, fmt, *args):
-                      pass
-
-              HTTPServer(("127.0.0.1", 3180), Handler).serve_forever()
-              PY
-            '';
-            Restart = "always";
-          };
-        };
 
         environment.etc = {
           "remote-write-http.yaml".text = builtins.toJSON {
