@@ -527,6 +527,40 @@ rec {
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
 
+  mainBluetoothDriverHasBootTrigger = {
+    name = "blacklisted Bluetooth driver has an independent boot timer";
+    check =
+      cfg:
+      let
+        needsLoader =
+          (cfg.hardware.bluetooth.enable or false)
+          && lib.elem "btusb" (cfg.boot.blacklistedKernelModules or [ ]);
+        timer = cfg.systemd.timers.bluetooth-load-btusb or { };
+        loader = cfg.systemd.services.bluetooth-load-btusb or { };
+        delay = timer.timerConfig.OnActiveSec or null;
+        unit = timer.timerConfig.Unit or "bluetooth-load-btusb.service";
+        violations = lib.filter (msg: msg != "") [
+          (lib.optionalString (!(loader.enable or false)) "Bluetooth driver loader must be enabled")
+          (lib.optionalString (!(timer.enable or false)) "Bluetooth driver boot timer must be enabled")
+          (lib.optionalString (
+            !(lib.elem "timers.target" (timer.wantedBy or [ ]))
+          ) "Bluetooth driver timer must start from timers.target, independently of bluetooth.target")
+          (lib.optionalString (
+            delay == null || delay == ""
+          ) "Bluetooth driver timer must have an OnActiveSec trigger")
+          (lib.optionalString (
+            unit != "bluetooth-load-btusb.service"
+          ) "Bluetooth driver timer must activate bluetooth-load-btusb.service")
+        ];
+      in
+      mkResult (!needsLoader || violations == [ ]) (
+        if needsLoader then
+          lib.concatStringsSep "; " violations
+        else
+          "Bluetooth does not need a blacklisted driver loader"
+      );
+  };
+
   mainUsbguardIsDenyDefault = {
     name = "main USBGuard stays deny-default";
     check =

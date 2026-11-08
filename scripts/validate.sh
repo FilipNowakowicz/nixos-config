@@ -228,6 +228,7 @@ build_package() {
 
 case "$command" in
 docs)
+  bash .agents/learning/promotions/quiet-shell-private-restart.sh
   bash scripts/check-doc-links.sh
   bash scripts/agent-run-issue.sh --self-test
   bash scripts/agent-session.sh --self-test
@@ -261,6 +262,7 @@ flake-eval)
   ;;
 
 light)
+  bash .agents/learning/promotions/bluetooth-boot-trigger.sh
   bash .agents/learning/promotions/mullvad-cli-package-unit.sh
   # The pre-commit derivation is intentionally excluded from CI: its hooks
   # (statix, deadnix, treefmt, shellcheck, secrets-directory) are already

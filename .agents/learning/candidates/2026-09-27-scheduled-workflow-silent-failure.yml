@@ -12,3 +12,4 @@ agent: claude
 type: repo-fix
 dedupe_key: ci:scheduled-workflow-silent-failure
 targets: [.github/workflows/tailscale-acl-drift.yml, scripts/check-tailscale-acl-drift.sh]
+review_note: "Paused at user request 2026-11-07. GitHub workflow 273328824 (tailscale-acl-drift.yml) was disabled through Actions and verified disabled_manually, stopping both schedules and automatic ACL writes on pushes. Credentials were not inspected or rotated. Before resuming, verify credentials and add diagnostics/failure reporting; then use gh workflow enable tailscale-acl-drift.yml."

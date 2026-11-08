@@ -14,6 +14,8 @@ import subprocess
 import sys
 import time
 
+from session_processes import terminate_shell
+
 repo = pathlib.Path(__file__).resolve().parents[2]
 run, output = pathlib.Path(sys.argv[1]), sys.argv[2]
 only = sys.argv[3] if len(sys.argv) > 3 else ""
@@ -1221,14 +1223,10 @@ def changing_desktop_shows_where_you_landed():
 
 
 def restart_shell():
-    path = os.environ.get("QUIET_SHELL_PATH", "")
-    for proc in pathlib.Path("/proc").glob("[0-9]*"):
-        try:
-            cmdline = (proc / "cmdline").read_bytes().replace(b"\0", b" ").decode()
-        except OSError:
-            continue
-        if path and path in cmdline and "ipc" not in cmdline:
-            os.kill(int(proc.name), 15)
+    path = os.environ.get("QUIET_SHELL_PATH", str(repo / "packages/quiet-shell/shell"))
+    if env.get("QUIET_FAKE_STATE") != str(state_file):
+        raise RuntimeError("Restart requires the private run's fake state file")
+    terminate_shell(path, env)
     time.sleep(2.5)
     wait(lambda: ui(), "shell to restart", timeout=10)
 

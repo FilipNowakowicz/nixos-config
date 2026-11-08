@@ -344,6 +344,7 @@ let
   ];
 
   mainExperienceInvariants = [
+    invariants.mainBluetoothDriverHasBootTrigger
     mainInteractiveShellUsesNixIndexAndComma
     mainPythonDevelopmentIsCentralized
     invariants.obsClientUsesCanonicalUsername

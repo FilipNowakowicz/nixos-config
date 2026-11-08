@@ -1,0 +1,12 @@
+schema: learning-candidate/v1
+id: 2026-11-07-nixpkgs-module-package-arg-mismatch
+date: 2026-11-07
+expires: 2027-02-07
+status: promoted
+route: promote-doc
+best_form: doc
+evidence: [pr-#433, eval job 128199135554 "called with unexpected argument 'evdi'", modules/nixos/hardware/displaylink.nix]
+observation: weekly flake bump can land nixpkgs where a NixOS module and its package disagree on override args (displaylink evdi->linuxPackages); only eval job catches it, main-ci skips displaylink via profiles.ci
+proposed_upgrade: note in docs/operations.md triage - check gh run view --log-failed, fetch upstream module+package at locked rev, shim via overlay with removal comment; consider evaluating main (non-ci) toplevel in flake-eval
+type: workflow-gotcha
+dedupe_key: flake-update:nixpkgs-module-package-mismatch
