@@ -111,8 +111,12 @@ hl.animation({ leaf = "layers", enabled = true, speed = 3.0, bezier = "smooth", 
 -- Desktop mode (SUPER+D) makes windows float, as on macOS or Windows. New windows open
 -- in the middle, open ones lift out where they are, and focus follows clicks instead of
 -- the pointer. Leaving it tiles everything again except dialogs and tools.
--- It survives a config reload through a file in the runtime dir, but not a logout.
-local desktop_state = (os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/hypr-desktop-mode"
+-- It survives a config reload through a file in this compositor's own runtime dir,
+-- so a new session starts tiled.
+local desktop_state = (os.getenv("XDG_RUNTIME_DIR") or "/tmp")
+	.. "/hypr/"
+	.. (os.getenv("HYPRLAND_INSTANCE_SIGNATURE") or "")
+	.. "/desktop-mode"
 local desktop_rule = hl.window_rule({
 	name = "desktop-mode",
 	enabled = false,

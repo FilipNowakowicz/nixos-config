@@ -53,7 +53,7 @@ directly), so there is no separate `themes.active` wiring to keep in sync.
 2. rewrites `active.nix` so the choice persists across rebuilds;
 3. sources `links.sh` and relinks the pre-generated assets into live app paths;
 4. sources the generated `vars` file for the colors it needs;
-5. reloads Hyprland, Waybar, Kitty, Mako, and the wallpaper in place.
+5. reloads Hyprland, Quiet Shell, Kitty, and the wallpaper in place.
 
 Because the switcher consumes the **same** Nix-generated assets and `vars` file
 that a rebuild produces — rather than re-deriving colors by parsing theme `.nix`
@@ -70,7 +70,7 @@ asserting the generated `vars` and Kitty palette match the theme definition.
 ## Public module (`homeModules.runtime-theme`)
 
 The module is exposed as a flake output so other Home Manager configs running
-the same desktop (Hyprland + Waybar + Kitty + Mako + Hyprlock) can reuse it. It
+the same desktop (Hyprland + Quiet Shell + Kitty + Hyprlock) can reuse it. It
 is an **opinionated** module for that stack — the color contract, templates, and
 reload mechanics are fixed — not a generic theming framework.
 
