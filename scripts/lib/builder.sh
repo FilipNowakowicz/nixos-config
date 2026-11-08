@@ -5,7 +5,7 @@
 builder_name="gcp-builder"
 builder_zone="${BUILDER_ZONE:-europe-west2-a}"
 builder_fqdn="${BUILDER_FQDN:-}"
-builder_key="/run/secrets/gcp_builder_build_key" # root-owned on main; daemon reads it
+builder_key="${BUILDER_SSH_KEY:-/run/secrets/gcp_builder_build_key}" # root-owned on main; daemon reads it
 builder_maxjobs="${BUILDER_MAXJOBS:-8}"
 builder_features="kvm,nixos-test,big-parallel,benchmark"
 gcloud_cmd=()

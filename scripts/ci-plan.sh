@@ -9,7 +9,7 @@ cd "$repo_root"
 event_name="${GITHUB_EVENT_NAME:-}"
 base_sha="${BASE_SHA:-}"
 
-ci_core_change='^(\.github/workflows/nix\.yml|\.github/actions/setup-nix/|scripts/(ci-plan|validate|check-doc-links|doctor)\.sh)'
+ci_core_change='^(\.github/workflows/nix\.yml|\.github/actions/setup-nix/|scripts/(ci-plan|ci-builder-checks|ci-merge-gate|test-ci-builder|lib/builder|on-builder|validate|check-doc-links|doctor)\.sh)'
 flake_or_lib_change='^(flake\.nix|flake\.lock|lib/)'
 closure_script_change='^scripts/closure-diff\.sh'
 tests_change='^tests/nixos/'

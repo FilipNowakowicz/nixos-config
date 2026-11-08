@@ -10,10 +10,8 @@ export TEST_REMOTE_HOME="$test_dir/remote"
 export TEST_EVENTS="$test_dir/events"
 mkdir -p "$test_dir/repo/scripts/lib" "$test_dir/repo/infra" "$test_dir/bin" "$TEST_REMOTE_HOME"
 cp "$repo_root/scripts/on-builder.sh" "$repo_root/scripts/validate.sh" "$test_dir/repo/scripts/"
-# Substitute only the host-specific credential path, so builder_enabled exercises
-# its normal key-present branch without requiring a real secret in the sandbox.
-sed "s|^builder_key=.*|builder_key='$test_dir/build-key'|" \
-  "$repo_root/scripts/lib/builder.sh" >"$test_dir/repo/scripts/lib/builder.sh"
+cp "$repo_root/scripts/lib/builder.sh" "$test_dir/repo/scripts/lib/builder.sh"
+export BUILDER_SSH_KEY="$test_dir/build-key"
 touch "$test_dir/build-key"
 cat >"$test_dir/bin/gcloud" <<'STUB'
 #!/usr/bin/env bash
