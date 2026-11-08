@@ -34,7 +34,7 @@ run nix --version
 
 section "Supported platform" \
   "Fails if this machine's CPU/OS combination ('system') is not one this
-flake evaluates for. The flake targets common Linux and macOS systems; an
+flake evaluates for. The flake targets x86_64-linux; an
 unsupported system means flake outputs may not build here even though Nix
 itself works."
 current_system=$(nix eval --impure --raw --expr 'builtins.currentSystem')

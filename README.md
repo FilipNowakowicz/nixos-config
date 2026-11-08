@@ -4,7 +4,7 @@
 </h1>
 
 A single, reproducible NixOS and Home Manager flake for a secure workstation, a
-companion laptop, a cloud homeserver, and an on-demand remote builder.
+cloud homeserver, an on-demand remote builder, and an on-demand agent host.
 
 This is not a generic starter template. It is working, multi-host personal
 infrastructure, published to a quality bar that documents the patterns, checks,
