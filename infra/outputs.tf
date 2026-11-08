@@ -8,7 +8,7 @@ output "instance_name" {
 }
 
 output "instance_zone" {
-  value = var.zone
+  value = google_compute_instance.homeserver_gcp.zone
 }
 
 output "builder_external_ip" {
