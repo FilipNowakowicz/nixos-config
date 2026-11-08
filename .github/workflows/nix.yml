@@ -90,7 +90,6 @@ jobs:
       - id: plan
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          CI_CHANGED_FILES: docs/remote-builder.md
         run: bash scripts/ci-plan.sh
 
       - name: Validate planner coverage

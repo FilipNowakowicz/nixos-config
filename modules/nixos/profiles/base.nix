@@ -1,3 +1,4 @@
+# Temporary shared-module touch for issue #478 success-path acceptance.
 {
   lib,
   pkgs,
