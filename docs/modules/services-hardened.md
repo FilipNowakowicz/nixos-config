@@ -119,16 +119,26 @@ services.hardened.nginx.extraConfig = {
 };
 ```
 
-### Vaultwarden
+### Tailscale Certificate Helper
 
-Vaultwarden can run with no Linux capabilities, but it needs write access to its
-state directory.
+The homeserver's `tailscale-cert` service writes certificates to Tailscale and
+Nginx state directories. It only needs Unix sockets, plus `CAP_CHOWN` to assign
+the private key to the Nginx group with `install -g nginx`.
 
 ```nix
-services.hardened.vaultwarden.extraConfig = {
-  ReadWritePaths = [ "/var/lib/vaultwarden" ];
+services.hardened.tailscale-cert.extraConfig = {
+  ProtectHome = false;
+  ReadWritePaths = [
+    "/var/lib/tailscale"
+    "/var/lib/nginx/certs"
+  ];
+  RestrictAddressFamilies = [ "AF_UNIX" ];
+  CapabilityBoundingSet = [ "CAP_CHOWN" ];
+  AmbientCapabilities = [ "CAP_CHOWN" ];
 };
 ```
+
+See [the service definition](../../hosts/homeserver-gcp/tailscale-cert.nix).
 
 ### Custom Local Helper
 
