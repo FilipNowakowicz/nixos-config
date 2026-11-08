@@ -58,7 +58,7 @@ start_builder() {
     echo "remote builder: could not start the VM (check gcloud project and login)" >&2
     return 1
   fi
-  for _ in $(seq 1 40); do
+  for _ in $(seq 1 1); do
     if ssh "${opts[@]}" "user@$builder_fqdn" true 2>/dev/null; then
       ready=1
       break

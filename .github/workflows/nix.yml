@@ -121,7 +121,7 @@ jobs:
       completed: ${{ steps.checks.outputs.completed || 'false' }}
     env:
       # tag:ci-builder cannot query the tailnet DNS resolver.
-      BUILDER_FQDN: 100.106.144.121
+      BUILDER_FQDN: 100.127.255.254
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
