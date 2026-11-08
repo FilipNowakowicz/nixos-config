@@ -34,14 +34,14 @@ jobs:
 
       - name: Apply ACL on main push
         if: github.event_name == 'push'
-        # TAILSCALE_API_KEY: created 2026-05-08, expires ~2026-08-06. Rotate before then.
+        # TAILSCALE_API_KEY: rotated 2026-11-08. Rotate before it expires.
         env:
           TAILSCALE_API_KEY: ${{ secrets.TAILSCALE_API_KEY }}
           TAILSCALE_TAILNET: ${{ secrets.TAILSCALE_TAILNET }}
         run: bash scripts/apply-tailscale-acl.sh
 
       - name: Check ACL drift
-        # TAILSCALE_API_KEY: created 2026-05-08, expires ~2026-08-06. Rotate before then.
+        # TAILSCALE_API_KEY: rotated 2026-11-08. Rotate before it expires.
         env:
           TAILSCALE_API_KEY: ${{ secrets.TAILSCALE_API_KEY }}
           TAILSCALE_TAILNET: ${{ secrets.TAILSCALE_TAILNET }}
