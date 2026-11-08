@@ -17,29 +17,70 @@ Item {
     readonly property var exitNodes: Sys.state.vpn ? Sys.state.vpn.exitNodes : []
     readonly property string title: ({ wifi: "Wi-Fi", bluetooth: "Bluetooth", vpn: "VPN", sound: "Sound", theme: "Theme", mullvad: "Mullvad location" })[kind] || ""
 
+    // Everything j and k stop on, top to bottom. Hidden rows don't count.
+    function cursorStops(item, found) {
+        for (const child of item.children) {
+            if (!child.visible)
+                continue;
+            if (child.cursorKey !== undefined)
+                found.push(child);
+            else
+                cursorStops(child, found);
+        }
+        return found;
+    }
+    function moveCursor(step) {
+        const stops = cursorStops(body, []);
+        if (!stops.length)
+            return;
+        const at = stops.findIndex(s => s.cursorKey === Ui.detailCursor);
+        Ui.detailCursor = stops[at < 0 ? 0 : Math.max(0, Math.min(stops.length - 1, at + step))].cursorKey;
+        // Enter belongs to the cursor now, not to a row reached with Tab.
+        Ui.refocus();
+    }
+
     // A letter does what a click on its row does, as on the main panel. Holding one
-    // down must not flip a tunnel back and forth. The long location list moves Vim-style.
+    // down must not flip a tunnel back and forth. Every list moves Vim-style, and h and
+    // l move a slider. Enter does nothing until j or k has picked a row.
     function pressKey(event) {
         const letter = event.text.toLowerCase();
+        const enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter;
+        const step = letter === "j" || event.key === Qt.Key_Down ? 1 : letter === "k" || event.key === Qt.Key_Up ? -1 : 0;
         if (kind === "vpn") {
             const rows = { t: () => Sys.toggleTailscale(), m: () => Sys.toggleMullvad() };
             if (Sys.has("vpn"))
                 rows.l = () => Ui.detail = "mullvad";
-            if (!rows[letter])
-                return false;
-            if (!event.isAutoRepeat)
-                rows[letter]();
-            return true;
+            if (rows[letter]) {
+                if (!event.isAutoRepeat)
+                    rows[letter]();
+                return true;
+            }
         }
-        if (kind !== "mullvad")
+        if (kind !== "mullvad") {
+            if (step) {
+                moveCursor(step);
+                return true;
+            }
+            const stop = cursorStops(body, []).find(s => s.cursorKey === Ui.detailCursor);
+            if (!stop)
+                return false;
+            const nudge = letter === "h" || event.key === Qt.Key_Left ? -5 : letter === "l" || event.key === Qt.Key_Right ? 5 : 0;
+            if (nudge && stop.nudge) {
+                stop.nudge(nudge);
+                return true;
+            }
+            if (enter && !stop.nudge && !event.isAutoRepeat) {
+                stop.clicked();
+                return true;
+            }
             return false;
-        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+        }
+        if (enter) {
             const row = Sys.countries[locations.currentIndex];
             if (row && !event.isAutoRepeat)
                 Sys.setMullvadCountry(row.code);
             return true;
         }
-        const step = letter === "j" || event.key === Qt.Key_Down ? 1 : letter === "k" || event.key === Qt.Key_Up ? -1 : 0;
         if (!step)
             return false;
         locations.currentIndex = Math.max(0, Math.min(locations.count - 1, locations.currentIndex + step));
@@ -70,7 +111,7 @@ Item {
                 Icon { anchors.centerIn: parent; name: "chevron-left"; size: 15 }
             }
             Label { Layout.fillWidth: true; text: root.title; font.weight: Font.DemiBold; font.pixelSize: 14 }
-            KeyHint { Layout.rightMargin: 9; text: root.kind === "mullvad" ? "J K  Enter" : "" }
+            KeyHint { Layout.rightMargin: 9; text: root.kind === "" ? "" : root.kind === "sound" ? "J K  H L  Enter" : "J K  Enter" }
             Spinner {
                 Layout.rightMargin: 9
                 visible: Sys.scanning && (root.kind === "wifi" || root.kind === "bluetooth")
@@ -295,6 +336,7 @@ Item {
                 ThinSlider {
                     Layout.fillWidth: true
                     name: app.title + " volume"
+                    cursorKey: "stream " + app.modelData.id
                     level: Math.round(app.modelData.audio.volume * 100)
                     onChanged: value => app.modelData.audio.volume = value / 100
                 }
@@ -316,6 +358,7 @@ Item {
                 required property var modelData
                 Layout.fillWidth: true
                 name: modelData.desc
+                cursorKey: "mic " + modelData.desc
                 title: modelData.desc
                 selected: modelData.active
                 busy: Sys.pendingFor("device-source", modelData.name)

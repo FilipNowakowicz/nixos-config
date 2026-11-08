@@ -12,10 +12,15 @@ Item {
     // A letter does what a click on that control's pill does. Wi-Fi and VPN open their
     // details rather than switching, so a stray key can't drop the connection.
     // Space and j/k drive the player, Vim-style: j is the next track, k the previous.
+    // h and l are the volume slider's left and right.
     function pressLetter(letter) {
         const actions = {
             b: () => Sys.toggleBuds(),
             w: () => Ui.detail = "wifi",
+            u: () => Ui.detail = "bluetooth",
+            o: () => Ui.detail = "sound",
+            h: () => volume.nudge(-5),
+            l: () => volume.nudge(5),
             v: () => Ui.detail = "vpn",
             t: () => Ui.detail = "theme",
             f: () => Sys.focusMode = !Sys.focusMode,
@@ -58,6 +63,7 @@ Item {
                 }
                 Pill {
                     name: "Bluetooth"
+                    hint: "U"
                     icon: "bluetooth"
                     subtitle: {
                         if (!Sys.has("bluetooth")) return "Unavailable";
@@ -115,8 +121,10 @@ Item {
             FailRow { required property string modelData; Layout.fillWidth: true; writeKey: modelData }
         }
         LevelModule {
+            id: volume
             Layout.fillWidth: true
             sliderName: "Volume"
+            hint: "O"
             icon: Sys.muted ? "volume-x" : "volume-2"
             level: Sys.volume
             detail: "sound"

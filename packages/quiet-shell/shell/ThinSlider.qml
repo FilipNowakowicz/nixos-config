@@ -7,7 +7,14 @@ Slider {
     id: root
     property int level: 0
     property string name
+    property string cursorKey: name
     signal changed(int value)
+
+    // Moves from where the knob is, because the level it reports lags a held key.
+    function nudge(by) {
+        value = Math.max(from, Math.min(to, value + by));
+        changed(Math.round(value));
+    }
 
     from: 0
     to: 100
@@ -18,6 +25,15 @@ Slider {
     onMoved: root.changed(Math.round(value))
     onPressedChanged: Ui.dragging = pressed
 
+    Rectangle {
+        anchors.fill: parent
+        anchors.margins: -4
+        radius: 10
+        color: "transparent"
+        border.width: 2
+        border.color: Theme.accent
+        visible: root.cursorKey !== "" && Ui.detailCursor === root.cursorKey
+    }
     background: Item {
         x: root.leftPadding
         y: root.topPadding + root.availableHeight / 2 - 2

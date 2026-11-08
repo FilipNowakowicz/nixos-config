@@ -9,8 +9,10 @@ Item {
     property int level
     property string detail
     property bool mutable: false
+    property string hint
     signal moved(int value)
     signal mute
+    function nudge(by) { slider.nudge(by); }
 
     implicitHeight: 42
     Glass { anchors.fill: parent; radius: 21 }
@@ -31,11 +33,13 @@ Item {
             Icon { anchors.centerIn: parent; name: root.icon; size: 14; color: Theme.dim }
         }
         ThinSlider {
+            id: slider
             Layout.fillWidth: true
             name: root.sliderName
             level: root.level
             onChanged: value => root.moved(value)
         }
+        KeyHint { text: root.hint }
         Press {
             visible: root.detail !== ""
             implicitWidth: 22

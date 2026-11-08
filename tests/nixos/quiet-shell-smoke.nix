@@ -393,6 +393,59 @@ in
           retry(lambda _: settled(), timeout=timedelta(seconds=15))
           session("hyprctl eval \"hl.config({ input = { kb_variant = [[dvorak]] } })\"")
 
+      with subtest("Letters open the menus, and j, k, h and l work inside them"):
+          session("hyprctl eval \"hl.config({ input = { kb_variant = [[]] } })\"")
+          def sink():
+              return state()["sys"]["sink"]["level"]
+          def stream_volume():
+              nodes = json.loads(session("pw-dump"))
+              return next(n["info"]["params"]["Props"][0]["channelVolumes"] for n in nodes
+                          if n.get("type", "").endswith("Node") and (n.get("info") or {}).get("props", {}).get("application.name") == "SmokeTone")
+
+          session("quiet-shell-ipc controls")
+          retry(lambda _: state()["panel"] == "controls", timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=2))
+          retry(lambda _: sink() > 0, timeout=timedelta(seconds=10))
+          before = sink()
+          machine.send_key("h")
+          machine.send_key("h")
+          machine.send_key("l")
+          retry(lambda _: sink() == before - 5, timeout=timedelta(seconds=15))
+          machine.send_key("u")
+          wait_for(lambda s: s["detail"] == "bluetooth", "bluetooth-from-letter")
+          machine.send_key("esc")
+          retry(lambda _: state()["detail"] == "", timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=1))
+          machine.send_key("o")
+          wait_for(lambda s: s["detail"] == "sound" and "SmokeTone" in s["streams"], "sound-from-letter")
+          # The output, then the app's slider, which can't go past the end of the list.
+          for letter in ("j", "j"):
+              machine.send_key(letter)
+          retry(lambda _: state()["cursor"].startswith("stream "), timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=1))
+          machine.screenshot("sound-slider-cursor")
+          loud = stream_volume()
+          machine.send_key("h")
+          retry(lambda _: stream_volume() != loud, timeout=timedelta(seconds=10))
+          machine.send_key("esc")
+          retry(lambda _: state()["detail"] == "", timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=1))
+          machine.send_key("t")
+          wait_for(lambda s: s["detail"] == "theme", "theme-from-letter")
+          assert state()["cursor"] == "", "the cursor outlived its menu"
+          # Enter means nothing until j has picked a row.
+          machine.send_key("ret")
+          machine.sleep(timedelta(seconds=1))
+          assert "theme" not in state()["writes"], "Enter acted with no row picked"
+          machine.send_key("j")
+          retry(lambda _: state()["cursor"] != "", timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=1))
+          machine.screenshot("theme-cursor")
+          machine.send_key("ret")
+          retry(lambda _: "theme" in state()["writes"], timeout=timedelta(seconds=10))
+          session("quiet-shell-ipc close")
+          session("hyprctl eval \"hl.config({ input = { kb_variant = [[dvorak]] } })\"")
+
       with subtest("notes open once, float, and show in the overview"):
           machine.succeed("install -d -o user /home/user/.local/share/quiet-shell && printf '# Ideas\\nanki generator\\npersonal dashboard\\n' > /home/user/.local/share/quiet-shell/notes.md && chown user /home/user/.local/share/quiet-shell/notes.md")
           session("quiet-shell-ipc overview")
