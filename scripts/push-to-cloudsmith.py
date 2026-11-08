@@ -4,6 +4,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -58,11 +59,19 @@ def main():
         graph = {item["path"]: item for item in graph}
     # License metadata is evaluation data, not retained in .drv files. Only
     # exact output paths from the pinned package set count as positive evidence.
-    packages = query(
-        "nix-env", "-f", os.environ["CACHE_NIXPKGS_SOURCE"],
-        "--arg", "config", "{ allowUnfree = true; allowBroken = true; }",
-        "--query", "--available", "--json", "--meta", "--out-path",
-    )
+    # Inspect likely top-level attributes only, avoiding evaluation of the entire
+    # Nixpkgs package universe. A guessed name grants nothing unless its exact
+    # evaluated output matches a path in this closure.
+    candidates = sorted({re.split(r"-(?=[0-9])", Path(path).name.split("-", 1)[1])[0] for path in graph})
+    with tempfile.TemporaryDirectory(prefix="cloudsmith-meta-") as directory:
+        candidates_file = Path(directory) / "candidates.json"
+        candidates_file.write_text(json.dumps(candidates))
+        packages = query(
+            "nix-instantiate", "--eval", "--strict", "--json",
+            "--argstr", "nixpkgs", os.environ["CACHE_NIXPKGS_SOURCE"],
+            "--argstr", "candidatesFile", str(candidates_file),
+            "scripts/cache-license-metadata.nix",
+        )
     metadata = {}
     for package in packages.values():
         status = license_status(package.get("meta", {}))
