@@ -60,9 +60,8 @@ in
     mutableSettings = false;
     # Bind to localhost only; nginx proxies HTTPS on port 3001 → here.
     # Direct HTTP access on this port is intentionally unreachable externally.
-    host = "127.0.0.1";
-    port = 13001;
     settings = {
+      http.address = "127.0.0.1:13001";
       dns = {
         bind_hosts = [ "0.0.0.0" ];
         port = 53;
