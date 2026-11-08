@@ -183,7 +183,7 @@ session and powers itself back off when idle.
 ### How you start a session
 
 `scripts/agent-session.sh` is the start side (the agent analog of
-`validate.sh`'s build-focused `ensure_builder`, kept separate because its job is
+`validate.sh`'s build-focused `start_builder`, kept separate because its job is
 to open a session, not offload a build):
 
 ```bash
@@ -302,9 +302,8 @@ rather than burning a session.
 
 ## Remote-builder offload (gcp-builder)
 
-Like `main`, this host can offload heavy `scripts/validate.sh` tiers
-(`host`/`hosts`/`heavy`/`profile-test(s)`/`smoke-*`) to the on-demand
-`gcp-builder` VM via `ensure_builder` — see
+Like `main`, this host runs `scripts/validate.sh` on the on-demand
+`gcp-builder` VM — see
 [`docs/remote-builder.md`](../../docs/remote-builder.md) for the pattern and
 [`hosts/gcp-builder/CLAUDE.md`](../gcp-builder/CLAUDE.md#build-key-rotation) for
 the shared mechanics. `gcp-agent` carries its **own** dedicated build key
@@ -317,8 +316,7 @@ Two differences from `main`:
 - `gcloud` is not part of this host's base packages; `scripts/validate.sh`
   falls back to `nix shell nixpkgs#google-cloud-sdk -c gcloud` when `gcloud` is
   not on `PATH`.
-- The unprivileged readiness probe (the `ssh user@gcp-builder...` check before
-  passing `--builders`) authenticates with `gcp_builder_build_key` itself
+- The unprivileged SSH connection to `gcp-builder` authenticates with `gcp_builder_build_key` itself
   (`owner = "user"` in `nix-remote-build.nix`) rather than a personal SSH key,
   since this host deliberately carries no `&user` personal age key.
 
@@ -326,7 +324,7 @@ Two differences from `main`:
 
 The Nix-side wiring above lands declaratively, but these out-of-band steps are
 required before `agent-run-issue.sh` sessions actually offload to
-`gcp-builder`. Until they're done, `ensure_builder` logs why and falls back to
+`gcp-builder`. Until they're done, `validate.sh` logs why and falls back to
 a local build — safe, just slower:
 
 1. **Redeploy/reprovision `gcp-builder`** so its `authorizedKeys` picks up the
@@ -341,7 +339,7 @@ a local build — safe, just slower:
 4. **Grant `gcp-agent`'s GCE service account permission to start/stop/describe
    `gcp-builder`.** Neither `infra/agent.tf` nor `infra/builder.tf` currently
    attach a `service_account` block, so `gcp-agent` has no GCP credentials for
-   `gcloud` at all. Without this, `ensure_builder`'s
+   `gcloud` at all. Without this, `start_builder`'s
    `gcloud compute instances start gcp-builder` step fails with an auth error
    and offload falls back to local — logged, not fatal, but the "offload heavy
    builds to `gcp-builder` by default" acceptance criterion won't hold until a

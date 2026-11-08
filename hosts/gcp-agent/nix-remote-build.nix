@@ -3,9 +3,8 @@
 #
 # Deliberately NOT setting nix.buildMachines system-wide: the builder is usually
 # powered off, and a global build machine would make every ordinary build pay an
-# SSH-connect timeout before falling back to local. Instead `ensure_builder` in
-# scripts/validate.sh starts the VM and passes `--builders` for that one
-# invocation. This module only provides the pieces that must live in the
+# SSH-connect timeout before falling back to local. Instead scripts/validate.sh
+# starts the VM and runs the command there. This module only provides the pieces that must live in the
 # system: the decrypted SSH key, root's host-key policy for the builder, and
 # substitute fetching on the remote.
 #

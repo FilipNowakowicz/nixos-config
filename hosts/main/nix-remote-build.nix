@@ -4,7 +4,7 @@
 # Deliberately NOT setting nix.buildMachines system-wide: the builder is usually
 # powered off, and a global build machine would make every ordinary `rebuild`
 # pay an SSH-connect timeout before falling back to local. Instead validate.sh
-# starts the VM and passes `--builders` for that one invocation. This module
+# and `rebuild --remote` start the VM when they need it. This module
 # only provides the pieces that must live in the system: the decrypted SSH key,
 # root's host-key policy for the builder, and substitute fetching on the remote.
 {

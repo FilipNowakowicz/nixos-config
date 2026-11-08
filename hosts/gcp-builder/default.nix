@@ -60,6 +60,10 @@ in
       # This box exists to build; let it use the whole VM.
       max-jobs = "auto";
       cores = 0;
+      # The VM is off most of the time, so a GC timer would rarely fire. Free
+      # space during builds instead (10 and 30 GiB).
+      min-free = 10737418240;
+      max-free = 32212254720;
       # Advertise build capabilities so `main` can offload the KVM-backed nixos
       # test suite here. KVM requires the GCE instance to have nested
       # virtualization enabled (see infra/builder.tf — n2 family).

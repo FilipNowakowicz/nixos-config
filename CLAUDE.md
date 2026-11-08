@@ -36,8 +36,9 @@ under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
 - **`gcp-builder`:** `deploy '.#gcp-builder'` for ongoing updates (start the VM
   first; it is normally powered off). Provision once via
   [`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md). It is an on-demand
-  Nix remote builder, not a service host — `main` starts it transparently for
-  heavy builds (see `scripts/validate.sh`) and it self-powers-off when idle.
+  Nix remote builder, not a service host — `scripts/validate.sh` runs on it
+  automatically, `rebuild --remote` builds `main` on it, and it self-powers-off
+  when idle. Use `bash scripts/on-builder.sh <command>` for other heavy commands.
 - **`gcp-agent`:** on-demand Claude Code agent host (issue-loop sessions, not a
   service host). Keeps **narrow sudo**, so there is **no deploy-rs
   auto-activation** — apply config changes by reprovisioning or manual
