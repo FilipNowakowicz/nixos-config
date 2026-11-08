@@ -123,3 +123,17 @@ resource "google_compute_resource_policy" "builder_weekly_prebuild" {
   }
   depends_on = [google_project_iam_member.builder_schedule]
 }
+
+# GitHub CI wakes the builder with this account. Its key is created outside
+# Terraform so it never enters state, and its only role is on this one VM.
+resource "google_service_account" "ci_builder_start" {
+  account_id   = "ci-builder-start"
+  display_name = "CI: start gcp-builder"
+}
+
+resource "google_compute_instance_iam_member" "ci_builder_start" {
+  zone          = var.zone
+  instance_name = google_compute_instance.gcp_builder.name
+  role          = "roles/compute.instanceAdmin.v1"
+  member        = "serviceAccount:${google_service_account.ci_builder_start.email}"
+}

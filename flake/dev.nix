@@ -22,11 +22,15 @@ let
     pkgs.runCommand "tailscale-acl"
       {
         # CI runners are external to the NixOS host registry, but use a
-        # pre-approved Tailscale tag to reach the homeserver over SSH.
+        # pre-approved Tailscale tag to reach the homeserver over SSH;
+        # `ci-builder` reaches only gcp-builder.
         aclJson = builtins.toJSON (
           aclGen.mkAcl {
             inherit hostRegistry;
-            externalTags = [ "ci" ];
+            externalTags = [
+              "ci"
+              "ci-builder"
+            ];
           }
         );
         passAsFile = [ "aclJson" ];

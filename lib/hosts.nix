@@ -108,6 +108,9 @@ let
         # gcp-agent offloads heavy builds here too (its own dedicated build
         # key, see hosts/gcp-agent/nix-remote-build.nix).
         acceptFrom.agent = [ 22 ];
+        # GitHub runners run CI on this host. A separate tag from `ci`, which
+        # can also reach the homeserver.
+        acceptFrom.ci-builder = [ 22 ];
       };
       deploy.sshUser = "user";
       sops = false;

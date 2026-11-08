@@ -217,6 +217,7 @@ in
   users.users.user = {
     home = "/home/user";
     openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC+J1RPvpFJ6zpeeio5N6xWIcSIdBfgmjOexo27FGLLw github-ci-gcp-builder"
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIESg3U6QT7ur+a/rRDksMKWOrOVS1uHr7u+LfhmgLl9U nix-remote-build-main-to-gcp-builder"
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGgXOaCIMeVLP3cIt9ldoMeuOAz4h2eqL50xbDIYSN90 nix-remote-build-gcp-agent-to-gcp-builder"
     ];
