@@ -1,6 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
+# The running choice lives in STATE_FILE (injected by the theme module). --save
+# also makes it the declared default in active.nix, for the next rebuild.
+SAVE=false
+if [[ ${1:-} == --save ]]; then
+  SAVE=true
+  shift
+fi
 THEME="${1:-}"
 THEMES_DIR="$HOME/.config/themes"
 # ACTIVE_FILE is injected by the theme module (themes.activeFile); the theme
@@ -28,8 +35,10 @@ theme_built() {
   [[ -d "$THEMES_DIR/$1" && -f "$THEMES_DIR/$1/vars" ]]
 }
 
-# Get current theme from active.nix
-if [[ -f $ACTIVE_FILE ]]; then
+# The running choice if there is one, otherwise the declared default.
+if [[ -s $STATE_FILE ]]; then
+  CURRENT_THEME=$(<"$STATE_FILE")
+elif [[ -f $ACTIVE_FILE ]]; then
   CURRENT_THEME=$(grep -oP 'themes/\K[^.]+' "$ACTIVE_FILE" 2>/dev/null || echo "unknown")
 else
   CURRENT_THEME="unknown"
@@ -42,7 +51,7 @@ if [[ -z $THEME ]]; then
   echo ""
   echo "Current theme: $CURRENT_THEME"
   echo ""
-  echo "Usage: theme-switch <theme-name>"
+  echo "Usage: theme-switch [--save] <theme-name>"
   exit 0
 fi
 
@@ -62,6 +71,15 @@ if ! theme_built "$THEME"; then
   exit 1
 fi
 
+if $SAVE; then
+  if [[ ! -f $ACTIVE_FILE ]]; then
+    echo "Error: $ACTIVE_FILE not found"
+    exit 1
+  fi
+  echo "import ./themes/$THEME.nix" >"$ACTIVE_FILE"
+  echo "Saved $THEME as the default in active.nix; rebuild to update GTK and Neovim"
+fi
+
 # Check if already active
 if [[ $CURRENT_THEME == "$THEME" ]]; then
   # Starting an already running unit does nothing.
@@ -70,14 +88,8 @@ if [[ $CURRENT_THEME == "$THEME" ]]; then
   exit 0
 fi
 
-# Update active.nix
-if [[ ! -f $ACTIVE_FILE ]]; then
-  echo "Error: $ACTIVE_FILE not found"
-  exit 1
-fi
-
-echo "import ./themes/$THEME.nix" >"$ACTIVE_FILE"
-echo "Updated active.nix to $THEME"
+mkdir -p "$(dirname "$STATE_FILE")"
+printf '%s\n' "$THEME" >"$STATE_FILE"
 
 # Reuse the generated symlink map from Home Manager to avoid duplicating paths.
 if [[ ! -f $LINKS_FILE ]]; then
