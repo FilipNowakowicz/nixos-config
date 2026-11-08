@@ -362,6 +362,7 @@ cache but only publishes on protected `main`.
 **Security & backups**
 
 - [Security Model](docs/security.md) — sops recipients, initrd SSH, Tailscale exposure, USBGuard, and hardening.
+- [Backup Inventory](docs/backups.md) — configured coverage, recovery dependencies, and findings for human review.
 - [Backup Validation](docs/backup-validation.md) — proven-restore pattern: retention, freshness metrics, restore canary, invariants.
 - [Restore Drill](docs/restore-drill.md) — quarterly manual restore from the B2 restic repository.
 

@@ -11,10 +11,10 @@ let
   };
 in
 {
-  # Every boot resolves public main; Friday's GCE schedule is the unattended trigger.
+  # Runs only from the timer, so an ordinary on-demand boot does not start a full
+  # `main` build alongside the job that woke the VM.
   systemd.services.builder-prebuild = {
     description = "Prebuild latest public main system for the workstation";
-    wantedBy = [ "multi-user.target" ];
     wants = [ "network-online.target" ];
     after = [
       "network-online.target"
@@ -31,5 +31,12 @@ in
       TimeoutStopSec = "30s";
       KillMode = "control-group";
     };
+  };
+
+  # GCE starts the VM within 15 minutes of 20:00 UTC, and the idle shutdown allows
+  # 20 minutes after boot, so this fires once the VM is up and before it powers off.
+  systemd.timers.builder-prebuild = {
+    wantedBy = [ "timers.target" ];
+    timerConfig.OnCalendar = "Fri *-*-* 20:17:00 UTC";
   };
 }

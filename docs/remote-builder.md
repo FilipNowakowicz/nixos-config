@@ -152,9 +152,12 @@ Engine service agent's project-level `roles/compute.instanceAdmin.v1` binding
 included there. It is configuration only until an operator reviews/applies it;
 this feature does not deploy Terraform or the builder configuration itself.
 GCE schedules do not restart an already-running instance. A merge after 20:00
-will therefore wait for another boot or a manual service restart.
+waits for the next Friday or a manual
+`sudo systemctl start builder-prebuild` on the builder.
 
-Every builder boot runs `builder-prebuild.service` as `user`. It resolves the
+A timer runs `builder-prebuild.service` as `user` at 20:17 UTC on Fridays, once
+the scheduled start has had time to land, so ordinary on-demand boots do not
+start a full build. It resolves the
 latest public `main` revision and builds the full
 `nixosConfigurations.main.config.system.build.toplevel` at that immutable
 revision, without checkout credentials. `/var/lib/builder-prebuilt/system` is an
@@ -172,7 +175,7 @@ No unattended activation happens on the laptop.
 
 The full workstation closure needs the unfree DisplayLink `requireFile` source.
 The builder cannot download it or publish it to a public cache. If absent, the
-boot job stops with `missing-displaylink`, giving the expected store path.
+job stops with `missing-displaylink`, giving the expected store path.
 After accepting the vendor terms and adding the correct blob to the laptop's
 store (see [DisplayLink instructions](../.claude/main/displaylink.md)), an
 operator can seed **only the private builder**, without any public cache:
@@ -186,7 +189,7 @@ ssh user@gcp-builder.tail90fc7a.ts.net sudo systemctl restart builder-prebuild.s
 ```
 
 Use the latest `origin/main` checkout to resolve the source: a lock update may
-change its expected name/hash. A new version needs seeding again. The boot
+change its expected name/hash. A new version needs seeding again. The
 service roots the source after finding it; restarting it promptly avoids a GC
 window. These commands are operator steps, not part of CI or Terraform apply.
 No proprietary source or resulting unfree closure may be uploaded publicly.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Boot-time public-main build. Run by builder-prebuild.service, never on main.
+# Scheduled public-main build. Run by builder-prebuild.service, never on main.
 set -euo pipefail
 
 state_dir=${STATE_DIRECTORY:-/var/lib/builder-prebuilt}

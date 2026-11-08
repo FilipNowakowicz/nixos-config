@@ -231,6 +231,9 @@ in
       lib-prebuilt = import ../tests/lib/prebuilt.nix {
         inherit nixpkgs system;
       };
+      lib-on-builder = import ../tests/lib/on-builder.nix {
+        inherit nixpkgs system;
+      };
       lib-mini-fleet-flake = import ../tests/lib/mini-fleet-flake.nix {
         inherit nixpkgs system;
       };

@@ -213,6 +213,7 @@ light)
     ".#checks.${system}.invariants-installer" \
     ".#checks.${system}.lib-doctor" \
     ".#checks.${system}.lib-prebuilt" \
+    ".#checks.${system}.lib-on-builder" \
     ".#checks.${system}.lib-generators" \
     ".#checks.${system}.lib-generators-structured" \
     ".#checks.${system}.lib-acl" \
