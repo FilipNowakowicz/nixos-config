@@ -38,13 +38,25 @@ fi
 
 echo "==> Decrypting SSH host key..."
 tmpdir="$(mktemp -d)"
+PROVISION_SSH_RULE=homeserver-gcp-provision-ssh
+provision_ssh_created=0
 cleanup() {
+  local status=$?
+  if ((provision_ssh_created)); then
+    if ! gcloud compute firewall-rules delete "$PROVISION_SSH_RULE" --quiet; then
+      echo "error: remove temporary firewall rule manually: ${PROVISION_SSH_RULE}" >&2
+      status=1
+    fi
+  fi
   rm -rf "$tmpdir"
   if [[ -n ${TEMP_SSH_AGENT_STARTED:-} && -n ${SSH_AGENT_PID:-} ]]; then
     ssh-agent -k >/dev/null 2>&1 || true
   fi
+  exit "$status"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 HOST_KEY_PATH="${tmpdir}/ssh_host_ed25519_key"
 HOST_KEY_PUB_PATH="${HOST_KEY_PATH}.pub"
@@ -74,6 +86,38 @@ INSTANCE_IP="$(tofu output -raw instance_external_ip)"
 INSTANCE_NAME="$(tofu output -raw instance_name)"
 INSTANCE_ZONE="$(tofu output -raw instance_zone)"
 cd ..
+
+echo "==> Opening temporary bootstrap SSH from this caller only..."
+CALLER_IP="$(curl -4 --fail --silent --show-error --max-time 15 https://api.ipify.org)"
+# Reject unexpected responses before constructing the single-host source range.
+if [[ ! $CALLER_IP =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+  echo "error: public IP lookup did not return an IPv4 address" >&2
+  exit 1
+fi
+IFS=. read -r -a caller_octets <<<"$CALLER_IP"
+for octet in "${caller_octets[@]}"; do
+  if ((10#$octet > 255)); then
+    echo "error: public IP lookup returned an invalid IPv4 address" >&2
+    exit 1
+  fi
+done
+# Create only: an existing rule causes an error rather than being widened or
+# adopted. Cleanup owns only the rule successfully created by this invocation.
+# Defer signal exits until ownership is recorded, including a signal delivered
+# just as the create command succeeds.
+provision_signal=0
+trap 'provision_signal=130' INT
+trap 'provision_signal=143' TERM
+gcloud compute firewall-rules create "$PROVISION_SSH_RULE" \
+  --network=default --direction=INGRESS --action=ALLOW \
+  --rules=tcp:22 --target-tags=homeserver-gcp --priority=400 \
+  --source-ranges="${CALLER_IP}/32"
+provision_ssh_created=1
+trap 'exit 130' INT
+trap 'exit 143' TERM
+if ((provision_signal)); then
+  exit "$provision_signal"
+fi
 
 echo "==> Waiting for bootstrap SSH on ${INSTANCE_IP}..."
 known_hosts="$tmpdir/known_hosts"

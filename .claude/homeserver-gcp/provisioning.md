@@ -33,7 +33,7 @@ The script:
 
 1. Decrypts the pre-baked SSH host key.
 2. Runs `tofu apply` to create the GCE VM with the operator's temporary bootstrap pubkey.
-3. Waits for SSH to come up.
+3. Creates `homeserver-gcp-provision-ssh`, a temporary priority-400 ingress rule on the default network allowing TCP/22 to the `homeserver-gcp` tag from the caller's public IPv4 address only (`/32`), then waits for SSH. This overrides `deny_public_ssh` during installation. The exit trap removes the rule on success, failure, or interruption; cleanup errors are reported for manual removal. An existing rule makes creation fail rather than being reused.
 4. Installs and verifies the expected Ed25519 SSH host key before invoking `nixos-anywhere`.
 5. Runs `nixos-anywhere --flake '.#homeserver-gcp' --extra-files <host-key-dir>` to install NixOS over the bootstrap image.
 6. Removes and verifies removal of all bootstrap-only metadata keys.
@@ -45,7 +45,7 @@ Before the first run, copy `infra/terraform.tfvars.example` to `infra/terraform.
 When provisioning from scratch:
 
 1. **Fill in real secrets** — `sops hosts/homeserver-gcp/secrets/secrets.yaml`, set:
-   - `tailscale_auth_key` — Tailscale admin → Settings → Keys → reusable + ephemeral
+   - `tailscale_auth_key` — Tailscale admin → Settings → Keys → reusable, non-ephemeral, tagged `tag:server`
    - `user_password` — bcrypt hash: `mkpasswd -m bcrypt`
    - `grafana_admin_password`, `grafana_secret_key`, `observability_ingest_htpasswd`
    - `alertmanager_webhook_url` — off-host notification URL such as an ntfy topic
@@ -55,7 +55,7 @@ When provisioning from scratch:
 
 3. **Wait ~60s for first boot** — sops decrypts secrets, Tailscale joins the tailnet.
 
-4. **Confirm reachability** — `tailscale status | grep homeserver-gcp`.
+4. **Confirm reachability** — `tailscale status | grep homeserver-gcp`. A rebuilt host gets a new tailnet IP: update `lib/hosts.nix` and the Tailscale DNS nameserver override to the new address before relying on DNS or deploying later updates.
 
 5. **Bootstrap metadata cleanup is automatic** — `deploy-gcp.sh` removes and verifies the temporary bootstrap pubkey and startup script metadata after a successful install. OpenTofu ignores those bootstrap-only metadata keys on later applies so they are not recreated after cleanup.
 
