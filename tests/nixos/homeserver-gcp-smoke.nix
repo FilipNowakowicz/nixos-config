@@ -56,15 +56,6 @@ in
             blackbox = {
               enable = true;
               probes = {
-                vaultwarden-root = {
-                  url = "https://${testFqdn}/";
-                  expectedStatusCodes = [
-                    200
-                    301
-                    302
-                  ];
-                  skipTLSVerify = true;
-                };
                 grafana-auth-boundary = {
                   url = "https://${testFqdn}/grafana/";
                   expectedStatusCodes = [ 200 ];
@@ -91,15 +82,6 @@ in
             serve_from_sub_path = true;
           };
 
-          vaultwarden = {
-            enable = true;
-            config = {
-              ROCKET_ADDRESS = "127.0.0.1";
-              ROCKET_PORT = 8222;
-              SIGNUPS_ALLOWED = false;
-              DOMAIN = "https://${testFqdn}";
-            };
-          };
         };
 
         # Generate a throwaway self-signed cert before nginx starts.
@@ -166,7 +148,6 @@ in
       ""
       "start_all()"
       ""
-      "server.wait_for_unit(\"vaultwarden.service\")"
       "server.wait_for_unit(\"grafana.service\")"
       "server.wait_for_unit(\"prometheus.service\")"
       "server.wait_for_unit(\"opentelemetry-collector.service\")"
@@ -179,7 +160,7 @@ in
       "server.wait_for_unit(\"smoke-test-grafana-auth.service\")"
       "server.wait_for_unit(\"nginx.service\")"
       ""
-      "# / -> Vaultwarden reachable (200 or redirect to login)"
+      "# / -> redirects to the status homepage"
       "server.wait_until_succeeds("
       "  \"curl -sk https://${testFqdn}/ -o /dev/null -w '%{http_code}'\""
       "  \" | grep -qE '^(200|301|302)'\","
@@ -191,15 +172,6 @@ in
       "  \"curl -sk https://${testFqdn}/grafana/ -o /dev/null -w '%{http_code}'\""
       "  \" | grep -q '^200'\","
       "  timeout=90,"
-      ")"
-      ""
-      "# Vaultwarden notification websocket route is explicit and reaches the upstream."
-      "server.succeed("
-      "  \"config=$(systemctl cat nginx.service\""
-      "  \" | sed -n \\\"s#.*-c \\\\([^ ]*nginx\\\\.conf\\\\).*#\\\\1#p\\\"\""
-      "  \" | tr -d \\\"'\\\\\\\"\\\"\""
-      "  \" | head -n 1)\""
-      "  \" && grep -q 'location = /notifications/hub' \\\"$config\\\"\""
       ")"
       ""
       "# Exact ingest routes require credentials."
@@ -239,7 +211,7 @@ in
       "import json"
       "import urllib.request"
       ""
-      "for probe in (\"vaultwarden-root\", \"grafana-auth-boundary\"):"
+      "for probe in (\"grafana-auth-boundary\",):"
       "    with urllib.request.urlopen("
       "        \"http://127.0.0.1:9090/api/v1/query?query=probe_success%7Bprobe%3D%22\""
       "        + probe"

@@ -2,20 +2,20 @@
 # Full-service restore drill (layer 6 automation).
 #
 # The daily restore canary (backups.nix) proves the B2 path round-trips a marker
-# and that the Vaultwarden SQLite snapshot opens cleanly. It does *not* prove a
+# and that the Grafana SQLite snapshot opens cleanly. It does *not* prove a
 # whole service can be brought up from restored bytes. This module closes that
-# gap: it restores Vaultwarden, Grafana, and AdGuard Home from the homeserver B2
+# gap: it restores Grafana and AdGuard Home from the homeserver B2
 # restic repository into an isolated scratch root and then *starts each service
 # binary against the restored state*, asserting it actually comes up — not merely
 # that files exist.
 #
 # Isolation contract (must never touch live homeserver-gcp service data):
 #   - Every restore target is under a throwaway scratch dir wiped on each run;
-#     the live /var/lib/{vaultwarden,grafana,private/AdGuardHome} are never
+#     the live /var/lib/{grafana,private/AdGuardHome} are never
 #     written to. `restic restore` is given an explicit --target scratch root.
 #   - Each service is started via `systemd-run` as a transient unit with
 #     PrivateNetwork=true, so it binds inside its own network namespace
-#     (loopback only). That makes the live DNS:53 / Grafana / Vaultwarden
+#     (loopback only). That makes the live DNS:53 / Grafana
 #     listeners impossible to collide with and blocks any egress from the
 #     scratch instance. The probe runs inside the same namespace.
 #   - The drill never enables, reloads, or stops any live unit.
@@ -27,8 +27,6 @@ let
 
   scratchRoot = "/var/lib/restore-drill";
 
-  vaultwardenPkg = config.services.vaultwarden.package;
-  vaultwardenWebVault = config.services.vaultwarden.webVaultPackage;
   grafanaPkg = config.services.grafana.package;
   adguardPkg = config.services.adguardhome.package;
 
@@ -88,32 +86,8 @@ let
 
     echo "restore-drill: restoring service state from B2 into $target"
     restic restore latest --target "$target" \
-      --include /var/lib/vaultwarden \
       --include /var/lib/grafana \
       --include /var/lib/restic-staging/adguardhome
-
-    # ── Vaultwarden ────────────────────────────────────────────────────────
-    # Restored snapshot ships db.sqlite3.backup (consistent) but not the live
-    # db.sqlite3 (excluded from backup). Promote the snapshot into the name
-    # Vaultwarden opens, inside the scratch tree only.
-    vw_data="$target/var/lib/vaultwarden"
-    ${pkgs.coreutils}/bin/cp "$vw_data/db.sqlite3.backup" "$vw_data/db.sqlite3"
-
-    echo "restore-drill: starting Vaultwarden against restored data"
-    ${runIsolated "vaultwarden" ''
-      set -eu
-      DATA_FOLDER="${scratchRoot}/scratch/var/lib/vaultwarden" \
-      WEB_VAULT_FOLDER="${vaultwardenWebVault}/share/vaultwarden/vault" \
-      ROCKET_ADDRESS=127.0.0.1 \
-      ROCKET_PORT=18222 \
-      ROCKET_LOG=critical \
-      SIGNUPS_ALLOWED=false \
-      ${vaultwardenPkg}/bin/vaultwarden &
-      vw_pid=$!
-      trap '${pkgs.coreutils}/bin/kill "$vw_pid" 2>/dev/null || true' EXIT
-      ${waitHttp} http://127.0.0.1:18222/alive >/dev/null
-      echo "restore-drill: Vaultwarden answered /alive from restored data"
-    ''}
 
     # ── Grafana ────────────────────────────────────────────────────────────
     # Restored snapshot ships grafana.db.backup (consistent); promote it into
@@ -204,7 +178,7 @@ let
     ${mkPromScript {
       name = "restore_drill.prom";
       lines = [
-        "# HELP restore_drill_last_success_timestamp_seconds Unix timestamp of last successful full-service restore drill (Vaultwarden + Grafana + AdGuard Home brought up from B2-restored state)"
+        "# HELP restore_drill_last_success_timestamp_seconds Unix timestamp of last successful full-service restore drill (Grafana + AdGuard Home brought up from B2-restored state)"
         "# TYPE restore_drill_last_success_timestamp_seconds gauge"
         "restore_drill_last_success_timestamp_seconds $(${pkgs.coreutils}/bin/date +%s)"
       ];
@@ -216,7 +190,7 @@ in
 {
   systemd = {
     services.restore-drill-b2 = {
-      description = "Full-service restore drill (Vaultwarden + Grafana + AdGuard Home) from B2";
+      description = "Full-service restore drill (Grafana + AdGuard Home) from B2";
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
       # Explicitly not wantedBy any live target; this only ever runs from its

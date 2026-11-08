@@ -62,19 +62,17 @@ in
               dump --path ${canaryDir} latest "$canary_path" > "$workdir/canary.txt"
             ${pkgs.gnugrep}/bin/grep -qx '${canaryContent}' "$workdir/canary.txt"
 
-            # Crown-jewel verification: the file canary above proves the repo is
-            # restorable, but not that the Vaultwarden DB itself is intact and
-            # openable. Restore the consistent sqlite snapshot (db.sqlite3.backup,
-            # produced by backupPrepareCommand and kept in the backup; the live
-            # db.sqlite3 is excluded) and run an integrity check on it. A torn or
-            # corrupt backup fails here instead of being discovered during a real
-            # restore.
+            # The file canary above proves the repo is restorable, but not that a
+            # database in it is intact. Restore the consistent Grafana snapshot
+            # (grafana.db.backup, produced by backupPrepareCommand; the live
+            # grafana.db is excluded) and check it, so a torn or corrupt backup
+            # fails here instead of being discovered during a real restore.
             ${pkgs.restic}/bin/restic \
               --repository-file=${config.sops.secrets.restic_repository.path} \
               --no-cache \
-              dump --path /var/lib/vaultwarden latest /var/lib/vaultwarden/db.sqlite3.backup \
-              > "$workdir/vaultwarden.db"
-            integrity=$(${pkgs.sqlite}/bin/sqlite3 "$workdir/vaultwarden.db" 'PRAGMA integrity_check;')
+              dump --path /var/lib/grafana latest /var/lib/grafana/grafana.db.backup \
+              > "$workdir/grafana.db"
+            integrity=$(${pkgs.sqlite}/bin/sqlite3 "$workdir/grafana.db" 'PRAGMA integrity_check;')
             [ "$integrity" = "ok" ]
 
             ${mkPromScript {
@@ -83,9 +81,6 @@ in
                 "# HELP restic_last_restore_test_timestamp_seconds Unix timestamp of last successful restic restore canary"
                 "# TYPE restic_last_restore_test_timestamp_seconds gauge"
                 "restic_last_restore_test_timestamp_seconds $(${pkgs.coreutils}/bin/date +%s)"
-                "# HELP vaultwarden_last_restore_test_timestamp_seconds Unix timestamp of last successful Vaultwarden DB restore + integrity check"
-                "# TYPE vaultwarden_last_restore_test_timestamp_seconds gauge"
-                "vaultwarden_last_restore_test_timestamp_seconds $(${pkgs.coreutils}/bin/date +%s)"
               ];
             }}
           '';
@@ -121,7 +116,6 @@ in
 
   services.restic.backups.b2 = {
     paths = [
-      "/var/lib/vaultwarden"
       "/var/lib/grafana"
       canaryDir
       "/var/lib/restic-staging/adguardhome"
@@ -136,15 +130,11 @@ in
       ${pkgs.rsync}/bin/rsync -a --delete --no-owner --no-group /var/lib/AdGuardHome/ /var/lib/restic-staging/adguardhome/
 
       ${pkgs.sqlite}/bin/sqlite3 /var/lib/grafana/grafana.db ".backup '/var/lib/grafana/grafana.db.backup'"
-      ${pkgs.sqlite}/bin/sqlite3 /var/lib/vaultwarden/db.sqlite3 ".backup '/var/lib/vaultwarden/db.sqlite3.backup'"
     '';
     exclude = [
       "/var/lib/grafana/grafana.db"
       "/var/lib/grafana/grafana.db-wal"
       "/var/lib/grafana/grafana.db-shm"
-      "/var/lib/vaultwarden/db.sqlite3"
-      "/var/lib/vaultwarden/db.sqlite3-wal"
-      "/var/lib/vaultwarden/db.sqlite3-shm"
       # AdGuard's query log (90-day retention, tailnet-wide DNS traffic) is
       # 289M+ and growing — it's the main driver behind the B2 storage-cap
       # exhaustion that stopped backups on 2026-07-11. It's rewritten whole

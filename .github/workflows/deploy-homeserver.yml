@@ -56,7 +56,7 @@ concurrency:
 jobs:
   # Heavy validation/build gates run on GitHub-hosted runners (ephemeral, large)
   # so they never touch the 4 GB homeserver-gcp host, which also runs the LGTM
-  # stack + Vaultwarden + AdGuard. Building its closure on the host itself
+  # stack + AdGuard. Building its closure on the host itself
   # OOM-thrashed the box catatonic and took the live services down (incident
   # 2026-06-07, #112). Only deploy + live verification, which genuinely need
   # tailnet reachability, run on the self-hosted runner.

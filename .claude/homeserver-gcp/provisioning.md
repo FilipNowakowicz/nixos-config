@@ -59,6 +59,4 @@ When provisioning from scratch:
 
 5. **Bootstrap metadata cleanup is automatic** — `deploy-gcp.sh` removes and verifies the temporary bootstrap pubkey and startup script metadata after a successful install. OpenTofu ignores those bootstrap-only metadata keys on later applies so they are not recreated after cleanup.
 
-6. **Create Vaultwarden account** — temporarily set `SIGNUPS_ALLOWED = true`, deploy, sign up, set back to `false`, redeploy.
-
-7. **Set up AdGuard Home** — open `http://<tailscale-ip>:3001` in a browser and complete the setup wizard (create admin user, confirm DNS on port 53). Then in Tailscale admin → DNS → Nameservers, add the homeserver-gcp Tailscale IP as a global nameserver.
+6. **Set up AdGuard Home** — open `http://<tailscale-ip>:3001` in a browser and complete the setup wizard (create admin user, confirm DNS on port 53). Then in Tailscale admin → DNS → Nameservers, add the homeserver-gcp Tailscale IP as a global nameserver.

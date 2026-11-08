@@ -66,7 +66,6 @@ let
         (lib.optionalString c.services.openssh.enable "sshd.service")
         (lib.optionalString c.services.tailscale.enable "tailscaled.service")
         (lib.optionalString (c.services.nginx.enable or false) "nginx.service")
-        (lib.optionalString (c.services.vaultwarden.enable or false) "vaultwarden.service")
         (lib.optionalString (c.services.adguardhome.enable or false) "adguardhome.service")
         (lib.optionalString (c.services.grafana.enable or false) "grafana.service")
         (lib.optionalString (c.services.loki.enable or false) "loki.service")
@@ -112,7 +111,6 @@ let
         tailscale = c.services.tailscale.enable;
         firewall = c.networking.firewall.enable;
         fail2ban = c.services.fail2ban.enable;
-        vaultwarden = c.services.vaultwarden.enable or false;
         syncthing = c.services.syncthing.enable or false;
         nginx = c.services.nginx.enable or false;
         adguard = c.services.adguardhome.enable or false;
@@ -132,7 +130,6 @@ let
           [
             "adguard"
             "nginx"
-            "vaultwarden"
             "grafana"
             "loki"
             "mimir"

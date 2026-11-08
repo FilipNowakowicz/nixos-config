@@ -77,7 +77,7 @@ flowchart LR
   main("main<br/>workstation / impermanent root")
   builder("gcp-builder<br/>on-demand builds")
   agent("gcp-agent<br/>on-demand Claude Code sessions")
-  homeserver("homeserver-gcp<br/>Vaultwarden / AdGuard / LGTM")
+  homeserver("homeserver-gcp<br/>AdGuard / LGTM")
   tailnet(("Tailscale"))
   b2("Backblaze B2<br/>restic backups")
   snapshots("GCP snapshots<br/>fast rollback")
@@ -105,7 +105,7 @@ flowchart LR
 | Host             | Role                | Highlights                                                                                       |
 | :--------------- | :------------------ | :----------------------------------------------------------------------------------------------- |
 | `main`           | Primary workstation | Secure Boot, LUKS, impermanent root, Hyprland, USBGuard, Restic/B2, anonymous specialisation     |
-| `homeserver-gcp` | Cloud homeserver    | Vaultwarden, AdGuard, Nginx, Grafana/Loki/Mimir/Tempo, restore canary, Tailscale ingress         |
+| `homeserver-gcp` | Cloud homeserver    | AdGuard, Nginx, Grafana/Loki/Mimir/Tempo, restore canary, Tailscale ingress                      |
 | `gcp-builder`    | Remote builder      | Normally off, started for heavy builds, self-powers-off when idle, deploy-rs managed             |
 | `gcp-agent`      | Claude Code agent   | Normally off, started for issue-loop sessions, narrow sudo, own claude login + scoped GitHub PAT |
 | `user@wsl`       | Portable HM profile | Home Manager profile for Windows/WSL environments                                                |
@@ -135,7 +135,7 @@ registry. `installer` is a utility ISO outside the host registry.
   persisted backup paths, host-registry assumptions, plaintext-secret
   boundaries, and service hardening expectations as part of CI.
 - **Backups that are proven, not assumed.** A daily restore canary restores a
-  known marker from B2 _and_ restores the Vaultwarden database to run
+  known marker from B2 _and_ restores the Grafana database to run
   `PRAGMA integrity_check`, emitting freshness metrics; weekly integrity checks
   and stale alerts catch silent drift; invariants enforce the contract.
 - **A single source of truth for the fleet.** `lib/hosts.nix` drives deploy

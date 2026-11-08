@@ -14,7 +14,7 @@ the host-local provisioning runbook.
 
 - **Is:** a headless `n2-standard-4` (nested virtualization enabled) that builds
   Nix closures and runs the KVM-backed nixos test suite offloaded from `main`.
-- **Isn't:** a service host. No Vaultwarden/AdGuard/LGTM/nginx, no backups, no
+- **Isn't:** a service host. No AdGuard/LGTM/nginx, no backups, no
   Home Manager, no sops. Losing it costs nothing but provisioning time.
 
 ## How `main` (and `gcp-agent`) use it

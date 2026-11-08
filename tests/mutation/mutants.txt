@@ -243,15 +243,15 @@ main Restic backs up a path that lives on the wiped root and is not persisted.
 >>>>
 
 ## M23 | backup | eval | invariants-homeserver-gcp (B2 backup paths)
-homeserver B2 backup drops the Vaultwarden data directory.
+homeserver B2 backup drops the Grafana data directory.
 @@ hosts/homeserver-gcp/backups.nix
 <<<<
     paths = [
-      "/var/lib/vaultwarden"
       "/var/lib/grafana"
+      canaryDir
 ====
     paths = [
-      "/var/lib/grafana"
+      canaryDir
 >>>>
 
 ## M24 | backup | eval | invariants-homeserver-gcp (registry backup metadata)

@@ -20,7 +20,7 @@ shared on-demand-VM mechanics (bootstrap account, tailnet auto-join, lockdown).
   pushing branches and opening PRs with a scoped GitHub PAT.
 - **Isn't:** a build box. Heavy builds and the KVM test suite **offload to
   `gcp-builder`** (no nested virt here). Not a service host: no
-  Vaultwarden/LGTM/nginx, no backups.
+  LGTM/nginx, no backups.
 
 ## Security posture (how it differs from gcp-builder)
 
