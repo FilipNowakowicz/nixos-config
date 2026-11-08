@@ -23,9 +23,6 @@ Item {
         const at = item.mapToItem(null, 0, item.height + 8);
         item.modelData.display(QsWindow.window, at.x, at.y);
     }
-    function clock(format) { void Sys.zoneVersion; return Qt.formatDateTime(time.date, format); }
-
-    SystemClock { id: time; precision: SystemClock.Minutes }
 
     Item {
         id: left
@@ -215,7 +212,7 @@ Item {
                 radius: 12
                 toggled: Ui.panel === "notifications"
                 onClicked: Ui.open("notifications")
-                Label { id: clockText; anchors.centerIn: parent; text: root.clock("ddd d MMM  HH:mm"); font.features: { "tnum": 1 } }
+                Label { id: clockText; anchors.centerIn: parent; text: Sys.clock("ddd d MMM  HH:mm"); font.features: { "tnum": 1 } }
             }
         }
     }

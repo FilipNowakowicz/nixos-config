@@ -1,9 +1,9 @@
 """The tray's registry (org.kde.StatusNotifierWatcher), kept apart from the shell.
 
 Apps put their tray icons here and the shell reads them. When the shell owned the
-registry, every shell restart took it away, and Spotify (Chromium) aborted each time
-it vanished. Run on its own, it outlives the shell; the shell finds it and only acts
-as the tray's host.
+registry, every shell restart took it away and told apps the tray had gone, and
+Spotify aborted each time. Run on its own, it outlives the shell; the shell finds it
+and only acts as the tray's host.
 """
 
 import asyncio
@@ -21,6 +21,7 @@ class Watcher(ServiceInterface):
         super().__init__(NAME)
         self.items = []  # "bus name/object path" of each icon
         self.hosts = set()
+        self.seen_host = False
 
     # Declared so callers see them; main() answers them, as they need the caller.
     @method()
@@ -37,7 +38,7 @@ class Watcher(ServiceInterface):
 
     @dbus_property(access=PropertyAccess.READ)
     def IsStatusNotifierHostRegistered(self) -> "b":
-        return bool(self.hosts)
+        return self.seen_host
 
     @dbus_property(access=PropertyAccess.READ)
     def ProtocolVersion(self) -> "i":
@@ -69,7 +70,9 @@ class Watcher(ServiceInterface):
         if name not in self.hosts:
             self.hosts.add(name)
             self.StatusNotifierHostRegistered()
-            self.emit_properties_changed({"IsStatusNotifierHostRegistered": True})
+            if not self.seen_host:
+                self.seen_host = True
+                self.emit_properties_changed({"IsStatusNotifierHostRegistered": True})
 
     def gone(self, name):
         """A bus name lost its owner: forget its icons, or it as a host."""
@@ -77,10 +80,10 @@ class Watcher(ServiceInterface):
             self.items.remove(item)
             self.StatusNotifierItemUnregistered(item)
             self.emit_properties_changed({"RegisteredStatusNotifierItems": self.items})
-        if name in self.hosts:
-            self.hosts.discard(name)
-            self.StatusNotifierHostUnregistered()
-            self.emit_properties_changed({"IsStatusNotifierHostRegistered": bool(self.hosts)})
+        # A host leaving isn't announced: the shell is the only one and restarts
+        # itself in seconds, while apps told "no host" switch their icon to an old
+        # fallback, which is where Spotify aborted.
+        self.hosts.discard(name)
 
 
 async def main():

@@ -294,6 +294,19 @@ in
           machine.screenshot("spotlight-timezone")
           machine.send_key("ret")
           machine.wait_until_succeeds("readlink /etc/localtime | grep -q Europe/Warsaw", timeout=timedelta(seconds=20))
+          # Once the shell sees the new zone, its clock shows Warsaw's time at once,
+          # not at the next minute or the next restart.
+          retry(lambda _: state()["sys"].get("timezone") == "Europe/Warsaw", timeout=timedelta(seconds=20))
+          clocks = []
+          def caught_up(_):
+              now = state()
+              clocks.append((now["clock"], machine.succeed("date +%H:%M").strip(), now["sys"].get("utcOffset")))
+              return clocks[-1][0] == clocks[-1][1]
+          try:
+              retry(caught_up, timeout=timedelta(seconds=2))
+          except Exception:
+              raise AssertionError(f"the clock lagged the zone (shell, system, offset): {clocks}")
+          print(f"clock caught up after {len(clocks)} checks: {clocks[-1]}")
           retry(lambda _: state()["sys"]["timezone"] == "Europe/Warsaw" and not state()["writes"], timeout=timedelta(seconds=20))
           retry(lambda _: (state()["place"] or {}).get("name") == "Warsaw", timeout=timedelta(seconds=10))
           chosen = json.loads(machine.succeed("cat /home/user/.local/state/quiet-shell/location.json"))

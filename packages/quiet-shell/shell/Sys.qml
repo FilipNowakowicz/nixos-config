@@ -493,9 +493,30 @@ Singleton {
         if (night)
             Quickshell.execDetached(["sh", "-c", 'systemctl --user stop night-light.service; "$@"', "sh"].concat(nightOn));
     }
-    // Bumped when the zone moves. Clocks read it so they redraw at once, instead
-    // of keeping the old time until their next minute tick.
-    property int zoneVersion: 0
+    // The one clock the bar and overview show. glibc reads the zone once per process,
+    // so after a change Qt here keeps formatting times in the old zone. status.py runs
+    // fresh each refresh and reports the real UTC offset, so the time is built from UTC
+    // and that offset instead. Patterns: dddd ddd d MMMM MMM HH mm.
+    SystemClock { id: wallClock; precision: SystemClock.Minutes }
+    function clock(pattern) {
+        const date = wallClock.date;  // Read for its minute ticks only.
+        if (typeof state.utcOffset !== "number")
+            return Qt.formatDateTime(date, pattern);
+        // Not date.getTime(): its conversion goes through the stale local time.
+        const t = new Date(Date.now() + state.utcOffset * 1000);  // read with UTC getters
+        const locale = Qt.locale();
+        const two = n => (n < 10 ? "0" : "") + n;
+        const parts = {
+            dddd: locale.dayName(t.getUTCDay(), Locale.LongFormat),
+            ddd: locale.dayName(t.getUTCDay(), Locale.ShortFormat),
+            d: t.getUTCDate(),
+            MMMM: locale.monthName(t.getUTCMonth(), Locale.LongFormat),
+            MMM: locale.monthName(t.getUTCMonth(), Locale.ShortFormat),
+            HH: two(t.getUTCHours()),
+            mm: two(t.getUTCMinutes())
+        };
+        return pattern.replace(/dddd|ddd|MMMM|MMM|HH|mm|d/g, k => parts[k]);
+    }
     readonly property string timezone: state.timezone || ""
     property string knownZone: ""
     onTimezoneChanged: {
@@ -503,9 +524,6 @@ Singleton {
         knownZone = timezone || knownZone;
         if (!moved)
             return;
-        // QML's Date keeps the offset it read at start until told.
-        Date.timeZoneUpdated();
-        zoneVersion++;
         placeMoved();
     }
     function toggleAwake() {

@@ -133,21 +133,15 @@ Item {
         y: 28
         Label {
             anchors.right: parent.right
-            text: clock.format("HH:mm")
+            text: Sys.clock("HH:mm")
             font.pixelSize: 40
             font.weight: Font.Medium
         }
         Label {
             anchors.right: parent.right
-            text: clock.format("dddd d MMMM")
+            text: Sys.clock("dddd d MMMM")
             color: Theme.dim
         }
-    }
-    SystemClock {
-        id: clock
-        precision: SystemClock.Minutes
-        // Reads the zone's version so the text redraws as soon as the zone moves.
-        function format(pattern) { void Sys.zoneVersion; return Qt.formatDateTime(date, pattern); }
     }
 
     GridLayout {
