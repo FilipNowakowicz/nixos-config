@@ -70,6 +70,7 @@ def main():
             "nix-instantiate", "--eval", "--strict", "--json",
             "--argstr", "nixpkgs", os.environ["CACHE_NIXPKGS_SOURCE"],
             "--argstr", "candidatesFile", str(candidates_file),
+            "--argstr", "flakeDir", str(Path.cwd()),
             "scripts/cache-license-metadata.nix",
         )
     metadata = {}

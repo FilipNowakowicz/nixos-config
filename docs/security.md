@@ -305,7 +305,7 @@ configuration before relying on newly signed responses.
 **Public redistribution policy.** The uploader enumerates complete realized
 closures and subtracts paths already present in `cache.nixos.org`. Only exact
 output paths with explicitly free license metadata from the pinned Nixpkgs
-package set are eligible for new uploads. Unfree or missing/conflicting
+package set or this flake's evaluated package outputs are eligible for new uploads. Unfree or missing/conflicting
 metadata fails closed. This excludes NVIDIA drivers, Discord, and unclassified
 locally generated outputs; it does not assume a package is free from its name.
 A path is withheld if any transitive reference is excluded and unavailable

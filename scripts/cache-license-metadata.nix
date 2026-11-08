@@ -1,16 +1,19 @@
-# Evaluate only likely package attributes from the closure, then require exact
-# output-path equality in the uploader. Unknown/generated/overridden paths are
-# withheld; guessing an attribute name never grants a license to another path.
-{ nixpkgs, candidatesFile }:
+# Exact output paths, never package-name guesses, authorize publication.
+{
+  nixpkgs,
+  candidatesFile,
+  flakeDir,
+  system ? builtins.currentSystem,
+}:
 let
   pkgs = import nixpkgs { config.allowUnfree = true; };
+  flake = builtins.getFlake flakeDir;
   candidates = builtins.fromJSON (builtins.readFile candidatesFile);
   inspect =
-    name:
+    package:
     let
       attempted = builtins.tryEval (
         let
-          package = pkgs.${name};
           result = {
             meta.license = package.meta.license or [ ];
             outputs = builtins.listToAttrs (
@@ -24,16 +27,27 @@ let
         builtins.deepSeq result result
       );
     in
-    if !(builtins.hasAttr name pkgs) then
+    if !(package ? meta.license) then
       { }
     else if attempted.success then
       attempted.value
     else
       { };
+  upstream = builtins.listToAttrs (
+    map (name: {
+      name = "nixpkgs:${name}";
+      value =
+        if builtins.hasAttr name pkgs && pkgs.lib.isDerivation pkgs.${name} then
+          inspect pkgs.${name}
+        else
+          { };
+    }) candidates
+  );
+  localPackages = builtins.listToAttrs (
+    pkgs.lib.mapAttrsToList (name: package: {
+      name = "repo:${name}";
+      value = inspect package;
+    }) (flake.packages.${system} or { })
+  );
 in
-builtins.listToAttrs (
-  map (name: {
-    inherit name;
-    value = inspect name;
-  }) candidates
-)
+upstream // localPackages
