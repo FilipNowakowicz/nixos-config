@@ -48,9 +48,11 @@ variable "builder_machine_type" {
     Machine type for the on-demand Nix remote builder. Must be a family that
     supports nested virtualization (n2/n2d/c3/...) so the box can run the
     KVM-backed nixos test suite; e2 does NOT support nested virt. Default
-    n2-standard-4 = 4 vCPU / 16 GB (~$0.19/hr while running, ~$0 stopped).
+    n2-standard-8 = 8 vCPU / 32 GB. Compute is billed while running; persistent
+    disk charges continue while stopped. With the 2-vCPU agent and 2-vCPU
+    homeserver, this fits the project's 12-vCPU quota.
   EOT
-  default     = "n2-standard-4"
+  default     = "n2-standard-8"
 }
 
 variable "builder_disk_size_gb" {
@@ -64,9 +66,11 @@ variable "agent_machine_type" {
   description = <<-EOT
     Machine type for the on-demand Claude Code agent host. No nested-virt
     requirement (heavy builds/tests offload to gcp-builder), so the cheaper e2
-    family is fine. Default e2-standard-4 = 4 vCPU / 16 GB.
+    family is fine. Default e2-standard-2 = 2 vCPU / 8 GB, leaving 8 vCPU for
+    the builder and 2 vCPU for the homeserver within the project's 12-vCPU quota.
+    Compute is billed while running; persistent disk charges continue while stopped.
   EOT
-  default     = "e2-standard-4"
+  default     = "e2-standard-2"
 }
 
 variable "agent_disk_size_gb" {
