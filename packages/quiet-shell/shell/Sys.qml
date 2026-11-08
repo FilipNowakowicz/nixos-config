@@ -5,6 +5,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.Pipewire
 import Quickshell.Services.Mpris
+import "Search.js" as Search
 
 // System state and writes. A write is only "done" once a fresh readback shows the
 // target. Until then the key is pending, and if it never shows, it fails with Retry.
@@ -403,6 +404,11 @@ Singleton {
     }
 
     function setMullvadCountry(code) {
+        // Setting the same country again would only reconnect the tunnel.
+        if ((state.vpn && state.vpn.country === code) || pending("mullvad-location"))
+            return;
+        countryMemory = Search.remember(countryMemory, "", code, Date.now());
+        countryMemoryFile.setText(JSON.stringify(countryMemory));
         write("mullvad-location", ["mullvad", "relay", "set", "location", code], s => s.vpn && s.vpn.country === code, "Mullvad's location didn't change.", { timeout: 15000, target: code });
     }
     function setExitNode(name) {
@@ -413,7 +419,28 @@ Singleton {
         Quickshell.execDetached(["nm-connection-editor"]);
     }
     property var countries: []
+    // Countries picked before come first, scored as Spotlight scores its results.
+    property var countryMemory: ({ picks: {}, typed: {} })
+    FileView {
+        id: countryMemoryFile
+        path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/quiet-shell/mullvad.json"
+        printErrors: false
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                root.countryMemory = { picks: JSON.parse(text()).picks || {}, typed: {} };
+            } catch (e) {
+                console.warn("quiet-shell: bad mullvad memory", e);
+            }
+        }
+    }
+    function rankCountries(list) {
+        return Search.byUse(list, countryMemory.picks, Date.now());
+    }
     function loadCountries() {
+        // Sorted once here, so rows don't move under the pointer after a pick.
+        countries = rankCountries(countries);
         if (!countryList.running)
             countryList.running = true;
     }
@@ -423,7 +450,9 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    root.countries = JSON.parse(text);
+                    const fresh = root.rankCountries(JSON.parse(text));
+                    if (JSON.stringify(fresh) !== JSON.stringify(root.countries))
+                        root.countries = fresh;
                 } catch (e) {
                     root.countries = [];
                 }

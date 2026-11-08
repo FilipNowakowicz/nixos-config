@@ -29,6 +29,8 @@ Item {
         { title: "Keep Awake", note: Sys.awake ? "Turn off" : "Turn on", run: () => { Sys.toggleAwake(); Ui.close(); } },
         { title: "Wi-Fi", note: Sys.wifiOn ? "Turn off" : "Turn on", run: () => { Sys.toggleWifi(); Ui.close(); } },
         { title: "Bluetooth", note: Sys.btOn ? "Turn off" : "Turn on", run: () => { Sys.toggleBluetooth(); Ui.close(); } },
+        { title: "Mullvad", note: Sys.mullvadOn ? "Disconnect" : "Connect", run: () => { Sys.toggleMullvad(); Ui.close(); } },
+        { title: "Mullvad Location", note: (Sys.state.vpn && Sys.state.vpn.country || "").toUpperCase() || "Choose", run: () => { input.text = "mullvad "; } },
         { title: "Location", note: Sys.place ? Sys.place.name : Sys.timezone || "Choose", run: () => { input.text = "location "; } },
         { title: "Notes", note: "Open", run: () => { Ui.close(); Sys.openNotes(); } }
     ]
@@ -126,6 +128,22 @@ Item {
         return extra.some(k => Search.wordsMatch(k, q)) ? 2 : s;
     }
 
+    // "mullvad" alone finds the switch under System; a word after it picks a country.
+    function mullvadResults(wanted) {
+        const q = wanted.toLowerCase().trim();
+        const here = Sys.state.vpn ? Sys.state.vpn.country : "";
+        const places = Search.byUse(Sys.countries, Sys.countryMemory.picks, Date.now())
+            .filter(c => !q || Search.wordsMatch([c.name, c.code, countryAliases[c.code.toUpperCase()] || ""].join(" "), q))
+            .slice(0, 8)
+            .map(c => ({ group: "Mullvad", title: c.name, note: c.code === here ? "Current" : "Set", kind: "action", value: () => { Sys.setMullvadCountry(c.code); Ui.close(); }, glyph: "globe" }));
+        // Last, so typing a country's first letter can't land on the switch.
+        const word = Sys.mullvadOn ? "Disconnect" : "Connect";
+        const toggle = q && Search.wordsMatch(word + (Sys.mullvadOn ? " off" : " on"), q)
+            ? [{ group: "Mullvad", title: word, note: "Mullvad", kind: "action", value: () => { Sys.toggleMullvad(); Ui.close(); }, glyph: "power" }]
+            : [];
+        return places.concat(toggle);
+    }
+
     readonly property var results: {
         if (clipboardMode) {
             const wanted = query.toLowerCase();
@@ -138,6 +156,9 @@ Item {
         const placeQuery = /^(?:location|time ?zone)(?:\s+(.*))?$|^(?:loc|tz|weather)\s+(.*)$/i.exec(query);
         if (placeQuery)
             return cityResults((placeQuery[1] || placeQuery[2] || "").trim());
+        const relayQuery = /^mullvad\s+(.*)$/i.exec(query);
+        if (relayQuery)
+            return mullvadResults(relayQuery[1]);
         if (query.startsWith(">")) {
             const cmd = query.slice(1).trim();
             return [{ group: "Command", title: cmd || "Type a command", note: "Run", kind: "command", value: cmd }];
@@ -205,6 +226,8 @@ Item {
     }
 
     onQueryChanged: {
+        if (/^mullvad\s/i.test(query) && !Sys.countries.length)
+            Sys.loadCountries();
         files = [];
         fileSearch.running = false;
         if (query.length >= 3 && !query.startsWith(">") && !clipboardMode)

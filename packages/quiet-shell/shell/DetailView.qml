@@ -17,6 +17,38 @@ Item {
     readonly property var exitNodes: Sys.state.vpn ? Sys.state.vpn.exitNodes : []
     readonly property string title: ({ wifi: "Wi-Fi", bluetooth: "Bluetooth", vpn: "VPN", sound: "Sound", theme: "Theme", mullvad: "Mullvad location" })[kind] || ""
 
+    // A letter does what a click on its row does, as on the main panel. Holding one
+    // down must not flip a tunnel back and forth. The long location list moves Vim-style.
+    function pressKey(event) {
+        const letter = event.text.toLowerCase();
+        if (kind === "vpn") {
+            const rows = { t: () => Sys.toggleTailscale(), m: () => Sys.toggleMullvad() };
+            if (Sys.has("vpn"))
+                rows.l = () => Ui.detail = "mullvad";
+            if (!rows[letter])
+                return false;
+            if (!event.isAutoRepeat)
+                rows[letter]();
+            return true;
+        }
+        if (kind !== "mullvad")
+            return false;
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            const row = Sys.countries[locations.currentIndex];
+            if (row && !event.isAutoRepeat)
+                Sys.setMullvadCountry(row.code);
+            return true;
+        }
+        const step = letter === "j" || event.key === Qt.Key_Down ? 1 : letter === "k" || event.key === Qt.Key_Up ? -1 : 0;
+        if (!step)
+            return false;
+        locations.currentIndex = Math.max(0, Math.min(locations.count - 1, locations.currentIndex + step));
+        locations.positionViewAtIndex(locations.currentIndex, ListView.Contain);
+        // Enter belongs to the cursor now, not to a row reached with Tab.
+        Ui.refocus();
+        return true;
+    }
+
     Glass { anchors.fill: parent; radius: 26 }
     ColumnLayout {
         id: body
@@ -38,6 +70,7 @@ Item {
                 Icon { anchors.centerIn: parent; name: "chevron-left"; size: 15 }
             }
             Label { Layout.fillWidth: true; text: root.title; font.weight: Font.DemiBold; font.pixelSize: 14 }
+            KeyHint { Layout.rightMargin: 9; text: root.kind === "mullvad" ? "J K  Enter" : "" }
             Spinner {
                 Layout.rightMargin: 9
                 visible: Sys.scanning && (root.kind === "wifi" || root.kind === "bluetooth")
@@ -146,6 +179,7 @@ Item {
             Layout.fillWidth: true
             name: "Tailscale"
             title: "Tailscale"
+            hint: "T"
             note: Sys.tailscaleOn ? "Connected" : "Off"
             selected: Sys.tailscaleOn
             busy: Sys.pending("tailscale")
@@ -156,6 +190,7 @@ Item {
             Layout.fillWidth: true
             name: "Mullvad"
             title: "Mullvad"
+            hint: "M"
             note: Sys.mullvadOn ? "Connected" : "Off"
             selected: Sys.mullvadOn
             busy: Sys.pending("mullvad")
@@ -167,6 +202,7 @@ Item {
             Layout.fillWidth: true
             name: "Mullvad location"
             title: "Mullvad location"
+            hint: "L"
             note: (Sys.state.vpn && Sys.state.vpn.country || "").toUpperCase()
             onClicked: Ui.detail = "mullvad"
         }
@@ -194,15 +230,18 @@ Item {
 
         // Mullvad location. There are about fifty countries, so this one scrolls.
         ListView {
+            id: locations
             visible: root.kind === "mullvad"
             Layout.fillWidth: true
             Layout.preferredHeight: 300
             clip: true
             model: root.kind === "mullvad" ? Sys.countries : []
             boundsBehavior: Flickable.StopAtBounds
+            onModelChanged: currentIndex = 0
             delegate: DetailRow {
                 required property var modelData
                 width: ListView.view.width
+                marked: ListView.isCurrentItem
                 name: modelData.name
                 title: modelData.name
                 selected: Sys.state.vpn && Sys.state.vpn.country === modelData.code

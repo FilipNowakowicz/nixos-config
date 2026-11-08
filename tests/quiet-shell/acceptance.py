@@ -877,9 +877,86 @@ def low_battery_warns_once_per_discharge():
         status.write_text("Discharging\n")
 
 
+def mullvad_memory(**picks):
+    now = int(time.time() * 1000)
+    path = run / "state/quiet-shell/mullvad.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"picks": {code: {"n": n, "t": now} for code, n in picks.items()}}))
+    time.sleep(0.5)
+
+
+@test
+def mullvad_keys_and_recent_use_order():
+    mullvad_memory(gb=5, se=1)
+    set_fake(mullvad=False, country="se")
+    open_controls()
+    key("v")
+    wait(lambda: ui()["detail"] == "vpn", "v to open VPN")
+    time.sleep(0.3)
+    shot("vpn-key-hints")
+    key("m")
+    wait(lambda: fake()["mullvad"], "m to connect Mullvad")
+    wait(lambda: not ui()["writes"], "Mullvad confirmed")
+    key("t")
+    wait(lambda: not fake()["tailscale"], "t to switch Tailscale off")
+    wait(lambda: not ui()["writes"], "Tailscale confirmed")
+    key("t")
+    wait(lambda: fake()["tailscale"], "t to switch Tailscale on")
+    wait(lambda: not ui()["writes"], "Tailscale back")
+    key("l")
+    wait(lambda: ui()["detail"] == "mullvad", "l to open the location list")
+    wait(lambda: ui()["countries"] == ["gb", "se", "al"], "most used first")
+    time.sleep(0.4)
+    # k stops at the top rather than wrapping round to the bottom.
+    key("k")
+    key("j")
+    key("j")
+    key("k")
+    key("j")
+    shot("mullvad-cursor")
+    key("Return")
+    wait(lambda: fake()["country"] == "al", "Enter to pick the row under the cursor", timeout=8)
+    wait(lambda: not ui()["writes"], "location confirmed", timeout=8)
+    assert ui()["countries"] == ["gb", "se", "al"], "rows moved under the cursor"
+    memory = json.loads((run / "state/quiet-shell/mullvad.json").read_text())
+    assert memory["picks"]["al"]["n"] == 1, memory
+    key("Escape")
+    wait(lambda: ui()["detail"] == "vpn", "escape back to vpn")
+    time.sleep(0.2)
+    key("l")
+    wait(lambda: ui()["countries"] == ["gb", "al", "se"], "the new pick to rank above an equal older one")
+
+
+@test
+def spotlight_controls_mullvad():
+    mullvad_memory(gb=5)
+    set_fake(mullvad=False, country="se")
+    spotlight("mullvad")
+    assert any(r.endswith(": Mullvad") for r in ui()["results"]), ui()["results"]
+    key("Return")
+    wait(lambda: fake()["mullvad"], "Enter to connect Mullvad")
+    wait(lambda: not ui()["writes"], "Mullvad confirmed")
+    spotlight("mullvad ")
+    wait(lambda: ui()["results"][:3] == ["Mullvad: UK", "Mullvad: Albania", "Mullvad: Sweden"], "countries by use")
+    shot("spotlight-mullvad")
+    spotlight("mullvad britain")
+    wait(lambda: ui()["results"] == ["Mullvad: UK"], "a country under its other name")
+    spotlight("mullvad alb")
+    wait(lambda: ui()["results"][:1] == ["Mullvad: Albania"], "country by name")
+    key("Return")
+    wait(lambda: fake()["country"] == "al", "Enter to switch country", timeout=8)
+    wait(lambda: not ui()["writes"], "location confirmed", timeout=8)
+    spotlight("mullvad disc")
+    wait(lambda: ui()["results"] == ["Mullvad: Disconnect"], "the switch by its word")
+    key("Return")
+    wait(lambda: not fake()["mullvad"], "Enter to disconnect")
+    wait(lambda: not ui()["writes"], "disconnect confirmed")
+
+
 @test
 def mullvad_location_and_exit_node():
-    set_fake(mullvad=True)
+    mullvad_memory()
+    set_fake(mullvad=True, country="se")
     open_controls()
     click(1660, 213)
     wait(lambda: ui()["detail"] == "vpn", "vpn detail")

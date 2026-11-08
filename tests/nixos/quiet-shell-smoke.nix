@@ -42,6 +42,22 @@ let
   # Like the real one, it reads window boxes first when stdin isn't a terminal,
   # so a capture that leaves stdin open hangs here too.
   fakeSlurp = pkgs.writeShellScriptBin "slurp" "[ -t 0 ] || cat >/dev/null; echo '0,0 1280x800'";
+  # Comes before the real one on PATH. Keeps the country and logs each change.
+  fakeMullvad = pkgs.writeShellScriptBin "mullvad" ''
+    country=$(cat /tmp/mullvad-country 2>/dev/null || echo se)
+    case "$1 ''${2:-}" in
+      "status "*)
+        if [ -e /tmp/mullvad-on ]; then printf 'Connected\n    Relay:  %s-sto-wg-001\n' "$country"; else echo Disconnected; fi ;;
+      "relay get") echo "    Location:  country $country" ;;
+      "relay list")
+        for place in "Albania (al)" "Sweden (se)" "UK (gb)"; do
+          printf '%s\n\tCity (cit) @ 1.0N, 2.0W\n\n' "$place"
+        done ;;
+      "relay set") echo "$4" > /tmp/mullvad-country; echo "set $4" >> /tmp/mullvad.log ;;
+      "connect "*) touch /tmp/mullvad-on ;;
+      "disconnect "*) rm -f /tmp/mullvad-on ;;
+    esac
+  '';
   shotPath = lib.makeBinPath ([ fakeSlurp ] ++ quietShell.runtime) + ":/run/current-system/sw/bin";
 in
 (import "${nixpkgs}/nixos/lib/testing-python.nix" {
@@ -106,6 +122,7 @@ in
         pkgs.kitty
         pkgs.neovim
         quietShell
+        fakeMullvad
       ];
     };
 
@@ -311,6 +328,69 @@ in
           retry(lambda _: (state()["place"] or {}).get("name") == "Warsaw", timeout=timedelta(seconds=10))
           chosen = json.loads(machine.succeed("cat /home/user/.local/state/quiet-shell/location.json"))
           assert chosen["zone"] == "Europe/Warsaw" and round(chosen["lat"]) == 52, chosen
+          session("hyprctl eval \"hl.config({ input = { kb_variant = [[dvorak]] } })\"")
+
+      with subtest("Mullvad answers to letters, Vim keys and Spotlight"):
+          session("hyprctl eval \"hl.config({ input = { kb_variant = [[]] } })\"")
+          def relay():
+              return machine.succeed("cat /tmp/mullvad-country 2>/dev/null || echo se").strip()
+          def settled():
+              return not state()["writes"]
+
+          session("quiet-shell-ipc controls")
+          retry(lambda _: state()["panel"] == "controls", timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=2))
+          machine.send_key("v")
+          wait_for(lambda s: s["detail"] == "vpn", "vpn-key-hints")
+          machine.send_key("m")
+          machine.wait_until_succeeds("test -e /tmp/mullvad-on", timeout=timedelta(seconds=10))
+          retry(lambda _: settled(), timeout=timedelta(seconds=15))
+          machine.send_key("l")
+          wait_for(lambda s: s["detail"] == "mullvad" and s["countries"] == ["al", "se", "gb"], "mullvad-unused-order")
+          # k stops at the top, so this ends on the third row.
+          for letter in ("k", "j", "j", "k", "j"):
+              machine.send_key(letter)
+          machine.sleep(timedelta(seconds=1))
+          machine.screenshot("mullvad-cursor")
+          machine.send_key("ret")
+          machine.wait_until_succeeds("grep -qx 'set gb' /tmp/mullvad.log", timeout=timedelta(seconds=10))
+          retry(lambda _: settled(), timeout=timedelta(seconds=15))
+          assert state()["countries"] == ["al", "se", "gb"], "rows moved under the cursor"
+          machine.send_key("esc")
+          retry(lambda _: state()["detail"] == "vpn", timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=1))
+          machine.send_key("l")
+          wait_for(lambda s: s["detail"] == "mullvad" and s["countries"] == ["gb", "al", "se"], "mullvad-recent-order")
+          # The cursor is back on the top row, the country already in use.
+          machine.send_key("ret")
+          machine.sleep(timedelta(seconds=2))
+          sets = machine.succeed("cat /tmp/mullvad.log").split("\n")
+          assert sets.count("set gb") == 1, f"picking the current country reconnected: {sets}"
+          session("quiet-shell-ipc close")
+          retry(lambda _: state()["panel"] == "", timeout=timedelta(seconds=10))
+
+          machine.send_key("meta_l-spc")
+          wait_for(lambda s: s["spotlight"], "spotlight-mullvad-empty")
+          machine.send_chars("mullvad britain")
+          typed("mullvad britain")
+          retry(lambda _: state()["results"][:1] == ["Mullvad: UK"], timeout=timedelta(seconds=10))
+          machine.send_key("ctrl-backspace")
+          machine.send_chars("alb")
+          typed("mullvad alb")
+          retry(lambda _: state()["results"][:1] == ["Mullvad: Albania"], timeout=timedelta(seconds=10))
+          machine.send_key("ret")
+          retry(lambda _: relay() == "al", timeout=timedelta(seconds=10))
+          retry(lambda _: settled(), timeout=timedelta(seconds=15))
+          retry(lambda _: not state()["spotlight"], timeout=timedelta(seconds=10))
+          machine.sleep(timedelta(seconds=1))
+          machine.send_key("meta_l-spc")
+          wait_for(lambda s: s["spotlight"], "spotlight-mullvad-switch")
+          machine.send_chars("mullvad")
+          typed("mullvad")
+          retry(lambda _: any(r.endswith(": Mullvad") for r in state()["results"]), timeout=timedelta(seconds=10))
+          machine.send_key("ret")
+          machine.wait_until_succeeds("test ! -e /tmp/mullvad-on", timeout=timedelta(seconds=10))
+          retry(lambda _: settled(), timeout=timedelta(seconds=15))
           session("hyprctl eval \"hl.config({ input = { kb_variant = [[dvorak]] } })\"")
 
       with subtest("notes open once, float, and show in the overview"):

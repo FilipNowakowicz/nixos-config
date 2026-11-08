@@ -32,6 +32,10 @@ Item {
         return true;
     }
 
+    function pressDetailKey(event) {
+        return details.pressKey(event);
+    }
+
     ColumnLayout {
         id: grid
         width: parent.width

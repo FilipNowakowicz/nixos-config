@@ -6,6 +6,7 @@ Item {
     property string name
     property bool toggled: false
     property bool checkable: false
+    property bool marked: false          // Where a list's keyboard cursor is.
     property real radius: 12
     property color hover: Theme.fillHover
     property color rest: "transparent"
@@ -30,7 +31,7 @@ Item {
         anchors.fill: parent
         radius: root.radius
         color: area.containsMouse ? root.hover : root.rest
-        border.width: root.activeFocus ? 2 : 0
+        border.width: root.activeFocus || root.marked ? 2 : 0
         border.color: Theme.accent
         Behavior on color { ColorAnimation { duration: 90 } }
     }

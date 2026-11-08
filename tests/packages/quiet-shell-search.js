@@ -8,7 +8,7 @@ const source = fs
   .replace(/^\.pragma library\s*$/m, "");
 const S = vm.runInNewContext(
   source +
-    "\n({ score, wordsMatch, calculate, convert, frecency, remember, topHit })",
+    "\n({ score, wordsMatch, calculate, convert, frecency, byUse, remember, topHit })",
 );
 
 // Sums
@@ -74,6 +74,30 @@ assert.equal(memory.typed.sm.key, "app:signal");
 assert.ok(
   Math.abs(S.frecency({ n: 4, t: now - 2 * 604800000 }, now) - 2) < 1e-9,
   "halves in two weeks",
+);
+
+const listed = [{ code: "al" }, { code: "gb" }, { code: "pl" }, { code: "se" }];
+assert.equal(
+  S.byUse(listed, {}, now)
+    .map((c) => c.code)
+    .join(),
+  "al,gb,pl,se",
+  "with no history the list keeps its order",
+);
+assert.equal(
+  S.byUse(
+    listed,
+    {
+      gb: { n: 3, t: now - 26 * 604800000 },
+      se: { n: 1, t: now },
+      pl: { n: 2, t: now },
+    },
+    now,
+  )
+    .map((c) => c.code)
+    .join(),
+  "pl,se,gb,al",
+  "recent use beats an old habit, and the unused come last",
 );
 
 const results = [
