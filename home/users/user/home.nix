@@ -286,10 +286,33 @@ in
 
   systemd.user.services = {
     # A unit so it heals by itself when a rebuild severs its Wayland connection.
+    # Holds the tray's registry so it outlives shell restarts; Spotify aborted
+    # whenever the registry vanished with the shell.
+    tray-watcher = {
+      Unit = {
+        Description = "Tray icon registry";
+        After = [ "nixos-fake-graphical-session.target" ];
+        PartOf = [ "nixos-fake-graphical-session.target" ];
+      };
+      Service = {
+        Type = "dbus";
+        BusName = "org.kde.StatusNotifierWatcher";
+        ExecStart = "${quietShell.trayWatcher}/bin/quiet-tray-watcher";
+        Restart = "always";
+        RestartSec = 2;
+      };
+      Install = {
+        WantedBy = [ "nixos-fake-graphical-session.target" ];
+      };
+    };
     quiet-shell = {
       Unit = {
         Description = "Quiet desktop shell";
-        After = [ "nixos-fake-graphical-session.target" ];
+        After = [
+          "nixos-fake-graphical-session.target"
+          "tray-watcher.service"
+        ];
+        Wants = [ "tray-watcher.service" ];
         PartOf = [ "nixos-fake-graphical-session.target" ];
       };
       Service = {

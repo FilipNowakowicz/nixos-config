@@ -2,6 +2,7 @@
   lib,
   stdenvNoCC,
   makeWrapper,
+  writers,
   quickshell,
   python3,
   bluez,
@@ -103,7 +104,20 @@ stdenvNoCC.mkDerivation {
   '';
 
   # Tests run the helper scripts with the same tools the shell gives them.
-  passthru = { inherit runtime; };
+  passthru = {
+    inherit runtime;
+    # The tray's registry, as its own package: inside the shell's, every shell
+    # rebuild would restart it too, which is what it exists to avoid.
+    trayWatcher = writers.writePython3Bin "quiet-tray-watcher" {
+      libraries = [ python3.pkgs.dbus-next ];
+      # dbus-next spells D-Bus types as string annotations ("as"), which flake8 reads as names.
+      flakeIgnore = [
+        "E501"
+        "F821"
+        "F722"
+      ];
+    } (builtins.readFile ./tray-watcher.py);
+  };
 
   meta = {
     description = "Quiet, auto-hiding desktop shell for Hyprland";

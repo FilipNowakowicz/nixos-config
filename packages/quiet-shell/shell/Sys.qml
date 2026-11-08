@@ -493,6 +493,9 @@ Singleton {
         if (night)
             Quickshell.execDetached(["sh", "-c", 'systemctl --user stop night-light.service; "$@"', "sh"].concat(nightOn));
     }
+    // Bumped when the zone moves. Clocks read it so they redraw at once, instead
+    // of keeping the old time until their next minute tick.
+    property int zoneVersion: 0
     readonly property string timezone: state.timezone || ""
     property string knownZone: ""
     onTimezoneChanged: {
@@ -502,6 +505,7 @@ Singleton {
             return;
         // QML's Date keeps the offset it read at start until told.
         Date.timeZoneUpdated();
+        zoneVersion++;
         placeMoved();
     }
     function toggleAwake() {

@@ -39,7 +39,8 @@ hl.config({
 		gaps_out = 12,
 		border_size = 2,
 		col = { active_border = colors.active, inactive_border = colors.inactive },
-		-- Any edge resizes, as on other desktops. The grab area reaches 15px past it.
+		-- Any edge of a floating window resizes, as on other desktops; the grab area
+		-- reaches 15px past it. follow_border_resize below keeps tiles out of it.
 		resize_on_border = true,
 		-- Floating windows stick to the screen edge and to each other, a gap apart.
 		snap = { enabled = true, window_gap = 8, monitor_gap = 12, respect_gaps = true },
@@ -166,9 +167,27 @@ local function float_centred(w)
 	hl.dispatch(hl.dsp.window.center({ window = w }))
 end
 
+-- Hyprland offers border resizing for every window, so a lone tiled browser showed
+-- resize arrows at its edge that do nothing useful. Tiles resize with SUPER+right-drag;
+-- the border grab is on only while the window in focus floats (or all of them do, in
+-- desktop mode). Focus follows the pointer when tiling, so that is the hovered one.
+local border_resize = true
+local function follow_border_resize()
+	local w = hl.get_active_window()
+	local want = desktop_rule:is_enabled() or (w ~= nil and w.floating == true)
+	if want ~= border_resize then
+		border_resize = want
+		hl.config({ general = { resize_on_border = want } })
+	end
+end
+hl.on("window.active", follow_border_resize)
+hl.on("window.update_state", follow_border_resize)
+hl.on("window.close", follow_border_resize)
+
 local function apply_desktop(on)
 	desktop_rule:set_enabled(on)
 	hl.config({ input = { follow_mouse = on and 2 or 1 } })
+	follow_border_resize()
 end
 local function xy(v)
 	return v.x or v[1], v.y or v[2]

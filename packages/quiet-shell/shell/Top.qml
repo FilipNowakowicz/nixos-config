@@ -23,7 +23,7 @@ Item {
         const at = item.mapToItem(null, 0, item.height + 8);
         item.modelData.display(QsWindow.window, at.x, at.y);
     }
-    function clock(format) { return Qt.formatDateTime(time.date, format); }
+    function clock(format) { void Sys.zoneVersion; return Qt.formatDateTime(time.date, format); }
 
     SystemClock { id: time; precision: SystemClock.Minutes }
 

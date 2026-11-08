@@ -145,9 +145,15 @@ in
           errors = session("hyprctl configerrors").strip()
           assert errors in ("", "no errors"), f"config errors: {errors}"
 
-      with subtest("the shell starts and answers IPC"):
+      def start_shell():
           machine.succeed("su user -c '${inSession} setsid quiet-shell > /tmp/shell.log 2>&1 &'")
           machine.wait_until_succeeds("su user -c '${inSession} quiet-shell-ipc state' | grep -q panel", timeout=timedelta(seconds=90))
+
+      with subtest("the shell starts and answers IPC"):
+          # The tray's registry runs first and apart, as its user unit does.
+          session("setsid ${quietShell.trayWatcher}/bin/quiet-tray-watcher > /tmp/watcher.log 2>&1 &")
+          machine.wait_until_succeeds("su user -c '${inSession} busctl --user status org.kde.StatusNotifierWatcher'", timeout=timedelta(seconds=30))
+          start_shell()
           assert state()["theme"] == "mono-mesh"
 
       with subtest("each surface opens and closes"):
@@ -316,11 +322,20 @@ in
           machine.succeed("pkill -u user -x .kitty-wrapped")
           retry(lambda _: not notes_windows(), timeout=timedelta(seconds=10))
 
-      with subtest("tray icons are grey until pointed at"):
+      with subtest("tray icons are grey until pointed at, and outlive a shell restart"):
           session("setsid ${dbusPython}/bin/python3 ${../quiet-shell/fakes/tray.py} /tmp/tray.log >/dev/null 2>&1 &")
           session("quiet-shell-ipc pin")
           wait_for(lambda s: "quiet-test" in s["tray"] and s["top"], "tray-grey")
           session("quiet-shell-ipc pin")
+          # The registry isn't the shell's, so the icon stays registered while the
+          # shell restarts. The fake app registers once, so the new shell can only
+          # show it by finding it in the registry.
+          owner = session("busctl --user status org.kde.StatusNotifierWatcher | grep '^Comm='")
+          assert "quickshell" not in owner, f"the shell owns the tray registry: {owner}"
+          machine.succeed("pkill -u user -f -- '-p /nix/store/[^ ]*-quiet-shell'")
+          machine.wait_until_fails("pgrep -u user -f -- '-p /nix/store/[^ ]*-quiet-shell'", timeout=timedelta(seconds=10))
+          start_shell()
+          retry(lambda _: "quiet-test" in state()["tray"], timeout=timedelta(seconds=20))
           machine.succeed("pkill -u user -f fakes/tray.py || pkill -u user -f tray.py")
 
       with subtest("the shell does not redraw while idle"):
