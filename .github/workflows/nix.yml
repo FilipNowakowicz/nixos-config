@@ -90,6 +90,7 @@ jobs:
       - id: plan
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          CI_CHANGED_FILES: docs/remote-builder.md
         run: bash scripts/ci-plan.sh
 
       - name: Validate planner coverage
@@ -121,7 +122,7 @@ jobs:
       completed: ${{ steps.checks.outputs.completed || 'false' }}
     env:
       # tag:ci-builder cannot query the tailnet DNS resolver.
-      BUILDER_FQDN: 100.127.255.254
+      BUILDER_FQDN: 100.106.144.121
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:

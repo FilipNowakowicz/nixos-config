@@ -9,6 +9,8 @@ if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
   git add .
 fi
 
+printf 'Executing PR checks on remote host: %s\n' "$(uname -n)"
+
 for selector in PLAN_LIGHT PLAN_PACKAGES PLAN_HOSTS PLAN_TESTS; do
   case ${!selector:-false} in
   true | false) ;;
