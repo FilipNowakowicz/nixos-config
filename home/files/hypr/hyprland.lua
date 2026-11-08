@@ -79,6 +79,9 @@ hl.config({
 		},
 	},
 })
+-- The eDP panel's EDID claims HDR, so by default a fullscreen app that tags its
+-- surface (Chromium does) flips the panel into HDR and SDR content turns washed-out grey.
+hl.config({ render = { cm_auto_hdr = 0 } })
 hl.config({ misc = {
 	vrr = 2,
 	-- Before the wallpaper unit draws, or while a theme switch restarts it, show the

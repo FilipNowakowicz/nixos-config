@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-11-08-hyprctl-keyword-dead-under-lua-config
+date: 2026-11-08
+expires: 2027-05-08
+status: promoted
+route: promote-doc
+best_form: doc
+evidence: [hyprland 0.57.0 lua config home/files/hypr/hyprland.lua, "hyprctl keyword render:cm_auto_hdr 0" -> "unknown request", "hyprctl dispatch 'hl.config({ render = { cm_auto_hdr = 0 } })'" -> hl.dispatch error yet getoption shows int 0 set true]
+observation: under Lua config hyprctl keyword is unsupported; hyprctl dispatch with hl.config applies the option live despite printing an "expected a dispatcher" error
+proposed_upgrade: note live-option recipe (dispatch hl.config + verify with hyprctl getoption) in hosts/main/CLAUDE.md desktop section
+type: workflow-gotcha
+dedupe_key: hyprland:live-option-change-lua-config
+triggers: [hyprctl keyword, hyprctl getoption]
+targets: [hosts/main/CLAUDE.md]
