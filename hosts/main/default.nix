@@ -327,18 +327,6 @@ in
 
   # ── Services ────────────────────────────────────────────────────────────────
   services = {
-    sunshine = {
-      enable = true;
-      # Paused while mac-companion work is on hold (docs/goals/macbook-goals.md).
-      # Note: the systemd.user.services.sunshine.wantedBy override below uses
-      # mkForce, which wins over this module's own `mkIf cfg.autoStart [...]`
-      # regardless of this flag — it must stay in sync with autoStart or this
-      # setting is a no-op.
-      autoStart = false;
-      capSysAdmin = true;
-      openFirewall = false;
-    };
-
     thermald.enable = true;
     power-profiles-daemon.enable = true;
     fwupd.enable = true;
@@ -493,19 +481,6 @@ in
   systemd = {
     packages = lib.mkIf (!config.profiles.ci) [ synatudor ];
     user.services = {
-      # Hyprland starts the Home Manager graphical session through this target
-      # after exporting WAYLAND_DISPLAY/AQ_DRM_DEVICES into the user systemd
-      # environment. Keep Sunshine on the same target so Wayland capture sees
-      # the live session.
-      sunshine = {
-        after = lib.mkForce [ "nixos-fake-graphical-session.target" ];
-        partOf = lib.mkForce [ "nixos-fake-graphical-session.target" ];
-        wantedBy = lib.mkForce (
-          lib.optionals config.services.sunshine.autoStart [ "nixos-fake-graphical-session.target" ]
-        );
-        wants = lib.mkForce [ "nixos-fake-graphical-session.target" ];
-      };
-
       # The shell owns Bluetooth status and control, so suppress the redundant
       # Blueman tray icon instead of autostarting blueman-applet.
       blueman-applet.enable = false;

@@ -2,21 +2,29 @@
   "acls": [
     {
       "action": "accept",
+      "dst": ["tag:builder:22", "tag:server:53"],
+      "src": ["tag:agent"]
+    },
+    {
+      "action": "accept",
+      "dst": ["tag:server:53"],
+      "src": ["tag:builder"]
+    },
+    {
+      "action": "accept",
+      "dst": ["tag:server:22"],
+      "src": ["tag:ci"]
+    },
+    {
+      "action": "accept",
       "dst": [
+        "tag:agent:22",
+        "tag:builder:22",
         "tag:server:22",
         "tag:server:53",
         "tag:server:443",
         "tag:server:3001",
-        "tag:workstation:22",
-        "tag:workstation:22000",
-        "tag:workstation:24800",
-        "tag:workstation:47984",
-        "tag:workstation:47989",
-        "tag:workstation:47998",
-        "tag:workstation:47999",
-        "tag:workstation:48000",
-        "tag:workstation:48002",
-        "tag:workstation:48010"
+        "tag:workstation:22"
       ],
       "src": ["tag:workstation"]
     },
@@ -27,6 +35,9 @@
     }
   ],
   "tagOwners": {
+    "tag:agent": ["autogroup:admin"],
+    "tag:builder": ["autogroup:admin"],
+    "tag:ci": ["autogroup:admin"],
     "tag:server": ["autogroup:admin"],
     "tag:workstation": ["autogroup:admin"]
   }

@@ -7,7 +7,6 @@
 
   home.packages = with pkgs; [
     galaxy-buds-client
-    input-leap
     modrinth-app
   ];
 
@@ -48,9 +47,5 @@
       ];
     };
     Install.WantedBy = lib.mkForce [ "nixos-fake-graphical-session.target" ];
-  };
-
-  programs.zsh.shellAliases = {
-    input-server = "input-leaps --address $(tailscale ip -4)";
   };
 }

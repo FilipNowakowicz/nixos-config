@@ -63,20 +63,7 @@ in
     # protection compared with strict mode.
     firewall.checkReversePath = "loose";
     firewall.interfaces.tailscale0 = {
-      allowedTCPPorts = [
-        22
-        24800
-        47984
-        47989
-        48010
-      ];
-      allowedUDPPorts = [
-        47998
-        47999
-        48000
-        48002
-        48010
-      ];
+      allowedTCPPorts = [ 22 ];
     };
     # Point to systemd-resolved stub for split DNS (Tailscale tailnet hostnames)
     nameservers = [ "127.0.0.53" ];

@@ -6,7 +6,7 @@
 # files that must stay in sync (e.g. .github/actions/setup-nix/action.yml,
 # checked against hosts/main/default.nix by scripts/check-cache-config.sh).
 {
-  # R2-hosted CI cache, trusted by `main` and `mac`.
+  # R2-hosted CI cache, trusted by `main`.
   r2 = {
     substituter = "https://pub-706604c9179043ac98604d6de4c65c2c.r2.dev";
     publicKey = "nix-cache-1:eEcFiWPHQpJmlcnNeGoPg6xxOp3itNZiWwFaE+NebIk=";

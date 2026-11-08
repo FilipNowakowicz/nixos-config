@@ -9,7 +9,7 @@ is fixed: a mutant is never removed or edited after its result is known.
 
 ## Mutants
 
-`mutants.txt` holds 54 mutants. Each is a small source edit (exact
+`mutants.txt` holds 50 mutants. Each is a small source edit (exact
 old-text to new-text replacement, old text must match exactly once) that
 models one misconfiguration: open SSH, disabled firewall, dropped fail2ban,
 widened sudo, weakened systemd hardening baseline, unpersisted or missing

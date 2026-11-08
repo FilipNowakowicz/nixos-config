@@ -42,7 +42,7 @@ shared on-demand-VM mechanics (bootstrap account, tailnet auto-join, lockdown).
   Manager `agent` role therefore sets `userSecrets.enable = false`
   (`home/users/user/agent.nix`).
 - **Tailnet-only, key-only SSH** (`tag:agent`, `acceptFrom.workstation = [22]`):
-  reachable over Tailscale from `main`/`mac` only; public TCP/22 stays denied by
+  reachable over Tailscale from `main` only; public TCP/22 stays denied by
   the network-wide `deny_public_ssh` rule. The ACL rule
   `tag:workstation -> tag:agent:22` is derived automatically by `lib/acl.nix`
   from the registry entry — no manual ACL edit.
@@ -50,7 +50,7 @@ shared on-demand-VM mechanics (bootstrap account, tailnet auto-join, lockdown).
 ## Secrets
 
 Pre-generated host identity lives under `secrets/` (encrypted to `&user` +
-`&gcp_agent_host`), same bootstrap pattern as `homeserver-gcp`/`mac`:
+`&gcp_agent_host`), same bootstrap pattern as `homeserver-gcp`:
 
 - `ssh_host_ed25519_key.enc` / `.pub.enc` — the host SSH key, installed into the
   target root during provisioning so sops can decrypt on first boot.
@@ -360,7 +360,7 @@ bash scripts/validate.sh light             # invariants + sops-bootstrap + regis
 ## Gotchas
 
 - **Reprovisioning keeps the SSH host key** (it is pre-generated and re-installed
-  from sops), so `known_hosts` on `main`/`mac` stays valid across reinstalls —
+  from sops), so `known_hosts` on `main` stays valid across reinstalls —
   unlike the builder, whose key is regenerated each install.
 - **No console password** — recover a wedged agent by reprovisioning, not serial
   console (disposable model).

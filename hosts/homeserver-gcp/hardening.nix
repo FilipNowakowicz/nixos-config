@@ -1,5 +1,5 @@
 # Lynis-guided hardening, scoped to this headless GCP server so the dev
-# machines (main/mac) stay unencumbered. Extends the shared
+# machine (main) stays unencumbered. Extends the shared
 # modules/nixos/profiles/security.nix rather than replacing it.
 #
 # Deliberately NOT touched, to avoid breaking things:

@@ -832,21 +832,6 @@ rec {
       } cfg;
   };
 
-  macSshNotGloballyOpen = {
-    name = "SSH is not globally open";
-    check = cfg: checkNoGlobalTCPPorts [ 22 ] cfg;
-  };
-
-  macSshTailscaleOnly = {
-    name = "SSH stays Tailscale-only";
-    check =
-      cfg:
-      checkTCPPortsRestrictedToInterface {
-        interface = "tailscale0";
-        ports = [ 22 ];
-      } cfg;
-  };
-
   gcpBuilderSshTailscaleOnly = {
     name = "gcp-builder SSH stays Tailscale-only";
     check =

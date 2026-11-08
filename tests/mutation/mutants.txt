@@ -37,15 +37,6 @@ Open SSH to the world on main (global allowedTCPPorts = [ 22 ]).
     firewall.interfaces.tailscale0 = {
 >>>>
 
-## M03 | ssh-exposure | eval | invariants-mac
-mac OpenSSH opens its port in the firewall (openFirewall = true).
-@@ hosts/mac/default.nix
-<<<<
-      openFirewall = false; # Accessible via Tailscale only.
-====
-      openFirewall = true; # Accessible via Tailscale only.
->>>>
-
 ## M04 | ssh-exposure | eval | invariants-gcp-agent
 gcp-agent OpenSSH opens its port in the firewall (openFirewall = true).
 @@ hosts/gcp-agent/default.nix
@@ -68,7 +59,7 @@ gcp-builder SSH moved from the tailscale0 interface to a global rule.
       allowedTCPPorts = [ 22 ];
 >>>>
 
-## M06 | firewall | eval | invariants-homeserver-gcp, invariants-mac
+## M06 | firewall | eval | invariants-homeserver-gcp
 Firewall disabled fleet-wide in the shared security profile.
 @@ modules/nixos/profiles/security.nix
 <<<<
@@ -428,28 +419,11 @@ homeserver-gcp deploy user changed to root (PermitRootLogin is off).
       deploy.sshUser = "root";
 >>>>
 
-## M41 | sops | eval | invariants-mac (sops uses SSH host key)
-mac sops no longer points at an SSH host key.
-@@ hosts/mac/default.nix
-<<<<
-    age.sshKeyPaths = [ "/persist/etc/ssh/ssh_host_ed25519_key" ];
-====
-    age.sshKeyPaths = [ ];
->>>>
-
 ## M42 | backup | eval | invariants-main (backup metadata configures Restic)
 main no longer imports its backups module (no Restic job at all).
 @@ hosts/main/default.nix
 <<<<
     ./backups.nix
-====
->>>>
-
-## M43 | persistence | eval | none expected to be specific
-mac stops persisting /var/lib/tailscale (node identity lost on every boot).
-@@ hosts/mac/impermanence.nix
-<<<<
-    "/var/lib/tailscale" # tailnet node identity + peers
 ====
 >>>>
 
@@ -529,17 +503,6 @@ Anonymous specialisation persists /var/lib/tailscale (identity leak).
           "/var/lib/nixos"
           "/var/lib/tailscale"
           "/var/lib/systemd/backlight"
->>>>
-
-## M52 | firewall | eval | none expected to be specific
-Sunshine opens its game-streaming ports on every interface of main.
-@@ hosts/main/default.nix
-<<<<
-      capSysAdmin = true;
-      openFirewall = false;
-====
-      capSysAdmin = true;
-      openFirewall = true;
 >>>>
 
 ## M53 | alerting | eval | observability-alerts-lint

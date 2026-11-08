@@ -4,9 +4,6 @@ Forward-looking work only. Completed goals are removed once their durable docs
 or code paths exist. Each remaining item should say either why it is active now
 or what trigger would justify revisiting it.
 
-Host-specific MacBook follow-ups live in
-[`macbook-goals.md`](macbook-goals.md).
-
 ---
 
 ## Active Candidates

@@ -396,13 +396,6 @@ let
     }
   ];
 
-  # mac is a deploy-rs target like homeserver-gcp (passwordless wheel, SSH tailnet-only)
-  # but does not publish HTTPS, so only SSH ports are checked.
-  macAccessInvariants = invariants.deployTargetAccessAssertions ++ [
-    invariants.macSshNotGloballyOpen
-    invariants.macSshTailscaleOnly
-  ];
-
   gcpBuilderAccessInvariants = invariants.deployTargetBaseAccessAssertions ++ [
     invariants.gcpBuilderSshTailscaleOnly
     invariants.gcpBuilderUsersAreKeyOnly
@@ -798,7 +791,6 @@ let
       homeserverAccessInvariants ++ homeserverBackupInvariants ++ homeserverAlertDeliveryInvariants;
     "gcp-builder" = gcpBuilderAccessInvariants;
     "gcp-agent" = gcpAgentAccessInvariants;
-    mac = macAccessInvariants;
   };
 
   baselineInvariantsFor =
@@ -895,15 +887,6 @@ let
             "workstation->server:443"
             "workstation->server:53"
             "workstation->workstation:22"
-            "workstation->workstation:22000"
-            "workstation->workstation:24800"
-            "workstation->workstation:47984"
-            "workstation->workstation:47989"
-            "workstation->workstation:47998"
-            "workstation->workstation:47999"
-            "workstation->workstation:48000"
-            "workstation->workstation:48002"
-            "workstation->workstation:48010"
           ];
         in
         mkResult (

@@ -64,69 +64,6 @@ in
         text = builtins.readFile ../../files/scripts/caffeinate.sh;
       })
 
-      (writeShellApplication {
-        name = "power-profile";
-        runtimeInputs = with pkgs; [ power-profiles-daemon ];
-        text = ''
-          current=$(powerprofilesctl get)
-          case "$current" in
-            power-saver) next=balanced ;;
-            balanced)    next=performance ;;
-            performance) next=power-saver ;;
-            *)           next=balanced ;;
-          esac
-          powerprofilesctl set "$next"
-        '';
-      })
-
-      (writeShellApplication {
-        name = "battery-status";
-        runtimeInputs = with pkgs; [
-          power-profiles-daemon
-          coreutils
-          findutils
-        ];
-        text = ''
-          get_bat_icon() {
-            local pct=$1
-            local icons=("󰁺" "󰁻" "󰁼" "󰁽" "󰁾" "󰁿" "󰂀" "󰂁" "󰂂" "󰁹")
-            local idx=$(( pct / 10 ))
-            (( idx > 9 )) && idx=9
-            echo "''${icons[$idx]}"
-          }
-
-          profile=$(powerprofilesctl get 2>/dev/null || echo "balanced")
-
-          bat_dir=$(find /sys/class/power_supply -maxdepth 1 -name 'BAT*' 2>/dev/null | head -1)
-          if [[ -z "$bat_dir" ]]; then
-            printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "?" "$profile" "$profile"
-            exit 0
-          fi
-
-          capacity=$(cat "$bat_dir/capacity")
-          status=$(cat "$bat_dir/status")
-
-          if [[ "$status" == "Full" ]]; then
-            printf '{"text":"","tooltip":"%s","class":"full"}\n' "$profile"
-            exit 0
-          fi
-
-          case "$status" in
-            Charging) bat_icon="󰂄" ;;
-            *)        bat_icon=$(get_bat_icon "$capacity") ;;
-          esac
-
-          classes="$profile"
-          (( capacity <= 15 )) && classes="$classes critical"
-          (( capacity > 15 && capacity <= 30 )) && classes="$classes warning"
-
-          tooltip="$profile · ''${capacity}% · ''${status}"
-          text="''${bat_icon}  ''${capacity}%"
-
-          printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "$text" "$tooltip" "$classes"
-        '';
-      })
-
       claudeLatest
       quietShell
       lazyactions
@@ -244,9 +181,6 @@ in
   };
 
   services = {
-    # ── Syncthing ──────────────────────────────────────────────────────────
-    syncthing.enable = lib.mkDefault false;
-
     # ── Cliphist ────────────────────────────────────────────────────────────
     cliphist.enable = true;
 
