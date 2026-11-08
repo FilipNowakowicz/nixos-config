@@ -29,6 +29,9 @@
   wl-clipboard,
   wlsunset,
   xdg-utils,
+  # Directories for commands the desktop provides. They come last on PATH, so the
+  # session and test fakes still win.
+  extraPath ? [ ],
 }:
 
 let
@@ -94,7 +97,15 @@ stdenvNoCC.mkDerivation {
       --set QT_WAYLAND_DISABLED_INTERFACES ${lib.concatStringsSep "," textInput} \
       --set QUIET_ZONE_TAB ${tzdata}/share/zoneinfo/zone.tab \
       --set QUIET_COUNTRY_TAB ${tzdata}/share/zoneinfo/iso3166.tab \
-      --suffix PATH : ${lib.makeBinPath runtime}:$out/bin
+      --suffix PATH : ${
+        lib.concatStringsSep ":" (
+          [
+            (lib.makeBinPath runtime)
+            "$out/bin"
+          ]
+          ++ extraPath
+        )
+      }
     makeWrapper ${python3}/bin/python3 $out/bin/quiet-buds \
       --add-flags "$out/share/quiet-shell/scripts/buds.py" \
       --suffix PATH : ${lib.makeBinPath [ bluez ]}

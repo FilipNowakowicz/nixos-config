@@ -325,7 +325,9 @@ smoke-quiet-shell)
     exit 1
   fi
   ensure_builder
-  build_attrs ".#legacyPackages.${system}.ciTests.quiet-shell-smoke"
+  build_attrs \
+    ".#legacyPackages.${system}.ciTests.quiet-shell-smoke" \
+    ".#legacyPackages.${system}.ciTests.desktop-session"
   ;;
 
 profile-test)

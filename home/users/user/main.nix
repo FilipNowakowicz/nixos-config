@@ -6,6 +6,17 @@
   ];
 
   home.packages = with pkgs; [
+    # This machine's dock and panel policy, called from hyprland.lua.
+    (writeShellApplication {
+      name = "hypr-display-mode";
+      runtimeInputs = [
+        gnugrep
+        hyprland
+        util-linux
+      ];
+      text = builtins.readFile ../../files/scripts/hypr-display-mode.sh;
+    })
+
     galaxy-buds-client
     modrinth-app
   ];

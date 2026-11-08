@@ -292,7 +292,7 @@ in
     # Symlink active theme configs into live app paths on every activation.
     # Read active.nix at activation time so a runtime theme-switch survives a
     # reboot even when the Home Manager generation was built with another theme.
-    home.activation.linkActiveTheme = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    home.activation.linkActiveTheme = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
       . "${config.xdg.configHome}/themes/links.sh"
 
       active_theme="${activeTheme.name}"
