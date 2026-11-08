@@ -121,6 +121,13 @@ in
           # interface_names list is [eth0, en0], which doesn't exist on GCE
           # (ens4), so ring lifecyclers fail to start without this. Loopback is
           # correct for our single-instance setup with inmemory kvstores.
+          # querier.ring matters most at boot: Mimir 3.2 starts its lifecycler
+          # unconditionally, and before ens4 appears the auto-detected list
+          # falls back to those defaults and the service crash-loops.
+          querier.ring = {
+            instance_addr = "127.0.0.1";
+            kvstore.store = "inmemory";
+          };
           compactor = {
             data_dir = "/var/lib/mimir/compactor";
             sharding_ring = {

@@ -68,11 +68,9 @@ let
       };
       tailscale = {
         tag = "server";
-        # Re-registered to .88 after a forced tailnet re-join on 2026-06-21
-        # (the .89 device was deleted upstream; Tailscale assigns the lowest
-        # free IP, and .88 < .89, so .89 is unreclaimable). The tailnet global
-        # DNS nameserver override was repointed to .88 to match.
-        ip4 = "100.103.234.88";
+        # A rebuilt host joins with a new address. The tailnet's global DNS
+        # nameserver override points here too and must be changed to match.
+        ip4 = "100.73.57.109";
         acceptFrom = {
           workstation = [
             22
