@@ -193,6 +193,10 @@ flake-eval)
   ;;
 
 light)
+  if [[ ${ON_BUILDER:-0} == 1 ]]; then
+    echo 'Intentional issue #478 acceptance failure' >&2
+    exit 42
+  fi
   bash .agents/learning/promotions/bluetooth-boot-trigger.sh
   bash .agents/learning/promotions/mullvad-cli-package-unit.sh
   # The pre-commit derivation is intentionally excluded from CI: its hooks
