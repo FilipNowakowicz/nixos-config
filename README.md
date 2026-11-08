@@ -405,5 +405,5 @@ drop-in NixOS distribution.
 - [`LICENSE`](LICENSE) — repository content is published under the MIT license.
 - [`SECURITY.md`](SECURITY.md) — private vulnerability disclosure intake.
 
-Build artifact hosting is provided by [Cloudsmith](https://cloudsmith.com)
+Free build artifact hosting is provided by [Cloudsmith](https://cloudsmith.com)
 through its open-source program.
