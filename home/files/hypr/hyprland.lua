@@ -346,7 +346,7 @@ hl.bind("SUPER + SHIFT + F", hl.dsp.window.fullscreen({ mode = "fullscreen", act
 if os.getenv("DESKTOP_TEST") ~= "1" then
 	hl.on("hyprland.start", function()
 		hl.exec_cmd(
-			"dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_SESSION_TYPE DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE MOZ_ENABLE_WAYLAND NIXOS_OZONE_WL LIBVA_DRIVER_NAME AQ_DRM_DEVICES __GLX_VENDOR_LIBRARY_NAME && systemctl --user start nixos-fake-graphical-session.target"
+			"dbus-update-activation-environment --systemd XDG_SESSION_TYPE MOZ_ENABLE_WAYLAND NIXOS_OZONE_WL LIBVA_DRIVER_NAME AQ_DRM_DEVICES __GLX_VENDOR_LIBRARY_NAME"
 		)
 		-- Hidden on the shell's workspace: the dock shows it as minimised, ready to raise.
 		-- The rule covers this launch only, so opening Spotify later still shows it.
