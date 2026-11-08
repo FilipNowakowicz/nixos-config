@@ -29,7 +29,6 @@ let
             (lib.optionalString config.services.openssh.enable "sshd.service")
             (lib.optionalString config.services.tailscale.enable "tailscaled.service")
             (lib.optionalString (config.services.nginx.enable or false) "nginx.service")
-            (lib.optionalString (config.services.vaultwarden.enable or false) "vaultwarden.service")
             (lib.optionalString (config.services.adguardhome.enable or false) "adguardhome.service")
             (lib.optionalString (config.services.grafana.enable or false) "grafana.service")
             (lib.optionalString (config.services.loki.enable or false) "loki.service")
@@ -140,15 +139,6 @@ in
         blackbox = {
           enable = true;
           probes = {
-            vaultwarden-root = {
-              url = "https://${tailnetFQDN}/";
-              expectedStatusCodes = [
-                200
-                301
-                302
-              ];
-            };
-
             # Probe Grafana through nginx so auth_request and upstream routing both
             # stay observable from inside the tailnet boundary. The auth helper
             # maps tailnet node identities to the default Viewer role unless a
@@ -216,26 +206,6 @@ in
             "/var/lib/nginx/certs"
           ];
         };
-      };
-
-      vaultwarden = {
-        extraConfig = {
-          CapabilityBoundingSet = "";
-          AmbientCapabilities = "";
-          ReadWritePaths = [ "/var/lib/vaultwarden" ];
-        };
-      };
-    };
-
-    vaultwarden = {
-      enable = true;
-      config = {
-        ROCKET_ADDRESS = "127.0.0.1";
-        ROCKET_PORT = 8222;
-        SIGNUPS_ALLOWED = false;
-        INVITATIONS_ALLOWED = false;
-        # ADMIN_TOKEN intentionally omitted — the /admin endpoint is disabled.
-        DOMAIN = "https://${tailnetFQDN}";
       };
     };
   };

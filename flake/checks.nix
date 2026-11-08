@@ -239,7 +239,6 @@ let
           "--keep-yearly 2"
         ];
         pathCheck = requirePaths backup.paths [
-          "/var/lib/vaultwarden"
           "/var/lib/grafana"
           "/var/lib/restic-backup-canary"
           "/var/lib/restic-staging/adguardhome"

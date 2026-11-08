@@ -94,15 +94,8 @@ in
         extraConfig = securityHeaders;
 
         locations = {
-          "/" = proxy {
-            target = "http://127.0.0.1:8222";
-            websockets = true;
-          };
-
-          "= /notifications/hub" = proxy {
-            target = "http://127.0.0.1:8222";
-            websockets = true;
-          };
+          "= /".return = "302 /home/";
+          "/".return = "404";
 
           "/grafana/" = proxy {
             target = "http://127.0.0.1:3000";

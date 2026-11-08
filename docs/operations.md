@@ -129,8 +129,7 @@ set or in `var.region` by default. The default retention is 7 daily snapshots.
 
 Use GCE snapshots for fast VM-shaped rollback after bad deploys, disk mistakes,
 or package/config migrations. Use restic/B2 for durable application recovery,
-off-site recovery, and point restores of `/var/lib/vaultwarden` or
-`/var/lib/grafana`.
+off-site recovery, and point restores of `/var/lib/grafana`.
 
 Inspect available scheduled snapshots:
 
@@ -180,7 +179,7 @@ manual change to `infra/`, or periodically, to confirm live state still matches.
 `bash scripts/validate.sh smoke-homeserver-gcp` builds the booted NixOS test for
 the live homeserver routing surface. The test checks:
 
-- `/` reaches Vaultwarden through Nginx.
+- `/` redirects to the status homepage.
 - `/grafana/` works as a sub-path deployment.
 - exact `/obs/*` ingest endpoints require credentials, and broader
   observability API paths are denied.

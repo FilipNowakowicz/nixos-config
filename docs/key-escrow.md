@@ -37,9 +37,8 @@ including regaining access to B2.
 Store the key in at least two independent locations, neither of which fails
 together with `main`:
 
-1. **Vaultwarden** — as a secure note. Reachable from any Bitwarden client; the
-   clients keep an offline-cached copy, so the key survives even if
-   `homeserver-gcp` (which hosts Vaultwarden) is down.
+1. **Bitwarden** — as a secure note. Hosted independently of this fleet and
+   reachable from any Bitwarden client, so it survives losing every host here.
 2. **Paper, offline** — written down and kept in a safe/drawer. Immune to any
    digital failure, ransomware, or correlated outage. The key is short enough to
    transcribe by hand.
@@ -73,7 +72,7 @@ shred -u /tmp/age-escrow-test.txt
 Scenario: `main` is gone and the live `~/.config/sops/age/keys.txt` is lost. You
 have the escrowed key and (optionally) a Bitwarden client.
 
-1. **Retrieve the key.** Read the `AGE-SECRET-KEY-1…` line from Vaultwarden or the
+1. **Retrieve the key.** Read the `AGE-SECRET-KEY-1…` line from Bitwarden or the
    paper copy.
 
 2. **Install it.** On the recovery machine:
@@ -116,7 +115,7 @@ have the escrowed key and (optionally) a Bitwarden client.
    ```
 
    Then redeploy so hosts pick up the re-encrypted material, and replace the
-   escrowed copies (Vaultwarden + paper) with the new key.
+   escrowed copies (Bitwarden + paper) with the new key.
 
 ---
 

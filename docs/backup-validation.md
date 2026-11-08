@@ -74,20 +74,19 @@ currently implemented on `homeserver-gcp` (`hosts/homeserver-gcp/backups.nix`):
    real read from the off-site B2 backend.
 3. **Verify.** `grep -qx` asserts the restored content matches the known marker
    exactly.
-4. **Verify the database.** Before stamping anything, the same service proves the
-   crown-jewel database itself, not just a marker file: it restores the consistent
-   Vaultwarden snapshot (`db.sqlite3.backup`) from the `latest` snapshot and runs
+4. **Verify the database.** Before stamping anything, the same service proves a
+   real database, not just a marker file: it restores the consistent
+   Grafana snapshot (`grafana.db.backup`) from the `latest` snapshot and runs
    `PRAGMA integrity_check`, asserting the result is `ok`.
-5. **Stamp.** Only after every check above passes does the service write both
-   `restic_last_restore_test_timestamp_seconds` and
-   `vaultwarden_last_restore_test_timestamp_seconds` together.
+5. **Stamp.** Only after every check above passes does the service write
+   `restic_last_restore_test_timestamp_seconds`.
 
 A green metric here means the full path — backend read, decrypt, restore,
 content match, and a database that actually opens cleanly — worked end to end
 within the last cycle, unattended. Because the stamp is last (the service runs
-`set -eu`), a failed Vaultwarden integrity check also leaves the restic canary
+`set -eu`), a failed database integrity check also leaves the restic canary
 metric stale, so `ResticRestoreCanaryStale` (below) catches a corrupt database
-too — there is no separate Vaultwarden alert by design.
+too — there is no separate database alert by design.
 
 ### 5. Stale alerts (alert on staleness, not failures)
 
@@ -110,15 +109,15 @@ never-firing rule.
 
 ### 6. Full-service restore drill (automated + manual)
 
-The canary (layer 4) proves a marker round-trips and the Vaultwarden DB opens;
+The canary (layer 4) proves a marker round-trips and the Grafana DB opens;
 it does not prove a whole service can be brought up from restored bytes. Two
 complementary exercises close that gap:
 
 - **Automated quarterly drill** (`hosts/homeserver-gcp/restore-drill.nix`).
-  `restore-drill-b2.service` restores Vaultwarden, Grafana, and AdGuard Home
+  `restore-drill-b2.service` restores Grafana and AdGuard Home
   from B2 into a throwaway scratch root and **starts each service binary against
   the restored state** in a `PrivateNetwork=true` namespace, asserting each
-  comes up (Vaultwarden `/alive`, Grafana `database: ok`, AdGuard
+  comes up (Grafana `database: ok`, AdGuard
   `/login.html` plus a loopback `dig` query — `/control/*` is auth-gated, so an
   unauthenticated probe must use the public web route and a direct DNS query
   instead) before stamping `restore_drill_last_success_timestamp_seconds`.

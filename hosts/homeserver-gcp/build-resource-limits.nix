@@ -1,7 +1,7 @@
 _:
 # ── Build resource seatbelt ──────────────────────────────────────────────────
 # homeserver-gcp is a 4 GB e2-medium that also runs the full LGTM stack +
-# Vaultwarden + AdGuard + nginx. A heavy Nix build here (e.g. the deploy
+# AdGuard + nginx. A heavy Nix build here (e.g. the deploy
 # closure) can exhaust RAM, swap-thrash the box catatonic, and take the live
 # services down — tailnet goes unresponsive while only the runner's outbound
 # socket survives (incident 2026-06-07, #112).

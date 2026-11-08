@@ -2,18 +2,17 @@
   "hosts": [
     {
       "backupClass": "critical",
-      "closurePath": "/nix/store/00000000000000000000000000000000-nixos-system-homeserver-gcp-26.11.20260531.331800d",
+      "closurePath": "/nix/store/00000000000000000000000000000000-nixos-system-homeserver-gcp-26.11.20261103.1d06008",
       "closureSizeBytes": null,
       "deployUser": "user",
       "deployable": true,
       "drift": {
-        "expectedExtraTCPPorts": [80, 3201, 9095, 9096, 22000],
+        "expectedExtraTCPPorts": [80, 22000],
         "strictTCPPortSet": true,
         "systemdUnits": [
           "sshd.service",
           "tailscaled.service",
           "nginx.service",
-          "vaultwarden.service",
           "adguardhome.service",
           "grafana.service",
           "loki.service",
@@ -26,7 +25,7 @@
       },
       "health": {
         "invariantFailed": 0,
-        "invariantPassed": 12,
+        "invariantPassed": 13,
         "invariantResults": [
           {
             "message": "system.stateVersion must be set",
@@ -87,6 +86,11 @@
             "message": "tailnet metadata enables Tailscale",
             "name": "tailnet metadata enables Tailscale",
             "passed": true
+          },
+          {
+            "message": "tailscale0 firewall ports match tailscale.acceptFrom",
+            "name": "tailscale0 firewall ports match registry acceptFrom",
+            "passed": true
           }
         ],
         "invariantStatus": "pass"
@@ -102,7 +106,6 @@
           "initialize": true,
           "name": "b2",
           "paths": [
-            "/var/lib/vaultwarden",
             "/var/lib/grafana",
             "/var/lib/restic-backup-canary",
             "/var/lib/restic-staging/adguardhome"
@@ -128,8 +131,7 @@
         "syncthing": false,
         "tailscale": true,
         "tempo": true,
-        "usbguard": false,
-        "vaultwarden": true
+        "usbguard": false
       },
       "stateVersion": "24.11",
       "status": "active",
@@ -137,10 +139,18 @@
       "tailscaleTCPPorts": [22, 53, 443, 3001],
       "tailscaleTracked": true,
       "tailscaleUDPPorts": [53],
+      "topology": {
+        "acceptedRoutes": [],
+        "aclTags": ["tag:server"],
+        "advertisedRoutes": [],
+        "exitNode": {
+          "canProvide": false,
+          "usesHost": null
+        }
+      },
       "trackedServices": [
         "adguard",
         "nginx",
-        "vaultwarden",
         "grafana",
         "loki",
         "mimir",

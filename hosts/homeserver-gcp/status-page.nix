@@ -265,7 +265,6 @@ in
           --arg lynisTimer "$(timer_state lynis-audit.timer)" \
           --argjson adguardActive "$(service_active_json adguardhome.service)" \
           --argjson nginxActive "$(service_active_json nginx.service)" \
-          --argjson vaultwardenActive "$(service_active_json vaultwarden.service)" \
           --argjson grafanaActive "$(service_active_json grafana.service)" \
           --argjson lokiActive "$(service_active_json loki.service)" \
           --argjson mimirActive "$(service_active_json mimir.service)" \
@@ -304,7 +303,6 @@ in
                 services: {
                   adguard: { active: $adguardActive, unit: "adguardhome.service" },
                   nginx: { active: $nginxActive, unit: "nginx.service" },
-                  vaultwarden: { active: $vaultwardenActive, unit: "vaultwarden.service" },
                   grafana: { active: $grafanaActive, unit: "grafana.service" },
                   loki: { active: $lokiActive, unit: "loki.service" },
                   mimir: { active: $mimirActive, unit: "mimir.service" },

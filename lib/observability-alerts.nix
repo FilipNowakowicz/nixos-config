@@ -88,7 +88,7 @@
             labels.severity = "warning";
             annotations = {
               summary = "Full-service restore drill stale on {{ $labels.instance }}";
-              description = "No successful full-service restore drill (Vaultwarden + Grafana + AdGuard Home brought up from B2) in more than 100 days. Check restore-drill-b2.service.";
+              description = "No successful full-service restore drill (Grafana + AdGuard Home brought up from B2) in more than 100 days. Check restore-drill-b2.service.";
             };
           }
           {

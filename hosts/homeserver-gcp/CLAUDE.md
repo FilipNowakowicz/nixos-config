@@ -1,20 +1,19 @@
 # homeserver-gcp Host
 
-GCP-hosted headless server. Runs Vaultwarden, LGTM stack, Tailscale, and Nginx.
+GCP-hosted headless server. Runs the LGTM stack, Tailscale, and Nginx.
 No LUKS or impermanence (GCP handles at-rest encryption; state persists on the GCE disk).
 
 Status: **active** — deployed on GCP and accessible via Tailscale.
 
 ## Services
 
-- **Vaultwarden** — `127.0.0.1:8222`, proxied via Nginx over HTTPS
 - **LGTM stack** — Grafana (sub-path `/grafana/`, Tailscale identity via nginx auth proxy), Loki, Mimir, Tempo (full observability)
 - **Nginx** — reverse proxy, TLS via Tailscale cert
 - **SSH** — in-guest firewall exposure limited to `tailscale0`; Terraform also
   adds a high-priority GCP firewall deny for public TCP/22 on the default VPC.
 - **Tailscale** — auth key from sops secret `tailscale_auth_key`
 - **AdGuard Home** — DNS (TCP/UDP 53) + web UI (HTTPS port 3001 via nginx, internal HTTP on 127.0.0.1:13001), tailscale0 only; state is exposed at `/var/lib/AdGuardHome` and stored by systemd at `/var/lib/private/AdGuardHome`
-- **Restic/B2** — off-site backups to Backblaze B2 (`/var/lib/vaultwarden`, `/var/lib/grafana`, staged AdGuard state, and a restore canary)
+- **Restic/B2** — off-site backups to Backblaze B2 (`/var/lib/grafana`, staged AdGuard state, and a restore canary)
 - **GCE snapshots** — daily 7-day boot disk snapshots for fast provider-local rollback
 
 ## Architecture
@@ -118,20 +117,17 @@ failed-unit checks. It does not automate `main` workstation rollout.
   AdGuard is backed up from `/var/lib/restic-staging/adguardhome` (root-owned
   staging copy) instead of the raw DynamicUser tree. Restore runbook:
   [`.claude/homeserver-gcp/restore-adguard.md`](../../.claude/homeserver-gcp/restore-adguard.md).
-  Vaultwarden restore runbook:
-  [`.claude/homeserver-gcp/restore-vaultwarden.md`](../../.claude/homeserver-gcp/restore-vaultwarden.md).
 - **Restore canary** — `restic-restore-canary-b2.service` restores the latest
   `/var/lib/restic-backup-canary/homeserver-gcp.txt` from B2 (writes
-  `restic_last_restore_test_timestamp_seconds`) **and** restores the Vaultwarden
-  `db.sqlite3.backup`, running `PRAGMA integrity_check` on it (writes
-  `vaultwarden_last_restore_test_timestamp_seconds`). A corrupt Vaultwarden
+  `restic_last_restore_test_timestamp_seconds`) **and** restores the Grafana
+  `grafana.db.backup`, running `PRAGMA integrity_check` on it. A corrupt
   backup fails the daily canary instead of surfacing during a real restore.
 - **Full-service restore drill** — `restore-drill-b2.service` (quarterly timer,
   also runnable on demand via `systemctl start restore-drill-b2.service`)
-  restores Vaultwarden, Grafana, and AdGuard Home from B2 into a throwaway
+  restores Grafana and AdGuard Home from B2 into a throwaway
   scratch root (`/var/lib/restore-drill/scratch`) and **starts each service
   binary against the restored state in a `PrivateNetwork=true` namespace**,
-  asserting each comes up (Vaultwarden `/alive`, Grafana `database: ok`, AdGuard
+  asserting each comes up (Grafana `database: ok`, AdGuard
   `/control/status`) before stamping `restore_drill_last_success_timestamp_seconds`.
   It never touches live data and complements the daily canary; `RestoreDrillStale`
   alerts if it has not passed in ~100 days. Defined in `restore-drill.nix`;
