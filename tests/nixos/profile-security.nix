@@ -69,7 +69,7 @@ in
       for key, expected in expected_sysctls.items():
           hardened.succeed(f"test \"$(sysctl -n {key})\" = \"{expected}\"")
 
-      sshd_config = hardened.succeed("sshd -T")
+      sshd_config = hardened.succeed("sshd -T").lower()
       assert "permitrootlogin no\n" in sshd_config
       assert "passwordauthentication no\n" in sshd_config
       assert "kbdinteractiveauthentication no\n" in sshd_config
@@ -80,7 +80,7 @@ in
       # 4 failed password attempts — one over maxretry=3
       for _ in range(4):
           attacker.fail(
-              "sshpass -p wrongpassword ssh"
+              "sshpass -p wrongpassword ssh -4"
               " -o StrictHostKeyChecking=no"
               " -o ConnectTimeout=5"
               " testuser@target exit"
@@ -94,13 +94,21 @@ in
 
       # The attacker's address must be an element of the fail2ban nftables set
       # (the table itself exists from jail start, so matching "f2b" proves nothing).
+      # The name `target` also resolves to IPv6, which this IPv4 ban does not cover,
+      # so ssh above and the connection check below both use IPv4 explicitly.
       attacker_ip = attacker.succeed(
           "ip -4 -o addr show dev eth1 | awk '{print $4}' | cut -d/ -f1"
       ).strip()
-      target.succeed(f"nft list set inet f2b-table addr-set-sshd | grep -q {attacker_ip}")
+      target.wait_until_succeeds(
+          f"nft list set inet f2b-table addr-set-sshd | grep -q {attacker_ip}",
+          timeout=30,
+      )
 
       # A TCP connect (no credentials involved) now fails: dropped by the
       # firewall, not rejected by authentication.
-      attacker.fail("timeout 5 bash -c '</dev/tcp/target/22'")
+      target_ip = target.succeed(
+          "ip -4 -o addr show dev eth1 | awk '{print $4}' | cut -d/ -f1"
+      ).strip()
+      attacker.fail(f"timeout 5 bash -c '</dev/tcp/{target_ip}/22'")
     '';
   }
