@@ -34,10 +34,11 @@ resource "google_compute_firewall" "builder_tailscale" {
 }
 
 resource "google_compute_instance" "gcp_builder" {
-  name         = local.builder_name
-  machine_type = var.builder_machine_type
-  zone         = var.zone
-  tags         = [local.builder_name]
+  name              = local.builder_name
+  machine_type      = var.builder_machine_type
+  zone              = var.zone
+  tags              = [local.builder_name]
+  resource_policies = [google_compute_resource_policy.builder_weekly_prebuild.self_link]
 
   # Nested virtualization so the builder can advertise the "kvm"/"nixos-test"
   # Nix system-features and run booted NixOS tests offloaded from `main`.
@@ -97,4 +98,28 @@ resource "google_compute_instance" "gcp_builder" {
       boot_disk[0].initialize_params[0].type,
     ]
   }
+}
+
+# Friday lock updates start at 18:00 UTC; build whatever reached main by 20:00.
+data "google_project" "builder_schedule" {
+  project_id = var.gcp_project
+}
+
+# GCE instance schedules act through the Compute Engine service agent.
+resource "google_project_iam_member" "builder_schedule" {
+  project = var.gcp_project
+  role    = "roles/compute.instanceAdmin.v1"
+  member  = "serviceAccount:service-${data.google_project.builder_schedule.number}@compute-system.iam.gserviceaccount.com"
+}
+
+resource "google_compute_resource_policy" "builder_weekly_prebuild" {
+  name   = "gcp-builder-weekly-prebuild"
+  region = var.region
+  instance_schedule_policy {
+    time_zone = "Etc/UTC"
+    vm_start_schedule {
+      schedule = "0 20 * * 5"
+    }
+  }
+  depends_on = [google_project_iam_member.builder_schedule]
 }

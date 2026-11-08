@@ -9,6 +9,7 @@ in
 {
   imports = [
     inputs.disko.nixosModules.disko
+    ./prebuilt.nix
     ./hardware-configuration.nix
     ./disko.nix
     ../../modules/nixos/profiles/base.nix
@@ -165,6 +166,15 @@ in
             # Seed the stamp on the first run after boot so an unused boot still
             # gets a full idle window before shutting down.
             [ -f "$stamp" ] || ${pkgs.coreutils}/bin/printf '%s\n' "$now" > "$stamp"
+
+            # A boot prebuild has no SSH connection. Its systemd start timeout
+            # bounds this inhibition to three hours (plus termination grace).
+            case "$(${pkgs.systemd}/bin/systemctl show builder-prebuild.service --property=ActiveState --value)" in
+              activating|active|deactivating)
+                ${pkgs.coreutils}/bin/printf '%s\n' "$now" > "$stamp"
+                exit 0
+                ;;
+            esac
 
             # Any established connection on port 22 means an interactive session
             # or an in-flight distributed build; treat the box as active.

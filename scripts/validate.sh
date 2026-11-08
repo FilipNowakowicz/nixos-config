@@ -13,7 +13,7 @@ cd "$repo_root"
 # On a host with the build key, heavy commands run entirely on the on-demand
 # gcp-builder VM, including evaluation. If it cannot be reached they run here,
 # after a warning. The VM powers itself off when idle.
-# shellcheck source=scripts/lib/builder.sh
+# shellcheck source=scripts/lib/builder.sh disable=SC1091
 source "$repo_root/scripts/lib/builder.sh"
 
 offload_to_builder() {
@@ -212,6 +212,7 @@ light)
     ".#checks.${system}.invariants-registry-security" \
     ".#checks.${system}.invariants-installer" \
     ".#checks.${system}.lib-doctor" \
+    ".#checks.${system}.lib-prebuilt" \
     ".#checks.${system}.lib-generators" \
     ".#checks.${system}.lib-generators-structured" \
     ".#checks.${system}.lib-acl" \
