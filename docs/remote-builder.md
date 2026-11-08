@@ -142,3 +142,78 @@ actually appears. Extract helpers only then.
   the consumer-side system wiring on each caller.
 - `scripts/lib/builder.sh`, `scripts/on-builder.sh`, `scripts/validate.sh` and
   `scripts/rebuild-remote.sh` — the offload implementation.
+
+## Weekly prebuilt workstation update
+
+The public repository's Friday lock-update job starts at 18:00 UTC and can
+merge later depending on CI. The GCE instance schedule in `infra/builder.tf`
+starts `gcp-builder` Fridays around 20:00 UTC. This schedule needs the Compute
+Engine service agent's project-level `roles/compute.instanceAdmin.v1` binding
+included there. It is configuration only until an operator reviews/applies it;
+this feature does not deploy Terraform or the builder configuration itself.
+GCE schedules do not restart an already-running instance. A merge after 20:00
+waits for the next Friday or a manual
+`sudo systemctl start builder-prebuild` on the builder.
+
+A timer runs `builder-prebuild.service` as `user` at 20:17 UTC on Fridays, once
+the scheduled start has had time to land, so ordinary on-demand boots do not
+start a full build. It resolves the
+latest public `main` revision and builds the full
+`nixosConfigurations.main.config.system.build.toplevel` at that immutable
+revision, without checkout credentials. `/var/lib/builder-prebuilt/system` is an
+indirect GC root retaining the completed closure; `displaylink-source` roots the
+manually seeded source. `/var/lib/builder-prebuilt/status.json` is atomically
+replaced with `revision`, `store_path`, `result`, UTC `timestamp`, and `error`.
+Results include `building`, `success`, `failed`, `missing-displaylink`, and
+`timeout`. A failed attempt invalidates the previous successful status even if
+the old rooted system still exists. The service is capped at three hours plus
+30 seconds to terminate. Idle shutdown counts the service as busy while it is
+activating/running/stopping, then resumes its normal 20-minute idle window.
+No unattended activation happens on the laptop.
+
+### Seed the private DisplayLink source
+
+The full workstation closure needs the unfree DisplayLink `requireFile` source.
+The builder cannot download it or publish it to a public cache. If absent, the
+job stops with `missing-displaylink`, giving the expected store path.
+After accepting the vendor terms and adding the correct blob to the laptop's
+store (see [DisplayLink instructions](../.claude/main/displaylink.md)), an
+operator can seed **only the private builder**, without any public cache:
+
+```bash
+bash scripts/on-builder.sh true
+blob=$(nix eval --raw .#nixosConfigurations.main.pkgs.displaylink.src)
+nix path-info "$blob"  # must already be present in the laptop store
+nix copy --to ssh-ng://user@gcp-builder.tail90fc7a.ts.net "$blob"
+ssh user@gcp-builder.tail90fc7a.ts.net sudo systemctl restart builder-prebuild.service
+```
+
+Use the latest `origin/main` checkout to resolve the source: a lock update may
+change its expected name/hash. A new version needs seeding again. The
+service roots the source after finding it; restarting it promptly avoids a GC
+window. These commands are operator steps, not part of CI or Terraform apply.
+No proprietary source or resulting unfree closure may be uploaded publicly.
+
+### Activate on demand
+
+From the local repo, fetch `origin` before deciding to update, then run
+`rebuild --prebuilt`. The shell function starts/reaches the builder, reads its
+status, and requires a successful `main` closure at exactly the local checkout's
+`origin/main` revision. Exact equality deliberately rejects both older and
+unrecognized newer revisions. A failed, still-building, missing, or malformed
+status cannot activate anything. The client rechecks the tracking ref after
+copying, imports the system closure with `nix copy --from ssh-ng://user@… --no-check-sigs`,
+checks the activation executable, sets `/nix/var/nix/profiles/system` using
+`sudo nix-env`, and invokes `switch-to-configuration switch`. It builds nothing
+locally. It operates only on `main`, accepts no extra arguments, and does not
+apply uncommitted local edits. Ordinary `rebuild` and `rebuild --remote` retain
+their current behavior. Sudo still requires the workstation's normal permission;
+an activation failure needs operator review and is not automatically retried.
+
+The copy accepts unsigned outputs only from the dedicated authenticated builder,
+which already has root-equivalent trust in the existing distributed-build model.
+It does not disable signature checking globally or publish anything to a cache.
+
+The builder has no notification credentials. Status can be inspected over the
+existing authenticated SSH channel (`cat /var/lib/builder-prebuilt/status.json`);
+notification delivery is intentionally left for a separate decision.

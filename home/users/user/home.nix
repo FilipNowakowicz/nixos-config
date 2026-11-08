@@ -113,7 +113,10 @@ in
       initContent = ''
         # Run `rebuild --remote` to do every build step on gcp-builder.
         rebuild() {
-          if [[ "''${1:-}" == --remote ]]; then
+          if [[ "''${1:-}" == --prebuilt ]]; then
+            shift
+            bash ${nixRepo}/scripts/rebuild-prebuilt.sh "$@"
+          elif [[ "''${1:-}" == --remote ]]; then
             shift
             bash ${nixRepo}/scripts/rebuild-remote.sh "$@"
           else

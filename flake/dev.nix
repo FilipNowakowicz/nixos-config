@@ -228,6 +228,9 @@ in
       lib-doctor = import ../tests/lib/doctor.nix {
         inherit nixpkgs system;
       };
+      lib-prebuilt = import ../tests/lib/prebuilt.nix {
+        inherit nixpkgs system;
+      };
       lib-on-builder = import ../tests/lib/on-builder.nix {
         inherit nixpkgs system;
       };
