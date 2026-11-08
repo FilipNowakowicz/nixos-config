@@ -281,81 +281,44 @@ roles as a local security boundary.
 
 ## Binary Cache Trust
 
-`main` trusts an R2-hosted binary cache as an
-`extra-substituters` entry, and a separate pair (`homeserver-gcp`,
-`gcp-builder`) trust a `main.local` cache served by `main`. Both are real trust
-edges in addition to `cache.nixos.org`, and they have different blast radii.
+`main` and CI trust the public Cloudsmith Nix cache in addition to
+`cache.nixos.org`. The `homeserver-gcp` and `gcp-builder` hosts also trust the
+`main.local` cache served by `main`. Cache URLs and public keys are centralized
+in [`lib/binary-cache.nix`](../lib/binary-cache.nix).
 
-Both substituter URLs and trusted public keys are defined once in
-[`lib/binary-cache.nix`](../lib/binary-cache.nix) and consumed from there by
-the relevant host configs — a key rotation starts by editing that file.
+### Cloudsmith CI cache
 
-### R2-hosted CI cache (`main`)
+The public repository is `nixos/nix-cache`. Cloudsmith signs narinfo responses
+server-side with the repository's Ed25519 key. CI authenticates uploads using
+the `CLOUDSMITH_API_KEY` Actions secret; it does not hold a cache signing key.
+Only successful pushes to `main` publish, and pull requests receive no upload
+credentials. The light, package, host, and test jobs use
+[`scripts/push-to-cloudsmith.sh`](../scripts/push-to-cloudsmith.sh).
 
-`hosts/main/default.nix` references
-`lib/binary-cache.nix`'s `r2.substituter`
-(`https://pub-706604c9179043ac98604d6de4c65c2c.r2.dev`) as an
-`extra-substituters` entry and trusts `r2.publicKey`
-(`nix-cache-1:eEcFiWPHQpJmlcnNeGoPg6xxOp3itNZiWwFaE+NebIk=`). Anything
-`nix-store`-signed with the matching private key and served from that R2 bucket
-will be substituted and trusted by the workstation without rebuilding from
-source — i.e. it can supply build outputs that land in `/nix/store` and get
-activated.
+Repo administrators and anyone able to land workflow changes on `main` can
+control trusted build outputs. This grants artifact substitution authority,
+not interactive access. Treat the upload API key as a privileged credential;
+rotate it in Cloudsmith and replace the Actions secret. For signing-key
+rotation, update the public key in `lib/binary-cache.nix` and the CI setup
+configuration before relying on newly signed responses.
 
-**Who can sign for this cache.** The private signing key is the
-`CACHE_SIGNING_KEY` GitHub Actions secret, consumed by `scripts/push-to-r2.sh`
-and wired into `.github/workflows/nix.yml` (the `light`, `package`, `hosts`,
-and `tests` jobs all push their build outputs to R2 on `push` to `main`,
-gated by `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `CACHE_SIGNING_KEY`
-secrets at the repo level). Repo admins control these secrets and the workflow
-file, so this is the same shape of edge as the documented
-`homeserver-gcp` runner root-equivalence: **a GitHub repo admin (or anyone who
-can land a workflow change on `main`) effectively controls what `main`
-substitutes as trusted store paths.** Unlike the `homeserver-gcp` runner
-edge, this does not grant interactive shell access — it grants the ability to
-have a signed artifact accepted as a build output.
+**Public redistribution policy.** The uploader enumerates complete realized
+closures and subtracts paths already present in `cache.nixos.org`. Only exact
+output paths with explicitly free license metadata from the pinned Nixpkgs
+package set or this flake's evaluated package outputs are eligible for new uploads. Unfree or missing/conflicting
+metadata fails closed. This excludes NVIDIA drivers, Discord, and unclassified
+locally generated outputs; it does not assume a package is free from its name.
+A path is withheld if any transitive reference is excluded and unavailable
+upstream. Known unfree references also exclude dependents even if upstream has
+them. Withheld paths are reported, so full workstation closures are not promised
+to be publishable. In particular, generated host roots often lack license
+metadata and remain withheld until their provenance can be audited.
 
-**Scope of what can be pushed.** `scripts/push-to-r2.sh` only signs and pushes
-paths that:
-
-- come from `PRINT_PATHS=1 bash scripts/validate.sh ...` (i.e. the outputs of
-  this repo's own `nix build` invocations for checks/packages/host closures), or
-  an explicit `PATHS_FILE` set by the workflow to one of those generated lists;
-- match `/nix/store/*` (the script refuses anything else); and
-- pass `nix path-info <path>` (the script refuses paths the local Nix store
-  doesn't recognize as real, already-realised store paths).
-
-In practice this means the cache is scoped to **store paths the CI runner
-itself just built** from this repo's flake — it is not an arbitrary
-"sign any path string" oracle. However, because the signing key is held by CI
-and CI executes whatever is on `main` (including the flake inputs and any
-derivation that runs arbitrary code at build time), the practical scope is
-"anything CI can be made to build from a `main`-mergeable change" — which is
-broad. This is documentation of an existing, accepted trust edge; no
-substituter configuration change is made by this issue. A possible follow-up
-to scope this further (e.g. binding pushed paths to a specific derivation
-allowlist or restricting which workflow jobs hold the signing secret) is
-tracked separately — see the linked follow-up issue, if filed.
-
-**Rotation procedure.** To rotate the R2 cache signing keypair:
-
-1. Generate a new Ed25519 signing keypair:
-   `nix-store --generate-binary-cache-key nix-cache-1 /tmp/cache-priv.key /tmp/cache-pub.key`
-   (keep the same `nix-cache-1` name so existing trust comments stay accurate,
-   or pick a new name and update both places below consistently).
-2. Update the `CACHE_SIGNING_KEY` GitHub Actions repo secret with the contents
-   of the new private key file (Settings → Secrets and variables → Actions).
-3. Update `r2.publicKey` in `lib/binary-cache.nix` to the new public key —
-   `hosts/main/default.nix` consumes it from
-   there, keeping the "Keep this in sync with the CI signing key used for the
-   R2 binary cache" comment in `hosts/main/default.nix` accurate.
-4. Update the matching trusted key in `.github/actions/setup-nix/action.yml`
-   (checked against `lib/binary-cache.nix` by `scripts/check-cache-config.sh`).
-5. Deploy `main` so the new public key is trusted before CI starts
-   signing with the new private key, then merge the workflow/host changes.
-6. Old store paths signed with the retired key remain on R2 but will no longer
-   be trusted by `main` once the new key is live; this is expected and
-   does not require purging the bucket.
+Each eligible path is uploaded as an individual NAR plus narinfo using the
+[official Cloudsmith CLI upload protocol](https://docs.cloudsmith.com/formats/nix-repository).
+No recursive public copy can silently reintroduce excluded references. HTTP
+errors other than an explicit upstream 404 abort publication. Upload failures
+remain non-blocking for build CI and are visible in the upload step logs.
 
 ### `main.local` cache (`homeserver-gcp`, `gcp-builder`)
 

@@ -345,8 +345,8 @@ role-specific changes only build the affected host closures and tests, and
 docs-only changes run lint and link checks. A single `merge-gate` status
 consolidates flake evaluation, light checks, package builds, host builds, and
 selected smoke/profile tests for branch protection; weekly `flake.lock` updates
-auto-merge when it passes. CI substitutes from a signed Cloudflare R2 binary
-cache but only publishes on protected `main`.
+auto-merge when it passes. CI substitutes from a signed Cloudsmith binary
+cache and publishes eligible free closure paths only on protected `main`.
 
 ---
 
@@ -404,3 +404,6 @@ drop-in NixOS distribution.
 
 - [`LICENSE`](LICENSE) — repository content is published under the MIT license.
 - [`SECURITY.md`](SECURITY.md) — private vulnerability disclosure intake.
+
+Free build artifact hosting is provided by [Cloudsmith](https://cloudsmith.com)
+through its open-source program.

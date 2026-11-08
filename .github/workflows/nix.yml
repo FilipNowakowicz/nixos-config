@@ -132,15 +132,16 @@ jobs:
           rm -f "$PATHS_FILE"
           PRINT_PATHS=1 bash scripts/validate.sh light | tee "$PATHS_FILE" >/dev/null
 
+      - name: Check public cache publication policy
+        run: bash scripts/push-to-cloudsmith.sh --check
+
       - name: Push to cache
         if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         continue-on-error: true
         env:
           PATHS_FILE: ${{ runner.temp }}/checks-light-paths.txt
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          CACHE_SIGNING_KEY: ${{ secrets.CACHE_SIGNING_KEY }}
-        run: bash scripts/push-to-r2.sh
+          CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
+        run: bash scripts/push-to-cloudsmith.sh
 
       - name: Save Nix store cache
         if: success() && steps.setup-nix.outputs.store-cache-enabled == 'true'
@@ -224,10 +225,8 @@ jobs:
         continue-on-error: true
         env:
           PATHS_FILE: ${{ runner.temp }}/package-paths.txt
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          CACHE_SIGNING_KEY: ${{ secrets.CACHE_SIGNING_KEY }}
-        run: bash scripts/push-to-r2.sh
+          CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
+        run: bash scripts/push-to-cloudsmith.sh
 
   hosts:
     needs: [push-policy, changes]
@@ -267,15 +266,13 @@ jobs:
         env:
           HOST: ${{ matrix.name }}
           PATHS_FILE: ${{ runner.temp }}/${{ matrix.name }}-paths.txt
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          CACHE_SIGNING_KEY: ${{ secrets.CACHE_SIGNING_KEY }}
-        run: bash scripts/push-to-r2.sh
+          CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
+        run: bash scripts/push-to-cloudsmith.sh
 
-      # Prime R2 with the full prod `main` closure (incremental over main-ci)
+      # Audit the full prod `main` closure for publishable free paths
       # so future PR closure-diff jobs can fetch the base SHA from cache
       # instead of rebuilding it from scratch.
-      - name: Push full main closure to R2 (warms closure-diff base)
+      - name: Publish eligible free paths from full main closure
         if: |
           success()
           && matrix.name == 'main-ci'
@@ -284,13 +281,11 @@ jobs:
         continue-on-error: true
         env:
           PATHS_FILE: ${{ runner.temp }}/main-paths.txt
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          CACHE_SIGNING_KEY: ${{ secrets.CACHE_SIGNING_KEY }}
+          CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
         run: |
           rm -f "$PATHS_FILE"
           PRINT_PATHS=1 bash scripts/validate.sh host main | tee "$PATHS_FILE" >/dev/null
-          bash scripts/push-to-r2.sh
+          bash scripts/push-to-cloudsmith.sh
 
       - name: Save Nix store cache
         if: success() && steps.setup-nix.outputs.store-cache-enabled == 'true'
@@ -354,10 +349,8 @@ jobs:
           CMD: ${{ matrix.command }}
           TARGET: ${{ matrix.target }}
           PATHS_FILE: ${{ runner.temp }}/${{ matrix.name }}-paths.txt
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          CACHE_SIGNING_KEY: ${{ secrets.CACHE_SIGNING_KEY }}
-        run: bash scripts/push-to-r2.sh
+          CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
+        run: bash scripts/push-to-cloudsmith.sh
 
       - name: Save Nix store cache
         if: success() && steps.setup-nix.outputs.store-cache-enabled == 'true'
