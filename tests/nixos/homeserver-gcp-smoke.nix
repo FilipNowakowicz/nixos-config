@@ -112,7 +112,6 @@ in
                 ];
               })
             ];
-            alertmanager.configuration.route.group_wait = lib.mkForce "0s";
             extraFlags = [ "--web.enable-remote-write-receiver" ];
           };
           grafana.settings."auth.proxy" = {
@@ -196,6 +195,7 @@ in
         environment.systemPackages = [
           pkgs.curl
           pkgs.python3
+          pkgs.jq
           pkgs.prometheus.cli
         ];
       };
@@ -278,13 +278,11 @@ in
       "  timeout=90,"
       ")"
       ""
-      "server.succeed(\"promtool push metrics --http.config.file=/etc/remote-write-http.yaml --remote-write.path=/obs/prometheus/api/v1/write https://homeserver-gcp.test /etc/remote-write-marker.prom\")"
-      "server.wait_until_succeeds("
-      "    \"curl -fsS 'http://127.0.0.1:9090/api/v1/query?query=ingress_smoke_marker' | python3 -c 'import json,sys; r=json.load(sys.stdin)[\\\"data\\\"][\\\"result\\\"]; assert r and r[0][\\\"value\\\"][1] == \\\"474\\\"'\","
-      "    timeout=30,"
-      ")"
-      "server.succeed(\"curl -fsS http://127.0.0.1:9090/api/v1/rules | grep -q SystemdUnitFailed\")"
-      "server.wait_until_succeeds(\"curl -fsS http://127.0.0.1:9090/api/v1/alertmanagers | grep -q '127.0.0.1:9093'\", timeout=30)"
-      "server.wait_until_succeeds(\"grep -q SmokeNotification /tmp/webhook-received\", timeout=60)"
+      "server.succeed('promtool push metrics --http.config.file=/etc/remote-write-http.yaml --remote-write.path=/obs/prometheus/api/v1/write https://homeserver-gcp.test /etc/remote-write-marker.prom')"
+      "server.wait_until_succeeds('curl -fsS \\'http://127.0.0.1:9090/api/v1/query?query=ingress_smoke_marker\\' | jq -e \\'.data.result[0].value[1] == \"474\"\\'', timeout=90)"
+      "server.wait_until_succeeds('curl -fsS \\'http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22node%22%2Chost%3D%22server%22%7D\\' | jq -e \\'.data.result[0].value[1] == \"1\"\\'', timeout=90)"
+      "server.succeed('curl -fsS http://127.0.0.1:9090/api/v1/rules | jq -e \\'[.data.groups[].rules[].name] | index(\"SystemdUnitFailed\") != null\\'')"
+      "server.wait_until_succeeds('curl -fsS http://127.0.0.1:9090/api/v1/alertmanagers | jq -e \\'.data.activeAlertmanagers | any(.url == \"http://127.0.0.1:9093/api/v2/alerts\")\\'', timeout=90)"
+      "server.wait_until_succeeds('grep -q SmokeNotification /tmp/webhook-received', timeout=90)"
     ];
   }
