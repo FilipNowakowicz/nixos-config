@@ -29,6 +29,10 @@ in
           common = {
             path_prefix = "/var/lib/loki";
             replication_factor = 1;
+            # gRPC listens on loopback only, so the ring must advertise loopback
+            # too. Otherwise Loki registers the first interface's address and
+            # every push and query between its own components is refused.
+            instance_addr = "127.0.0.1";
             ring.kvstore.store = "inmemory";
           };
           schema_config.configs = [
