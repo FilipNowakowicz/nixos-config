@@ -537,7 +537,7 @@ Singleton {
         write("theme", ["theme-switch", name], () => Theme.name === name, "The theme didn't change.", { target: name });
     }
     // One Markdown file for quick thoughts and todos, opened in a floating Neovim.
-    readonly property string notesPath: Quickshell.env("HOME") + "/notes.md"
+    readonly property string notesPath: (Quickshell.env("XDG_DATA_HOME") || Quickshell.env("HOME") + "/.local/share") + "/quiet-shell/notes.md"
     function openNotes() {
         const open = ToplevelManager.toplevels.values.find(t => t.appId === "quiet-notes");
         if (open)

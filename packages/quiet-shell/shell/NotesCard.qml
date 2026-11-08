@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell.Io
 
-// The top of ~/notes.md, so a thought jotted down earlier is in view in the
+// The top of the notes file, so a thought jotted down earlier is in view in the
 // overview. Clicking opens the file (SUPER+SHIFT+N does too).
 Item {
     id: root
