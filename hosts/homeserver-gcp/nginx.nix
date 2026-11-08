@@ -209,15 +209,11 @@ in
             basicAuthFile = cfg.ingestHtpasswdFile;
           };
 
-          "= /obs/mimir/api/v1/push" = proxy {
-            target = "http://127.0.0.1:9009/api/v1/push";
+          "= /obs/prometheus/api/v1/write" = proxy {
+            target = "http://127.0.0.1:9090/api/v1/write";
             basicAuthFile = cfg.ingestHtpasswdFile;
           };
 
-          "= /obs/otlp/v1/traces" = proxy {
-            target = "http://127.0.0.1:14318/v1/traces";
-            basicAuthFile = cfg.ingestHtpasswdFile;
-          };
         };
       };
     };

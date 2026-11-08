@@ -16,7 +16,7 @@ in
   ];
 
   options.profiles.observability = {
-    enable = lib.mkEnableOption "LGTM observability profile";
+    enable = lib.mkEnableOption "Prometheus, Loki and Grafana observability profile";
 
     alertWebhookUrlFile = lib.mkOption {
       type = with lib.types; nullOr path;
@@ -56,26 +56,20 @@ in
       username = lib.mkOption {
         type = with lib.types; nullOr str;
         default = null;
-        description = "Username for HTTP Basic Auth when pushing metrics, logs, or traces to a remote ingest endpoint.";
+        description = "Username for HTTP Basic Auth when pushing metrics or logs to a remote ingest endpoint.";
         example = "telemetry";
       };
       passwordFile = lib.mkOption {
         type = with lib.types; nullOr path;
         default = null;
-        description = "Path to a file containing the ingest password. Read directly by Prometheus for remote write; mounted as a group-readable secret for Alloy and the OTel collector.";
+        description = "Path to a file containing the ingest password. Read directly by Prometheus for remote write; mounted as a group-readable secret for Alloy.";
         example = lib.literalExpression "config.sops.secrets.ingest_password.path";
       };
       group = lib.mkOption {
         type = with lib.types; nullOr str;
         default = null;
-        description = "Supplementary group granted read access to the ingest password secret. Prometheus, Alloy, and the OTel collector services are added to this group automatically.";
+        description = "Supplementary group granted read access to the ingest password secret. Prometheus and Alloy services are added to this group automatically.";
         example = "telemetry-ingest";
-      };
-      serviceEnvironmentFile = lib.mkOption {
-        type = with lib.types; nullOr path;
-        default = null;
-        description = "Path to an environment file for the OTel collector service. Must contain BASICAUTH_PASSWORD=<secret>. Required when authenticated remote trace export is enabled.";
-        example = lib.literalExpression "config.sops.templates.\"otel-env\".path";
       };
     };
   };
@@ -111,13 +105,14 @@ in
         enable = true;
         datasources.settings = {
           apiVersion = 1;
+          prune = true;
           datasources = [
             {
-              name = "Mimir";
+              name = "Prometheus";
               type = "prometheus";
               access = "proxy";
-              url = "http://127.0.0.1:9009/prometheus";
-              uid = "mimir";
+              url = "http://127.0.0.1:9090";
+              uid = "prometheus";
               isDefault = true;
             }
             {
@@ -128,15 +123,7 @@ in
               uid = "loki";
               # Loki runs no ruler here (logs only), so stop Grafana's alerting
               # UI from trying to fetch rules from it and erroring. All alert
-              # rules live in the Mimir ruler.
               jsonData.manageAlerts = false;
-            }
-            {
-              name = "Tempo";
-              type = "tempo";
-              access = "proxy";
-              url = "http://127.0.0.1:3200";
-              uid = "tempo";
             }
           ];
         };

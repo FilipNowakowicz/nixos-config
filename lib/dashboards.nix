@@ -19,17 +19,13 @@
     };
 
   # Standard datasource references
-  mimirDS = {
-    uid = "mimir";
+  prometheusDS = {
+    uid = "prometheus";
     type = "prometheus";
   };
   lokiDS = {
     uid = "loki";
     type = "loki";
-  };
-  tempoDS = {
-    uid = "tempo";
-    type = "tempo";
   };
 
   # Generic datasource reference

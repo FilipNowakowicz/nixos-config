@@ -102,7 +102,6 @@
           prometheus.enable = lib.mkForce false;
           prometheus.exporters.node.enable = lib.mkForce false;
           alloy.enable = lib.mkForce false;
-          opentelemetry-collector.enable = lib.mkForce false;
 
           tor = {
             enable = true;

@@ -16,8 +16,8 @@
           "adguardhome.service",
           "grafana.service",
           "loki.service",
-          "mimir.service",
-          "tempo.service"
+          "prometheus.service",
+          "alertmanager.service"
         ],
         "tailnetFQDN": "homeserver-gcp.example.ts.net",
         "tailscaleTag": "server",
@@ -122,7 +122,7 @@
         "hyprland": false,
         "lanzaboote": false,
         "loki": true,
-        "mimir": true,
+        "prometheus": true,
         "nginx": true,
         "observabilityClient": false,
         "observabilityStack": true,
@@ -130,7 +130,7 @@
         "restic": true,
         "syncthing": false,
         "tailscale": true,
-        "tempo": true,
+        "alertmanager": true,
         "usbguard": false
       },
       "stateVersion": "24.11",
@@ -153,8 +153,8 @@
         "nginx",
         "grafana",
         "loki",
-        "mimir",
-        "tempo"
+        "prometheus",
+        "alertmanager"
       ]
     }
   ],

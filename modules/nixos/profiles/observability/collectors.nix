@@ -10,7 +10,6 @@ let
   mkYaml = name: data: (pkgs.formats.yaml { }).generate name data;
 
   shouldUseIngestAuth = cfg.ingestAuth.username != null && cfg.ingestAuth.passwordFile != null;
-  shouldUseRemoteTraceAuth = shouldUseIngestAuth && cfg.collectors.traces.exportURL != null;
 
   nodeExporterTextfileDir = "/var/lib/node-exporter-textfiles";
   prometheusPort = 9090;
@@ -252,8 +251,8 @@ in
       remoteWriteURL = lib.mkOption {
         type = with lib.types; nullOr str;
         default = null;
-        description = "Prometheus remote write endpoint. When null and mimir.enable is true, writes to the local Mimir instance instead.";
-        example = "https://homeserver-gcp.example.ts.net/obs/mimir/api/v1/push";
+        description = "Prometheus remote write endpoint. When null, metrics stay in the local store.";
+        example = "https://homeserver-gcp.example.ts.net/obs/prometheus/api/v1/write";
       };
     };
 
@@ -263,26 +262,6 @@ in
         type = lib.types.str;
         default = "http://127.0.0.1:3100/loki/api/v1/push";
         description = "Loki push URL used by Alloy";
-      };
-    };
-
-    traces = {
-      enable = lib.mkEnableOption "OpenTelemetry trace pipeline";
-      receiverGRPCEndpoint = lib.mkOption {
-        type = lib.types.str;
-        default = "127.0.0.1:14317";
-        description = "OpenTelemetry Collector OTLP gRPC receiver endpoint";
-      };
-      receiverHTTPEndpoint = lib.mkOption {
-        type = lib.types.str;
-        default = "127.0.0.1:14318";
-        description = "OpenTelemetry Collector OTLP HTTP receiver endpoint";
-      };
-      exportURL = lib.mkOption {
-        type = with lib.types; nullOr str;
-        default = null;
-        description = "Remote OTLP/HTTP endpoint for trace export. When null, traces are forwarded to the local Tempo instance instead.";
-        example = "https://homeserver-gcp.example.ts.net/obs/otlp/v1/traces";
       };
     };
 
@@ -467,20 +446,11 @@ in
               cfg.collectors.metrics.enable
               && shouldUseIngestAuth
               && cfg.collectors.metrics.remoteWriteURL == null
-              && !cfg.mimir.enable
             );
           message = ''
             profiles.observability.ingestAuth credentials are set but collectors.metrics.remoteWriteURL
-            is null and mimir is disabled; the auth will not be applied to any metrics remote-write
-            destination. Set remoteWriteURL or enable mimir.
-          '';
-        }
-        {
-          assertion = !shouldUseRemoteTraceAuth || cfg.ingestAuth.serviceEnvironmentFile != null;
-          message = ''
-            profiles.observability.ingestAuth.serviceEnvironmentFile must be set when
-            authenticated remote trace export is enabled, because the OpenTelemetry
-            collector basicauth extension reads BASICAUTH_PASSWORD from an env file.
+            is null; the auth will not be applied to any metrics remote-write
+            destination. Set remoteWriteURL.
           '';
         }
         {
@@ -498,7 +468,7 @@ in
           enable = true;
           listenAddress = "127.0.0.1";
           port = prometheusPort;
-          retentionTime = "24h";
+          retentionTime = lib.mkDefault "24h";
           globalConfig = {
             scrape_interval = cfg.collectors.metrics.scrapeInterval;
             external_labels.host = config.networking.hostName;
@@ -522,17 +492,35 @@ in
             extraFlags = [ "--collector.textfile.directory=${nodeExporterTextfileDir}" ];
           };
 
-          scrapeConfigs = [
-            {
-              job_name = "prometheus";
-              static_configs = [ { targets = [ "127.0.0.1:${toString prometheusPort}" ]; } ];
-            }
-            {
-              job_name = "node";
-              static_configs = [ { targets = [ "127.0.0.1:${toString nodeExporterPort}" ]; } ];
-            }
-          ]
-          ++ lib.optionals cfg.collectors.blackbox.enable blackboxScrapeConfigs;
+          # External labels apply only when sending out samples. Store the host
+          # label locally too, so dashboards and alerts retain their fleet scope.
+          scrapeConfigs =
+            map
+              (
+                scrape:
+                scrape
+                // {
+                  relabel_configs = (scrape.relabel_configs or [ ]) ++ [
+                    {
+                      target_label = "host";
+                      replacement = config.networking.hostName;
+                    }
+                  ];
+                }
+              )
+              (
+                [
+                  {
+                    job_name = "prometheus";
+                    static_configs = [ { targets = [ "127.0.0.1:${toString prometheusPort}" ]; } ];
+                  }
+                  {
+                    job_name = "node";
+                    static_configs = [ { targets = [ "127.0.0.1:${toString nodeExporterPort}" ]; } ];
+                  }
+                ]
+                ++ lib.optionals cfg.collectors.blackbox.enable blackboxScrapeConfigs
+              );
 
           remoteWrite =
             if cfg.collectors.metrics.remoteWriteURL != null then
@@ -545,11 +533,7 @@ in
                 )
               ]
             else
-              lib.optionals cfg.mimir.enable [
-                {
-                  url = "http://127.0.0.1:9009/api/v1/push";
-                }
-              ];
+              [ ];
 
           exporters.blackbox = lib.mkIf cfg.collectors.blackbox.enable {
             enable = true;
@@ -563,49 +547,6 @@ in
           configPath = "/etc/alloy/config.alloy";
         };
 
-        "opentelemetry-collector" = lib.mkIf cfg.collectors.traces.enable {
-          enable = true;
-          # contrib distribution required for the basicauth extension used for authenticated remote export
-          package = pkgs.opentelemetry-collector-contrib;
-          settings = {
-            receivers.otlp.protocols = {
-              grpc.endpoint = cfg.collectors.traces.receiverGRPCEndpoint;
-              http.endpoint = cfg.collectors.traces.receiverHTTPEndpoint;
-            };
-            processors.batch = { };
-            extensions = lib.optionalAttrs shouldUseIngestAuth {
-              "basicauth/client" = {
-                client_auth = {
-                  inherit (cfg.ingestAuth) username;
-                  password = "\${env:BASICAUTH_PASSWORD}";
-                };
-              };
-            };
-            exporters =
-              if cfg.collectors.traces.exportURL != null then
-                {
-                  otlphttp = {
-                    endpoint = cfg.collectors.traces.exportURL;
-                  }
-                  // lib.optionalAttrs shouldUseIngestAuth {
-                    auth.authenticator = "basicauth/client";
-                  };
-                }
-              else
-                {
-                  otlp = {
-                    endpoint = "127.0.0.1:4317";
-                    tls.insecure = true;
-                  };
-                };
-            service.pipelines.traces = {
-              receivers = [ "otlp" ];
-              processors = [ "batch" ];
-              exporters = if cfg.collectors.traces.exportURL != null then [ "otlphttp" ] else [ "otlp" ];
-            };
-            service.extensions = lib.optionals shouldUseIngestAuth [ "basicauth/client" ];
-          };
-        };
       };
 
       environment.etc = lib.mkIf cfg.collectors.logs.enable {
@@ -658,14 +599,6 @@ in
             };
           };
 
-          "opentelemetry-collector" =
-            lib.mkIf (cfg.collectors.traces.enable && cfg.ingestAuth.serviceEnvironmentFile != null)
-              {
-                serviceConfig = {
-                  EnvironmentFile = cfg.ingestAuth.serviceEnvironmentFile;
-                  SupplementaryGroups = ingestAuthGroups;
-                };
-              };
         };
       };
     })

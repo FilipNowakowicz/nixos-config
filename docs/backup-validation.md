@@ -90,7 +90,7 @@ too — there is no separate database alert by design.
 
 ### 5. Stale alerts (alert on staleness, not failures)
 
-`lib/observability-alerts.nix` turns the three timestamps into Mimir ruler alerts
+`lib/observability-alerts.nix` turns the three timestamps into Prometheus evaluator alerts
 that fire on **age**, not on a failed run:
 
 | Alert                      | Fires when                                  |

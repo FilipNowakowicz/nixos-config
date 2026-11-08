@@ -1,4 +1,4 @@
-# Shared source of truth for the Mimir ruler alert rules and the minimal
+# Shared source of truth for the Prometheus evaluator alert rules and the minimal
 # Alertmanager config. Imported by both the observability module
 # (modules/nixos/profiles/observability/alerts.nix) and the
 # observability-alerts-lint flake check so the two cannot drift.

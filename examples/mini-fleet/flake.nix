@@ -71,7 +71,7 @@
             }
             {
               # Layer 2: ship telemetry to a remote observability stack — no
-              # local Grafana/Loki/Mimir/Tempo on this host. `observability-client`
+              # local Grafana/Loki/Prometheus on this host. `observability-client`
               # configures the *option surface* defined by `observability-stack`
               # (the two are documented together in docs/observability-stack.md),
               # so both modules are imported even though only the client is enabled.

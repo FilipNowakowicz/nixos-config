@@ -486,32 +486,20 @@ rec {
     check = cfg: if !cfg.services.openssh.enable then true else checkHardenedFail2ban cfg;
   };
 
-  # Inspect evaluated configuration, so dotted Nix syntax and future nested
-  # rings are covered without depending on source formatting or NIC names.
-  mimirRingsHaveInstanceAddr = {
-    name = "every Mimir ring has an explicit instance_addr";
+  observabilityStaysMinimal = {
+    name = "registry hosts keep the minimal observability stack";
     check =
       cfg:
       let
-        settings = cfg.services.mimir.configuration or { };
-        inspect =
-          path: value:
-          lib.concatMap (
-            key:
-            let
-              child = value.${key};
-              childPath = path ++ [ key ];
-              address = child.instance_addr or null;
-              isRing = key == "ring" || lib.hasSuffix "_ring" key;
-            in
-            lib.optional (isRing && !(builtins.isString address && address != "")) (
-              lib.concatStringsSep "." childPath
-            )
-            ++ lib.optionals (builtins.isAttrs child) (inspect childPath child)
-          ) (builtins.attrNames value);
-        missing = if cfg.services.mimir.enable or false then inspect [ ] settings else [ ];
+        removed = [
+          "mimir"
+          "tempo"
+          "opentelemetry-collector"
+        ];
+        enabled = lib.filter (name: cfg.services.${name}.enable or false) removed;
       in
-      mkResult (missing == [ ]) "Mimir rings missing explicit instance_addr: ${formatList missing}";
+      mkResult (enabled == [ ])
+        "Removed observability services enabled: ${formatList enabled}. See docs/observability-stack.md#decision-minimal-personal-server-stack; revisiting requires a new reason.";
   };
 
   obsClientUsesCanonicalUsername = {

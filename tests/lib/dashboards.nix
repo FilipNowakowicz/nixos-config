@@ -23,7 +23,7 @@ let
       (dash.timeseriesPanel {
         id = 1;
         title = "CPU idle";
-        ds = dash.mimirDS;
+        ds = dash.prometheusDS;
         gridPos = dash.gridPos { };
         targets = [
           (dash.target {

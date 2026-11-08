@@ -61,7 +61,7 @@ in
           (dash.statPanel {
             id = 1;
             title = "Firing Alerts";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 0;
               y = 0;
@@ -82,7 +82,7 @@ in
           (dash.statPanel {
             id = 2;
             title = "Failed Units";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 4;
               y = 0;
@@ -103,7 +103,7 @@ in
           (dash.statPanel {
             id = 3;
             title = "CPU · main";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 8;
               y = 0;
@@ -123,7 +123,7 @@ in
           (dash.statPanel {
             id = 4;
             title = "Memory · main";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 12;
               y = 0;
@@ -143,7 +143,7 @@ in
           (dash.statPanel {
             id = 5;
             title = "Disk · main";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 16;
               y = 0;
@@ -163,7 +163,7 @@ in
           (dash.statPanel {
             id = 6;
             title = "Battery · main";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 20;
               y = 0;
@@ -186,7 +186,7 @@ in
           (dash.tablePanel {
             id = 7;
             title = "Firing Alerts";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 0;
               y = 4;
@@ -264,7 +264,7 @@ in
           (dash.timeseriesPanel {
             id = 10;
             title = "CPU Usage % · main";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 0;
               y = 10;
@@ -284,7 +284,7 @@ in
           (dash.timeseriesPanel {
             id = 11;
             title = "Memory Usage % · main";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 12;
               y = 10;
@@ -304,7 +304,7 @@ in
           (dash.timeseriesPanel {
             id = 12;
             title = "Disk Usage % by mount · main";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 0;
               y = 18;
@@ -324,7 +324,7 @@ in
           (dash.timeseriesPanel {
             id = 13;
             title = "Thermal Zones · main";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 12;
               y = 18;
@@ -343,7 +343,7 @@ in
           (dash.timeseriesPanel {
             id = 20;
             title = "CPU % by host";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 0;
               y = 26;
@@ -363,7 +363,7 @@ in
           (dash.timeseriesPanel {
             id = 21;
             title = "Memory % by host";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 8;
               y = 26;
@@ -383,7 +383,7 @@ in
           (dash.timeseriesPanel {
             id = 22;
             title = "Root Disk % by host";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 16;
               y = 26;
@@ -404,7 +404,7 @@ in
           (dash.statPanel {
             id = 30;
             title = "Backup Age (h)";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 0;
               y = 34;
@@ -425,7 +425,7 @@ in
           (dash.statPanel {
             id = 31;
             title = "Check Age (d) · gcp";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 5;
               y = 34;
@@ -446,7 +446,7 @@ in
           (dash.statPanel {
             id = 32;
             title = "Lynis Index · gcp";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 10;
               y = 34;
@@ -468,7 +468,7 @@ in
           (dash.statPanel {
             id = 33;
             title = "TLS Cert (d)";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 15;
               y = 34;
@@ -489,7 +489,7 @@ in
           (dash.statPanel {
             id = 35;
             title = "Restore Drill Age (d) · gcp";
-            ds = dash.mimirDS;
+            ds = dash.prometheusDS;
             gridPos = dash.gridPos {
               x = 0;
               y = 39;
@@ -559,7 +559,7 @@ in
             (dash.statPanel {
               id = 1;
               title = "CPU";
-              ds = dash.mimirDS;
+              ds = dash.prometheusDS;
               gridPos = dash.gridPos {
                 x = 0;
                 y = 0;
@@ -579,7 +579,7 @@ in
             (dash.statPanel {
               id = 2;
               title = "Memory";
-              ds = dash.mimirDS;
+              ds = dash.prometheusDS;
               gridPos = dash.gridPos {
                 x = 6;
                 y = 0;
@@ -599,7 +599,7 @@ in
             (dash.statPanel {
               id = 3;
               title = "Disk";
-              ds = dash.mimirDS;
+              ds = dash.prometheusDS;
               gridPos = dash.gridPos {
                 x = 12;
                 y = 0;
@@ -619,7 +619,7 @@ in
             (dash.statPanel {
               id = 4;
               title = "Battery";
-              ds = dash.mimirDS;
+              ds = dash.prometheusDS;
               gridPos = dash.gridPos {
                 x = 18;
                 y = 0;
@@ -643,7 +643,7 @@ in
             (dash.timeseriesPanel {
               id = 10;
               title = "Disk Usage %";
-              ds = dash.mimirDS;
+              ds = dash.prometheusDS;
               gridPos = dash.gridPos {
                 x = 0;
                 y = 4;
@@ -663,7 +663,7 @@ in
             (dash.timeseriesPanel {
               id = 11;
               title = "CPU Usage %";
-              ds = dash.mimirDS;
+              ds = dash.prometheusDS;
               gridPos = dash.gridPos {
                 x = 12;
                 y = 4;
@@ -683,7 +683,7 @@ in
             (dash.timeseriesPanel {
               id = 12;
               title = "Memory Usage %";
-              ds = dash.mimirDS;
+              ds = dash.prometheusDS;
               gridPos = dash.gridPos {
                 x = 0;
                 y = 12;
@@ -703,7 +703,7 @@ in
             (dash.timeseriesPanel {
               id = 13;
               title = "Thermal Zones";
-              ds = dash.mimirDS;
+              ds = dash.prometheusDS;
               gridPos = dash.gridPos {
                 x = 12;
                 y = 12;
@@ -721,7 +721,7 @@ in
             (dash.timeseriesPanel {
               id = 15;
               title = "Failed Systemd Units";
-              ds = dash.mimirDS;
+              ds = dash.prometheusDS;
               gridPos = dash.gridPos {
                 x = 0;
                 y = 20;

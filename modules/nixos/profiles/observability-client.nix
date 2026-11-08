@@ -5,7 +5,7 @@ let
 in
 {
   options.profiles.observability-client = {
-    enable = lib.mkEnableOption "remote observability client (metrics, logs, traces)";
+    enable = lib.mkEnableOption "remote observability client (metrics, logs)";
 
     remoteEndpoint = {
       scheme = lib.mkOption {
@@ -25,7 +25,7 @@ in
 
       metricsPath = lib.mkOption {
         type = lib.types.str;
-        default = "/obs/mimir/api/v1/push";
+        default = "/obs/prometheus/api/v1/write";
         description = "Ingress path for Prometheus remote write.";
       };
 
@@ -35,11 +35,6 @@ in
         description = "Ingress path for Loki log pushes.";
       };
 
-      tracesPath = lib.mkOption {
-        type = lib.types.str;
-        default = "/obs/otlp/v1/traces";
-        description = "Ingress path for OTLP/HTTP trace export.";
-      };
     };
 
     ingestAuth = {
@@ -62,11 +57,6 @@ in
         example = lib.literalExpression "config.age.secrets.observability-ingest-password.path";
       };
 
-      serviceEnvironmentFile = lib.mkOption {
-        type = with lib.types; nullOr path;
-        default = null;
-        description = "Path to an environment file containing BASICAUTH_PASSWORD for the OpenTelemetry collector.";
-      };
     };
   };
 
@@ -76,17 +66,12 @@ in
         assertion = lib.all (path: lib.hasPrefix "/" path) [
           cfg.remoteEndpoint.metricsPath
           cfg.remoteEndpoint.logsPath
-          cfg.remoteEndpoint.tracesPath
         ];
         message = "profiles.observability-client remoteEndpoint paths must begin with '/'.";
       }
       {
         assertion = cfg.ingestAuth.passwordFile != null;
         message = "profiles.observability-client requires ingestAuth.passwordFile.";
-      }
-      {
-        assertion = cfg.ingestAuth.serviceEnvironmentFile != null;
-        message = "profiles.observability-client requires ingestAuth.serviceEnvironmentFile for trace auth.";
       }
     ];
 
@@ -104,17 +89,12 @@ in
           pushURL = endpointURL cfg.remoteEndpoint.logsPath;
         };
         audit.enable = true;
-        traces = {
-          enable = true;
-          exportURL = endpointURL cfg.remoteEndpoint.tracesPath;
-        };
       };
       ingestAuth = {
         inherit (cfg.ingestAuth)
           username
           group
           passwordFile
-          serviceEnvironmentFile
           ;
       };
     };
