@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Take a screenshot: screenshot.py area|window|screen|text.
+"""Take a screenshot: screenshot.py area|window|screen|text [REGION].
 
 Saves to ~/Pictures/Screenshots, copies it, and prints {"path": ...}. The text mode
 reads the words in an area instead, copies them, saves nothing and prints
-{"text": ...}. Prints nothing if the selection was cancelled.
+{"text": ...}. Prints nothing if the selection was cancelled. A REGION ("x,y wxh")
+skips the selection, for an area the picker already has.
 """
 
 import json
@@ -50,10 +51,10 @@ def read_text(region):
 
 
 mode = sys.argv[1]
-region = None
-if mode in ("area", "text"):
+region = sys.argv[2] if len(sys.argv) > 2 else None
+if not region and mode in ("area", "text"):
     region = run("slurp").stdout.strip()
-elif mode == "window":
+elif not region and mode == "window":
     region = run("slurp", "-r", input=windows()).stdout.strip()
 if mode != "screen" and not region:
     sys.exit(0)

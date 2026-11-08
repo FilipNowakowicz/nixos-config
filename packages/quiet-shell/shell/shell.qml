@@ -52,6 +52,8 @@ ShellRoot {
         function touchpad(): void { Sys.toggleTouchpad(); }
         // Runs a capture as the picker's buttons do: area, window, screen or text.
         function capture(mode: string): void { Sys.screenshot(mode); }
+        // An area capture of "x,y wxh", as dragging it out in the picker does.
+        function captureArea(region: string): void { Sys.screenshot("area", region); }
         function switcher(step: int): void { Ui.stepSwitcher(step); }
         function switcherDone(): void { Ui.commitSwitcher(); }
         function clipboard(): void { Ui.openClipboard(); }
@@ -62,7 +64,7 @@ ShellRoot {
         function testAuth(): void { testAuth.active = true; }
         function reloadTheme(): void { Theme.reload(); }
         function state(): string {
-            return JSON.stringify({ panel: Ui.panel, detail: Ui.detail, spotlight: Ui.spotlight, overview: Ui.overview, top: Ui.topShown, dock: Ui.dockRevealed, writes: Object.keys(Sys.writes), clipboard: Ui.clipboard, results: Ui.spotlightResults, query: Ui.spotlightQuery, joining: Sys.joining, auth: Ui.auth ? Ui.auth.message : "", authFailed: !!Ui.auth && Ui.auth.failed, failed: Sys.failedCount, theme: Theme.name, monoIcons: Theme.monoIcons, notices: Notify.items.length, banner: !!Notify.banner, focus: Sys.focusMode, deskHud: Ui.deskHud, screenshot: Ui.screenshot, cheatSheet: Ui.cheatSheet, shortcuts: Ui.shortcuts.reduce((all, column) => all.concat(column), []).filter(r => r.length > 1).map(r => r[0]), weather: Sys.weather, agenda: Sys.agenda, confirm: Ui.confirm ? Ui.confirm.action : "", hud: Ui.hud, media: Sys.media, touchpadOn: Sys.touchpadOn, switcher: Ui.switcher ? Ui.switcherIndex : -1, active: Hyprland.activeToplevel ? Hyprland.activeToplevel.title : "", recent: Dockable.recentWindows.map(t => t.address), apps: Dockable.apps.map(a => ({ name: a.name, windows: a.windows.length, hidden: a.windows.filter(Dockable.isHidden).length })), tray: SystemTray.items.values.map(i => i.id), screen: Ui.focusedScreen, sys: Sys.state, streams: Sys.appStreams.map(Sys.streamName) });
+            return JSON.stringify({ panel: Ui.panel, detail: Ui.detail, spotlight: Ui.spotlight, overview: Ui.overview, top: Ui.topShown, dock: Ui.dockRevealed, writes: Object.keys(Sys.writes), clipboard: Ui.clipboard, results: Ui.spotlightResults, query: Ui.spotlightQuery, place: Sys.place, joining: Sys.joining, auth: Ui.auth ? Ui.auth.message : "", authFailed: !!Ui.auth && Ui.auth.failed, failed: Sys.failedCount, theme: Theme.name, monoIcons: Theme.monoIcons, notices: Notify.items.length, banner: !!Notify.banner, focus: Sys.focusMode, deskHud: Ui.deskHud, screenshot: Ui.screenshot, cheatSheet: Ui.cheatSheet, shortcuts: Ui.shortcuts.reduce((all, column) => all.concat(column), []).filter(r => r.length > 1).map(r => r[0]), weather: Sys.weather, agenda: Sys.agenda, confirm: Ui.confirm ? Ui.confirm.action : "", hud: Ui.hud, media: Sys.media, touchpadOn: Sys.touchpadOn, switcher: Ui.switcher ? Ui.switcherIndex : -1, active: Hyprland.activeToplevel ? Hyprland.activeToplevel.title : "", recent: Dockable.recentWindows.map(t => t.address), apps: Dockable.apps.map(a => ({ name: a.name, windows: a.windows.length, hidden: a.windows.filter(Dockable.isHidden).length })), tray: SystemTray.items.values.map(i => i.id), screen: Ui.focusedScreen, sys: Sys.state, streams: Sys.appStreams.map(Sys.streamName) });
         }
     }
 

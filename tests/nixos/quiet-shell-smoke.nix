@@ -166,7 +166,18 @@ in
           # The config's layout is Dvorak, where S sits on the QWERTY semicolon key.
           machine.send_key("meta_l-shift-semicolon")
           wait_for(lambda s: s["screenshot"], "screenshot-picker")
-          session("quiet-shell-ipc close")
+          # 3 picks Screen, the third option, and the picture lands at once.
+          machine.send_key("3")
+          machine.wait_until_succeeds("ls /home/user/Pictures/Screenshots/*.png", timeout=timedelta(seconds=20))
+          retry(lambda _: not state()["screenshot"], timeout=timedelta(seconds=5))
+
+      with subtest("a dragged area is captured at its size"):
+          machine.succeed("rm /home/user/Pictures/Screenshots/*.png")
+          session('quiet-shell-ipc captureArea "10,20 200x100"')
+          machine.wait_until_succeeds("ls /home/user/Pictures/Screenshots/*.png", timeout=timedelta(seconds=20))
+          header = machine.succeed("od -An -tx1 -j16 -N8 /home/user/Pictures/Screenshots/*.png").split()
+          size = (int("".join(header[:4]), 16), int("".join(header[4:]), 16))
+          assert size == (200, 100), f"the area came out {size}"
 
       with subtest("the control centre drives the player from the keyboard"):
           # A stand-in Spotify on MPRIS, which the shell watches instead of polling.
@@ -247,7 +258,7 @@ in
           machine.screenshot("calendar-next-month")
           session("quiet-shell-ipc close")
 
-      with subtest("Spotlight sets the time zone"):
+      with subtest("Spotlight sets the location, and with it the time zone"):
           machine.succeed("timedatectl set-timezone Europe/London")
           # Type literally: switch the Dvorak layout to plain US while typing.
           session("hyprctl eval \"hl.config({ input = { kb_variant = [[]] } })\"")
@@ -264,20 +275,23 @@ in
           # The real key: Hyprland reaches the shell directly, without a process.
           machine.send_key("meta_l-spc")
           wait_for(lambda s: s["spotlight"], "spotlight-empty")
-          machine.send_chars("tz norway")
-          typed("tz norway")
-          # Norway shares Berlin's clock since 1970, so only zone.tab still names Oslo.
-          retry(lambda _: "Time Zone: Oslo" in state()["results"], timeout=timedelta(seconds=10))
+          machine.send_chars("location norway")
+          typed("location norway")
+          # A country lists its biggest towns.
+          retry(lambda _: "Location: Oslo" in state()["results"], timeout=timedelta(seconds=10))
           # Ctrl+Backspace drops the word, and the very next letter still arrives.
           machine.send_key("ctrl-backspace")
           machine.send_chars("warsaw")
-          typed("tz warsaw")
-          retry(lambda _: "Time Zone: Warsaw" in state()["results"], timeout=timedelta(seconds=10))
+          typed("location warsaw")
+          retry(lambda _: state()["results"][:1] == ["Location: Warsaw"], timeout=timedelta(seconds=10))
           machine.sleep(timedelta(seconds=2))
           machine.screenshot("spotlight-timezone")
           machine.send_key("ret")
           machine.wait_until_succeeds("readlink /etc/localtime | grep -q Europe/Warsaw", timeout=timedelta(seconds=20))
           retry(lambda _: state()["sys"]["timezone"] == "Europe/Warsaw" and not state()["writes"], timeout=timedelta(seconds=20))
+          retry(lambda _: (state()["place"] or {}).get("name") == "Warsaw", timeout=timedelta(seconds=10))
+          chosen = json.loads(machine.succeed("cat /home/user/.local/state/quiet-shell/location.json"))
+          assert chosen["zone"] == "Europe/Warsaw" and round(chosen["lat"]) == 52, chosen
           session("hyprctl eval \"hl.config({ input = { kb_variant = [[dvorak]] } })\"")
 
       with subtest("notes open once, float, and show in the overview"):

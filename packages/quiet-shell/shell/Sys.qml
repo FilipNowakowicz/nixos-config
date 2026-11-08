@@ -350,9 +350,10 @@ Singleton {
         }
     }
 
-    function screenshot(mode) {
+    // `region` ("x,y wxh") skips slurp, for an area already dragged out in the picker.
+    function screenshot(mode, region) {
         Ui.close();
-        capture.command = ["python3", Qt.resolvedUrl("scripts/screenshot.py").toString().replace("file://", ""), mode];
+        capture.command = ["python3", Qt.resolvedUrl("scripts/screenshot.py").toString().replace("file://", ""), mode].concat(region ? [region] : []);
         captureDelay.restart();
     }
     // The bar has to fade away before the picture is taken.
@@ -458,10 +459,39 @@ Singleton {
         const want = !night;
         write("night", want ? nightOn : ["systemctl", "--user", "stop", "night-light.service"], s => !!s.night === want, "Night mode didn't change.");
     }
-    // The zone moves the sun, so a running night mode restarts with the new position.
+    // The zone moves the sun and the weather with it; see placeMoved().
     function setTimezone(zone) {
         write("timezone", ["timedatectl", "set-timezone", zone], s => s.timezone === zone, "The time zone didn't change.",
             { target: zone, timeout: 90000 });
+    }
+    // The town picked in Spotlight. It counts only while the clock is in its zone;
+    // otherwise the weather and Night mode use the zone's main city (location.py).
+    readonly property string placePath: Quickshell.env("HOME") + "/.local/state/quiet-shell/location.json"
+    property var chosenPlace: null
+    readonly property var place: chosenPlace && chosenPlace.zone === timezone ? chosenPlace : null
+    FileView {
+        id: placeFile
+        path: root.placePath
+        printErrors: false
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: { try { root.chosenPlace = JSON.parse(text()); } catch (e) { root.chosenPlace = null; } }
+    }
+    function setLocation(city) {
+        const chosen = { name: city.name, region: city.region, country: city.country, lat: +city.lat, lon: +city.lon, zone: city.zone };
+        chosenPlace = chosen;
+        placeFile.setText(JSON.stringify(chosen) + "\n");
+        if (city.zone !== timezone)
+            setTimezone(city.zone);  // Moves the weather and Night mode once it lands.
+        else
+            placeMoved();
+    }
+    // A new position: fetch its weather now, and restart Night mode for its sun.
+    function placeMoved() {
+        weatherAt = 0;
+        refreshWeather();
+        if (night)
+            Quickshell.execDetached(["sh", "-c", 'systemctl --user stop night-light.service; "$@"', "sh"].concat(nightOn));
     }
     readonly property string timezone: state.timezone || ""
     property string knownZone: ""
@@ -472,8 +502,7 @@ Singleton {
             return;
         // QML's Date keeps the offset it read at start until told.
         Date.timeZoneUpdated();
-        if (night)
-            Quickshell.execDetached(["sh", "-c", 'systemctl --user stop night-light.service; "$@"', "sh"].concat(nightOn));
+        placeMoved();
     }
     function toggleAwake() {
         const want = !awake;

@@ -86,6 +86,8 @@ stdenvNoCC.mkDerivation {
     runHook preInstall
     mkdir -p $out/share/quiet-shell $out/bin
     cp -r . $out/share/quiet-shell
+    # Towns for Spotlight's location search, from GeoNames (CC BY 4.0); see update-cities.py.
+    gzip -d $out/share/quiet-shell/data/cities.tsv.gz
     makeWrapper ${quickshell}/bin/qs $out/bin/quiet-shell \
       --add-flags "-p $out/share/quiet-shell" \
       --set QT_WAYLAND_DISABLED_INTERFACES ${lib.concatStringsSep "," textInput} \

@@ -45,6 +45,8 @@ PanelWindow {
                 event.accepted = menus.pressLetter(event.text.toLowerCase());
             else if (Ui.panel === "notifications")
                 event.accepted = notifications.pressKey(event.text);
+            else if (Ui.screenshot)
+                event.accepted = shot.pressKey(event.text);
         }
         Keys.onReturnPressed: event => {
             if (Ui.switcher) Ui.commitSwitcher();
@@ -153,7 +155,14 @@ PanelWindow {
             y: parent.height * 0.82 + 4
         }
 
+        AreaDrag {
+            anchors.fill: parent
+            visible: Ui.screenshot && win.focused
+            origin: win.screen ? Qt.point(win.screen.x, win.screen.y) : Qt.point(0, 0)
+        }
+
         Screenshot {
+            id: shot
             visible: Ui.screenshot && win.focused
             anchors.horizontalCenter: parent.horizontalCenter
             y: parent.height * 0.82
