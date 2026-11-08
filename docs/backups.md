@@ -189,7 +189,7 @@ These are review questions, not instructions to delete data or change policy.
   source work outside `~/nix`, and application state elsewhere in `/home/user`
   have same-disk `@home` snapshot coverage, but no declared off-host coverage.
   Decide which data matters; this inventory does not assert such files exist.
-- Homeserver Mimir, Loki, and Tempo state uses local directories under
+- Homeserver Prometheus, Alertmanager, and Loki state uses local directories under
   `/var/lib` ([backend configuration](../modules/nixos/profiles/observability/backends.nix))
   outside the restic list. They rely on GCE disk snapshots for backup, with no
   independent B2 copy or corresponding restore exercise. Decide whether telemetry

@@ -16,6 +16,7 @@ let
       commonAssertions = [
         invariants.hasStateVersion
         invariants.sshHostsEnforceHardenedFail2ban
+        invariants.observabilityStaysMinimal
         invariants.obsClientUsesCanonicalUsername
       ];
 
@@ -69,8 +70,8 @@ let
         (lib.optionalString (c.services.adguardhome.enable or false) "adguardhome.service")
         (lib.optionalString (c.services.grafana.enable or false) "grafana.service")
         (lib.optionalString (c.services.loki.enable or false) "loki.service")
-        (lib.optionalString (c.services.mimir.enable or false) "mimir.service")
-        (lib.optionalString (c.services.tempo.enable or false) "tempo.service")
+        (lib.optionalString (c.services.prometheus.enable or false) "prometheus.service")
+        (lib.optionalString (c.services.prometheus.alertmanager.enable or false) "alertmanager.service")
       ];
     in
     {
@@ -116,8 +117,8 @@ let
         adguard = c.services.adguardhome.enable or false;
         grafana = c.services.grafana.enable or false;
         loki = c.services.loki.enable or false;
-        mimir = c.services.mimir.enable or false;
-        tempo = c.services.tempo.enable or false;
+        prometheus = c.services.prometheus.enable or false;
+        alertmanager = c.services.prometheus.alertmanager.enable or false;
         restic = resticBackups != { };
         hyprland = c.programs.hyprland.enable or false;
         observabilityStack = c.profiles.observability.enable or false;
@@ -132,8 +133,8 @@ let
             "nginx"
             "grafana"
             "loki"
-            "mimir"
-            "tempo"
+            "prometheus"
+            "alertmanager"
           ]
         else
           [ ];

@@ -43,7 +43,7 @@ let
       (dash.timeseriesPanel {
         id = 1;
         title = "Disk Usage %";
-        ds = dash.mimirDS;
+        ds = dash.prometheusDS;
         gridPos = dash.gridPos {
           x = 0;
           y = 0;
@@ -60,7 +60,7 @@ let
       (dash.timeseriesPanel {
         id = 2;
         title = "CPU Usage %";
-        ds = dash.mimirDS;
+        ds = dash.prometheusDS;
         gridPos = dash.gridPos {
           x = 12;
           y = 0;
@@ -202,8 +202,8 @@ let
     testDashboardDataSources = {
       expr = map (panel: panel.datasource) dashboardJson.panels;
       expected = [
-        dash.mimirDS
-        dash.mimirDS
+        dash.prometheusDS
+        dash.prometheusDS
         dash.lokiDS
       ];
     };

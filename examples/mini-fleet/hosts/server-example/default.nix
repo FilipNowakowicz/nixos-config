@@ -32,7 +32,7 @@
   };
 
   # ── Remote observability client ─────────────────────────────────────────
-  # No local Grafana/Loki/Mimir/Tempo — this host only ships telemetry to a
+  # No local Grafana/Loki/Prometheus — this host only ships telemetry to a
   # remote stack (layered in at the flake level via `observability-client`).
   # The endpoint below is an `.example.` placeholder, never a live tailnet host.
   profiles.observability-client = {
@@ -42,7 +42,6 @@
       host = "observability.example.ts.net";
       metricsPath = "/ingest/metrics";
       logsPath = "/ingest/logs";
-      tracesPath = "/ingest/traces";
     };
     ingestAuth = {
       # "test-password" mirrors the fixture convention used throughout
@@ -50,7 +49,6 @@
       # never a real credential (this whole tree is scanned by
       # `lib-scan-plaintext-secrets`).
       passwordFile = pkgs.writeText "demo-ingest-password" "test-password";
-      serviceEnvironmentFile = pkgs.writeText "demo-otel-env" "BASICAUTH_PASSWORD=test-password";
     };
   };
 

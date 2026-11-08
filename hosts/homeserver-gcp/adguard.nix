@@ -44,7 +44,7 @@ in
   # only exist while the unit is running and cannot be resolved during
   # activation, when setupSecrets runs with adguardhome stopped. Own the
   # secret by root and grant read access through a static supplementary
-  # group the adguardhome unit joins (same pattern as mimir-webhook in
+  # group the adguardhome unit joins (same pattern as alertmanager-webhook in
   # hosts/homeserver-gcp/default.nix).
   sops.secrets.adguard_admin_password = {
     mode = "0440";

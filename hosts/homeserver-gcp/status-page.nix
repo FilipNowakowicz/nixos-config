@@ -128,7 +128,7 @@ in
           local expr="$1"
           curl --silent --show-error --fail --get \
             --data-urlencode "query=$expr" \
-            http://127.0.0.1:9009/prometheus/api/v1/query 2>/dev/null \
+            http://127.0.0.1:9090/api/v1/query 2>/dev/null \
             | ${pkgs.jq}/bin/jq -r '
                 if .status == "success" and (.data.result | length) > 0 then
                   (.data.result[0].value[1] | tonumber | floor)
@@ -143,7 +143,7 @@ in
           local label="$2"
           curl --silent --show-error --fail --get \
             --data-urlencode "query=$expr" \
-            http://127.0.0.1:9009/prometheus/api/v1/query 2>/dev/null \
+            http://127.0.0.1:9090/api/v1/query 2>/dev/null \
             | ${pkgs.jq}/bin/jq -r --arg label "$label" '
                 if .status == "success" and (.data.result | length) > 0 then
                   (.data.result[0].metric[$label] // empty)
@@ -267,8 +267,8 @@ in
           --argjson nginxActive "$(service_active_json nginx.service)" \
           --argjson grafanaActive "$(service_active_json grafana.service)" \
           --argjson lokiActive "$(service_active_json loki.service)" \
-          --argjson mimirActive "$(service_active_json mimir.service)" \
-          --argjson tempoActive "$(service_active_json tempo.service)" \
+          --argjson prometheusActive "$(service_active_json prometheus.service)" \
+          --argjson alertmanagerActive "$(service_active_json alertmanager.service)" \
           --argjson backupAge "$(age_json "$restic_backup_ts")" \
           --argjson checkAge "$(age_json "$restic_check_ts")" \
           --argjson mainBackupAge "$(age_json "$main_restic_backup_ts")" \
@@ -305,8 +305,8 @@ in
                   nginx: { active: $nginxActive, unit: "nginx.service" },
                   grafana: { active: $grafanaActive, unit: "grafana.service" },
                   loki: { active: $lokiActive, unit: "loki.service" },
-                  mimir: { active: $mimirActive, unit: "mimir.service" },
-                  tempo: { active: $tempoActive, unit: "tempo.service" }
+                  prometheus: { active: $prometheusActive, unit: "prometheus.service" },
+                  alertmanager: { active: $alertmanagerActive, unit: "alertmanager.service" }
                 },
                 backups: [
                   {

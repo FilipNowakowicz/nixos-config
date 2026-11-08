@@ -32,8 +32,8 @@ let
             (lib.optionalString (config.services.adguardhome.enable or false) "adguardhome.service")
             (lib.optionalString (config.services.grafana.enable or false) "grafana.service")
             (lib.optionalString (config.services.loki.enable or false) "loki.service")
-            (lib.optionalString (config.services.mimir.enable or false) "mimir.service")
-            (lib.optionalString (config.services.tempo.enable or false) "tempo.service")
+            (lib.optionalString config.services.prometheus.enable "prometheus.service")
+            (lib.optionalString config.services.prometheus.alertmanager.enable "alertmanager.service")
           ];
         };
       }
@@ -123,8 +123,7 @@ in
         secretKeyFile = config.sops.secrets.grafana_secret_key.path;
       };
       loki.enable = true;
-      tempo.enable = true;
-      mimir.enable = true;
+      alerts.enable = true;
       collectors = {
         metrics.enable = true;
         logs.enable = true;
@@ -135,7 +134,6 @@ in
           scope = "edge-access";
           formatAsJson = true;
         };
-        traces.enable = true;
         blackbox = {
           enable = true;
           probes = {
@@ -181,7 +179,7 @@ in
       enable = true;
       webhookUrlFile = config.sops.secrets.alertmanager_webhook_url.path;
       services = [
-        "mimir"
+        "alertmanager"
         "prometheus"
         "prometheus-node-exporter"
         "nginx"
@@ -217,15 +215,9 @@ in
       tailscale_auth_key = { };
       grafana_admin_password.owner = "grafana";
       grafana_secret_key.owner = "grafana";
-      # mimir runs as a systemd DynamicUser, so the "mimir" user/group only
-      # exist while the unit is running (via nss-systemd) and cannot be resolved
-      # during activation, when setupSecrets runs with mimir stopped. Own the
-      # secret by root and grant read access through a static supplementary
-      # group the mimir unit joins: sops-install-secrets resolves it at
-      # activation, and mimir still reads the webhook URL at runtime.
       alertmanager_webhook_url = {
         mode = "0440";
-        group = "mimir-webhook";
+        group = "alertmanager-webhook";
       };
       observability_ingest_htpasswd = {
         owner = config.services.nginx.user;
@@ -257,13 +249,14 @@ in
   };
 
   # Static group bridging the root-owned alertmanager_webhook_url secret to the
-  # mimir DynamicUser. systemd adds the dynamic user to this group at start.
-  users.groups.mimir-webhook = { };
-  systemd.services.mimir.serviceConfig.SupplementaryGroups = [ "mimir-webhook" ];
+  # Alertmanager service user. systemd adds the dynamic user to this group at start.
+  users.groups.alertmanager-webhook = { };
+  systemd.services.alertmanager.serviceConfig.SupplementaryGroups = [ "alertmanager-webhook" ];
 
-  # GCP VMs have no power supply subsystem; the powersupplyclass collector fails
-  # to initialize when /sys/class/power_supply is empty. Override the shared
-  # profile list to drop it for this host only.
+  services.prometheus.retentionTime = "30d";
+  services.prometheus.extraFlags = [ "--web.enable-remote-write-receiver" ];
+
+  # GCE has no power supply subsystem; omit that collector on this host.
   services.prometheus.exporters.node.enabledCollectors = pkgs.lib.mkForce [
     "cpu"
     "filesystem"

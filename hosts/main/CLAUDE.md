@@ -70,7 +70,7 @@ Not persisted, but identical after every rebuild because Nix rewrites them
 deterministically. Treat as code, not state:
 
 - `/etc/*` not in the persisted list — pulled from `/run/current-system/etc`.
-- `/var/lib/private/*` for `DynamicUser=yes` services (alloy, otel-collector) —
+- `/var/lib/private/*` for `DynamicUser=yes` services (alloy) —
   the service unit recreates the runtime tree; only the WAL inside is lost.
 - `/var/lib/NetworkManager/` runtime — _saved_ profiles are persisted via
   `/etc/NetworkManager/system-connections`; runtime DHCP leases are not.

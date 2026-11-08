@@ -48,11 +48,10 @@ in
             secretKeyFile = testGrafanaSecretKey;
           };
           loki.enable = true;
-          tempo.enable = true;
-          mimir.enable = true;
+          alerts.enable = true;
+          alertWebhookUrlFile = "/run/smoke-webhook-url";
           collectors = {
             metrics.enable = true;
-            traces.enable = true;
             blackbox = {
               enable = true;
               probes = {
@@ -66,7 +65,56 @@ in
           };
         };
 
+        users.groups.alertmanager-webhook = { };
+        systemd.services.alertmanager = {
+          requires = [ "smoke-webhook.service" ];
+          after = [ "smoke-webhook.service" ];
+          serviceConfig.SupplementaryGroups = [ "alertmanager-webhook" ];
+        };
+        systemd.services.smoke-webhook = {
+          wantedBy = [ "multi-user.target" ];
+          preStart = ''
+            echo http://127.0.0.1:19093/alerts > /run/smoke-webhook-url
+            chown root:alertmanager-webhook /run/smoke-webhook-url
+            chmod 0440 /run/smoke-webhook-url
+          '';
+          script = ''
+            exec ${pkgs.python3}/bin/python3 - <<'PYTHON'
+            from http.server import BaseHTTPRequestHandler, HTTPServer
+            class Handler(BaseHTTPRequestHandler):
+                def do_POST(self):
+                    body = self.rfile.read(int(self.headers['Content-Length']))
+                    with open('/tmp/webhook-received', 'ab') as output:
+                        output.write(body)
+                    self.send_response(200)
+                    self.end_headers()
+            HTTPServer(('127.0.0.1', 19093), Handler).serve_forever()
+            PYTHON
+          '';
+        };
+
         services = {
+          prometheus = {
+            retentionTime = "30d";
+            globalConfig.evaluation_interval = "1s";
+            rules = [
+              (builtins.toJSON {
+                groups = [
+                  {
+                    name = "smoke";
+                    rules = [
+                      {
+                        alert = "SmokeNotification";
+                        expr = "vector(1)";
+                      }
+                    ];
+                  }
+                ];
+              })
+            ];
+            alertmanager.configuration.route.group_wait = lib.mkForce "0s";
+            extraFlags = [ "--web.enable-remote-write-receiver" ];
+          };
           grafana.settings."auth.proxy" = {
             enabled = true;
             header_name = "X-WEBAUTH-USER";
@@ -132,11 +180,23 @@ in
           };
         };
 
+        environment.etc = {
+          "remote-write-http.yaml".text = builtins.toJSON {
+            basic_auth = {
+              username = "admin";
+              password = "test";
+            };
+            tls_config.insecure_skip_verify = true;
+          };
+          "remote-write-marker.prom".text = "ingress_smoke_marker{source=\"nginx\"} 474\n";
+        };
+
         networking.hosts."127.0.0.1" = [ testFqdn ];
 
         environment.systemPackages = [
           pkgs.curl
           pkgs.python3
+          pkgs.prometheus.cli
         ];
       };
 
@@ -150,12 +210,7 @@ in
       ""
       "server.wait_for_unit(\"grafana.service\")"
       "server.wait_for_unit(\"prometheus.service\")"
-      "server.wait_for_unit(\"opentelemetry-collector.service\")"
-      # Tempo 3.x monolithic boot regression guard (issue #252/#267): the
-      # live-store/backend-scheduler pipeline must reach active with its
-      # WAL/marker dirs redirected onto StateDirectory, and serve OTLP.
-      "server.wait_for_unit(\"tempo.service\")"
-      "server.wait_for_open_port(4317)"
+      "server.wait_for_unit(\"alertmanager.service\")"
       "server.wait_for_unit(\"prometheus-blackbox-exporter.service\")"
       "server.wait_for_unit(\"smoke-test-grafana-auth.service\")"
       "server.wait_for_unit(\"nginx.service\")"
@@ -177,8 +232,7 @@ in
       "# Exact ingest routes require credentials."
       "ingest_paths = ["
       "    \"/obs/loki/loki/api/v1/push\","
-      "    \"/obs/mimir/api/v1/push\","
-      "    \"/obs/otlp/v1/traces\","
+      "    \"/obs/prometheus/api/v1/write\","
       "]"
       "for path in ingest_paths:"
       "    server.succeed("
@@ -197,9 +251,8 @@ in
       "for path in ["
       "    \"/obs/loki/\","
       "    \"/obs/loki/loki/api/v1/query\","
-      "    \"/obs/mimir/\","
-      "    \"/obs/mimir/prometheus/api/v1/query\","
-      "    \"/obs/otlp/\","
+      "    \"/obs/prometheus/\","
+      "    \"/obs/prometheus/api/v1/query\","
       "]:"
       "    server.succeed("
       "      f\"curl -sk -u admin:test https://${testFqdn}{path} -o /dev/null -w '%{{http_code}}'\""
@@ -225,5 +278,13 @@ in
       "  timeout=90,"
       ")"
       ""
+      "server.succeed(\"promtool push metrics --http.config.file=/etc/remote-write-http.yaml --remote-write.path=/obs/prometheus/api/v1/write https://homeserver-gcp.test /etc/remote-write-marker.prom\")"
+      "server.wait_until_succeeds("
+      "    \"curl -fsS 'http://127.0.0.1:9090/api/v1/query?query=ingress_smoke_marker' | python3 -c 'import json,sys; r=json.load(sys.stdin)[\\\"data\\\"][\\\"result\\\"]; assert r and r[0][\\\"value\\\"][1] == \\\"474\\\"'\","
+      "    timeout=30,"
+      ")"
+      "server.succeed(\"curl -fsS http://127.0.0.1:9090/api/v1/rules | grep -q SystemdUnitFailed\")"
+      "server.wait_until_succeeds(\"curl -fsS http://127.0.0.1:9090/api/v1/alertmanagers | grep -q '127.0.0.1:9093'\", timeout=30)"
+      "server.wait_until_succeeds(\"grep -q SmokeNotification /tmp/webhook-received\", timeout=60)"
     ];
   }

@@ -58,7 +58,7 @@ Inventory audited: 4 VM tests (`tests/nixos/`), 34 `checks.*` attributes (`flake
 
 6. **`tests/lib/mini-fleet-flake.nix:41-55`** — Checks that each public output name appears in the example flake and that the _bare attr name_ (`profiles-desktop`, `observability-client`, …) appears _anywhere_ in the root `flake.nix`, comments included. A rename that leaves a comment behind passes. **Verified.** Next: `nix eval .#nixosModules --apply builtins.attrNames` and compare.
 
-7. **`tests/nixos/profile-observability.nix:188-192` (Test 4)** — Proves remote-write reached Mimir by `grep -q '"job"'` on `query=up`; it does not pin the scraped job or `up == 1`. Adequate as a liveness check, weak as a contract. **Verified.** Next: query `up{job="node"} == 1` (or whatever the module's job label is) via `/prometheus/api/v1/query` and parse JSON.
+7. **`tests/nixos/profile-observability.nix:188-192` (Test 4)** — Proves remote-write reached the retired metrics backend by `grep -q '"job"'` on `query=up`; it does not pin the scraped job or `up == 1`. Adequate as a liveness check, weak as a contract. **Verified.** Next: query `up{job="node"} == 1` (or whatever the module's job label is) via `/prometheus/api/v1/query` and parse JSON.
 
 8. **`tests/lib/doctor.nix:68-101`** — A golden test on the _text_ of `scripts/doctor.sh` (section banners in order, a keyword within 6 lines). It never runs doctor, so a section whose command is wrong (e.g. `run bash scripts/validate.sh light` under `--with-builds` at `doctor.sh:85-99`, which the public README presents as the clean-clone entry) stays green. Acceptable for its stated purpose; note it is a contract-shape test, not a behaviour test. **Verified.** Next: none required; optionally run `doctor.sh` with `nix` stubbed to assert it reaches each section.
 
@@ -87,7 +87,7 @@ Inventory audited: 4 VM tests (`tests/nixos/`), 34 `checks.*` attributes (`flake
 ## Checked and fine
 
 - **`tests/nixos/profile-hardening.nix`** — real `systemd-analyze security` score (< 2.0), generated unit text (`systemctl cat`) for relaxed keys, and effective properties (`systemctl show -p`) for forced keys. Strongest test in the suite.
-- **`tests/nixos/profile-observability.nix` tests 1–3** — end-to-end content assertions (journal marker found in Loki, decoded `Authorization` header equals `telemetry:test-secret`, span retrievable by trace ID from Tempo).
+- **`tests/nixos/profile-observability.nix` tests 1–3** — end-to-end content assertions (journal marker found in Loki, decoded `Authorization` header equals `telemetry:test-secret`, span retrievable by trace ID from the retired tracing backend).
 - **`tests/nixos/profile-security.nix:54-75`** — kernel-applied `sysctl -n` values and `sshd -T` effective config on the hardened node are substance checks, not wiring.
 - **`tests/nixos/homeserver-gcp-smoke.nix:207-256`** — the 401/authenticated/404 ingest matrix and the `probe_success == 1` assertion read back from Prometheus are genuine behavioural checks of the routing and blackbox pipeline; `/grafana/` → 200 without `-L` does imply the auth proxy authenticated _someone_ (unauthenticated Grafana redirects), even if not _whom_ (§4.2).
 - **`lib/invariants.nix:577-690` (`mainAgentMaintenanceSudoAllowlist`)** — exact command list, exact options, rule-count checks, store-path shape for btrbk; `tests/lib/invariants.nix:659-732` covers seven negative cases.

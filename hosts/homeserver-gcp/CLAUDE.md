@@ -1,13 +1,13 @@
 # homeserver-gcp Host
 
-GCP-hosted headless server. Runs the LGTM stack, Tailscale, and Nginx.
+GCP-hosted headless server. Runs the monitoring stack, Tailscale, and Nginx.
 No LUKS or impermanence (GCP handles at-rest encryption; state persists on the GCE disk).
 
 Status: **active** — deployed on GCP and accessible via Tailscale.
 
 ## Services
 
-- **LGTM stack** — Grafana (sub-path `/grafana/`, Tailscale identity via nginx auth proxy), Loki, Mimir, Tempo (full observability)
+- **monitoring stack** — Grafana (sub-path `/grafana/`, Tailscale identity via nginx auth proxy), Loki, Prometheus and Alertmanager
 - **Nginx** — reverse proxy, TLS via Tailscale cert
 - **SSH** — in-guest firewall exposure limited to `tailscale0`; Terraform also
   adds a high-priority GCP firewall deny for public TCP/22 on the default VPC.
@@ -31,7 +31,7 @@ remaining GCE boot disk. There is no `/persist` volume and no reserved data
 partition without an owner.
 
 Keep this layout until a concrete operational need appears for isolated quotas
-or retention, such as separating Loki, Mimir, or restic cache churn from the root
+or retention, such as separating Loki, Prometheus, or restic cache churn from the root
 filesystem. If that happens, mount only the specific high-churn paths and update
 the restore procedure alongside the partition change.
 
@@ -132,13 +132,13 @@ failed-unit checks. It does not automate `main` workstation rollout.
   It never touches live data and complements the daily canary; `RestoreDrillStale`
   alerts if it has not passed in ~100 days. Defined in `restore-drill.nix`;
   procedure in [`docs/restore-drill.md`](../../docs/restore-drill.md).
-- **Alert delivery** — Mimir/Alertmanager sends fleet alerts to the sops-backed
+- **Alert delivery** — Prometheus/Alertmanager sends fleet alerts to the sops-backed
   `alertmanager_webhook_url`; keep it pointed at an off-host notification
-  target. For the alerting/reachability stack itself (`mimir`, `prometheus`,
+  target. For the alerting/reachability stack itself (`alertmanager`, `prometheus`,
   `prometheus-node-exporter`, `nginx`, `tailscaled`, `heartbeat-ping`),
   `systemd-failure-notify` also posts directly to that webhook through
   `OnFailure=` so a delivery-path unit can report its own failure without
-  waiting for the Mimir ruler.
+  waiting for the Prometheus evaluator.
 - **Off-box heartbeat (dead-man's-switch)** — every alerting component runs _on_
   this host, so a dead VM fires nothing. `heartbeat-ping.timer` pings the
   external URL in sops secret `heartbeat_ping_url` (e.g. a healthchecks.io
@@ -153,7 +153,7 @@ failed-unit checks. It does not automate `main` workstation rollout.
   - **Service crash** — self-heals. The unit carries `Restart=always` /
     `RestartSec=10` (nixpkgs default), so a crashed `adguardhome.service` is back
     within ~10 s with no human action; the gap is seconds. The failed-unit alert
-    still fires within 2 min through Mimir/Alertmanager.
+    still fires within 2 min through Prometheus/Alertmanager.
   - **Total VM death** — the only mode needing intervention. The off-box
     heartbeat pages you; recovery is a ~30 s step: Tailscale admin → DNS, remove
     the nameserver override so clients fall back to their default resolver.
@@ -206,3 +206,16 @@ failed-unit checks. It does not automate `main` workstation rollout.
   `journalctl -k` for `oom-kill` before chasing each failing unit separately.
   The concrete vulnix instance was fixed by dropping the on-host scan (PR #354);
   the constraint rule generalizes to any future maintenance unit.
+
+## Monitoring decision (#474)
+
+Keep Prometheus (30-day metrics and alert evaluation), Loki, Grafana, Alloy,
+Alertmanager, node/blackbox exporters, AdGuard and NixOS. The GitHub recovery
+runner stays, and tailnet DNS policy stays unchanged. Mimir, Tempo and the
+OpenTelemetry collector/OTLP pipeline were removed: one personal server has no
+useful trace producers or need for scalable metrics storage, and the former
+metrics backend's rings caused a GCP migration boot crash loop. Reconsider only
+for several hosts exceeding one Prometheus's long-term capacity or a self-written
+service needing distributed tracing. The registry-wide invariant enforces this.
+See [the decision and migration/cleanup procedure](../../docs/observability-stack.md#decision-minimal-personal-server-stack)
+for alert continuity, coordinated client/server rollout and manual store cleanup.

@@ -312,7 +312,7 @@ let
   };
 
   commonSystemInvariants = [
-    invariants.mimirRingsHaveInstanceAddr
+    invariants.observabilityStaysMinimal
     tailscaleStateIsPersisted
     invariants.tailscaleAutoconnectNormalizesPrefs
     nixpkgsRegistryPinnedToFlakeInput
@@ -374,8 +374,8 @@ let
         let
           notifier = cfg.services.systemd-failure-notify;
           expectedUnits = [
+            "alertmanager"
             "heartbeat-ping"
-            "mimir"
             "nginx"
             "prometheus"
             "prometheus-node-exporter"
@@ -418,7 +418,7 @@ let
     }
   ];
 
-  # Lint the Mimir ruler alert rules with promtool. Renders the exact same
+  # Lint the Prometheus alert rules with promtool. Renders the exact same
   # shared data the observability module deploys (lib/observability-alerts.nix)
   # so a typo in a metric name, label, or expr fails the light lane instead of
   # silently shipping a non-firing rule.
@@ -464,12 +464,10 @@ let
                   adminPasswordFile = pkgs.writeText "grafana-admin-password" "test-password";
                 };
                 loki.enable = true;
-                tempo.enable = true;
-                mimir.enable = true;
+                alerts.enable = true;
                 collectors = {
                   metrics.enable = true;
                   logs.enable = true;
-                  traces.enable = true;
                 };
               };
             }
@@ -479,15 +477,13 @@ let
       evaluated = {
         grafana = systemConfig.config.services.grafana.enable;
         loki = systemConfig.config.services.loki.enable;
-        mimir = systemConfig.config.services.mimir.enable;
-        tempo = systemConfig.config.services.tempo.enable;
+        alertmanager = systemConfig.config.services.prometheus.alertmanager.enable;
         prometheus = systemConfig.config.services.prometheus.enable;
       };
       expected = {
         grafana = true;
         loki = true;
-        mimir = true;
-        tempo = true;
+        alertmanager = true;
         prometheus = true;
       };
     in
@@ -499,7 +495,6 @@ let
   observabilityClientFixture =
     let
       passwordFile = pkgs.writeText "observability-ingest-password" "test-password";
-      envFile = pkgs.writeText "otel-env" "BASICAUTH_PASSWORD=test-password";
       systemConfig = lib.nixosSystem {
         system = pkgs.stdenv.hostPlatform.system;
         modules = [
@@ -516,11 +511,9 @@ let
                 host = "observability.example.ts.net";
                 metricsPath = "/ingest/metrics";
                 logsPath = "/ingest/logs";
-                tracesPath = "/ingest/traces";
               };
               ingestAuth = {
                 inherit passwordFile;
-                serviceEnvironmentFile = envFile;
               };
             };
           }
@@ -529,13 +522,10 @@ let
       evaluated = {
         metricsURL = (builtins.head systemConfig.config.services.prometheus.remoteWrite).url;
         logsEnabled = systemConfig.config.services.alloy.enable;
-        traceEndpoint =
-          systemConfig.config.services.opentelemetry-collector.settings.exporters.otlphttp.endpoint;
       };
       expected = {
         metricsURL = "https://observability.example.ts.net/ingest/metrics";
         logsEnabled = true;
-        traceEndpoint = "https://observability.example.ts.net/ingest/traces";
       };
     in
     assert lib.assertMsg (
@@ -563,17 +553,17 @@ let
                     enable = true;
                     adminPasswordFile = passwordFile;
                   };
-                  mimir.enable = false;
-                  dashboards.mimir-without-backend = {
+                  collectors.metrics.enable = false;
+                  dashboards.metrics-without-backend = {
                     enable = true;
                     definition = dash.mkDashboard {
-                      uid = "mimir-without-backend";
-                      title = "Mimir Without Backend";
+                      uid = "metrics-without-backend";
+                      title = "Metrics Without Backend";
                       panels = [
                         (dash.statPanel {
                           id = 1;
                           title = "Metric";
-                          ds = dash.mimirDS;
+                          ds = dash.prometheusDS;
                           gridPos = dash.gridPos { };
                           targets = [
                             (dash.target { expr = "up"; })

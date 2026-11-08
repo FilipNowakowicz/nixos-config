@@ -378,13 +378,13 @@ HSTS header removed from the homeserver nginx security headers.
 >>>>
 
 ## M37 | nginx | vm | homeserver-gcp-smoke VM test (401 matrix)
-Mimir ingest endpoint loses its basic-auth requirement.
+Prometheus ingest endpoint loses its basic-auth requirement.
 @@ hosts/homeserver-gcp/nginx.nix
 <<<<
-            target = "http://127.0.0.1:9009/api/v1/push";
+            target = "http://127.0.0.1:9090/api/v1/write";
             basicAuthFile = cfg.ingestHtpasswdFile;
 ====
-            target = "http://127.0.0.1:9009/api/v1/push";
+            target = "http://127.0.0.1:9090/api/v1/write";
 >>>>
 
 ## M38 | observability | eval | observability-client-fixture

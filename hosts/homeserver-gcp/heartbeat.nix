@@ -1,6 +1,6 @@
 # Off-box liveness via a push-based dead-man's-switch.
 #
-# Every alerting component on this host (Mimir ruler, Alertmanager, the ntfy
+# Every alerting component on this host (Prometheus evaluator, Alertmanager, the ntfy
 # webhook) runs *on the host it is meant to watch*. If the VM stops, crashes, or
 # hangs, none of them fire — the thing that fires alerts is inside the failure
 # domain. This timer closes that gap from the opposite direction: it pings an
@@ -12,7 +12,7 @@
 # The ping URL (e.g. a healthchecks.io check URL, which embeds a secret UUID and
 # is configured with a grace period there) lives in sops as `heartbeat_ping_url`.
 # A failed curl (host up, network/endpoint broken) leaves the local freshness
-# metric stale, so the internal Mimir stack can still alert on a *degraded*
+# metric stale, so the internal Prometheus stack can still alert on a *degraded*
 # heartbeat while the host lives; total host death is caught externally.
 { config, pkgs, ... }:
 let

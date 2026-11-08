@@ -55,7 +55,7 @@ check rejects plaintext JSON/YAML auth backups in that directory.
 
 ### `DynamicUser` services and sops secrets
 
-A systemd unit with `DynamicUser = true` only has its `mimir`/`adguardhome`/etc.
+A systemd unit with `DynamicUser = true` only has its `alertmanager`/`adguardhome`/etc.
 user and group resolvable via `nss-systemd` while the unit is running. During
 activation, `sops-install-secrets` runs with the unit stopped, so a secret
 `owner`/`group` set to the dynamic user's name cannot be resolved and the
@@ -70,7 +70,7 @@ The fix is a static supplementary group, not a dynamic owner:
   — systemd adds the dynamic user to this group at start, and
   `sops-install-secrets` can resolve the static group at activation time.
 
-See `alertmanager_webhook_url`/`mimir-webhook` and
+See `alertmanager_webhook_url`/`alertmanager-webhook` and
 `adguardhome_admin_password`/`adguardhome-secrets` in
 `hosts/homeserver-gcp/default.nix` and `hosts/homeserver-gcp/adguard.nix` for
 worked examples. A smoke test that doesn't import the affected module (e.g.
@@ -245,9 +245,8 @@ Tailscale is the primary remote-access layer.
 - `homeserver-gcp` obtains TLS material through `tailscale-cert.service`; ACME is not used.
 - `homeserver-gcp` exposes HTTPS on the tailnet FQDN from `lib/hosts.nix`.
 - Observability ingest is limited to exact push endpoints protected with basic auth sourced from sops:
-  `/obs/loki/loki/api/v1/push`, `/obs/mimir/api/v1/push`, and
-  `/obs/otlp/v1/traces`. Broader `/obs/*` API paths are denied so ingest
-  credentials cannot read or query Loki, Mimir, or OTLP APIs through nginx.
+  `/obs/loki/loki/api/v1/push` and `/obs/prometheus/api/v1/write`. Broader `/obs/*` API paths are denied so ingest
+  credentials cannot read or query Loki or Prometheus APIs through nginx.
 - `homeserver-gcp` runs blackbox probes from inside the tailnet boundary against `https://<tailnet-fqdn>/grafana/` (Grafana auth-proxy path; expect `200` from the server's tailnet node identity).
 - `main` enables SSH but does not open the normal firewall path for general LAN access.
 

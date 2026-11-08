@@ -270,42 +270,29 @@ let
     );
 
   failures = lib.runTests {
-    testMimirExplicitRingsPass = {
-      expr =
-        (invariants.mimirRingsHaveInstanceAddr.check {
-          services.mimir = {
-            enable = true;
-            configuration = {
-              querier.ring.instance_addr = "127.0.0.1";
-              store_gateway.sharding_ring.instance_addr = "127.0.0.1";
-            };
-          };
-        }).passed;
+    testMinimalObservabilityPasses = {
+      expr = (invariants.observabilityStaysMinimal.check { }).passed;
       expected = true;
     };
-    testMimirMissingQuerierAddressFails = {
+    testMinimalObservabilityRejectsEachRemovedService = {
       expr =
-        (invariants.mimirRingsHaveInstanceAddr.check {
-          services.mimir = {
-            enable = true;
-            configuration.querier.ring.kvstore.store = "inmemory";
-          };
-        }).passed;
-      expected = false;
-    };
-    testMimirFutureNestedRingFails = {
-      expr =
-        (invariants.mimirRingsHaveInstanceAddr.check {
-          services.mimir = {
-            enable = true;
-            configuration.future.nested.sharding_ring.instance_addr = "";
-          };
-        }).passed;
-      expected = false;
-    };
-    testDisabledMimirPasses = {
-      expr = (invariants.mimirRingsHaveInstanceAddr.check { }).passed;
-      expected = true;
+        map
+          (
+            name:
+            (invariants.observabilityStaysMinimal.check {
+              services.${name}.enable = true;
+            }).passed
+          )
+          [
+            "mimir"
+            "tempo"
+            "opentelemetry-collector"
+          ];
+      expected = [
+        false
+        false
+        false
+      ];
     };
 
     testBluetoothDriverHasIndependentBootTrigger = {

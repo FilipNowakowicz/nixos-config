@@ -42,7 +42,7 @@ dash.mkDashboard {
     (dash.timeseriesPanel {
       id = 1;
       title = "CPU idle";
-      ds = dash.mimirDS;
+      ds = dash.prometheusDS;
       gridPos = dash.gridPos { y = 0; };
       targets = [
         (dash.target {
@@ -55,7 +55,7 @@ dash.mkDashboard {
 }
 ```
 
-Surface: `gridPos`, `datasource`/`mimirDS`/`lokiDS`/`tempoDS`, `hostSelector`,
+Surface: `gridPos`, `datasource`/`prometheusDS`/`lokiDS`, `hostSelector`,
 `target`, `timeseriesPanel`, `statPanel`, `tablePanel`, `logsPanel`,
 `mkDashboard`. The output is a plain attrset you serialize with
 `builtins.toJSON` (or hand to `services.grafana` provisioning).

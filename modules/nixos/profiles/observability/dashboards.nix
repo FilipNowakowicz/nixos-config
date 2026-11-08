@@ -13,12 +13,10 @@ let
       uid = datasource.uid or "";
       type = datasource.type or "";
     in
-    if uid == "mimir" || type == "prometheus" then
-      "mimir"
+    if uid == "prometheus" || type == "prometheus" then
+      "prometheus"
     else if uid == "loki" || type == "loki" then
       "loki"
-    else if uid == "tempo" || type == "tempo" then
-      "tempo"
     else
       null;
 
@@ -43,11 +41,8 @@ let
     ) enabledDashboards
   );
   enabledBackends = {
-    inherit (cfg)
-      loki
-      mimir
-      tempo
-      ;
+    inherit (cfg) loki;
+    prometheus.enable = cfg.collectors.metrics.enable;
   };
   backendEnabled = backend: enabledBackends.${backend}.enable or false;
   formatPanelRef =
@@ -65,7 +60,7 @@ let
       (dash.timeseriesPanel {
         id = 1;
         title = "CPU Usage %";
-        ds = dash.mimirDS;
+        ds = dash.prometheusDS;
         gridPos = dash.gridPos {
           x = 0;
           y = 0;
@@ -82,7 +77,7 @@ let
       (dash.timeseriesPanel {
         id = 3;
         title = "Memory Usage %";
-        ds = dash.mimirDS;
+        ds = dash.prometheusDS;
         gridPos = dash.gridPos {
           x = 12;
           y = 0;
@@ -99,7 +94,7 @@ let
       (dash.timeseriesPanel {
         id = 4;
         title = "Disk Usage %";
-        ds = dash.mimirDS;
+        ds = dash.prometheusDS;
         gridPos = dash.gridPos {
           x = 0;
           y = 8;
@@ -116,7 +111,7 @@ let
       (dash.timeseriesPanel {
         id = 5;
         title = "Failed Systemd Units";
-        ds = dash.mimirDS;
+        ds = dash.prometheusDS;
         gridPos = dash.gridPos {
           x = 12;
           y = 8;
@@ -133,7 +128,7 @@ let
       (dash.timeseriesPanel {
         id = 6;
         title = "Backup Age (hours)";
-        ds = dash.mimirDS;
+        ds = dash.prometheusDS;
         gridPos = dash.gridPos {
           x = 0;
           y = 16;
@@ -150,7 +145,7 @@ let
       (dash.timeseriesPanel {
         id = 7;
         title = "Backup Check Age (hours)";
-        ds = dash.mimirDS;
+        ds = dash.prometheusDS;
         gridPos = dash.gridPos {
           x = 12;
           y = 16;

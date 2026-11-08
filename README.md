@@ -28,7 +28,7 @@ error) so you can tell a real problem from noise before going further.
 | Output                              | What it gives you                                                                            |
 | :---------------------------------- | :------------------------------------------------------------------------------------------- |
 | `nixosModules.services-hardened`    | Systemd sandboxing DSL with forced baselines, explicit relaxations, and tests.               |
-| `nixosModules.observability-stack`  | Grafana, Mimir, Loki, Tempo, blackbox probes, dashboards, and alerts as Nix.                 |
+| `nixosModules.observability-stack`  | Grafana, Prometheus, Loki, blackbox probes, dashboards, and alerts as Nix.                   |
 | `nixosModules.observability-client` | Client-side collectors and authenticated remote shipping into the observability stack.       |
 | `homeModules.runtime-theme`         | Runtime theme switching for Quiet Shell, Kitty, Hyprland, GTK, and Neovim.                   |
 | `lib/hosts.nix` + `lib/acl.nix`     | Host registry and generated Tailscale ACLs from one fleet source of truth.                   |
@@ -46,7 +46,7 @@ the host directories:
 1. `nixosModules.services-hardened` if you want a tested systemd hardening
    baseline for existing NixOS services.
 2. `nixosModules.observability-stack` and `observability-client` if you want a
-   declarative single-node LGTM stack with remote collectors.
+   declarative single-node monitoring stack with remote collectors.
 3. `homeModules.runtime-theme` if your desktop stack is Hyprland, Quiet Shell,
    Kitty, and Hyprlock.
 4. `lib/hosts.nix` and `lib/acl.nix` as a pattern for keeping deploy metadata,
@@ -105,7 +105,7 @@ flowchart LR
 | Host             | Role                | Highlights                                                                                       |
 | :--------------- | :------------------ | :----------------------------------------------------------------------------------------------- |
 | `main`           | Primary workstation | Secure Boot, LUKS, impermanent root, Hyprland, USBGuard, Restic/B2, anonymous specialisation     |
-| `homeserver-gcp` | Cloud homeserver    | AdGuard, Nginx, Grafana/Loki/Mimir/Tempo, restore canary, Tailscale ingress                      |
+| `homeserver-gcp` | Cloud homeserver    | AdGuard, Nginx, Grafana/Loki/Prometheus, restore canary, Tailscale ingress                       |
 | `gcp-builder`    | Remote builder      | Normally off, started for heavy builds, self-powers-off when idle, deploy-rs managed             |
 | `gcp-agent`      | Claude Code agent   | Normally off, started for issue-loop sessions, narrow sudo, own claude login + scoped GitHub PAT |
 | `user@wsl`       | Portable HM profile | Home Manager profile for Windows/WSL environments                                                |
@@ -125,7 +125,7 @@ registry. `installer` is a utility ISO outside the host registry.
   Tailscale, TPM + initrd-SSH LUKS recovery, and per-host runbooks are wired
   into one flake. Encrypted secrets are committed; private keys and live
   credentials are not.
-- **Self-hosted observability as code.** Grafana, Mimir, Loki, Tempo,
+- **Self-hosted observability as code.** Grafana, Prometheus, Loki,
   Alertmanager, blackbox probes, dashboards, and alert rules are configured
   declaratively, with client hosts shipping over authenticated `/obs/*` routes.
   Because every on-box alerting component dies with the VM, an off-box
@@ -170,7 +170,7 @@ Files: `modules/nixos/services/hardened.nix`,
 
 ### Declarative observability — `nixosModules.observability-stack` / `observability-client`
 
-The `profiles.observability` stack provisions Grafana, Mimir, Loki, Tempo,
+The `profiles.observability` stack provisions Grafana, Prometheus, Loki,
 Alertmanager, blackbox probes, dashboards, alert rules, and local collectors
 from Nix, in either a local single-node mode or a remote-client mode that pushes
 to a central stack. Secrets are read from runtime files, never rendered into the
@@ -369,7 +369,7 @@ cache but only publishes on protected `main`.
 **Subsystems**
 
 - [Systemd Hardening DSL](docs/modules/services-hardened.md) — the `services.hardened` option contract.
-- [Observability Stack](docs/observability-stack.md) — LGTM stack modes and ingest routes.
+- [Observability Stack](docs/observability-stack.md) — monitoring stack modes and ingest routes.
 - [Tailscale ACLs](docs/tailscale-acl.md) — metadata contract, validation, and drift detection.
 - [Theming](docs/theme.md) — runtime color contract and public module usage.
 - [Neovim](docs/neovim.md) — editor module layout and generated-config contract.
