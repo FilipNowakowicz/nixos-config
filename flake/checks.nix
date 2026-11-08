@@ -312,6 +312,7 @@ let
   };
 
   commonSystemInvariants = [
+    invariants.mimirRingsHaveInstanceAddr
     tailscaleStateIsPersisted
     invariants.tailscaleAutoconnectNormalizesPrefs
     nixpkgsRegistryPinnedToFlakeInput
