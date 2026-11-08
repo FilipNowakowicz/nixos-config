@@ -962,5 +962,9 @@ in
     quiet-shell-smoke = import ../tests/nixos/quiet-shell-smoke.nix {
       inherit nixpkgs system;
     };
+    desktop-session = import ../tests/nixos/desktop-session.nix {
+      inherit nixpkgs system;
+      inherit (inputs) home-manager;
+    };
   };
 }

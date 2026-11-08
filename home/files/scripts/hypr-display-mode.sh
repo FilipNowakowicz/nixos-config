@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+# Hotplug events arrive in bursts, and applying a policy causes more of them.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/hypr-display-mode.lock"
+flock -w 20 9
+
 # Probe the running parser, not the installed package or config filenames.
 # During a rebuild the old compositor can outlive the package/config switch.
 lua_config=false
@@ -59,21 +63,27 @@ set_monitor() {
   }
 }
 
-case "${1:-auto}" in
-auto)
-  if wait_for_external; then
-    set_monitor "${external_output}" highrr 0x0
-    move_workspaces_to "${external_output}"
-    set_monitor "$internal_output" disable
-  else
-    set_monitor "${internal_output}" preferred 0x0
-    move_workspaces_to "${internal_output}"
-  fi
-  ;;
-external)
+use_external() {
   set_monitor "${external_output}" highrr 0x0
   move_workspaces_to "${external_output}"
   set_monitor "$internal_output" disable
+}
+
+use_internal() {
+  set_monitor "${internal_output}" preferred 0x0
+  move_workspaces_to "${internal_output}"
+}
+
+case "${1:-auto}" in
+auto)
+  if wait_for_external; then use_external; else use_internal; fi
+  ;;
+# Already told the monitors changed, so don't wait the way startup has to.
+hotplug)
+  if external_connected; then use_external; else use_internal; fi
+  ;;
+external)
+  use_external
   ;;
 laptop)
   set_monitor "${internal_output}" preferred 0x0
@@ -83,7 +93,7 @@ laptop)
   fi
   ;;
 *)
-  echo "usage: hypr-display-mode [auto|external|laptop]" >&2
+  echo "usage: hypr-display-mode [auto|hotplug|external|laptop]" >&2
   exit 2
   ;;
 esac

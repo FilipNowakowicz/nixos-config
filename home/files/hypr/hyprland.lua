@@ -10,6 +10,11 @@ if os.getenv("DESKTOP_TEST") ~= "1" then
 			hl.exec_cmd("hypr-display-mode auto")
 		end
 	end)
+	for _, event in ipairs({ "monitor.added", "monitor.removed" }) do
+		hl.on(event, function()
+			hl.exec_cmd("hypr-display-mode hotplug")
+		end)
+	end
 end
 hl.monitor({ output = "", mode = "highrr", position = "auto", scale = 1 })
 hl.config({

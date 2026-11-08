@@ -25,12 +25,12 @@ module_all_hosts='^modules/nixos/(default\.nix|services/|profiles/(base|backup|s
 module_desktop_hosts='^modules/nixos/(profiles/(desktop|observability-client)\.nix|hardware/nvidia-prime\.nix)'
 module_machine_hosts='^modules/nixos/profiles/(impermanence-base|machine-common)\.nix'
 home_all_hosts='^home/(profiles/base\.nix|users/user/common\.nix)'
-home_desktop_hosts='^home/(neovim/|profiles/desktop\.nix|profiles/workflow-packs/|users/user/home\.nix|theme/|files/(nvim/|firefox|hypr|kitty|scripts/theme-switch\.sh))'
+home_desktop_hosts='^home/(desktop/|neovim/|profiles/desktop\.nix|profiles/workflow-packs/|users/user/home\.nix|theme/|files/(nvim/|firefox|hypr|kitty|scripts/theme-switch\.sh))'
 home_server_hosts='^home/users/user/server\.nix'
 home_wsl='^home/users/user/wsl\.nix'
-# Everything the booted desktop smoke test loads: the shell, the Lua config and
-# the generated theme files they both read.
-quiet_shell_change='^(packages/quiet-shell/|tests/quiet-shell/|home/files/hypr/|home/theme/)'
+# Everything the booted desktop tests load: the shell, the Lua config, the
+# generated theme files they both read, and the module that wires them up.
+quiet_shell_change='^(packages/quiet-shell/|tests/quiet-shell/|home/desktop/|home/files/hypr/|home/theme/)'
 
 docs_only=false
 run_eval=false

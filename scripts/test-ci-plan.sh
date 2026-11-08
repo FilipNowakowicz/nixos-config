@@ -115,7 +115,7 @@ assert_contains "$flake_lock_output" '{"name":"main-ci"}'
 assert_contains "$flake_lock_output" '{"name":"quiet-shell-smoke","command":"smoke-quiet-shell","target":""}'
 
 quiet_shell_smoke='{"name":"quiet-shell-smoke","command":"smoke-quiet-shell","target":""}'
-for path in packages/quiet-shell/shell/Spotlight.qml home/files/hypr/hyprland.lua home/theme/module.nix tests/quiet-shell/acceptance.py; do
+for path in packages/quiet-shell/shell/Spotlight.qml home/desktop/default.nix home/files/hypr/hyprland.lua home/theme/module.nix tests/quiet-shell/acceptance.py; do
   quiet_output="$(run_plan "$path")"
   assert_contains "$quiet_output" "tests=true"
   assert_contains "$quiet_output" "$quiet_shell_smoke"
