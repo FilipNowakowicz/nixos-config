@@ -59,6 +59,7 @@ in
     };
 
     testScript = ''
+      theme = "acid-statue"
       units = ["graphical-session.target", "tray-watcher.service", "quiet-shell.service", "hypridle.service"]
 
       def user(cmd):
@@ -105,5 +106,14 @@ in
           machine.succeed("rm /tmp/hold")
           wait_for_session()
           machine.wait_until_succeeds(user(f"systemctl --user show-environment | grep HYPRLAND_INSTANCE_SIGNATURE= | grep -v {first}"), timeout=60)
+
+      with subtest("a theme switch stays out of the repo and survives activation"):
+          signature = env("HYPRLAND_INSTANCE_SIGNATURE")
+          machine.succeed("su user -c 'mkdir ~/themes; touch ~/themes/%s.nix'" % theme)
+          machine.succeed(user(f"HYPRLAND_INSTANCE_SIGNATURE={signature} WAYLAND_DISPLAY=wayland-1 /etc/profiles/per-user/user/bin/theme-switch {theme}"))
+          assert machine.succeed("cat /home/user/.local/state/theme/active").strip() == theme
+          machine.fail("test -e /home/user/active.nix")
+          machine.succeed("systemctl restart home-manager-user.service")
+          assert f"/themes/{theme}/" in machine.succeed("readlink /home/user/.config/hypr/colors.lua")
     '';
   }

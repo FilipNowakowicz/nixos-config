@@ -9,7 +9,8 @@ guarantee.
 
 - `home/theme/themes/*.nix` — one file per theme; the source palette.
 - `home/theme/active.nix` — a one-line pointer (`import ./themes/<name>.nix`)
-  naming the active theme. **Single source of truth** for which theme is active.
+  naming the default theme. Runtime choices live in
+  `~/.local/state/theme/active` and take precedence over it.
 - `home/theme/module.nix` — the Home Manager module. Auto-discovers themes,
   validates them, renders every theme's app configs at build time, and ships the
   `theme-switch` runtime switcher.
@@ -39,7 +40,7 @@ for each, generates under `~/.config/themes/<name>/`:
   runtime switcher.
 
 It also emits `~/.config/themes/links.sh` (the symlink map) and a Home Manager
-activation hook that re-reads `active.nix` on every activation, so a runtime
+activation hook that re-reads the runtime choice on every activation, so a
 switch survives a rebuild that was built against a different theme.
 
 The active theme defaults to whatever `active.nix` selects (the module reads it
@@ -50,7 +51,8 @@ directly), so there is no separate `themes.active` wiring to keep in sync.
 `theme-switch <name>`:
 
 1. validates the theme exists in the repo and that its assets are built;
-2. rewrites `active.nix` so the choice persists across rebuilds;
+2. records the choice in `~/.local/state/theme/active` so it persists across
+   rebuilds, without touching the repo;
 3. sources `links.sh` and relinks the pre-generated assets into live app paths;
 4. sources the generated `vars` file for the colors it needs;
 5. reloads Hyprland, Quiet Shell, Kitty, and the wallpaper in place.
@@ -65,7 +67,8 @@ asserting the generated `vars` and Kitty palette match the theme definition.
 
 1. Add `home/theme/themes/<name>.nix` and `home/theme/wallpapers/<name>.<ext>`.
 2. Rebuild so Home Manager generates its assets.
-3. `theme-switch <name>` (or set it in `active.nix` and rebuild).
+3. `theme-switch <name>`, or `theme-switch --save <name>` to also make it the
+   default in `active.nix`, which GTK and Neovim pick up at the next rebuild.
 
 ## Public module (`homeModules.runtime-theme`)
 
@@ -92,9 +95,8 @@ reload mechanics are fixed — not a generic theming framework.
     # and active.nix. Defaults to this repo's home/theme.
     themeDir = ./theme;
 
-    # Working-tree active.nix that theme-switch rewrites and the activation
-    # hook reads, so a runtime switch persists across rebuilds. Point it at a
-    # file your config repo tracks.
+    # Working-tree active.nix that `theme-switch --save` rewrites. Point it
+    # at a file your config repo tracks.
     activeFile = "/home/you/dotfiles/theme/active.nix";
 
     # Optional: override the build-time default (otherwise read from active.nix).

@@ -37,7 +37,7 @@ let
 
   # Get the active theme
   activeTheme = validThemes.${cfg.active} or (lib.head (lib.attrValues validThemes));
-  runtimeActiveThemeFile = cfg.activeFile;
+  runtimeStateFile = "${config.xdg.stateHome}/theme/active";
 
   # The runtime switcher. Lives with the module so the public homeModule ships
   # both halves of the system; the build-time generation above and this script
@@ -61,6 +61,7 @@ let
       ]);
     text = ''
       ACTIVE_FILE=${lib.escapeShellArg cfg.activeFile}
+      STATE_FILE=${lib.escapeShellArg runtimeStateFile}
     ''
     + builtins.readFile ../files/scripts/theme-switch.sh;
   };
@@ -240,11 +241,12 @@ in
       default = "${config.home.homeDirectory}/nix/home/theme/active.nix";
       defaultText = lib.literalExpression ''"''${config.home.homeDirectory}/nix/home/theme/active.nix"'';
       description = ''
-        Absolute path to the working-tree `active.nix` that records the active
-        theme as `import ./themes/<name>.nix`. `theme-switch` rewrites it and the
-        activation hook reads it, so a runtime switch persists across rebuilds
-        and feeds build-time consumers (Neovim colorscheme, GTK light/dark).
-        Point it at a file your configuration repository tracks.
+        Absolute path to the working-tree `active.nix` that declares the default
+        theme as `import ./themes/<name>.nix`. `theme-switch --save` rewrites it,
+        which feeds build-time consumers (Neovim colorscheme, GTK light/dark) at
+        the next rebuild. A plain `theme-switch` leaves it alone and records its
+        choice in XDG state. Point it at a file your configuration repository
+        tracks.
       '';
     };
     _activeThemeColors = lib.mkOption {
@@ -290,15 +292,15 @@ in
     };
 
     # Symlink active theme configs into live app paths on every activation.
-    # Read active.nix at activation time so a runtime theme-switch survives a
-    # reboot even when the Home Manager generation was built with another theme.
+    # Read the runtime choice at activation time so a theme-switch survives a
+    # rebuild even when the generation was built with another theme.
     home.activation.linkActiveTheme = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
       . "${config.xdg.configHome}/themes/links.sh"
 
       active_theme="${activeTheme.name}"
-      active_file=${lib.escapeShellArg runtimeActiveThemeFile}
-      if [[ -f "$active_file" ]]; then
-        runtime_theme=$(sed -n 's|.*themes/\([a-z0-9-]\+\)\.nix.*|\1|p' "$active_file" | head -n1)
+      state_file=${lib.escapeShellArg runtimeStateFile}
+      if [[ -s "$state_file" ]]; then
+        runtime_theme=$(<"$state_file")
         if [[ -n "$runtime_theme" && -d "${config.xdg.configHome}/themes/$runtime_theme" ]]; then
           active_theme="$runtime_theme"
         fi
