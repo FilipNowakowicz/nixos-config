@@ -53,14 +53,17 @@ hl.monitor({ output = "", mode = "1920x1080@60", position = "auto", scale = 1 })
 hl.layer_rule({ name = "quiet-glass", match = { namespace = "quiet-shell" }, blur = true, ignore_alpha = 0.02 })
 LUA
 config="$run/hypr.lua"
-# QUIET_REAL_CONFIG=1 loads the repo's own hyprland.lua.
+hypr_home=$HOME
+# QUIET_REAL_CONFIG=1 loads the repo's own hyprland.lua. It reads colours from
+# $HOME, so give the compositor a private home rather than write into the real one.
 if [[ ${QUIET_REAL_CONFIG:-} == 1 ]]; then
-  mkdir -p "$HOME/.config/hypr"
-  echo 'return { active = "rgb(d3ad7a)", inactive = "rgb(0d1830)", shadow = "rgba(071126cc)" }' >"$HOME/.config/hypr/colors.lua"
+  hypr_home="$run/home"
+  mkdir -p "$hypr_home/.config/hypr"
+  echo 'return { active = "rgb(d3ad7a)", inactive = "rgb(0d1830)", shadow = "rgba(071126cc)" }' >"$hypr_home/.config/hypr/colors.lua"
   config="$repo/home/files/hypr/hyprland.lua"
   export DESKTOP_TEST=1
 fi
-XDG_RUNTIME_DIR="$rt" WAYLAND_DISPLAY="$parent" Hyprland -c "$config" >"$run/hyprland.log" 2>&1 &
+HOME="$hypr_home" XDG_RUNTIME_DIR="$rt" WAYLAND_DISPLAY="$parent" Hyprland -c "$config" >"$run/hyprland.log" 2>&1 &
 hypr=$!
 trap 'kill $hypr 2>/dev/null || true; rm -rf "$rt"' EXIT
 for _ in $(seq 1 60); do

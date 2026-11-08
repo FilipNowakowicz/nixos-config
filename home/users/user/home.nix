@@ -55,15 +55,6 @@ in
         text = builtins.readFile ../../files/scripts/hypr-spotify-autostart.sh;
       })
 
-      (writeShellApplication {
-        name = "caffeinate";
-        runtimeInputs = with pkgs; [
-          systemd
-          libnotify
-        ];
-        text = builtins.readFile ../../files/scripts/caffeinate.sh;
-      })
-
       claudeLatest
       quietShell
       lazyactions

@@ -230,7 +230,7 @@ in
         `''${themeDir}/themes/` (without the .nix extension). Defaults to the
         theme selected in `active.nix`, which is the single source of truth that
         the runtime `theme-switch` script rewrites. Theme assets are symlinked
-        into XDG config paths for Kitty, Hyprland, Waybar, and Mako on every
+        into XDG config paths for Kitty, Hyprland, and Quiet Shell on every
         rebuild.
       '';
       example = "mono-mesh";
