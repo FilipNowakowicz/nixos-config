@@ -110,9 +110,12 @@ in
 
   system.stateVersion = "24.11";
 
-  time.timeZone = "Europe/London";
-
   profiles = {
+    # Chosen from the shell's Spotlight when travelling; kept in /persist.
+    runtimeTimezone = {
+      enable = true;
+      default = "Europe/London";
+    };
     # deploy-rs passes store settings for remote builds; trust the local admin
     # user so the daemon accepts those restricted options without warning.
     nix.extraTrustedUsers = [ "user" ];
@@ -144,6 +147,23 @@ in
   virtualisation.libvirtd.enable = true;
 
   systemd.services = {
+    # The initrd runs systemd-networkd for SSH unlock (boot.initrd.network
+    # below), and its state file survives switch-root in /run reading
+    # OPER_STATE=off. Stage 2 uses NetworkManager, so nothing ever updates
+    # it, and systemd-timesyncd took the machine for offline forever: it
+    # never contacted a server. Without the file it counts as online.
+    clear-initrd-netif-state = {
+      description = "Forget the initrd's systemd-networkd state";
+      wantedBy = [ "sysinit.target" ];
+      before = [
+        "sysinit.target"
+        "systemd-timesyncd.service"
+      ];
+      unitConfig.DefaultDependencies = false;
+      serviceConfig.Type = "oneshot";
+      script = "rm -rf /run/systemd/netif";
+    };
+
     libvirtd-config.postStart = ''
       cat > /var/lib/libvirt/secret.conf <<'EOF'
       encrypt_data = 0

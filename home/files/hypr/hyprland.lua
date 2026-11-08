@@ -39,7 +39,8 @@ hl.config({
 		gaps_out = 12,
 		border_size = 2,
 		col = { active_border = colors.active, inactive_border = colors.inactive },
-		-- Any edge resizes, as on other desktops. The grab area reaches 15px past it.
+		-- Any edge of a floating window resizes, as on other desktops; the grab area
+		-- reaches 15px past it. follow_border_resize below keeps tiles out of it.
 		resize_on_border = true,
 		-- Floating windows stick to the screen edge and to each other, a gap apart.
 		snap = { enabled = true, window_gap = 8, monitor_gap = 12, respect_gaps = true },
@@ -80,6 +81,11 @@ hl.config({
 })
 hl.config({ misc = {
 	vrr = 2,
+	-- Before the wallpaper unit draws, or while a theme switch restarts it, show the
+	-- theme's background instead of a random default wallpaper.
+	disable_hyprland_logo = true,
+	force_default_wallpaper = 0,
+	background_color = colors.background,
 } })
 hl.config({ animations = {
 	enabled = true,
@@ -124,6 +130,15 @@ hl.window_rule({
 	size = "monitor_w*0.45 monitor_h*0.55",
 	tag = "+keep-float",
 })
+-- Notes (SUPER+SHIFT+N) open as a note pad over the work, not a tile.
+hl.window_rule({
+	name = "float-notes",
+	match = { class = "^quiet-notes$" },
+	float = true,
+	center = true,
+	size = "monitor_w*0.4 monitor_h*0.6",
+	tag = "+keep-float",
+})
 hl.window_rule({ name = "float-dialogs", match = { modal = true }, float = true, center = true, tag = "+keep-float" })
 hl.window_rule({ name = "float-progress", match = { title = "^File Operation Progress$" }, float = true, tag = "+keep-float" })
 -- Picture-in-Picture sits in the corner on every desktop.
@@ -152,9 +167,27 @@ local function float_centred(w)
 	hl.dispatch(hl.dsp.window.center({ window = w }))
 end
 
+-- Hyprland offers border resizing for every window, so a lone tiled browser showed
+-- resize arrows at its edge that do nothing useful. Tiles resize with SUPER+right-drag;
+-- the border grab is on only while the window in focus floats (or all of them do, in
+-- desktop mode). Focus follows the pointer when tiling, so that is the hovered one.
+local border_resize = true
+local function follow_border_resize()
+	local w = hl.get_active_window()
+	local want = desktop_rule:is_enabled() or (w ~= nil and w.floating == true)
+	if want ~= border_resize then
+		border_resize = want
+		hl.config({ general = { resize_on_border = want } })
+	end
+end
+hl.on("window.active", follow_border_resize)
+hl.on("window.update_state", follow_border_resize)
+hl.on("window.close", follow_border_resize)
+
 local function apply_desktop(on)
 	desktop_rule:set_enabled(on)
 	hl.config({ input = { follow_mouse = on and 2 or 1 } })
+	follow_border_resize()
 end
 local function xy(v)
 	return v.x or v[1], v.y or v[2]
@@ -214,11 +247,13 @@ hl.bind("SUPER + Return", hl.dsp.exec_cmd("kitty"))
 hl.bind("SUPER + apostrophe", hl.dsp.window.close())
 hl.bind("SUPER + b", hl.dsp.exec_cmd("firefox"))
 hl.bind("SUPER + BackSpace", hl.dsp.exec_cmd("hyprlock"))
-hl.bind("SUPER + c", hl.dsp.exec_cmd("quiet-shell-ipc controls"))
-hl.bind("SUPER + W", hl.dsp.exec_cmd("quiet-shell-ipc pin"))
-hl.bind("SUPER + Space", hl.dsp.exec_cmd("quiet-shell-ipc spotlight"))
-hl.bind("SUPER + n", hl.dsp.exec_cmd("quiet-shell-ipc notifications"))
-hl.bind("SUPER + o", hl.dsp.exec_cmd("quiet-shell-ipc overview"))
+hl.bind("SUPER + Escape", hl.dsp.global("quiet-shell:system"))
+hl.bind("SUPER + SHIFT + n", hl.dsp.global("quiet-shell:notes"))
+hl.bind("SUPER + c", hl.dsp.global("quiet-shell:controls"))
+hl.bind("SUPER + W", hl.dsp.global("quiet-shell:pin"))
+hl.bind("SUPER + Space", hl.dsp.global("quiet-shell:spotlight"))
+hl.bind("SUPER + n", hl.dsp.global("quiet-shell:notifications"))
+hl.bind("SUPER + o", hl.dsp.global("quiet-shell:overview"))
 hl.bind("SUPER + Tab", hl.dsp.global("quiet-shell:switcher"))
 hl.bind("SUPER + SHIFT + Tab", hl.dsp.global("quiet-shell:switcher-back"))
 -- Releasing SUPER ends the switcher. The release bind misses it while Tab is still down,
@@ -234,8 +269,8 @@ hl.on("input.keyboard.key", function(keycode, _, pressed)
 		hl.dispatch(hl.dsp.global("quiet-shell:switcher-cancel"))
 	end
 end)
-hl.bind("SUPER + SHIFT + s", hl.dsp.exec_cmd("quiet-shell-ipc screenshot"))
-hl.bind("SUPER + slash", hl.dsp.exec_cmd("quiet-shell-ipc shortcuts"))
+hl.bind("SUPER + SHIFT + s", hl.dsp.global("quiet-shell:screenshot"))
+hl.bind("SUPER + slash", hl.dsp.global("quiet-shell:shortcuts"))
 hl.bind("SUPER + minus", hl.dsp.window.move({ workspace = "special:minimized", follow = false }))
 hl.layer_rule({ name = "quiet-glass", match = { namespace = "quiet-shell" }, blur = true, ignore_alpha = 0.02 })
 hl.bind("SUPER + M", hl.dsp.exec_cmd("hypr-layout-cycle"))
@@ -273,14 +308,16 @@ hl.bind("SUPER + SHIFT + 7", hl.dsp.window.move({ workspace = 7 }))
 hl.bind("SUPER + SHIFT + 8", hl.dsp.window.move({ workspace = 8 }))
 hl.bind("SUPER + SHIFT + 9", hl.dsp.window.move({ workspace = 9 }))
 hl.bind("SUPER + SHIFT + 0", hl.dsp.window.move({ workspace = 10 }))
-hl.bind("SUPER + CTRL + P", hl.dsp.exec_cmd('grim -g "$(slurp)" - | wl-copy'))
-hl.bind("SUPER + SHIFT + P", hl.dsp.exec_cmd("grim - | wl-copy"))
-hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("quiet-shell-ipc brightness 5"))
-hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("quiet-shell-ipc brightness -5"))
-hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("quiet-shell-ipc volume 5"))
-hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("quiet-shell-ipc volume -5"))
-hl.bind("XF86AudioMute", hl.dsp.exec_cmd("quiet-shell-ipc mute"))
-hl.bind("SUPER + V", hl.dsp.exec_cmd("quiet-shell-ipc clipboard"))
+hl.bind("XF86MonBrightnessUp", hl.dsp.global("quiet-shell:brightnessUp"))
+hl.bind("XF86MonBrightnessDown", hl.dsp.global("quiet-shell:brightnessDown"))
+hl.bind("XF86AudioRaiseVolume", hl.dsp.global("quiet-shell:volumeUp"))
+hl.bind("XF86AudioLowerVolume", hl.dsp.global("quiet-shell:volumeDown"))
+hl.bind("XF86AudioMute", hl.dsp.global("quiet-shell:mute"))
+hl.bind("XF86AudioMicMute", hl.dsp.global("quiet-shell:micMute"))
+-- The touchpad key arrives as Launch8 on this Lenovo.
+hl.bind("XF86Launch8", hl.dsp.global("quiet-shell:touchpad"))
+hl.bind("XF86TouchpadToggle", hl.dsp.global("quiet-shell:touchpad"))
+hl.bind("SUPER + V", hl.dsp.global("quiet-shell:clipboard"))
 -- Floating lifts the window to the middle at a usable size, so the change is visible.
 hl.bind("SUPER + T", function()
 	local w = hl.get_active_window()
@@ -304,6 +341,5 @@ if os.getenv("DESKTOP_TEST") ~= "1" then
 		hl.exec_cmd(
 			"dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_SESSION_TYPE DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE MOZ_ENABLE_WAYLAND NIXOS_OZONE_WL LIBVA_DRIVER_NAME AQ_DRM_DEVICES __GLX_VENDOR_LIBRARY_NAME && systemctl --user start nixos-fake-graphical-session.target"
 		)
-		hl.exec_cmd("swaybg -m fill -i ~/.local/share/wallpapers/current.png")
 	end)
 end

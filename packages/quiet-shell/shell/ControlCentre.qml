@@ -11,6 +11,7 @@ Item {
 
     // A letter does what a click on that control's pill does. Wi-Fi and VPN open their
     // details rather than switching, so a stray key can't drop the connection.
+    // Space and j/k drive the player, Vim-style: j is the next track, k the previous.
     function pressLetter(letter) {
         const actions = {
             b: () => Sys.toggleBuds(),
@@ -20,7 +21,10 @@ Item {
             f: () => Sys.focusMode = !Sys.focusMode,
             n: () => Sys.toggleNight(),
             a: () => Sys.toggleAwake(),
-            m: () => Sys.toggleMute()
+            m: () => Sys.toggleMute(),
+            " ": () => Sys.mediaCommand("play-pause"),
+            j: () => Sys.mediaCommand("next"),
+            k: () => Sys.mediaCommand("previous")
         };
         if (!actions[letter])
             return false;

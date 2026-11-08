@@ -16,7 +16,10 @@ Rectangle {
         y: -1
         color: parent.tint
     }
+    // A running animation keeps the whole shell redrawing every frame, even inside
+    // a closed panel, so spin only while actually shown.
     RotationAnimation on rotation {
+        running: visible
         loops: Animation.Infinite
         from: 0
         to: 360

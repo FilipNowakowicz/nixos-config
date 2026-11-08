@@ -28,8 +28,88 @@ Item {
         { title: "Night Mode", note: Sys.night ? "Turn off" : "Turn on", run: () => { Sys.toggleNight(); Ui.close(); } },
         { title: "Keep Awake", note: Sys.awake ? "Turn off" : "Turn on", run: () => { Sys.toggleAwake(); Ui.close(); } },
         { title: "Wi-Fi", note: Sys.wifiOn ? "Turn off" : "Turn on", run: () => { Sys.toggleWifi(); Ui.close(); } },
-        { title: "Bluetooth", note: Sys.btOn ? "Turn off" : "Turn on", run: () => { Sys.toggleBluetooth(); Ui.close(); } }
+        { title: "Bluetooth", note: Sys.btOn ? "Turn off" : "Turn on", run: () => { Sys.toggleBluetooth(); Ui.close(); } },
+        { title: "Location", note: Sys.place ? Sys.place.name : Sys.timezone || "Choose", run: () => { input.text = "location "; } },
+        { title: "Notes", note: "Open", run: () => { Ui.close(); Sys.openNotes(); } }
     ]
+    // Towns of 15,000 people or more (GeoNames), biggest first, found by name, region
+    // or country: "location krakow", "location poland". Picking one sets the clock's
+    // zone and puts the weather and Night mode there. Read the first time it's asked.
+    property bool citiesWanted: false
+    property var cities: []
+    property var countries: ({})
+    property var zoneCountry: ({})
+    // Names people type that the country list spells differently.
+    readonly property var countryAliases: ({ GB: "uk england scotland wales britain", US: "usa america", AE: "uae", NL: "holland", CZ: "czechia", KR: "korea", KP: "korea" })
+    FileView {
+        path: root.citiesWanted ? Qt.resolvedUrl("data/cities.tsv").toString().replace("file://", "") : ""
+        printErrors: false
+        onLoaded: root.cities = text().split("\n").filter(l => l).map(l => {
+            const f = l.split("\t");
+            return { name: f[0], plain: f[1], country: f[2], region: f[3], lat: f[5], lon: f[6], zone: f[7] };
+        })
+    }
+    // Each town's search words, once both lists are in.
+    readonly property var cityWords: cities.map(c => [c.name, c.plain, c.region, countries[c.country] || "", countryAliases[c.country] || ""]
+        .join(" ").replace(/[(),]/g, " ").toLowerCase().split(/[\s\-_.:']+/).filter(w => w))
+    FileView {
+        path: Quickshell.env("QUIET_COUNTRY_TAB") || ""
+        printErrors: false
+        onLoaded: {
+            const names = {};
+            for (const line of text().split("\n")) {
+                const f = line.split("\t");
+                if (line && !line.startsWith("#") && f.length > 1)
+                    names[f[0]] = f[1];
+            }
+            root.countries = names;
+        }
+    }
+    // Which country a zone belongs to, so an empty search lists the towns near the clock.
+    FileView {
+        path: Quickshell.env("QUIET_ZONE_TAB") || ""
+        printErrors: false
+        onLoaded: {
+            const map = {};
+            for (const line of text().split("\n")) {
+                const f = line.split("\t");
+                if (line && !line.startsWith("#") && f.length > 2)
+                    map[f[2]] = f[0].split(",")[0];
+            }
+            root.zoneCountry = map;
+        }
+    }
+    function cityResults(wanted) {
+        citiesWanted = true;
+        const parts = wanted.toLowerCase().split(/\s+/).filter(p => p);
+        const here = zoneCountry[Sys.timezone] || "";
+        const found = [];
+        const named = [];  // Towns whose own name starts with the words come first.
+        for (let i = 0; i < cities.length && named.length < 8; i++) {
+            const c = cities[i];
+            const hit = parts.length
+                ? parts.every(p => cityWords[i].some(w => w.startsWith(p)))
+                : c.country === here;
+            if (!hit)
+                continue;
+            const name = (c.name + " " + c.plain).toLowerCase();
+            if (parts.length && name.split(/[\s\-']+/).some(w => w.startsWith(parts[0])))
+                named.push(c);
+            else if (found.length < 8)
+                found.push(c);
+        }
+        return named.concat(found).slice(0, 8).map(c => {
+            const current = Sys.place !== null && Sys.place.name === c.name && Sys.place.zone === c.zone;
+            return {
+                group: "Location",
+                title: c.name,
+                note: [c.region, countries[c.country] || c.country].filter(t => t && t !== c.name).join(", ") + " · " + (current ? "Current" : "Set"),
+                kind: "action",
+                value: () => { if (!current) Sys.setLocation(c); Ui.close(); },
+                glyph: "globe"
+            };
+        });
+    }
     property var clips: []
     property var files: []
     property var memory: ({ picks: {}, typed: {} })
@@ -53,6 +133,11 @@ Item {
                 .map(c => ({ group: "Clipboard", title: c.text, note: "Copy", kind: "clip", value: c.line, glyph: "clipboard" }));
         }
         if (query === "") return [];
+        // "tz" and "weather" lead here too: one place sets both.
+        // The short words need a town after them, so "lock" and the like still search.
+        const placeQuery = /^(?:location|time ?zone)(?:\s+(.*))?$|^(?:loc|tz|weather)\s+(.*)$/i.exec(query);
+        if (placeQuery)
+            return cityResults((placeQuery[1] || placeQuery[2] || "").trim());
         if (query.startsWith(">")) {
             const cmd = query.slice(1).trim();
             return [{ group: "Command", title: cmd || "Type a command", note: "Run", kind: "command", value: cmd }];
@@ -187,6 +272,8 @@ Item {
             }
         }
     }
+
+    Binding { target: Ui; property: "spotlightQuery"; value: input.text }
 
     onResultsChanged: {
         selected = Math.min(selected, Math.max(results.length - 1, 0));

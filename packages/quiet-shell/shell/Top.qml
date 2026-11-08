@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
@@ -22,9 +23,6 @@ Item {
         const at = item.mapToItem(null, 0, item.height + 8);
         item.modelData.display(QsWindow.window, at.x, at.y);
     }
-    function clock(format) { return Qt.formatDateTime(time.date, format); }
-
-    SystemClock { id: time; precision: SystemClock.Minutes }
 
     Item {
         id: left
@@ -164,7 +162,17 @@ Item {
                         name: modelData.tooltipTitle || modelData.title || modelData.id
                         onClicked: modelData.onlyMenu ? root.showMenu(trayItem) : modelData.activate()
                         onSecondaryClicked: modelData.hasMenu ? root.showMenu(trayItem) : modelData.secondaryActivate()
-                        Image { anchors.fill: parent; source: trayItem.modelData.icon; sourceSize: Qt.size(36, 36) }
+                        // Grey like the dock's app icons, with colour while pointed at.
+                        property real grey: Theme.monoIcons && !hovered && !activeFocus ? 1 : 0
+                        Behavior on grey { NumberAnimation { duration: Theme.motion; easing.type: Easing.OutCubic } }
+                        Image {
+                            anchors.fill: parent
+                            source: trayItem.modelData.icon
+                            sourceSize: Qt.size(36, 36)
+                            opacity: 1 - 0.12 * trayItem.grey
+                            layer.enabled: trayItem.grey > 0
+                            layer.effect: MultiEffect { saturation: -trayItem.grey }
+                        }
                     }
                 }
                 Icon { visible: Sys.focusMode; name: "bell-off"; size: 15 }
@@ -204,7 +212,7 @@ Item {
                 radius: 12
                 toggled: Ui.panel === "notifications"
                 onClicked: Ui.open("notifications")
-                Label { id: clockText; anchors.centerIn: parent; text: root.clock("ddd d MMM  HH:mm"); font.features: { "tnum": 1 } }
+                Label { id: clockText; anchors.centerIn: parent; text: Sys.clock("ddd d MMM  HH:mm"); font.features: { "tnum": 1 } }
             }
         }
     }

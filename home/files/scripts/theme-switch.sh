@@ -28,12 +28,6 @@ theme_built() {
   [[ -d "$THEMES_DIR/$1" && -f "$THEMES_DIR/$1/vars" ]]
 }
 
-swaybg_pids() {
-  ps -eo pid=,comm=,args= |
-    awk '($2 == "swaybg" || $2 == ".swaybg-wrapped") && $0 ~ /swaybg -m fill -i .*current[.]png/ { print $1 }' |
-    sort -n -u
-}
-
 # Get current theme from active.nix
 if [[ -f $ACTIVE_FILE ]]; then
   CURRENT_THEME=$(grep -oP 'themes/\K[^.]+' "$ACTIVE_FILE" 2>/dev/null || echo "unknown")
@@ -70,12 +64,9 @@ fi
 
 # Check if already active
 if [[ $CURRENT_THEME == "$THEME" ]]; then
-  if [[ -z $(swaybg_pids) ]]; then
-    swaybg -m fill -i "$HOME/.local/share/wallpapers/current.png" 9>&- &
-    echo "Theme '$THEME' is already active; restarted wallpaper"
-  else
-    echo "Theme '$THEME' is already active"
-  fi
+  # Starting an already running unit does nothing.
+  systemctl --user start wallpaper.service
+  echo "Theme '$THEME' is already active"
   exit 0
 fi
 
@@ -108,27 +99,12 @@ source "$THEMES_DIR/$THEME/vars"
 quiet-shell-ipc reloadTheme >/dev/null 2>&1 || true
 
 # Reload apps
-hyprctl eval "hl.config({general={col={active_border='rgb($amber)',inactive_border='rgb($brown)'}},decoration={shadow={color='rgba(${bg}cc)'}}})" >/dev/null
+hyprctl eval "hl.config({general={col={active_border='rgb($amber)',inactive_border='rgb($brown)'}},decoration={shadow={color='rgba(${bg}cc)'}},misc={background_color='rgb($bg)'}})" >/dev/null
 
-# Warm the kernel page cache so swaybg's decode is CPU-bound, not disk-bound.
-# Cold reads of large wallpapers (mono-mesh.jpg 5.2M, desert-dusk.png 8M) push
-# the buffer commit past the handover window and the compositor briefly falls
-# back to its default wallpaper.
+# Warm the kernel page cache so swaybg's decode is CPU-bound, not disk-bound:
+# while the unit restarts, the theme's background colour shows instead.
 cat "$HOME/.local/share/wallpapers/current.png" >/dev/null 2>&1 || true
-
-old_swaybg_pids=()
-while IFS= read -r pid; do
-  [[ -n $pid ]] && old_swaybg_pids+=("$pid")
-done < <(swaybg_pids)
-swaybg -m fill -i "$HOME/.local/share/wallpapers/current.png" 9>&- &
-sleep 0.5
-if ((${#old_swaybg_pids[@]} > 0)); then
-  kill "${old_swaybg_pids[@]}" 2>/dev/null || true
-  sleep 0.2
-  for pid in "${old_swaybg_pids[@]}"; do
-    kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null || true
-  done
-fi
+systemctl --user restart wallpaper.service
 
 ps -eo pid=,comm= |
   awk '$2 == ".kitty-wrapped" || $2 == "kitty" { print $1 }' |

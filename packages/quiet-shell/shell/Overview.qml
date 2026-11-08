@@ -133,17 +133,16 @@ Item {
         y: 28
         Label {
             anchors.right: parent.right
-            text: Qt.formatTime(clock.date, "HH:mm")
+            text: Sys.clock("HH:mm")
             font.pixelSize: 40
             font.weight: Font.Medium
         }
         Label {
             anchors.right: parent.right
-            text: Qt.formatDate(clock.date, "dddd d MMMM")
+            text: Sys.clock("dddd d MMMM")
             color: Theme.dim
         }
     }
-    SystemClock { id: clock; precision: SystemClock.Minutes }
 
     GridLayout {
         id: grid
@@ -204,7 +203,7 @@ Item {
         Drag.active: visible
         Drag.hotSpot: Qt.point(width / 2, height / 2)
         Glass { anchors.fill: parent; radius: 12 }
-        ScreencopyView {
+        Capture {
             anchors.fill: parent
             anchors.margins: 4
             captureSource: ghost.window ? ghost.window.wayland : null
@@ -222,5 +221,6 @@ Item {
         spacing: 12
         ControlCentre { width: 340 }
         NotificationCentre { compact: true; visible: Ui.detail === "" }
+        NotesCard { width: 340; visible: Ui.detail === "" }
     }
 }

@@ -5,12 +5,14 @@ Each probe fails soft: a missing tool reports `null`, so the shell can show a
 control as unavailable rather than as off. Tests fake the commands on PATH.
 """
 
+import datetime
 import json
 import os
 import pathlib
 import re
 import subprocess
 import sys
+import zoneinfo
 
 
 def run(*cmd, timeout=3):
@@ -219,14 +221,19 @@ def battery():
     return None
 
 
-def media():
-    out = run("playerctl", "--player=spotify", "metadata", "--format", "{{status}}\t{{title}}\t{{artist}}\t{{mpris:artUrl}}")
-    if not out:
-        return None
-    bits = (out.rstrip("\n").split("\t") + [""] * 4)[:4]
-    if not bits[1]:
-        return None
-    return {"playing": bits[0] == "Playing", "title": bits[1], "artist": bits[2], "art": bits[3]}
+def timezone():
+    """The zone /etc/localtime names, as timedatectl sets it, and its UTC offset now.
+
+    Both come from one read of the link. This process's own clock read the zone at
+    start, so a change in between would pair the new name with the old offset.
+    """
+    try:
+        target = os.readlink("/etc/localtime")
+        with open(os.path.join("/etc", target), "rb") as data:
+            offset = datetime.datetime.now(zoneinfo.ZoneInfo.from_file(data)).utcoffset()
+    except (OSError, ValueError):
+        return None, None
+    return target.partition("zoneinfo/")[2] or None, int(offset.total_seconds())
 
 
 def night():
@@ -241,6 +248,7 @@ if sys.argv[1:] == ["countries"]:
     print(json.dumps(mullvad_countries()))
     sys.exit()
 
+zone, offset = timezone()
 print(json.dumps({
     "wifi": wifi(),
     "bluetooth": bluetooth(),
@@ -251,7 +259,9 @@ print(json.dumps({
     "brightness": brightness(),
     "profile": power_profile(),
     "battery": battery(),
-    "media": media(),
     "night": night(),
+    "timezone": zone,
+    # The shell itself can't see a new zone (Sys.clock), so it is told the offset.
+    "utcOffset": offset,
     "awake": awake(),
 }))

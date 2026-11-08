@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """Print the current weather and the next few forecasts as JSON, or nothing on failure.
 
-The position comes from the timezone, like Night mode, so the laptop doesn't need
-a stored location, and the VPN doesn't move the forecast.
+The position comes from location.py, like Night mode: the town chosen in Spotlight,
+or else the time zone's main city. The VPN never moves the forecast.
 """
 
 import datetime
 import json
-import os
 import pathlib
 import subprocess
 import sys
 
 here = pathlib.Path(__file__).parent
-where = subprocess.run([sys.executable, str(here / "location.py")], capture_output=True, text=True, check=False).stdout.split()
-if len(where) != 4:
+located = subprocess.run([sys.executable, str(here / "location.py"), "place"], capture_output=True, text=True, check=False)
+try:
+    where = json.loads(located.stdout)
+except ValueError:
     sys.exit(0)
-zone = os.environ.get("QUIET_TIMEZONE") or os.path.realpath("/etc/localtime").partition("zoneinfo/")[2]
-url = f"https://wttr.in/{where[1]},{where[3]}?format=j1"
+url = f"https://wttr.in/{where['lat']},{where['lon']}?format=j1"
 try:
     out = subprocess.run(["curl", "-sf", "--max-time", "8", url], capture_output=True, text=True, timeout=10, check=False)
 except (OSError, subprocess.TimeoutExpired):
@@ -44,7 +44,7 @@ try:
     data = json.loads(out.stdout)
     current = data["current_condition"][0]
     print(json.dumps({
-        "place": zone.rpartition("/")[2].replace("_", " "),
+        "place": where["place"],
         "condition": condition(current),
         "temperature": current["temp_C"] + "°",
         "hours": upcoming(data["weather"]),

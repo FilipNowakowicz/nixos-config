@@ -2,6 +2,9 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
+import Quickshell.Services.Pipewire
+import Quickshell.Services.Mpris
 
 // System state and writes. A write is only "done" once a fresh readback shows the
 // target. Until then the key is pending, and if it never shows, it fails with Retry.
@@ -10,6 +13,14 @@ Singleton {
 
     property var state: ({})
     property var writes: ({})
+
+    // Apps playing sound. Quickshell fills in a node's properties and volume only
+    // while something tracks it, so this list must not depend on either. A playback
+    // stream counts as a sink here: it takes the app's audio in.
+    readonly property var appStreams: Pipewire.nodes.values.filter(n => n.isStream && n.isSink && n.audio)
+    function streamName(node) {
+        return node.properties["application.name"] || node.description || node.nickname || node.name;
+    }
     property bool focusMode: false
     onFocusModeChanged: if (focusFile.loaded) focusFile.setText(focusMode ? "on" : "off")
     readonly property int failedCount: Object.keys(writes).filter(k => writes[k].status === "failed").length
@@ -37,7 +48,11 @@ Singleton {
     readonly property int brightness: state.brightness === undefined || state.brightness === null ? 0 : state.brightness
     readonly property string profile: state.profile || "balanced"
     readonly property var battery: state.battery || null
-    readonly property var media: state.media || null
+    // Spotify over MPRIS: its signals arrive at once, where a poll lagged seconds.
+    readonly property var player: Mpris.players.values.find(p => p.dbusName === "org.mpris.MediaPlayer2.spotify") || null
+    readonly property var media: player && player.trackTitle
+        ? { playing: player.isPlaying, title: player.trackTitle, artist: player.trackArtist, art: player.trackArtUrl }
+        : null
     readonly property bool night: !!state.night
     readonly property bool awake: !!state.awake
 
@@ -63,6 +78,8 @@ Singleton {
 
     function has(section) { return state[section] !== undefined && state[section] !== null; }
     function pending(key) { return !!(writes[key] && writes[key].status === "pending"); }
+    // For a list where one write picks one row: only that row is busy.
+    function pendingFor(key, target) { return pending(key) && writes[key].options.target === target; }
     function failed(key) { return !!(writes[key] && writes[key].status === "failed"); }
     function failMessage(key) { return writes[key] ? writes[key].message : ""; }
 
@@ -272,6 +289,17 @@ Singleton {
     function nudgeMute() {
         nudge("volume", ["sh", "-c", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && wpctl get-volume @DEFAULT_AUDIO_SINK@"]);
     }
+    function toggleMic() {
+        nudge("mic", ["sh", "-c", "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle && wpctl get-volume @DEFAULT_AUDIO_SOURCE@"]);
+    }
+    // Hyprland forgets this on a config reload, which turns the touchpad back on.
+    property bool touchpadOn: true
+    function toggleTouchpad() {
+        const want = !touchpadOn;
+        touchpadOn = want;
+        Ui.showToggle("touchpad", want);
+        Quickshell.execDetached(["sh", Qt.resolvedUrl("scripts/touchpad.sh").toString().replace("file://", ""), String(want)]);
+    }
     property var agenda: []
     // Called when the centre opens. This only reads the local copy, so it costs nothing.
     function refreshAgenda() { agendaRead.running = true; }
@@ -299,7 +327,9 @@ Singleton {
         property var queued: null
         stdout: StdioCollector {
             onStreamFinished: {
-                if (nudger.kind === "volume") {
+                if (nudger.kind === "mic") {
+                    Ui.showToggle("mic", !text.includes("[MUTED]"));
+                } else if (nudger.kind === "volume") {
                     const match = text.match(/([0-9.]+)/);
                     if (match)
                         Ui.showHud("volume", Math.round(parseFloat(match[1]) * 100), text.includes("[MUTED]"));
@@ -320,9 +350,10 @@ Singleton {
         }
     }
 
-    function screenshot(mode) {
+    // `region` ("x,y wxh") skips slurp, for an area already dragged out in the picker.
+    function screenshot(mode, region) {
         Ui.close();
-        capture.command = ["python3", Qt.resolvedUrl("scripts/screenshot.py").toString().replace("file://", ""), mode];
+        capture.command = ["python3", Qt.resolvedUrl("scripts/screenshot.py").toString().replace("file://", ""), mode].concat(region ? [region] : []);
         captureDelay.restart();
     }
     // The bar has to fade away before the picture is taken.
@@ -335,9 +366,15 @@ Singleton {
         id: capture
         stdout: StdioCollector {
             onStreamFinished: {
-                const path = text.trim();
-                if (path)
-                    Notify.post("Screenshot saved", "Copied to the clipboard", false, path);
+                if (!text.trim())
+                    return;  // Cancelled.
+                const result = JSON.parse(text);
+                if (result.path)
+                    Notify.post("Screenshot saved", "Copied to the clipboard", false, result.path);
+                else if (result.text)
+                    Notify.post("Text copied", result.text.length > 120 ? result.text.slice(0, 120) + "…" : result.text, false);
+                else
+                    Notify.post("No text found", "Nothing was copied.", false);
             }
         }
         onExited: code => { if (code !== 0) Notify.post("Screenshot failed", "Nothing was saved.", false); }
@@ -366,10 +403,10 @@ Singleton {
     }
 
     function setMullvadCountry(code) {
-        write("mullvad-location", ["mullvad", "relay", "set", "location", code], s => s.vpn && s.vpn.country === code, "Mullvad's location didn't change.", { timeout: 15000 });
+        write("mullvad-location", ["mullvad", "relay", "set", "location", code], s => s.vpn && s.vpn.country === code, "Mullvad's location didn't change.", { timeout: 15000, target: code });
     }
     function setExitNode(name) {
-        write("exit-node", ["tailscale", "set", "--exit-node=" + name], s => s.vpn && s.vpn.exitNode === name, "The exit node didn't change.", { timeout: 15000 });
+        write("exit-node", ["tailscale", "set", "--exit-node=" + name], s => s.vpn && s.vpn.exitNode === name, "The exit node didn't change.", { timeout: 15000, target: name });
     }
     function openNetworkSettings() {
         Ui.close();
@@ -409,16 +446,85 @@ Singleton {
         const key = "default.configured.audio." + role;
         const list = role === "sink" ? "sinks" : "sources";
         write("device-" + role, ["pw-metadata", "-n", "default", "0", key, JSON.stringify({ name })],
-            s => s.devices && s.devices[list].some(d => d.name === name && d.active), "The device didn't change.");
+            s => s.devices && s.devices[list].some(d => d.name === name && d.active), "The device didn't change.", { target: name });
     }
     function setProfile(name) {
         write("profile", ["powerprofilesctl", "set", name], s => s.profile === name, "Power mode didn't change.");
     }
+    // A unit of its own, as Keep Awake is: started as the shell's child, wlsunset
+    // lived in the shell's unit and a shell restart turned night mode off.
+    readonly property var nightOn: ["sh", "-c", 'where=$(python3 "$0") && exec systemd-run --user --unit=night-light.service --collect wlsunset $where',
+        Qt.resolvedUrl("scripts/location.py").toString().replace("file://", "")]
     function toggleNight() {
         const want = !night;
-        const location = Qt.resolvedUrl("scripts/location.py").toString().replace("file://", "");
-        const cmd = want ? ["sh", "-c", 'where=$(python3 "$0") && setsid -f wlsunset $where >/dev/null 2>&1', location] : ["pkill", "-x", "wlsunset"];
-        write("night", cmd, s => !!s.night === want, "Night mode didn't change.");
+        write("night", want ? nightOn : ["systemctl", "--user", "stop", "night-light.service"], s => !!s.night === want, "Night mode didn't change.");
+    }
+    // The zone moves the sun and the weather with it; see placeMoved().
+    function setTimezone(zone) {
+        write("timezone", ["timedatectl", "set-timezone", zone], s => s.timezone === zone, "The time zone didn't change.",
+            { target: zone, timeout: 90000 });
+    }
+    // The town picked in Spotlight. It counts only while the clock is in its zone;
+    // otherwise the weather and Night mode use the zone's main city (location.py).
+    readonly property string placePath: Quickshell.env("HOME") + "/.local/state/quiet-shell/location.json"
+    property var chosenPlace: null
+    readonly property var place: chosenPlace && chosenPlace.zone === timezone ? chosenPlace : null
+    FileView {
+        id: placeFile
+        path: root.placePath
+        printErrors: false
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: { try { root.chosenPlace = JSON.parse(text()); } catch (e) { root.chosenPlace = null; } }
+    }
+    function setLocation(city) {
+        const chosen = { name: city.name, region: city.region, country: city.country, lat: +city.lat, lon: +city.lon, zone: city.zone };
+        chosenPlace = chosen;
+        placeFile.setText(JSON.stringify(chosen) + "\n");
+        if (city.zone !== timezone)
+            setTimezone(city.zone);  // Moves the weather and Night mode once it lands.
+        else
+            placeMoved();
+    }
+    // A new position: fetch its weather now, and restart Night mode for its sun.
+    function placeMoved() {
+        weatherAt = 0;
+        refreshWeather();
+        if (night)
+            Quickshell.execDetached(["sh", "-c", 'systemctl --user stop night-light.service; "$@"', "sh"].concat(nightOn));
+    }
+    // The one clock the bar and overview show. glibc reads the zone once per process,
+    // so after a change Qt here keeps formatting times in the old zone. status.py runs
+    // fresh each refresh and reports the real UTC offset, so the time is built from UTC
+    // and that offset instead. Patterns: dddd ddd d MMMM MMM HH mm.
+    SystemClock { id: wallClock; precision: SystemClock.Minutes }
+    function clock(pattern) {
+        const date = wallClock.date;  // Read for its minute ticks only.
+        if (typeof state.utcOffset !== "number")
+            return Qt.formatDateTime(date, pattern);
+        // Not date.getTime(): its conversion goes through the stale local time.
+        const t = new Date(Date.now() + state.utcOffset * 1000);  // read with UTC getters
+        const locale = Qt.locale();
+        const two = n => (n < 10 ? "0" : "") + n;
+        const parts = {
+            dddd: locale.dayName(t.getUTCDay(), Locale.LongFormat),
+            ddd: locale.dayName(t.getUTCDay(), Locale.ShortFormat),
+            d: t.getUTCDate(),
+            MMMM: locale.monthName(t.getUTCMonth(), Locale.LongFormat),
+            MMM: locale.monthName(t.getUTCMonth(), Locale.ShortFormat),
+            HH: two(t.getUTCHours()),
+            mm: two(t.getUTCMinutes())
+        };
+        return pattern.replace(/dddd|ddd|MMMM|MMM|HH|mm|d/g, k => parts[k]);
+    }
+    readonly property string timezone: state.timezone || ""
+    property string knownZone: ""
+    onTimezoneChanged: {
+        const moved = knownZone !== "" && timezone !== "" && timezone !== knownZone;
+        knownZone = timezone || knownZone;
+        if (!moved)
+            return;
+        placeMoved();
     }
     function toggleAwake() {
         const want = !awake;
@@ -428,11 +534,26 @@ Singleton {
         write("awake", cmd, s => !!s.awake === want, "Keep awake didn't change.");
     }
     function setTheme(name) {
-        write("theme", ["theme-switch", name], () => Theme.name === name, "The theme didn't change.");
+        write("theme", ["theme-switch", name], () => Theme.name === name, "The theme didn't change.", { target: name });
+    }
+    // One Markdown file for quick thoughts and todos, opened in a floating Neovim.
+    readonly property string notesPath: Quickshell.env("HOME") + "/notes.md"
+    function openNotes() {
+        const open = ToplevelManager.toplevels.values.find(t => t.appId === "quiet-notes");
+        if (open)
+            Dockable.revealWayland(open);
+        else
+            Quickshell.execDetached(["kitty", "--class", "quiet-notes", "--title", "Notes", "nvim", notesPath]);
     }
     function mediaCommand(verb) {
-        Quickshell.execDetached(["playerctl", "--player=spotify", verb]);
-        settle.restart();
+        if (!player)
+            return;
+        if (verb === "play-pause")
+            player.togglePlaying();
+        else if (verb === "next")
+            player.next();
+        else
+            player.previous();
     }
 
     FileView {
@@ -460,8 +581,10 @@ Singleton {
     }
 
     property bool live: false
+    property bool glance: false
+    // Each refresh spawns about twenty commands, so the idle pace matters for battery.
     Timer {
-        interval: Object.keys(root.writes).length ? 700 : (root.live ? 4000 : 60000)
+        interval: Object.keys(root.writes).length ? 700 : root.live ? 4000 : root.glance ? 15000 : 60000
         running: true
         repeat: true
         triggeredOnStart: true

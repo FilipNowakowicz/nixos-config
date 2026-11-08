@@ -37,8 +37,16 @@ PanelWindow {
         focus: true
         Keys.onEscapePressed: Ui.back()
         Keys.onPressed: event => {
-            if (Ui.panel === "controls" && Ui.detail === "" && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)))
+            if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
+                return;
+            if (Ui.panel === "controls" && Ui.detail === "")
                 event.accepted = controls.pressLetter(event.text.toLowerCase());
+            else if (Ui.panel === "system")
+                event.accepted = menus.pressLetter(event.text.toLowerCase());
+            else if (Ui.panel === "notifications")
+                event.accepted = notifications.pressKey(event.text);
+            else if (Ui.screenshot)
+                event.accepted = shot.pressKey(event.text);
         }
         Keys.onReturnPressed: event => {
             if (Ui.switcher) Ui.commitSwitcher();
@@ -115,6 +123,7 @@ PanelWindow {
         }
 
         NotificationCentre {
+            id: notifications
             visible: (Ui.panel === "notifications" || opacity > 0) && win.focused
             x: parent.width - width - 8 + (Ui.panel === "notifications" ? 0 : 20)
             y: 42
@@ -123,7 +132,7 @@ PanelWindow {
             Behavior on opacity { NumberAnimation { duration: Theme.motion } }
         }
 
-        Menus { anchors.fill: parent; visible: win.focused }
+        Menus { id: menus; anchors.fill: parent; visible: win.focused }
 
         Banner { id: banner; visible: win.focused && Ui.panel === "" && !Ui.overview }
 
@@ -146,7 +155,14 @@ PanelWindow {
             y: parent.height * 0.82 + 4
         }
 
+        AreaDrag {
+            anchors.fill: parent
+            visible: Ui.screenshot && win.focused
+            origin: win.screen ? Qt.point(win.screen.x, win.screen.y) : Qt.point(0, 0)
+        }
+
         Screenshot {
+            id: shot
             visible: Ui.screenshot && win.focused
             anchors.horizontalCenter: parent.horizontalCenter
             y: parent.height * 0.82

@@ -18,7 +18,7 @@ Singleton {
     property var confirm: null           // { title, body, action, command }
     property var auth: null              // polkit's request for a password
     onAuthChanged: refocus()
-    property var hud: null               // { kind, level, muted }
+    property var hud: null               // { kind, level, muted } or { kind, on, toggle }
     property var dockMenu: null          // { app, x }
     property int deskHud: 0
     Timer { id: deskTimer; interval: 900; onTriggered: root.deskHud = 0 }
@@ -66,11 +66,11 @@ Singleton {
             ["SUPER + V", "Clipboard history"],
             ["SUPER + W", "Keep the bar open"],
             ["SUPER + slash", "Shortcuts"],
+            ["SUPER + SHIFT + n", "Notes"],
             ["Capture"],
-            ["SUPER + SHIFT + s", "Screenshot tool"],
-            ["SUPER + SHIFT + P", "Copy the screen"],
-            ["SUPER + CTRL + P", "Copy an area"],
+            ["SUPER + SHIFT + s", "Screenshot or copy text"],
             ["System"],
+            ["SUPER + Escape", "Power menu"],
             ["SUPER + BackSpace", "Lock"]
         ]
     ]
@@ -106,6 +106,7 @@ Singleton {
 
     property bool clipboard: false       // Spotlight is showing clipboard history
     property var spotlightResults: []    // "Group: Title" of each row, for tests
+    property string spotlightQuery: ""   // what is typed, for tests
 
     // One path for these, so nothing can reach them without being asked.
     function session(name) {
@@ -123,6 +124,11 @@ Singleton {
 
     function showHud(kind, level, muted) {
         hud = { kind, level, muted };
+        hudTimer.restart();
+    }
+    // A switch flipped by its own key, such as mic mute: an icon and a word, no level.
+    function showToggle(kind, on) {
+        hud = { kind, on, toggle: true };
         hudTimer.restart();
     }
     Timer { id: hudTimer; interval: 1400; onTriggered: root.hud = null }

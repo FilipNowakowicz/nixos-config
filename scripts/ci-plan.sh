@@ -28,6 +28,9 @@ home_all_hosts='^home/(profiles/base\.nix|users/user/common\.nix)'
 home_desktop_hosts='^home/(neovim/|profiles/(desktop|workstation)\.nix|profiles/workflow-packs/|users/user/home\.nix|theme/|files/(nvim/|firefox|hypr|kitty|waybar|scripts/(theme-switch|waybar-weather|clipboard-pick)\.sh))'
 home_server_hosts='^home/users/user/server\.nix'
 home_wsl='^home/users/user/wsl\.nix'
+# Everything the booted desktop smoke test loads: the shell, the Lua config and
+# the generated theme files they both read.
+quiet_shell_change='^(packages/quiet-shell/|tests/quiet-shell/|home/files/hypr/|home/theme/)'
 
 docs_only=false
 run_eval=false
@@ -38,6 +41,7 @@ main_ci=false
 installer_build=false
 profile_tests=false
 homeserver_gcp_smoke=false
+quiet_shell_smoke=false
 closure_main=false
 
 select_all_hosts() {
@@ -49,6 +53,7 @@ select_all_hosts() {
 select_all_tests() {
   profile_tests=true
   homeserver_gcp_smoke=true
+  quiet_shell_smoke=true
 }
 
 select_desktop_hosts() {
@@ -121,6 +126,10 @@ if [[ -n $changed_files ]]; then
 
   if grep -qE "${tests_change}" <<<"$changed_files"; then
     select_all_tests
+  fi
+
+  if grep -qE "${quiet_shell_change}" <<<"$changed_files"; then
+    quiet_shell_smoke=true
   fi
 
   if grep -qE "${closure_script_change}" <<<"$changed_files"; then
@@ -206,10 +215,14 @@ if [[ $homeserver_gcp_smoke == "true" ]]; then
   sep=","
 fi
 if [[ $profile_tests == "true" ]]; then
-  for profile in profile-security profile-observability profile-hardening; do
+  for profile in profile-security profile-observability profile-hardening profile-runtime-timezone; do
     tests_matrix+="${sep}"'{"name":"'"$profile"'","command":"profile-test","target":"'"$profile"'"}'
     sep=","
   done
+fi
+if [[ $quiet_shell_smoke == "true" ]]; then
+  tests_matrix+="${sep}"'{"name":"quiet-shell-smoke","command":"smoke-quiet-shell","target":""}'
+  sep=","
 fi
 tests_matrix+=']}'
 
@@ -219,7 +232,7 @@ else
   emit_bool hosts false
 fi
 
-if [[ $homeserver_gcp_smoke == "true" || $profile_tests == "true" ]]; then
+if [[ $homeserver_gcp_smoke == "true" || $profile_tests == "true" || $quiet_shell_smoke == "true" ]]; then
   emit_bool tests true
 else
   emit_bool tests false

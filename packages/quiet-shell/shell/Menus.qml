@@ -10,6 +10,7 @@ Item {
     component MenuRow: Press {
         id: row
         property string title
+        property string hint
         property bool checked: false
         Layout.fillWidth: true
         implicitHeight: 30
@@ -17,6 +18,16 @@ Item {
         name: title
         Icon { visible: row.checked; x: 9; anchors.verticalCenter: parent.verticalCenter; name: "check"; size: 13 }
         Label { x: 28; anchors.verticalCenter: parent.verticalCenter; text: row.title }
+        Label { visible: row.hint !== ""; anchors.right: parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: row.hint; font.pixelSize: 10; font.weight: Font.Medium; color: Theme.faint }
+    }
+
+    // SUPER+Escape opens the system menu; a letter picks a row, as in the control centre.
+    function pressLetter(letter) {
+        const sessions = { s: "sleep", r: "restart", d: "shutdown", l: "lock", o: "logout" };
+        if (Ui.panel !== "system" || !sessions[letter])
+            return false;
+        Ui.session(sessions[letter]);
+        return true;
     }
     component Sep: Rectangle { Layout.fillWidth: true; Layout.margins: 4; Layout.leftMargin: 9; Layout.rightMargin: 9; implicitHeight: 1; color: Theme.hairline }
 
@@ -34,12 +45,12 @@ Item {
             y: 6
             width: parent.width - 12
             spacing: 0
-            MenuRow { title: "Sleep"; onClicked: Ui.session("sleep") }
-            MenuRow { title: "Restart"; onClicked: Ui.session("restart") }
-            MenuRow { title: "Shut Down"; onClicked: Ui.session("shutdown") }
+            MenuRow { title: "Sleep"; hint: "S"; onClicked: Ui.session("sleep") }
+            MenuRow { title: "Restart"; hint: "R"; onClicked: Ui.session("restart") }
+            MenuRow { title: "Shut Down"; hint: "D"; onClicked: Ui.session("shutdown") }
             Sep {}
-            MenuRow { title: "Lock Screen"; onClicked: Ui.session("lock") }
-            MenuRow { title: "Log Out"; onClicked: Ui.session("logout") }
+            MenuRow { title: "Lock Screen"; hint: "L"; onClicked: Ui.session("lock") }
+            MenuRow { title: "Log Out"; hint: "O"; onClicked: Ui.session("logout") }
         }
     }
 

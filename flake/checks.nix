@@ -973,5 +973,11 @@ in
     profile-hardening = import ../tests/nixos/profile-hardening.nix {
       inherit nixpkgs system;
     };
+    profile-runtime-timezone = import ../tests/nixos/profile-runtime-timezone.nix {
+      inherit nixpkgs system;
+    };
+    quiet-shell-smoke = import ../tests/nixos/quiet-shell-smoke.nix {
+      inherit nixpkgs system;
+    };
   };
 }
