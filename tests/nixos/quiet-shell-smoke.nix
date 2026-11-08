@@ -314,7 +314,7 @@ in
           session("hyprctl eval \"hl.config({ input = { kb_variant = [[dvorak]] } })\"")
 
       with subtest("notes open once, float, and show in the overview"):
-          machine.succeed("printf '# Ideas\\nanki generator\\npersonal dashboard\\n' > /home/user/notes.md && chown user /home/user/notes.md")
+          machine.succeed("install -d -o user /home/user/.local/share/quiet-shell && printf '# Ideas\\nanki generator\\npersonal dashboard\\n' > /home/user/.local/share/quiet-shell/notes.md && chown user /home/user/.local/share/quiet-shell/notes.md")
           session("quiet-shell-ipc overview")
           wait_for(lambda s: s["overview"], "overview-notes")
           session("quiet-shell-ipc close")

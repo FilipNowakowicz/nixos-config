@@ -50,6 +50,12 @@ in
       })
 
       (writeShellApplication {
+        name = "hypr-spotify-autostart";
+        runtimeInputs = [ pkgs.systemd ];
+        text = builtins.readFile ../../files/scripts/hypr-spotify-autostart.sh;
+      })
+
+      (writeShellApplication {
         name = "caffeinate";
         runtimeInputs = with pkgs; [
           systemd
@@ -282,7 +288,26 @@ in
 
   # The shell's notes file (SUPER+SHIFT+N). Created empty if missing, never
   # overwritten; the restic backup lists it and would warn if it were absent.
-  systemd.user.tmpfiles.rules = [ "f %h/notes.md 0600 - - -" ];
+  systemd.user.tmpfiles.rules = [
+    "d %h/.local/share/quiet-shell 0700 - - -"
+    "f %h/.local/share/quiet-shell/notes.md 0600 - - -"
+  ];
+
+  # Brings the notes along from ~/notes.md, their old home. Runs at the switch that
+  # changes the path, so the file and the shell move together. An empty new file is
+  # only the tmpfiles placeholder; real notes there are never overwritten.
+  home.activation.moveNotesOutOfHome = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    old="$HOME/notes.md"
+    new="${config.xdg.dataHome}/quiet-shell/notes.md"
+    if [[ -f $old && ! -L $old ]]; then
+      if [[ -s $new ]]; then
+        warnEcho "Not moving $old: $new already has notes. Merge them by hand."
+      else
+        run mkdir -p "$(dirname "$new")"
+        run mv -f "$old" "$new"
+      fi
+    fi
+  '';
 
   systemd.user.services = {
     # A unit so it heals by itself when a rebuild severs its Wayland connection.

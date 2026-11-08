@@ -1,11 +1,52 @@
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Layouts
 
 Item {
     id: root
     readonly property var media: Sys.media
+    readonly property bool showsCover: media !== null && cover.status === Image.Ready
 
     Glass { anchors.fill: parent; radius: 30 }
+    // The cover is the card's surface: it fills the glass, inside its lit edge, and
+    // sinks into it behind the title.
+    Image {
+        id: cover
+        anchors.fill: parent
+        anchors.margins: 1
+        visible: false
+        layer.enabled: true
+        source: root.media && root.media.art ? root.media.art : ""
+        fillMode: Image.PreserveAspectCrop
+        sourceSize: Qt.size(328, 328)
+    }
+    Rectangle {
+        id: coverShape
+        anchors.fill: cover
+        radius: 29
+        visible: false
+        layer.enabled: true
+    }
+    MultiEffect {
+        id: coverArt
+        anchors.fill: cover
+        visible: root.showsCover
+        source: cover
+        maskEnabled: true
+        maskSource: coverShape
+        maskThresholdMin: 0.5
+        maskSpreadAtMin: 0.2
+    }
+    Rectangle {
+        anchors.fill: cover
+        radius: 29
+        visible: root.showsCover
+        gradient: Gradient {
+            GradientStop { position: 0.1; color: Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, 0) }
+            GradientStop { position: 0.44; color: Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, 0.72) }
+            GradientStop { position: 0.68; color: Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, 0.9) }
+        }
+    }
     Column {
         anchors.centerIn: parent
         visible: root.media === null
@@ -13,7 +54,16 @@ Item {
         Icon { anchors.horizontalCenter: parent.horizontalCenter; name: "music"; size: 22; color: Theme.dim }
         Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Not playing"; font.pixelSize: 12; color: Theme.dim }
     }
+    // Keeps the hint readable over a bright cover.
+    Rectangle {
+        visible: root.showsCover && keyHint.visible
+        anchors.fill: keyHint
+        anchors.margins: -4
+        radius: 7
+        color: Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, 0.72)
+    }
     KeyHint {
+        id: keyHint
         visible: root.media !== null && Ui.panel === "controls"
         anchors.right: parent.right
         anchors.rightMargin: 16
@@ -21,25 +71,7 @@ Item {
         anchors.topMargin: 11
         text: "K ␣ J"
     }
-    Rectangle {
-        id: art
-        visible: root.media !== null
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: 12
-        width: 48
-        height: 48
-        radius: 9
-        color: Theme.fill
-        clip: true
-        Image {
-            anchors.fill: parent
-            visible: status === Image.Ready
-            source: root.media && root.media.art ? root.media.art : ""
-            fillMode: Image.PreserveAspectCrop
-            sourceSize: Qt.size(96, 96)
-        }
-        Icon { anchors.centerIn: parent; visible: !!root.media && !root.media.art; name: "music"; size: 20; color: Theme.dim }
-    }
+    Icon { anchors.horizontalCenter: parent.horizontalCenter; y: 26; visible: root.media !== null && !root.showsCover; name: "music"; size: 20; color: Theme.dim }
     Column {
         visible: root.media !== null
         anchors.left: parent.left
