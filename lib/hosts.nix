@@ -104,10 +104,15 @@ let
       tailnetFQDN = "gcp-builder.${tailnetDomain}";
       tailscale = {
         tag = "builder";
-        acceptFrom.workstation = [ 22 ];
-        # gcp-agent offloads heavy builds here too (its own dedicated build
-        # key, see hosts/gcp-agent/nix-remote-build.nix).
-        acceptFrom.agent = [ 22 ];
+        acceptFrom = {
+          workstation = [ 22 ];
+          # gcp-agent offloads heavy builds here too (its own dedicated build
+          # key, see hosts/gcp-agent/nix-remote-build.nix).
+          agent = [ 22 ];
+          # GitHub runners run CI on this host. A separate tag from `ci`, which
+          # can also reach the homeserver.
+          ci-builder = [ 22 ];
+        };
       };
       deploy.sshUser = "user";
       sops = false;
