@@ -16,6 +16,11 @@ concurrency:
   group: nix-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# An explicit shell adds pipefail, so a failing command piped into tee fails the step.
+defaults:
+  run:
+    shell: bash
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
