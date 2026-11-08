@@ -51,9 +51,26 @@ Singleton {
     readonly property var battery: state.battery || null
     // Spotify over MPRIS: its signals arrive at once, where a poll lagged seconds.
     readonly property var player: Mpris.players.values.find(p => p.dbusName === "org.mpris.MediaPlayer2.spotify") || null
-    readonly property var media: player && player.trackTitle
+    readonly property var currentTrack: player && player.trackTitle
         ? { playing: player.isPlaying, title: player.trackTitle, artist: player.trackArtist, art: player.trackArtUrl }
         : null
+    // A player reports no track for a moment between songs. Keep showing the last one
+    // through that gap, so only a real stop reads as "Not playing".
+    property var media: null
+    Component.onCompleted: media = currentTrack
+    onCurrentTrackChanged: {
+        if (currentTrack) {
+            trackGap.stop();
+            media = currentTrack;
+        } else {
+            trackGap.restart();
+        }
+    }
+    Timer {
+        id: trackGap
+        interval: 1500
+        onTriggered: root.media = root.currentTrack
+    }
     readonly property bool night: !!state.night
     readonly property bool awake: !!state.awake
 

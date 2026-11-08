@@ -218,6 +218,26 @@ in
           retry(lambda _: not state()["media"]["playing"], timeout=timedelta(seconds=5))
           session("quiet-shell-ipc close")
 
+      with subtest("a track change never shows Not playing"):
+          session("quiet-shell-ipc controls")
+          wait_for(lambda s: s["panel"] == "controls" and s["media"], "cover-before-skip")
+          before = state()["media"]["title"]
+          machine.send_key("c")
+          seen = []
+          def changed(_):
+              media = state()["media"]
+              seen.append(media and media["title"])
+              return seen[-1] not in (None, before)
+          try:
+              retry(changed, timeout=timedelta(seconds=10))
+          except Exception:
+              pass
+          assert None not in seen, f"the card went blank between tracks: {seen}"
+          assert seen and seen[-1] != before, f"the track never changed: {seen}"
+          machine.sleep(timedelta(seconds=2))
+          machine.screenshot("cover-after-skip")
+          session("quiet-shell-ipc close")
+
       with subtest("sound details list each playing app"):
           machine.succeed(
               "su user -c '${inSession} setsid pw-cat --playback --raw --format s16 --rate 48000 --channels 2"
