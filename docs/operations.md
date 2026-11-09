@@ -158,6 +158,33 @@ from the snapshot, then redeploying the NixOS configuration once the system is
 reachable. This avoids treating provider-local snapshots as the authoritative
 long-term backup and keeps Terraform/OpenTofu state drift visible.
 
+## Terraform State
+
+State for `infra/` lives in the GCS bucket `nixos-config-tfstate-8c41e7`
+(`europe-west2`, under `terraform/state/`), with object versioning, enforced
+public access prevention, and uniform bucket-level access. The backend also
+provides state locking. State includes sensitive instance attributes, so treat
+read access to the bucket as access to those values.
+
+The bucket is deliberately not managed by `infra/`: `deploy-gcp.sh` has a
+destroy path, and a bucket held in the state it stores would either block that
+path or be caught up in it. It was created once with:
+
+```bash
+gcloud storage buckets create gs://nixos-config-tfstate-8c41e7 \
+  --project "$GCP_PROJECT" --location europe-west2 \
+  --uniform-bucket-level-access --public-access-prevention
+gcloud storage buckets update gs://nixos-config-tfstate-8c41e7 --versioning
+```
+
+`tofu` authenticates to the backend the same way as the provider. If
+Application Default Credentials belong to an account without access to the
+project, pass the active `gcloud` account's token for that command instead:
+
+```bash
+GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)" tofu -chdir=infra plan
+```
+
 ## Terraform Drift Guard
 
 `bash scripts/validate.sh tf-drift` runs a read-only `tofu plan
