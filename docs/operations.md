@@ -202,77 +202,72 @@ The first pass checks a narrow set of registry-backed facts:
 
 ## Automated Homeserver Deploy
 
-`homeserver-gcp` declares a self-hosted GitHub Actions runner for the manual
-deploy workflow in `.github/workflows/deploy-homeserver.yml`. The workflow is
-only for phase-1 homeserver deploys: it is `workflow_dispatch` only, requires
-the `confirm_target` input to be `homeserver-gcp`, runs only from `main`, and
-targets the explicit runner labels `self-hosted`, `linux`, `x64`, `nixos`,
-`homeserver-gcp`, and `homeserver-deploy`.
+`Deploy homeserver-gcp` (`.github/workflows/deploy-homeserver.yml`) remains
+**disabled in GitHub** pending review, credential provisioning and a successful
+manual run. Do not enable it just because the static checks pass.
 
-Before the runner can come online, populate the registration credential:
+Once enabled, relevant pushes to `main` and `workflow_dispatch` (confirmation
+`homeserver-gcp`, from `main` only) use the same fail-closed path:
 
-```bash
-sops hosts/homeserver-gcp/secrets/secrets.yaml
-# replace github_runner_homeserver_deploy_token with the fine-grained PAT
-```
+1. Require this exact main commit to be a merged PR whose head passed the
+   `nix.yml` PR workflow and its `merge-gate` job. Missing API evidence, a
+   direct push or a stale main commit stops the run. Recheck before activation.
+2. Join the builder tailnet as `tag:ci-builder` using existing builder secrets:
+   `BUILDER_CI_GCP_KEY`, `BUILDER_CI_SSH_KEY`, `TS_OAUTH_CLIENT_ID` and
+   `TS_OAUTH_SECRET`. Run evaluation, light checks, the homeserver smoke test
+   and the host closure build through `scripts/on-builder.sh` and the shared
+   `scripts/ci-builder-checks.sh` path. Builder unavailability fails the run;
+   there is no GitHub-hosted build fallback for deployment.
+3. Build the deploy-rs activation wrapper and client on `gcp-builder`, export
+   their complete store closure, and transfer it with a one-day Actions artifact
+   tied to the commit. The builder's temporary GC roots protect the bundle
+   during transfer; fetched bundles are removed, and leftovers expire on a
+   subsequent build after one day. No deployment credentials reach the builder.
+4. A separate GitHub-hosted deploy job imports the finished store closure,
+   joins as `tag:ci`, and uses SSH to activate it. Tailnet DNS is disabled on
+   both runners; deploy SSH resolves the registry FQDN from the Tailscale peer
+   map, so `tag:ci` only needs its existing SSH grant. Nix has `max-jobs = 0` and
+   no builders on the runner; the exported deploy node has `remoteBuild = false`.
+   Neither the runner nor the homeserver compiles deployment outputs.
+5. Compare `/run/current-system` with the built system first. An unchanged
+   closure exits without activation, including unrelated `home/**` or `lib/**`
+   changes. Deploys are serialized with `cancel-in-progress: false`, so a new
+   push never cancels an activating job.
+6. For a changed closure, deploy-rs retains `magicRollback`, `autoRollback` and
+   its confirmation timeout from `flake/deploy.nix`. Then verify the exact
+   activated path, registry drift using inventory read from the activated host,
+   failed units, AdGuard DNS over UDP/TCP, Prometheus readiness, Loki readiness
+   and Grafana database health. Startup probes retry; exhaustion fails the run
+   visibly. Functional health failures after activation confirmation do not
+   automatically roll back; inspect the logs and use the normal rollback path.
 
-Use a fine-grained PAT limited to `FilipNowakowicz/nixos-config` with repository
-`Administration` set to read/write, which GitHub requires for repository
-self-hosted runner registration tokens. Do not store this token in GitHub Actions
-secrets or plaintext workflow environment. The committed encrypted value is only
-a placeholder; the runner will not register until it is replaced.
+The deploy job's secrets live in the `homeserver-gcp-deploy` environment:
+`TS_OAUTH_DEPLOY_CLIENT_ID`, `TS_OAUTH_DEPLOY_SECRET` and
+`HOMESERVER_DEPLOY_SSH_KEY`. The OAuth client has only the auth-keys write scope
+for `tag:ci`; the SSH key's public half is authorized for the deploy user in
+`hosts/homeserver-gcp/default.nix`, and must reach the host in a normal deploy
+before the first workflow run. Never print key material.
+The builder job uses only the existing builder secrets listed above.
 
-Initial rollout:
+After review, an owner must enable the workflow to dispatch it manually on
+`main`, confirm `homeserver-gcp`, and inspect the builder/export/import,
+activation, rollback confirmation and service checks. Exercise the unchanged
+closure path with a second dispatch. Only leave automatic deployment enabled
+after those live checks succeed; disable it again if they fail. Static tests
+cannot establish credential validity, tailnet connectivity, artifact size/time,
+or actual rollback and service behavior.
 
-```bash
-bash scripts/validate.sh host homeserver-gcp
-deploy '.#homeserver-gcp'
-ssh user@homeserver-gcp 'systemctl status github-runner-homeserver-deploy.service --no-pager'
-```
+The self-hosted `github-runner-homeserver-deploy.service` remains a recovery
+path only. No routine workflow job targets it. Its registration credential is
+`github_runner_homeserver_deploy_token` in sops, a fine-grained PAT restricted
+to this repository with Administration read/write. Rotate it with `sops`, apply
+through the normal host maintenance process, and remove stale registrations
+from GitHub settings. Recovery registration guidance lives in the
+[host runbook](../hosts/homeserver-gcp/CLAUDE.md).
 
-After the runner appears online in GitHub, trigger **Deploy homeserver-gcp** from
-the Actions UI on the `main` branch, enter `homeserver-gcp` as the confirmation
-input, and leave `validation_scope` at `full` for normal deploys. Use
-`validation_scope=fast` only for small workflow or verification retries after a
-full green run on the same commit lineage; it keeps flake evaluation but skips
-runner disk cleanup and the broad light/closure/smoke gates.
-
-The full job runs:
-
-```bash
-bash scripts/validate.sh flake-eval
-bash scripts/validate.sh light
-bash scripts/validate.sh host homeserver-gcp
-bash scripts/validate.sh smoke-homeserver-gcp
-nix shell nixpkgs#deploy-rs -c deploy --skip-checks '.#homeserver-gcp'
-bash scripts/check-host-drift.sh homeserver-gcp
-ssh user@homeserver-gcp 'systemctl --failed --no-pager'
-```
-
-`check-host-drift.sh` uses the lightweight `drift-inventory-data` package by
-default, so deploy verification does not build closure-size metadata on the
-small homeserver. The deploy workflow points it at the activated
-`/etc/host-drift-inventory.json` file, avoiding Nix evaluation on the host
-entirely during post-deploy verification.
-
-`check-host-drift.sh` retries its live-state probe (5 attempts, 3s apart)
-instead of failing on the first sample: a deploy-rs activation confirmation
-only proves systemd accepted the new units, not that every dependent service
-has finished its own startup work, so a port/unit probe run immediately after
-can catch a service mid-startup (see PR #367, where AdGuardHome bound `:53`
-about 150ms after systemd reported the unit started). Apply the same
-retry-with-backoff pattern to any future one-shot post-deploy health check
-that inspects live service state (listening port, socket, HTTP response).
-
-Rollback is the normal deploy-rs rollback path during activation. If a bad
-generation is confirmed after activation, use the bootloader or
-`/run/current-system/bin/switch-to-configuration` rollback path over SSH, then
-rerun the workflow from the corrected `main`.
-
-Rotate the runner credential by replacing
-`github_runner_homeserver_deploy_token` with `sops`, redeploying
-`homeserver-gcp`, and removing the old offline runner from the repository
-settings if GitHub keeps a stale registration.
+Merging to `main` and deployment credential access are root-equivalent on the
+homeserver. The deployment environment can add required reviewers if desired.
+This workflow never rolls out the `main` workstation or runs Terraform.
 
 ## Tailscale ACL Drift
 

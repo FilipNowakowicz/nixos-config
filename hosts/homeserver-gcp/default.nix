@@ -83,6 +83,8 @@ in
   };
 
   environment.systemPackages = [
+    pkgs.curl
+    pkgs.dig
     pkgs.gawk
     pkgs.jq
   ];
@@ -271,5 +273,10 @@ in
   users.users.user = {
     home = "/home/user";
     hashedPasswordFile = config.sops.secrets.user_password.path;
+    # Private half is only the HOMESERVER_DEPLOY_SSH_KEY GitHub secret, used by
+    # the deploy workflow's tag:ci job. Root-equivalent through deploy-rs.
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMwEwzG2ZPb8BzPhYq8QYFCQq2tqsviTbO3qJNzHcwRl homeserver-gcp-ci-deploy"
+    ];
   };
 }

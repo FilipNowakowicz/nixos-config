@@ -7,8 +7,8 @@ _:
 # socket survives (incident 2026-06-07, #112).
 #
 # The primary fix lives in .github/workflows/deploy-homeserver.yml: the heavy
-# validation/build gates run on GitHub-hosted runners, so only the lightweight
-# incremental deploy build ever touches this host. The limits below are the
+# validation/build gates run on gcp-builder; the GitHub-hosted deploy runner
+# copies the finished closure and performs activation without building here. The limits below are the
 # backstop that guarantees even an unexpectedly large on-host build can never
 # again starve the live services into death.
 {

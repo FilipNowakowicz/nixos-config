@@ -52,39 +52,45 @@ session, fall back to a manual closure deploy: `nix build` the system closure,
 
 ## Automated Deploy Runner
 
-This host declares `github-runner-homeserver-deploy.service` for the GitHub
-Actions workflow `Deploy homeserver-gcp`, scoped to this host only via the runner
-labels `nixos`, `homeserver-gcp`, and `homeserver-deploy`.
+The `Deploy homeserver-gcp` workflow is **disabled in GitHub** until reviewed
+and manually verified. Its routine jobs run on GitHub-hosted runners, never on
+this host's `github-runner-homeserver-deploy.service`. Keep that self-hosted
+runner as a recovery path only; its existing registration and registration-GC
+procedures below still apply.
 
-**The host auto-deploys.** Every push to `main` that touches the homeserver
-closure (path-filtered: `hosts/homeserver-gcp`, `modules`, `lib`, `home`, the
-flake, and the deploy workflow/action) triggers a full validate-then-deploy run.
-`workflow_dispatch` remains as a manual escape hatch (with a `confirm_target`
-input and an optional `fast` validation scope for retries). Push runs always use
-the full validation scope. This is safe because deploy-rs runs with
-`magicRollback`/`autoRollback` and a 30s confirm timeout (`flake/deploy.nix`): a
-closure that cannot re-confirm tailnet reachability after activation auto-reverts.
-A _reachable-but-functionally-broken_ change is not caught by magic rollback —
-only the post-activation drift and failed-units checks catch some of that.
+The builder job joins as `tag:ci-builder` using the existing builder secrets
+and runs evaluation, shared CI light/smoke validation and all compilation on
+`gcp-builder`. It exports the finished activation closure and deploy-rs client
+as a short-lived Actions artifact. The deploy job joins as `tag:ci`, imports
+that artifact, and deploys with `remoteBuild = false`, `max-jobs = 0` and no
+runner builders. There is no compilation on this homeserver or either runner.
 
-The runner registration credential is the sops secret
-`github_runner_homeserver_deploy_token`. Populate it with a fine-grained PAT
-limited to this repo with repository `Administration` read/write before
-deploying the runner; the workflow runs validation, deploy-rs, drift, and
-failed-unit checks. It does not automate `main` workstation rollout.
+Every run requires a current `main` commit with a merged PR whose PR workflow
+passed `merge-gate`; absent proof stops deployment. The running system path is
+compared to the built closure before activation, so unrelated changes are a
+no-op. Deploys are serialized without cancelling an activation. Both push and
+manual dispatch use this path; dispatch requires `confirm_target=homeserver-gcp`.
+There is no fast validation bypass.
 
-> **Triggering this workflow is root-equivalent on `homeserver-gcp`.** The
-> runner executes as `user`, which holds broad passwordless sudo here (see the
-> Security Preferences in the repo `CLAUDE.md`), and the deploy step runs
-> `switch-to-configuration` as root. With auto-deploy on push, **anyone who can
-> merge to `main` can execute arbitrary root code on this host** — no separate
-> dispatch step is required. The `homeserver-gcp-deploy` environment currently
-> has no required-reviewer rule; adding reviewers there would re-introduce a
-> manual approval gate before each deploy. Keep deploys gated to `main` (enforced
-> via the `if:` guard) and treat write access to `main` as host-root access. The registration token also being a repo-Administration
-> PAT means a leak of the runner token is independently host-compromising;
-> rotate it if exposure is suspected. Rotation procedure (worked example):
-> [`docs/security.md` → Secret Rotation Ritual](../../docs/security.md#secret-rotation-ritual).
+Deployment secrets `TS_OAUTH_DEPLOY_CLIENT_ID`, `TS_OAUTH_DEPLOY_SECRET` and
+`HOMESERVER_DEPLOY_SSH_KEY` live in the `homeserver-gcp-deploy` environment;
+never log their values. Review and a successful manual dispatch
+(including a repeat proving the no-op path) are required before leaving the
+workflow enabled. See [operations](../../docs/operations.md#automated-homeserver-deploy)
+for the full prerequisites and live validation checklist.
+
+`magicRollback` and `autoRollback` stay enabled with the existing confirmation
+timeout. After activation, the workflow checks the exact system path, drift,
+failed units, AdGuard UDP/TCP DNS, Prometheus, Loki and Grafana health. Health
+failures are visible failures; a reachable but unhealthy system may require
+manual rollback after deploy-rs has confirmed activation.
+
+The recovery runner registration credential remains the sops secret
+`github_runner_homeserver_deploy_token`, a fine-grained PAT limited to this
+repository with Administration read/write. This host grants its deploy user
+broad passwordless sudo: merge access to `main`, deployment credentials and
+recovery runner access are root-equivalent. Required reviewers on the
+`homeserver-gcp-deploy` environment can add a manual gate.
 
 ## Gotchas
 
