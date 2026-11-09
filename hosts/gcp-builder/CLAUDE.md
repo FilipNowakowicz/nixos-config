@@ -50,6 +50,20 @@ the box off after 20 min with no established port-22 connection (no session, no
 in-flight distributed build). The stamp lives in `/run`, so a fresh boot gets a
 full grace window before the first check.
 
+## Zone moves
+
+If `start_builder` finds the VM's zone out of capacity, it test-creates a VM in
+another `europe-west2` zone, snapshots the disk as `gcp-builder-move`, deletes the
+old VM and recreates it there. The regional SSD quota cannot hold two copies of
+the disk, which is why the order is fixed. The address, cache and DisplayLink file
+all travel with the disk, and the VM stays in the new zone. If a move dies
+partway, the next start resumes from the snapshot once it is 30 minutes old.
+
+CI can do this through the `ciBuilderMove` role, conditioned on `gcp-builder`
+resources (`infra/builder.tf`). Terraform no longer manages the VM itself. To
+reprovision from nothing, restore the `google_compute_instance.gcp_builder`
+resource from git history and drop its `removed` block.
+
 ## Provisioning (operator-only, one time)
 
 The builder is sops-free. SSH is tailnet-only, so it **must auto-join the tailnet
@@ -75,7 +89,8 @@ Terraform state.
    printf 'tskey-auth-XXXX' > /tmp/builder-extra/var/lib/tailscale-authkey
    ```
 
-3. **Create the VM** — `cd infra && tofu plan && tofu apply`. Review the plan
+3. **Create the VM** — restore the Terraform resource (see Zone moves), then
+   `cd infra && tofu plan && tofu apply`. Review the plan
    before applying (the disk-type/`desired_status` pins keep the live homeserver
    from being replaced).
 
@@ -95,7 +110,7 @@ Terraform state.
    and fails):
 
    ```bash
-   IP=$(cd infra && tofu output -raw builder_external_ip)
+   IP=$(gcloud compute instances list --filter=name=gcp-builder --format="value(networkInterfaces[0].accessConfigs[0].natIP)")
    nix run github:nix-community/nixos-anywhere -- --flake .#gcp-builder \
      --target-host "bootstrap@$IP" \
      --extra-files /tmp/builder-extra \
@@ -109,8 +124,8 @@ Terraform state.
    the staged key, remove the temporary hole:
 
    ```bash
-   BUILDER=$(cd infra && tofu output -raw builder_name)
-   ZONE=$(cd infra && tofu output -raw instance_zone)
+   BUILDER=gcp-builder
+   ZONE=$(gcloud compute instances list --filter=name=gcp-builder --format="value(zone.basename())")
    BOOTSTRAP_METADATA_KEYS=(
      "bootstrap-ssh-public-key"
      "startup-script"

@@ -42,25 +42,6 @@ variable "disk_type" {
   default     = "pd-balanced"
 }
 
-variable "builder_machine_type" {
-  type        = string
-  description = <<-EOT
-    Machine type for the on-demand Nix remote builder. Must be a family that
-    supports nested virtualization (n2/n2d/c3/...) so the box can run the
-    KVM-backed nixos test suite; e2 does NOT support nested virt. Default
-    n2-standard-8 = 8 vCPU / 32 GB. Compute is billed while running; persistent
-    disk charges continue while stopped. With the 2-vCPU agent and 2-vCPU
-    homeserver, this fits the project's 12-vCPU quota.
-  EOT
-  default     = "n2-standard-8"
-}
-
-variable "builder_disk_size_gb" {
-  type        = number
-  description = "Boot disk size in GB for the builder. Nix builds and the test suite are disk-hungry, so this is larger than the homeserver default."
-  default     = 100
-}
-
 variable "agent_machine_type" {
   type        = string
   description = <<-EOT

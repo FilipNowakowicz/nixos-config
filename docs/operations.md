@@ -444,7 +444,7 @@ adds a start-and-wait at the front of a heavy build; it never blocks an ordinary
 USE_BUILDER=0 bash scripts/validate.sh hosts
 
 # Override the builder location / parallelism:
-BUILDER_ZONE=europe-west2-a BUILDER_MAXJOBS=8 bash scripts/validate.sh heavy
+BUILDER_MAXJOBS=8 bash scripts/validate.sh heavy
 ```
 
 Prerequisite: `gcloud` on `main` must be authenticated with the builder's
