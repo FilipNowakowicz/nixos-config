@@ -14,9 +14,8 @@ cd "$repo_root"
 #
 # The only sanctioned reference to the real `main` closure is build_host()'s
 # `main | main-full` case in scripts/validate.sh, used by
-# `validate.sh host main[-full]` for local deploys and the post-merge R2
-# cache-priming step in .github/workflows/nix.yml (both run where the blob is
-# already available/cached).
+# `validate.sh host main[-full]` for local deploys where the blob is
+# already available/cached.
 FORBIDDEN_PATTERN='nixosConfigurations\.main\.config\.system\.build\.toplevel'
 
 usage() {
