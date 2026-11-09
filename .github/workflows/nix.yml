@@ -233,16 +233,6 @@ jobs:
           rm -f "$PATHS_FILE"
           PRINT_PATHS=1 bash scripts/validate.sh light | tee "$PATHS_FILE" >/dev/null
 
-      - name: Push to cache
-        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-        continue-on-error: true
-        env:
-          PATHS_FILE: ${{ runner.temp }}/checks-light-paths.txt
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          CACHE_SIGNING_KEY: ${{ secrets.CACHE_SIGNING_KEY }}
-        run: bash scripts/push-to-r2.sh
-
       - name: Save Nix store cache
         if: success() && steps.setup-nix.outputs.store-cache-enabled == 'true'
         uses: nix-community/cache-nix-action/save@7df957e333c1e5da7721f60227dbba6d06080569 # v7
@@ -324,16 +314,6 @@ jobs:
           rm -f "$PATHS_FILE"
           PRINT_PATHS=1 bash scripts/validate.sh package all | tee "$PATHS_FILE" >/dev/null
 
-      - name: Push package outputs to cache
-        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-        continue-on-error: true
-        env:
-          PATHS_FILE: ${{ runner.temp }}/package-paths.txt
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          CACHE_SIGNING_KEY: ${{ secrets.CACHE_SIGNING_KEY }}
-        run: bash scripts/push-to-r2.sh
-
   hosts:
     needs: [push-policy, changes, builder]
     if: >-
@@ -369,37 +349,6 @@ jobs:
         run: |
           rm -f "$PATHS_FILE"
           PRINT_PATHS=1 bash scripts/validate.sh host "$HOST" | tee "$PATHS_FILE" >/dev/null
-
-      - name: Push ${{ matrix.name }} to cache
-        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-        continue-on-error: true
-        env:
-          HOST: ${{ matrix.name }}
-          PATHS_FILE: ${{ runner.temp }}/${{ matrix.name }}-paths.txt
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          CACHE_SIGNING_KEY: ${{ secrets.CACHE_SIGNING_KEY }}
-        run: bash scripts/push-to-r2.sh
-
-      # Prime R2 with the full prod `main` closure (incremental over main-ci)
-      # so future PR closure-diff jobs can fetch the base SHA from cache
-      # instead of rebuilding it from scratch.
-      - name: Push full main closure to R2 (warms closure-diff base)
-        if: |
-          success()
-          && matrix.name == 'main-ci'
-          && github.event_name == 'push'
-          && github.ref == 'refs/heads/main'
-        continue-on-error: true
-        env:
-          PATHS_FILE: ${{ runner.temp }}/main-paths.txt
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          CACHE_SIGNING_KEY: ${{ secrets.CACHE_SIGNING_KEY }}
-        run: |
-          rm -f "$PATHS_FILE"
-          PRINT_PATHS=1 bash scripts/validate.sh host main | tee "$PATHS_FILE" >/dev/null
-          bash scripts/push-to-r2.sh
 
       - name: Save Nix store cache
         if: success() && steps.setup-nix.outputs.store-cache-enabled == 'true'
@@ -459,18 +408,6 @@ jobs:
         run: |
           rm -f "$PATHS_FILE"
           PRINT_PATHS=1 bash scripts/validate.sh "$CMD" "$TARGET" | tee "$PATHS_FILE" >/dev/null
-
-      - name: Push ${{ matrix.name }} to cache
-        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-        continue-on-error: true
-        env:
-          CMD: ${{ matrix.command }}
-          TARGET: ${{ matrix.target }}
-          PATHS_FILE: ${{ runner.temp }}/${{ matrix.name }}-paths.txt
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          CACHE_SIGNING_KEY: ${{ secrets.CACHE_SIGNING_KEY }}
-        run: bash scripts/push-to-r2.sh
 
       - name: Save Nix store cache
         if: success() && steps.setup-nix.outputs.store-cache-enabled == 'true'
