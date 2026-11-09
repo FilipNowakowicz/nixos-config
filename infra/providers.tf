@@ -8,12 +8,12 @@ terraform {
     }
   }
 
-  # Local state by default. Migrate to a GCS backend once the bucket exists:
-  #
-  # backend "gcs" {
-  #   bucket = "<your-project>-homeserver-gcp-tfstate"
-  #   prefix = "terraform/state"
-  # }
+  # The bucket is created outside this configuration so `tofu destroy` cannot
+  # reach the state it is using. See "Terraform State" in docs/operations.md.
+  backend "gcs" {
+    bucket = "nixos-config-tfstate-8c41e7"
+    prefix = "terraform/state"
+  }
 }
 
 provider "google" {
