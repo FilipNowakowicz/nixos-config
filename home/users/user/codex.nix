@@ -1,5 +1,5 @@
-# Codex CLI launcher shared by the desktop (home.nix) and gcp-agent (agent.nix)
-# roles. Runs the newest upstream release through `npm exec` rather than
+# Codex CLI launcher for the desktop role (home.nix). Runs the newest upstream
+# release through `npm exec` rather than
 # nixpkgs, so it tracks upstream without a flake bump.
 #
 # A bare `@openai/codex@latest` is not enough: the npm package is a JS shim whose

@@ -2,11 +2,6 @@
   "acls": [
     {
       "action": "accept",
-      "dst": ["tag:builder:22", "tag:server:53"],
-      "src": ["tag:agent"]
-    },
-    {
-      "action": "accept",
       "dst": ["tag:server:53"],
       "src": ["tag:builder"]
     },
@@ -17,8 +12,12 @@
     },
     {
       "action": "accept",
+      "dst": ["tag:builder:22"],
+      "src": ["tag:ci-builder"]
+    },
+    {
+      "action": "accept",
       "dst": [
-        "tag:agent:22",
         "tag:builder:22",
         "tag:server:22",
         "tag:server:53",
@@ -35,9 +34,9 @@
     }
   ],
   "tagOwners": {
-    "tag:agent": ["autogroup:admin"],
     "tag:builder": ["autogroup:admin"],
     "tag:ci": ["autogroup:admin"],
+    "tag:ci-builder": ["autogroup:admin"],
     "tag:server": ["autogroup:admin"],
     "tag:workstation": ["autogroup:admin"]
   }

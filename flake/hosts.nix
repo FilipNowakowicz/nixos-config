@@ -17,7 +17,6 @@ let
   homeManagerRoleModules = {
     desktop = ../home/users/user/home.nix;
     server = ../home/users/user/server.nix;
-    agent = ../home/users/user/agent.nix;
   };
 
   homeManagerProfileModules = {

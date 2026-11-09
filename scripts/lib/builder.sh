@@ -23,7 +23,7 @@ builder_enabled() {
   [[ -e $builder_key ]] || return 1
 }
 
-# gcp-agent does not carry the Google Cloud SDK as a base package.
+# Hosts do not carry the Google Cloud SDK as a base package.
 resolve_gcloud_cmd() {
   if command -v gcloud >/dev/null 2>&1; then
     gcloud_cmd=(gcloud)
@@ -44,8 +44,8 @@ resolve_builder_fqdn() {
 }
 
 builder_ssh_opts() {
-  # gcp-agent has no personal key and uses its build key. On main that file is
-  # unreadable, and ssh skips it and uses the caller's own key.
+  # On main the build key is root-only, so ssh skips the unreadable file and
+  # uses the caller's own key.
   printf '%s\n' -o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=30 \
     -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=no -i "$builder_key"
 }
