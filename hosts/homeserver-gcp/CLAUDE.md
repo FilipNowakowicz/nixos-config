@@ -73,8 +73,8 @@ manual dispatch use this path; dispatch requires `confirm_target=homeserver-gcp`
 There is no fast validation bypass.
 
 Deployment secrets `TS_OAUTH_DEPLOY_CLIENT_ID`, `TS_OAUTH_DEPLOY_SECRET` and
-`HOMESERVER_DEPLOY_SSH_KEY` do not exist yet. Provision them separately before
-a live run; never log their values. Review and a successful manual dispatch
+`HOMESERVER_DEPLOY_SSH_KEY` live in the `homeserver-gcp-deploy` environment;
+never log their values. Review and a successful manual dispatch
 (including a repeat proving the no-op path) are required before leaving the
 workflow enabled. See [operations](../../docs/operations.md#automated-homeserver-deploy)
 for the full prerequisites and live validation checklist.

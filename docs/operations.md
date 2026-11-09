@@ -241,11 +241,12 @@ Once enabled, relevant pushes to `main` and `workflow_dispatch` (confirmation
    visibly. Functional health failures after activation confirmation do not
    automatically roll back; inspect the logs and use the normal rollback path.
 
-Before the first manual run, provision these **currently absent** deployment
-secrets in the `homeserver-gcp-deploy` environment (or repository scope):
+The deploy job's secrets live in the `homeserver-gcp-deploy` environment:
 `TS_OAUTH_DEPLOY_CLIENT_ID`, `TS_OAUTH_DEPLOY_SECRET` and
-`HOMESERVER_DEPLOY_SSH_KEY`. The OAuth client must permit `tag:ci`; the SSH key
-must authenticate the deploy user on the homeserver. Never print key material.
+`HOMESERVER_DEPLOY_SSH_KEY`. The OAuth client has only the auth-keys write scope
+for `tag:ci`; the SSH key's public half is authorized for the deploy user in
+`hosts/homeserver-gcp/default.nix`, and must reach the host in a normal deploy
+before the first workflow run. Never print key material.
 The builder job uses only the existing builder secrets listed above.
 
 After review, an owner must enable the workflow to dispatch it manually on
