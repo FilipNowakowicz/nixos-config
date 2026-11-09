@@ -6,6 +6,7 @@ let
       nix
       jq
       coreutils
+      curl
     ];
     text = builtins.readFile ../../scripts/builder-prebuild.sh;
   };

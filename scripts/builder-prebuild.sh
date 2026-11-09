@@ -21,21 +21,41 @@ write_status() {
   mv -f "$temporary" "$state_dir/status.json"
 }
 
-# systemd also publishes failure after a timeout or forced termination.
+# Tell the private ntfy topic how the run ended. Best effort: the status file is
+# the record, and a builder reprovisioned without the URL file simply stays quiet.
+notify_result() {
+  local url_file=$state_dir/notify-url result_now short_rev title body priority=default
+  [[ -r $url_file ]] || return 0
+  result_now=$(jq -r '.result // "failed"' "$state_dir/status.json")
+  short_rev=$(jq -r '.revision // "" | .[0:7]' "$state_dir/status.json")
+  if [[ $result_now == success ]]; then
+    title="System update ready"
+    body="Prebuilt main at $short_rev. Apply it with: rebuild --prebuilt"
+  else
+    title="System update failed"
+    body=$(jq -r '.error // "see journalctl -u builder-prebuild"' "$state_dir/status.json")
+    priority=high
+  fi
+  curl --fail --silent --show-error --max-time 10 --retry 2 --retry-delay 2 \
+    -H "Title: $title" -H "Priority: $priority" --data-binary "$body" \
+    "$(<"$url_file")" >/dev/null || echo "could not send prebuild notification" >&2
+}
+
+# ExecStopPost: runs after every run, whatever its result.
 if [[ ${1:-} == --service-failed ]]; then
-  if [[ ${SERVICE_RESULT:-success} != success ]]; then
-    # EXIT already published an actionable ordinary failure. Do not replace
-    # missing-source instructions with a generic systemd exit-code message.
-    if [[ ${SERVICE_RESULT:-} == exit-code ]] &&
-      jq -e '.result == "missing-displaylink" or .result == "failed"' "$state_dir/status.json" >/dev/null 2>&1; then
-      exit 0
-    fi
+  # systemd also publishes failure after a timeout or forced termination. EXIT
+  # already published an actionable ordinary failure, so do not replace
+  # missing-source instructions with a generic systemd exit-code message.
+  if [[ ${SERVICE_RESULT:-success} != success ]] &&
+    ! { [[ ${SERVICE_RESULT:-} == exit-code ]] &&
+      jq -e '.result == "missing-displaylink" or .result == "failed"' "$state_dir/status.json" >/dev/null 2>&1; }; then
     revision=$(jq -r '.revision // ""' "$state_dir/status.json" 2>/dev/null || true)
     result=failed
     [[ ${SERVICE_RESULT:-} != timeout ]] || result=timeout
     error="systemd service result: ${SERVICE_RESULT:-unknown}; see journalctl -u builder-prebuild"
     write_status
   fi
+  notify_result
   exit 0
 fi
 

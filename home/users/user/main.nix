@@ -2,6 +2,7 @@
 {
   imports = [
     ../../profiles/calendar.nix
+    ../../profiles/ntfy-notifications.nix
     ../../profiles/python-development.nix
   ];
 
