@@ -1,51 +1,16 @@
 #!/usr/bin/env bash
+# Keep the public upstream cache intact and reject retired cache trust/publish wiring.
 set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
 
-repo_root="$(
-  git rev-parse --show-toplevel 2>/dev/null || pwd
-)"
-cd "$repo_root"
+upstream_key=$(sed -n 's/.*cacheNixosOrgPublicKey = "\([^"]*\)".*/\1/p' lib/binary-cache.nix)
+[[ -n $upstream_key ]]
+grep -qFx '          substituters = https://cache.nixos.org' .github/actions/setup-nix/action.yml
+grep -qFx "          trusted-public-keys = $upstream_key" .github/actions/setup-nix/action.yml
 
-extract_first_match() {
-  local pattern=$1
-  local file=$2
-
-  if command -v rg >/dev/null 2>&1; then
-    rg -o "$pattern" "$file" | head -n 1
-  else
-    grep -Eo "$pattern" "$file" | head -n 1
-  fi
-}
-
-setup_cache_url="$(extract_first_match 'https://[^[:space:]]+r2\.dev' .github/actions/setup-nix/action.yml)"
-shared_cache_url="$(extract_first_match 'https://[^"]+r2\.dev' lib/binary-cache.nix)"
-
-setup_cache_key="$(
-  sed -n 's/.*trusted-public-keys = .* \(nix-cache-1:[^[:space:]]*\).*/\1/p' \
-    .github/actions/setup-nix/action.yml |
-    head -n 1
-)"
-shared_cache_key="$(
-  sed -n 's/.*"\(nix-cache-1:[^"]*\)".*/\1/p' lib/binary-cache.nix | head -n 1
-)"
-
-if [[ -z $setup_cache_url || -z $shared_cache_url || -z $setup_cache_key || -z $shared_cache_key ]]; then
-  echo "Unable to extract cache configuration from setup-nix or lib/binary-cache.nix." >&2
+if git grep -n -E 'r2\.dev|r2\.cloudflarestorage\.com|binaryCache\.r2|R2_ACCESS_KEY_ID|R2_SECRET_ACCESS_KEY|CACHE_SIGNING_KEY|push-to-r2|nix-cache-1:' -- \
+  '*.nix' .github scripts ':!scripts/check-cache-config.sh'; then
+  echo 'Retired binary cache configuration or publishing found.' >&2
   exit 1
 fi
-
-if [[ $setup_cache_url != "$shared_cache_url" ]]; then
-  echo "Cache URL mismatch:" >&2
-  echo "  setup-nix:        $setup_cache_url" >&2
-  echo "  lib/binary-cache: $shared_cache_url" >&2
-  exit 1
-fi
-
-if [[ $setup_cache_key != "$shared_cache_key" ]]; then
-  echo "Cache public key mismatch:" >&2
-  echo "  setup-nix:        $setup_cache_key" >&2
-  echo "  lib/binary-cache: $shared_cache_key" >&2
-  exit 1
-fi
-
-echo "cache config matches"
+echo 'cache config: upstream preserved; retired cache absent'

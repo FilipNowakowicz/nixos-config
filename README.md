@@ -345,8 +345,8 @@ role-specific changes only build the affected host closures and tests, and
 docs-only changes run lint and link checks. A single `merge-gate` status
 consolidates flake evaluation, light checks, package builds, host builds, and
 selected smoke/profile tests for branch protection; weekly `flake.lock` updates
-auto-merge when it passes. CI substitutes from a signed Cloudflare R2 binary
-cache but only publishes on protected `main`.
+auto-merge when it passes. CI uses cache.nixos.org and optional GitHub Actions
+store caching.
 
 ---
 

@@ -89,8 +89,7 @@ build_host() {
     # CI-required commands (hosts, light, cve-reports, package, etc.) must
     # build `main-ci` instead — enforced by
     # scripts/check-ci-closure-targets.sh. `host main`/`host main-full` is
-    # used for local deploys and the post-merge R2 cache-priming step in
-    # .github/workflows/nix.yml.
+    # used for local deploys.
     build_attrs ".#nixosConfigurations.main.config.system.build.toplevel"
     ;;
   homeserver-gcp)
