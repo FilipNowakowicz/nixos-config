@@ -83,6 +83,8 @@ in
   };
 
   environment.systemPackages = [
+    pkgs.curl
+    pkgs.dig
     pkgs.gawk
     pkgs.jq
   ];

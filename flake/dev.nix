@@ -235,6 +235,9 @@ in
       lib-prebuilt = import ../tests/lib/prebuilt.nix {
         inherit nixpkgs system;
       };
+      lib-deploy-homeserver = import ../tests/lib/deploy-homeserver.nix {
+        inherit nixpkgs system;
+      };
       lib-on-builder = import ../tests/lib/on-builder.nix {
         inherit nixpkgs system;
       };

@@ -1,17 +1,7 @@
 name: Deploy homeserver-gcp
 
+# Keep disabled in GitHub until review, secret provisioning and a successful manual run.
 on:
-  # Continuous deploy: every push to main that touches the homeserver closure
-  # auto-deploys. Safe because deploy-rs runs with magicRollback + autoRollback
-  # and a 30s confirm timeout (flake/deploy.nix) — a closure that cannot
-  # re-confirm tailnet reachability after activation auto-reverts, so an
-  # auto-deploy cannot strand the host. The homeserver-gcp-deploy environment
-  # carries no required-reviewer protection rule, so the push flows without a
-  # manual gate (adding reviewers there would convert this back to gated).
-  # Residual risk: a *reachable-but-functionally-broken* change does NOT trip
-  # magic rollback; only the post-activation drift + failed-units checks below
-  # catch some of that. Every merge also exercises root on the host, reinforcing
-  # the runner/token root-equivalence documented in the host runbook.
   push:
     branches: [main]
     paths:
@@ -22,8 +12,7 @@ on:
       - flake.nix
       - flake.lock
       - flake/**
-      - scripts/validate.sh
-      - scripts/check-host-drift.sh
+      - scripts/**
       - .github/workflows/deploy-homeserver.yml
       - .github/actions/setup-nix/**
   workflow_dispatch:
@@ -32,129 +21,139 @@ on:
         description: Type homeserver-gcp to deploy the homeserver
         required: true
         type: string
-      validation_scope:
-        description: Use fast only for small workflow/retry fixes after a full green run on the same commit lineage
-        required: true
-        default: full
-        type: choice
-        options:
-          - full
-          - fast
 
 permissions:
   contents: read
-
-# A push to main carries no validation_scope input, so default the gate to full;
-# only manual workflow_dispatch runs can opt into the fast retry path.
-env:
-  VALIDATION_SCOPE: ${{ inputs.validation_scope || 'full' }}
+  pull-requests: read
+  actions: read
 
 concurrency:
   group: deploy-homeserver-gcp
   cancel-in-progress: false
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  # Heavy validation/build gates run on GitHub-hosted runners (ephemeral, large)
-  # so they never touch the 4 GB homeserver-gcp host, which also runs the LGTM
-  # stack + AdGuard. Building its closure on the host itself
-  # OOM-thrashed the box catatonic and took the live services down (incident
-  # 2026-06-07, #112). Only deploy + live verification, which genuinely need
-  # tailnet reachability, run on the self-hosted runner.
-  validate:
-    if: |
+  builder:
+    if: >-
       github.repository == 'FilipNowakowicz/nixos-config'
       && github.ref == 'refs/heads/main'
       && (github.event_name == 'push' || inputs.confirm_target == 'homeserver-gcp')
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
+    env:
+      BUILDER_FQDN: 100.106.144.121
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          persist-credentials: false
+
+      - name: Require PR merge-gate
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: await require('./scripts/check-deploy-merge-gate.cjs')({github, context, core})
 
       - name: Reclaim runner disk space
-        if: ${{ env.VALIDATION_SCOPE == 'full' }}
         run: |
           sudo rm -rf /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
 
-      - uses: ./.github/actions/setup-nix
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
-          enable-eval-cache: "true"
-          enable-store-cache: "true"
-          cache-key-suffix: deploy-homeserver-gcp
-          store-cache-size-gb: "5"
-          extra-nix-config: |
-            system-features = nixos-test benchmark big-parallel kvm
+          credentials_json: ${{ secrets.BUILDER_CI_GCP_KEY }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+      - uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci-builder
+          args: --accept-dns=false
+          hostname: deploy-builder-${{ github.run_id }}-${{ github.run_attempt }}
+          log-mode: quiet
 
-      - name: Flake evaluation
-        run: bash scripts/validate.sh flake-eval
+      - name: Validate and build exclusively on builder
+        env:
+          BUILDER_CI_SSH_KEY: ${{ secrets.BUILDER_CI_SSH_KEY }}
+        run: |
+          export BUILDER_SSH_KEY="$RUNNER_TEMP/builder-ci-key"
+          umask 077
+          printf '%s\n' "$BUILDER_CI_SSH_KEY" > "$BUILDER_SSH_KEY"
+          # on-builder.sh fails on unavailability; there is no local fallback.
+          bash scripts/on-builder.sh nix shell --inputs-from . nixpkgs#git nixpkgs#jq nixpkgs#zstd \
+            -c bash scripts/deploy-homeserver-build.sh | tee "$RUNNER_TEMP/builder.log"
+          bundle=$(sed -n 's/^DEPLOY_BUNDLE=//p' "$RUNNER_TEMP/builder.log")
+          [[ $bundle =~ ^/home/user/deploy-bundles/bundle\.[a-zA-Z0-9]+$ ]]
+          mkdir -p "$RUNNER_TEMP/deploy-bundle"
+          scp -o BatchMode=yes -o StrictHostKeyChecking=accept-new -i "$BUILDER_SSH_KEY" \
+            "user@$BUILDER_FQDN:$bundle/bundle.json" \
+            "user@$BUILDER_FQDN:$bundle/closure.nar.zst" "$RUNNER_TEMP/deploy-bundle/"
+          ssh -o BatchMode=yes -i "$BUILDER_SSH_KEY" "user@$BUILDER_FQDN" "rm -rf '$bundle'"
 
-      - name: Lightweight checks
-        if: ${{ env.VALIDATION_SCOPE == 'full' }}
-        run: bash scripts/validate.sh light
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: homeserver-closure-${{ github.sha }}
+          path: ${{ runner.temp }}/deploy-bundle/
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: error
 
-      - name: Build homeserver-gcp closure
-        if: ${{ env.VALIDATION_SCOPE == 'full' }}
-        run: bash scripts/validate.sh host homeserver-gcp
+      - name: Remove temporary builder key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/builder-ci-key"
 
-      - name: Build homeserver smoke test when KVM is available
-        if: ${{ env.VALIDATION_SCOPE == 'full' }}
-        run: bash scripts/validate.sh smoke-homeserver-gcp
-
-  # Tailnet-only work: reach the host to activate the closure and verify it.
-  # deploy-rs builds the (incremental) closure on the host; the build-resource
-  # seatbelt in hosts/homeserver-gcp/build-resource-limits.nix keeps that from
-  # ever starving the live services again.
   deploy:
-    needs: validate
-    runs-on:
-      - self-hosted
-      - linux
-      - x64
-      - nixos
-      - homeserver-gcp
-      - homeserver-deploy
+    needs: builder
+    runs-on: ubuntu-latest
     environment: homeserver-gcp-deploy
     timeout-minutes: 60
-    env:
-      USE_BUILDER: "0"
     steps:
-      # node24-native: the self-hosted github-runner (>=2.334) ships only
-      # node24 in lib/externals, so a node20 action (checkout@v4) fails to exec.
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - name: Resolve self-deploy SSH locally
+        with:
+          persist-credentials: false
+      - name: Reclaim runner disk space
         run: |
-          set -euo pipefail
-          PATH="/run/current-system/sw/bin:/etc/profiles/per-user/user/bin:$PATH"
-          install -d -m 0700 "$HOME/.ssh"
-          {
-            printf '%s\n' 'Host homeserver-gcp homeserver-gcp.tail90fc7a.ts.net'
-            printf '%s\n' '  HostName 127.0.0.1'
-            printf '%s\n' '  StrictHostKeyChecking accept-new'
-          } >>"$HOME/.ssh/config"
-          chmod 0600 "$HOME/.ssh/config"
-
-      - name: Deploy homeserver-gcp
-        # The validate job already ran the flake checks on GitHub-hosted
-        # runners. Repeating them inside deploy-rs OOM-thrashes the 4 GB host.
-        run: nix shell nixpkgs#deploy-rs -c deploy --skip-checks '.#homeserver-gcp'
-
-      - name: Check registry-backed host drift
+          sudo rm -rf /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          docker system prune -af || true
+      - uses: ./.github/actions/setup-nix
+        with:
+          extra-nix-config: |
+            max-jobs = 0
+            builders =
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: homeserver-closure-${{ github.sha }}
+          path: ${{ runner.temp }}/deploy-bundle
+      - name: Import prebuilt closure and deployment client
+        run: zstd -d --stdout "$RUNNER_TEMP/deploy-bundle/closure.nar.zst" | nix-store --import >/dev/null
+      - uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_DEPLOY_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_DEPLOY_SECRET }}
+          tags: tag:ci
+          args: --accept-dns=false
+          hostname: deploy-homeserver-${{ github.run_id }}-${{ github.run_attempt }}
+          log-mode: quiet
+      - name: Require PR merge-gate and current main again before activation
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: await require('./scripts/check-deploy-merge-gate.cjs')({github, context, core})
+      - name: Configure deploy SSH
         env:
-          HOST_DRIFT_INVENTORY_JSON: /etc/host-drift-inventory.json
-        run: PATH="/run/current-system/sw/bin:/etc/profiles/per-user/user/bin:$PATH" bash scripts/check-host-drift.sh homeserver-gcp
-
-      - name: Check failed units
+          HOMESERVER_DEPLOY_SSH_KEY: ${{ secrets.HOMESERVER_DEPLOY_SSH_KEY }}
         run: |
-          failed_units="$(
-            ssh \
-              -o BatchMode=yes \
-              -o ConnectTimeout=10 \
-              -o StrictHostKeyChecking=accept-new \
-              user@homeserver-gcp \
-              'systemctl --failed --no-legend --plain --no-pager'
-          )"
-          if [[ -n "$failed_units" ]]; then
-            printf '%s\n' "$failed_units"
-            exit 1
-          fi
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$HOMESERVER_DEPLOY_SSH_KEY" > "$HOME/.ssh/homeserver-deploy"
+          host=$(jq -er '.deploy.nodes["homeserver-gcp"].hostname' "$RUNNER_TEMP/deploy-bundle/bundle.json")
+          # Resolve from the tailnet map; tag:ci has SSH but no DNS-server access.
+          address=$(tailscale ip -4 "$host")
+          [[ $address =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          printf 'Host homeserver-gcp*\n  HostName %s\n' "$address" >> "$HOME/.ssh/config"
+          printf '%s\n' '  IdentityFile ~/.ssh/homeserver-deploy' '  IdentitiesOnly yes' '  BatchMode yes' '  StrictHostKeyChecking accept-new' >> "$HOME/.ssh/config"
+      - name: Deploy changed closure and verify health
+        run: bash scripts/deploy-homeserver.sh "$RUNNER_TEMP/deploy-bundle"
+      - name: Remove temporary deploy key
+        if: always()
+        run: rm -f "$HOME/.ssh/homeserver-deploy"
