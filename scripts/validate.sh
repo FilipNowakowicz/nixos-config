@@ -160,24 +160,7 @@ case "$command" in
 docs)
   bash .agents/learning/promotions/quiet-shell-private-restart.sh
   bash scripts/check-doc-links.sh
-  bash scripts/agent-run-issue.sh --self-test
-  bash scripts/agent-session.sh --self-test
-  bash .agents/scripts/agent-record-outcome --self-test
-  bash .agents/scripts/agent-outcome-index --self-test
-  bash .agents/scripts/agent-outcome-stats --self-test
-  bash .agents/scripts/agent-outcome-dashboard --self-test
-  bash .agents/scripts/agent-weekly-digest --self-test
   bash .agents/scripts/agent-issue-readiness --self-test
-  bash .agents/scripts/agent-liveness-gate --self-test
-  bash .agents/scripts/agent-policy-eval --self-test
-  bash .agents/scripts/agent-review-evidence-check --self-test
-  bash .agents/scripts/agent-review-stage --self-test
-  bash .agents/scripts/agent-merge-gate --self-test
-  bash scripts/agent-review-pr.sh --self-test
-  bash .agents/scripts/agent-routing-check --self-test
-  bash .agents/scripts/agent-dispatch --self-test
-  bash .agents/scripts/agent-dispatchable-issues --self-test
-  bash .agents/scripts/agent-route --self-test
   bash .claude/hooks/guard-agent-dirty-checkout.sh --self-test
   bash scripts/check-ci-closure-targets.sh
   bash scripts/check-ci-closure-targets.sh --self-test

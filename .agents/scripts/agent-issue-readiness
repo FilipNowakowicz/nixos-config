@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deterministic readiness lint for issues fed to scripts/agent-run-issue.sh.
+# Deterministic readiness lint for implementation issues.
 #
 # Checks an issue body for the sections an implementation agent needs before
 # starting: a problem statement (or summary), acceptance criteria, non-goals,
