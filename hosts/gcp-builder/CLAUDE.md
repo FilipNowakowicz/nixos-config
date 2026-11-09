@@ -64,6 +64,7 @@ CI can do this through the `ciBuilderMove` role, conditioned on `gcp-builder`
 resources (`infra/builder.tf`). Terraform no longer manages the VM itself. To
 reprovision from nothing, restore the `google_compute_instance.gcp_builder`
 resource from git history and drop its `removed` block.
+
 ## Prebuild notification
 
 `builder-prebuild` posts "ready" or "failed" to the private ntfy topic when it

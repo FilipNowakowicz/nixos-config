@@ -161,9 +161,14 @@ in
           machine.wait_until_succeeds("su user -c '${inSession} hyprctl monitors' | grep -q Monitor", timeout=timedelta(seconds=60))
           errors = session("hyprctl configerrors").strip()
           assert errors in ("", "no errors"), f"config errors: {errors}"
+          # A stalled VM can deliver a key's release late, and the letter then repeats.
+          session("hyprctl eval \"hl.config({ input = { repeat_rate = 0 } })\"")
 
       def start_shell():
-          machine.succeed("su user -c '${inSession} setsid quiet-shell > /tmp/shell.log 2>&1 &'")
+          # Qt hides a window whose frame callback takes over 100 ms, then redraws it
+          # when the callback arrives. Software compositing on a slow VM takes longer
+          # than that every frame, so each redraw would cause the next one forever.
+          machine.succeed("su user -c '${inSession} env QT_WAYLAND_FRAME_CALLBACK_TIMEOUT=5000 setsid quiet-shell > /tmp/shell.log 2>&1 &'")
           machine.wait_until_succeeds("su user -c '${inSession} quiet-shell-ipc state' | grep -q panel", timeout=timedelta(seconds=90))
 
       with subtest("the shell starts and answers IPC"):
