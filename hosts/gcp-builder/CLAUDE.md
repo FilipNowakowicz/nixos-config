@@ -2,7 +2,8 @@
 
 On-demand GCP Nix remote builder. Normally **powered off**; `main` starts it
 transparently for heavy builds and it powers itself off when idle. Disposable:
-no persistent service state, no sops secrets, no backup.
+no persistent service state, no sops secrets, no backup. One hand-seeded file
+holds the prebuild notification URL (see below).
 
 Status: **active** (provisioned once, then start/stop on demand).
 
@@ -63,6 +64,19 @@ CI can do this through the `ciBuilderMove` role, conditioned on `gcp-builder`
 resources (`infra/builder.tf`). Terraform no longer manages the VM itself. To
 reprovision from nothing, restore the `google_compute_instance.gcp_builder`
 resource from git history and drop its `removed` block.
+## Prebuild notification
+
+`builder-prebuild` posts "ready" or "failed" to the private ntfy topic when it
+finishes, and the laptop shows it (`home/profiles/ntfy-notifications.nix`). The
+topic URL is the builder's one secret outside Nix: a `user`-owned `0600` file at
+`/var/lib/builder-prebuilt/notify-url`, seeded by hand. Anyone holding it can
+only post to that topic. Without the file the job stays quiet, so reseed it
+after reprovisioning:
+
+```bash
+sops -d --extract '["topic_url"]' home/users/user/secrets/ntfy.yaml |
+  ssh user@gcp-builder 'umask 077; cat > /var/lib/builder-prebuilt/notify-url'
+```
 
 ## Provisioning (operator-only, one time)
 

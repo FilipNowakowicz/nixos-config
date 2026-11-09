@@ -28,6 +28,11 @@ cat >"$fixture/bin/nix-store" <<'STUB'
 #!/usr/bin/env bash
 printf 'root %s\n' "$*" >>"$PREBUILD_LOG"
 STUB
+cat >"$fixture/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+printf 'curl %s\n' "$*" >>"$PREBUILD_LOG"
+[[ ${FAIL_NOTIFY:-0} != 1 ]]
+STUB
 # The Nix sandbox has no /usr/bin/env.
 for stub in "$fixture/bin/"*; do
   sed -i "1c#!$(command -v bash)" "$stub"
@@ -63,4 +68,27 @@ grep -q '^root --add-root .*displaylink-source --indirect --realise ' "$PREBUILD
 # Even an untrappable process kill must not leave a stale successful status.
 SERVICE_RESULT=timeout bash "$script_dir/builder-prebuild.sh" --service-failed
 jq -e --arg rev "$TEST_REV" '.result == "timeout" and .revision == $rev and .store_path == ""' "$STATE_DIRECTORY/status.json" >/dev/null
+
+# Without the URL file nothing is sent.
+if grep -q '^curl ' "$PREBUILD_LOG"; then
+  echo 'sent a notification without a URL file' >&2
+  exit 1
+fi
+
+printf 'https://ntfy.example/topic' >"$STATE_DIRECTORY/notify-url"
+bash "$script_dir/builder-prebuild.sh"
+SERVICE_RESULT=success bash "$script_dir/builder-prebuild.sh" --service-failed
+grep -q '^curl .*Title: System update ready.*Prebuilt main at aaaaaaa.*https://ntfy.example/topic' "$PREBUILD_LOG"
+
+: >"$PREBUILD_LOG"
+if FAIL_BUILD=1 bash "$script_dir/builder-prebuild.sh"; then
+  echo 'failed build incorrectly succeeded' >&2
+  exit 1
+fi
+SERVICE_RESULT=exit-code bash "$script_dir/builder-prebuild.sh" --service-failed
+grep -q '^curl .*Title: System update failed.*Priority: high.*full main build failed' "$PREBUILD_LOG"
+
+# A notification outage must not change the recorded result or fail the unit.
+FAIL_NOTIFY=1 SERVICE_RESULT=exit-code bash "$script_dir/builder-prebuild.sh" --service-failed
+jq -e '.result == "failed"' "$STATE_DIRECTORY/status.json" >/dev/null
 echo 'builder-prebuild tests passed'

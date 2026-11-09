@@ -116,9 +116,11 @@ boundary is kept tight accordingly:
   `hosts/gcp-agent/nix-remote-build.nix`): a compromised agent session cannot
   reuse `main`'s credential, and either key can be revoked without affecting the
   other. Both are low-stakes/rotatable (rotation steps in the builder runbook).
-- **Disposable, secret-free builder.** The builder holds no sops secrets, no
-  service state, and no backup. Losing it costs only provisioning time, which is
-  why a changed host key after reprovisioning is tolerated with `accept-new`.
+- **Disposable builder.** The builder holds no sops secrets, no service state,
+  and no backup. Its only secret beyond the tailnet key is the ntfy topic URL for
+  prebuild notifications, which can only post to that topic. Losing the builder
+  costs only provisioning time, which is why a changed host key after
+  reprovisioning is tolerated with `accept-new`.
 
 ## Scope and reuse boundary
 
