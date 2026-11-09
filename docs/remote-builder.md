@@ -1,8 +1,8 @@
 # On-Demand Remote Builder Pattern
 
 This repository runs a real on-demand Nix remote builder: `gcp-builder` is a
-cloud VM that is **normally powered off**, started transparently by `main` (and
-by `gcp-agent`, for unattended issue-loop sessions) for heavy builds, and powers
+cloud VM that is **normally powered off**, started transparently by `main` for heavy
+builds, and powers
 itself off again when idle. This page documents that pattern — what it is, how
 the offload works, and the trust boundary it relies on — so the lifecycle is
 legible without reading three files at once.
@@ -54,8 +54,8 @@ live in the system configuration, not a global build machine:
 `scripts/lib/builder.sh`:
 
 1. **Gate.** Offload runs when `USE_BUILDER != 0` and the build key exists at
-   `/run/secrets/gcp_builder_build_key` (present only on a deployed `main` or
-   `gcp-agent`, each with their own dedicated key — see
+   `/run/secrets/gcp_builder_build_key` (present only on a deployed `main`, which
+   has its own dedicated key — see
    [Trust boundary](#trust-boundary)). Without the key the command runs locally,
    so ordinary fresh clones are unaffected. PR CI supplies its existing dedicated key as described below.
 2. **Start.** `gcloud compute instances start gcp-builder` (idempotent), falling
@@ -109,13 +109,10 @@ boundary is kept tight accordingly:
   without a bespoke rule). There is no public TCP/22 — a network-wide
   `deny_public_ssh` rule blocks it, and provisioning opens only a scoped,
   source-pinned, temporary hole that is removed afterward.
-- **Dedicated, per-caller build keys.** The `main → gcp-builder` link uses its
+- **Dedicated build key.** The `main → gcp-builder` link uses its
   own ed25519 key (`hosts/main/secrets/gcp_builder_build_key.enc`), separate
-  from personal SSH keys. `gcp-agent → gcp-builder` uses a second, independent
-  key (`hosts/gcp-agent/secrets/gcp_builder_build_key.enc`,
-  `hosts/gcp-agent/nix-remote-build.nix`): a compromised agent session cannot
-  reuse `main`'s credential, and either key can be revoked without affecting the
-  other. Both are low-stakes/rotatable (rotation steps in the builder runbook).
+  from personal SSH keys. It is low-stakes and rotatable (rotation steps in the
+  builder runbook).
 - **Disposable builder.** The builder holds no sops secrets, no service state,
   and no backup. Its only secret beyond the tailnet key is the ntfy topic URL for
   prebuild notifications, which can only post to that topic. Losing the builder
@@ -139,10 +136,7 @@ actually appears. Extract helpers only then.
   knobs and validation offload behaviour.
 - [`hosts/gcp-builder/CLAUDE.md`](../hosts/gcp-builder/CLAUDE.md) — provisioning
   runbook, idle-shutdown details, build-key rotation, and gotchas.
-- [`hosts/gcp-agent/CLAUDE.md`](../hosts/gcp-agent/CLAUDE.md) — `gcp-agent`'s
-  offload wiring and the operator follow-ups needed to make it live.
-- `hosts/main/nix-remote-build.nix` / `hosts/gcp-agent/nix-remote-build.nix` —
-  the consumer-side system wiring on each caller.
+- `hosts/main/nix-remote-build.nix` — the consumer-side system wiring.
 - `scripts/lib/builder.sh`, `scripts/on-builder.sh`, `scripts/validate.sh` and
   `scripts/rebuild-remote.sh` — the offload implementation.
 

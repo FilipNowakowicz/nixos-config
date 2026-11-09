@@ -10,8 +10,7 @@ For deeper context see [`docs/architecture.md`](docs/architecture.md),
 [`docs/security.md`](docs/security.md). Host-local runbooks live
 under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
 [`hosts/homeserver-gcp/CLAUDE.md`](hosts/homeserver-gcp/CLAUDE.md),
-[`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md),
-[`hosts/gcp-agent/CLAUDE.md`](hosts/gcp-agent/CLAUDE.md).
+[`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md).
 
 ---
 
@@ -39,10 +38,6 @@ under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
   Nix remote builder, not a service host — `scripts/validate.sh` runs on it
   automatically, `rebuild --remote` builds `main` on it, and it self-powers-off
   when idle. Use `bash scripts/on-builder.sh <command>` for other heavy commands.
-- **`gcp-agent`:** on-demand Claude Code agent host (issue-loop sessions, not a
-  service host). Keeps **narrow sudo**, so there is **no deploy-rs
-  auto-activation** — apply config changes by reprovisioning or manual
-  activation. Provision once via [`hosts/gcp-agent/CLAUDE.md`](hosts/gcp-agent/CLAUDE.md).
 - **`user@wsl`:** `home-manager switch --flake .#user@wsl`.
 
 Module topology, persistence model, and the agent-maintenance sudo allowlist

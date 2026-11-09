@@ -37,19 +37,6 @@ Open SSH to the world on main (global allowedTCPPorts = [ 22 ]).
     firewall.interfaces.tailscale0 = {
 >>>>
 
-## M04 | ssh-exposure | eval | invariants-gcp-agent
-gcp-agent OpenSSH opens its port in the firewall (openFirewall = true).
-@@ hosts/gcp-agent/default.nix
-<<<<
-    openssh = {
-      enable = true;
-      openFirewall = false;
-====
-    openssh = {
-      enable = true;
-      openFirewall = true;
->>>>
-
 ## M05 | ssh-exposure | eval | invariants-gcp-builder
 gcp-builder SSH moved from the tailscale0 interface to a global rule.
 @@ hosts/gcp-builder/default.nix
@@ -135,16 +122,6 @@ main allows passwordless sudo for the whole wheel group.
 ====
     sudo.wheelNeedsPassword = false;
     sudo.extraConfig = ''
->>>>
-
-## M14 | sudo | eval | invariants-gcp-agent (keeps wheelNeedsPassword)
-gcp-agent gets passwordless sudo for wheel.
-@@ hosts/gcp-agent/default.nix
-<<<<
-  # SSH is still Tailscale-scoped and key-only.
-====
-  # SSH is still Tailscale-scoped and key-only.
-  security.sudo.wheelNeedsPassword = false;
 >>>>
 
 ## M15 | sudo | eval | invariants-main (agent maintenance sudo allowlist)
@@ -334,9 +311,9 @@ homeserver-gcp host key dropped from the .sops.yaml recipients.
 An acceptFrom rule references a misspelled, undefined source tag.
 @@ lib/hosts.nix
 <<<<
-          agent = [ 53 ];
+          builder = [ 53 ];
 ====
-          agnt = [ 53 ];
+          buildr = [ 53 ];
 >>>>
 
 ## M33 | tailscale-acl | eval | none expected to be specific (ACL widening)

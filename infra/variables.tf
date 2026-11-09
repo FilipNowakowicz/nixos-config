@@ -42,24 +42,6 @@ variable "disk_type" {
   default     = "pd-balanced"
 }
 
-variable "agent_machine_type" {
-  type        = string
-  description = <<-EOT
-    Machine type for the on-demand Claude Code agent host. No nested-virt
-    requirement (heavy builds/tests offload to gcp-builder), so the cheaper e2
-    family is fine. Default e2-standard-2 = 2 vCPU / 8 GB, leaving 8 vCPU for
-    the builder and 2 vCPU for the homeserver within the project's 12-vCPU quota.
-    Compute is billed while running; persistent disk charges continue while stopped.
-  EOT
-  default     = "e2-standard-2"
-}
-
-variable "agent_disk_size_gb" {
-  type        = number
-  description = "Boot disk size in GB for the agent host. Sized for repo clone(s) + nix store + worktrees."
-  default     = 100
-}
-
 variable "snapshot_retention_days" {
   type        = number
   description = "Number of daily GCE boot disk snapshots to retain for fast provider-local rollback"

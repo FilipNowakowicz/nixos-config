@@ -9,10 +9,6 @@ keys:
   # Pre-generated; private key stored encrypted in hosts/homeserver-gcp/secrets/
   - &homeserver_gcp_host age13av6mujh9r7xv880k8elnfkqztpx3c8eahfwdl42wzss6sz9jchsc3hqg6
 
-  # gcp-agent SSH host key converted to age: ssh-to-age < /etc/ssh/ssh_host_ed25519_key.pub
-  # Pre-generated; private key stored encrypted in hosts/gcp-agent/secrets/
-  - &gcp_agent_host age1t7xkmnn48p27g47gzpzw3946ktvw7xwtk7l7j8jlq50zs30cty7qmdwrdc
-
 creation_rules:
   - path_regex: ^home/users/user/secrets/.*\.(json|yaml|yml)$
     key_groups:
@@ -28,8 +24,3 @@ creation_rules:
       - age:
           - *user
           - *homeserver_gcp_host
-  - path_regex: ^hosts/gcp-agent/secrets/.*
-    key_groups:
-      - age:
-          - *user
-          - *gcp_agent_host

@@ -11,15 +11,6 @@ output "instance_zone" {
   value = google_compute_instance.homeserver_gcp.zone
 }
 
-output "agent_external_ip" {
-  description = "External IP of the gcp-agent instance (ephemeral; only routable while the VM is running)"
-  value       = google_compute_instance.gcp_agent.network_interface[0].access_config[0].nat_ip
-}
-
-output "agent_name" {
-  value = google_compute_instance.gcp_agent.name
-}
-
 output "snapshot_policy_name" {
   description = "GCE resource policy attached to the homeserver-gcp boot disk for daily snapshots"
   value       = google_compute_resource_policy.homeserver_boot_daily_snapshots.name

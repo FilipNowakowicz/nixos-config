@@ -98,9 +98,6 @@ build_host() {
   gcp-builder)
     build_attrs ".#nixosConfigurations.gcp-builder.config.system.build.toplevel"
     ;;
-  gcp-agent)
-    build_attrs ".#nixosConfigurations.gcp-agent.config.system.build.toplevel"
-    ;;
   installer)
     build_attrs ".#packages.${system}.installer-iso"
     ;;
@@ -184,9 +181,7 @@ light)
   build_attrs \
     ".#checks.${system}.deploy-activate" \
     ".#checks.${system}.deploy-schema" \
-    ".#checks.${system}.gcp-agent-sops-bootstrap" \
     ".#checks.${system}.homeserver-gcp-sops-bootstrap" \
-    ".#checks.${system}.invariants-gcp-agent" \
     ".#checks.${system}.invariants-gcp-builder" \
     ".#checks.${system}.invariants-homeserver-gcp" \
     ".#checks.${system}.invariants-main" \
@@ -223,7 +218,6 @@ hosts)
     ".#nixosConfigurations.main-ci.config.system.build.toplevel" \
     ".#nixosConfigurations.homeserver-gcp.config.system.build.toplevel" \
     ".#nixosConfigurations.gcp-builder.config.system.build.toplevel" \
-    ".#nixosConfigurations.gcp-agent.config.system.build.toplevel" \
     ".#packages.${system}.installer-iso"
   ;;
 
