@@ -9,6 +9,7 @@ pkgs.runCommand "deploy-homeserver-contract"
     nativeBuildInputs = with pkgs; [
       bash
       coreutils
+      gawk
       gnugrep
       jq
       nodejs

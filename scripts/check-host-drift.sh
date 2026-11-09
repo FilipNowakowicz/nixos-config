@@ -184,6 +184,8 @@ while true; do
         sub(/^.*:/, "", port)
         addr = local
         sub(/:[^:]*$/, "", addr)
+        # ss appends the zone to link-scoped listeners, e.g. 100.64.0.1%tailscale0.
+        sub(/%.*$/, "", addr)
         gsub(/^\[|\]$/, "", addr)
         if (port ~ /^[0-9]+$/) print addr "\t" port
       }
