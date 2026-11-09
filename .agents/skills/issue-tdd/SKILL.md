@@ -95,8 +95,7 @@ issue is ready for `issue-driven-development`.
 
 Run `.agents/scripts/agent-issue-readiness --body-file <path>` (or pipe the
 drafted body on stdin) before publishing to confirm it has all the sections
-`issue-driven-development` and `scripts/agent-run-issue.sh --require-ready`
-expect.
+`issue-driven-development` expects.
 
 ## Handoff
 
