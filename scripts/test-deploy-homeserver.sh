@@ -18,6 +18,8 @@ grep -qF 'tags: tag:ci' "$workflow"
 grep -qF 'scripts/on-builder.sh' "$workflow"
 grep -qF -- '--max-jobs 0 --builders' scripts/deploy-homeserver.sh
 grep -qF '.remoteBuild = false' scripts/deploy-homeserver-build.sh
+grep -qF '.profiles.system.drvPath =' scripts/deploy-homeserver-build.sh
+grep -q 'nix-store -qR .*derivation' scripts/deploy-homeserver-build.sh
 grep -qF 'path = builtins.appendContext profile.path' scripts/deploy-homeserver.sh
 node scripts/test-deploy-merge-gate.cjs
 
