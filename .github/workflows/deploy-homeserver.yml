@@ -148,7 +148,8 @@ jobs:
           printf '%s\n' "$HOMESERVER_DEPLOY_SSH_KEY" > "$HOME/.ssh/homeserver-deploy"
           host=$(jq -er '.deploy.nodes["homeserver-gcp"].hostname' "$RUNNER_TEMP/deploy-bundle/bundle.json")
           # Resolve from the tailnet map; tag:ci has SSH but no DNS-server access.
-          address=$(tailscale ip -4 "$host")
+          # The map's names end with a dot, and `tailscale ip` tries DNS without one.
+          address=$(tailscale status --json | jq -er --arg name "$host." 'first(.Peer[] | select(.DNSName == $name) | .TailscaleIPs[0])')
           [[ $address =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]
           printf 'Host homeserver-gcp*\n  HostName %s\n' "$address" >> "$HOME/.ssh/config"
           printf '%s\n' '  IdentityFile ~/.ssh/homeserver-deploy' '  IdentitiesOnly yes' '  BatchMode yes' '  StrictHostKeyChecking accept-new' >> "$HOME/.ssh/config"
