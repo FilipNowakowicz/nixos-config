@@ -1,0 +1,13 @@
+schema: learning-candidate/v1
+id: 2026-11-09-qt-wayland-frame-callback-redraw-loop
+date: 2026-11-09
+expires: 2027-05-09
+status: open
+route: promote-doc
+best_form: doc
+evidence: [issue-#486, pr-#487, tests/nixos/quiet-shell-smoke.nix-start_shell]
+observation: In a software-rendered VM test, compositing slower than Qt Wayland's 100 ms frame-callback timeout makes Qt hide and re-expose the window on every frame, an endless redraw with no QML animation running; gcp-builder showed 39 frames and 39 hide events per 10s, and 0 of each with QT_WAYLAND_FRAME_CALLBACK_TIMEOUT=5000.
+proposed_upgrade: Note in the NixOS test guidance that Qt Wayland clients measured for idle CPU or frame counts in VM tests need QT_WAYLAND_FRAME_CALLBACK_TIMEOUT raised, and that a mutation with a hidden running animation shows the check still fails.
+type: workflow-gotcha
+dedupe_key: vm-tests:qt-wayland-frame-callback-redraw-loop
+triggers: [tests/nixos, Quickshell, QSGRenderThread, idle-cpu-check]
