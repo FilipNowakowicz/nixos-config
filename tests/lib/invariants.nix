@@ -571,7 +571,7 @@ let
         (invariants.checkTailnetTagsHaveAdguardDnsGrant (
           dnsGrantRegistry
           // {
-            gcp-agent = {
+            other-host = {
               status = "active";
               tailscale.tag = "agent";
             };

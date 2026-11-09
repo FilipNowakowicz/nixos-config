@@ -135,20 +135,15 @@ declared in this repo. Recovery requires an authorized GCP identity/IAM access
 to snapshots and target compute/storage resources, plus guest recovery secrets
 as needed. Snapshot creation is provider-managed, independent of restic/B2 keys.
 
-## `gcp-builder`, `gcp-agent`, and other outputs
+## `gcp-builder` and other outputs
 
-Neither cloud host has a registry backup class, restic job, or scheduled GCE
-snapshot attachment declared. There is no backup schedule, retention, or restore
-check for either. The registry explicitly treats them as disposable:
+`gcp-builder` has no registry backup class, restic job, or scheduled GCE snapshot
+attachment declared. There is no backup schedule, retention, or restore check for
+it. The registry explicitly treats it as disposable:
 
 - `gcp-builder`: recover configuration and build store by reprovisioning;
   no host sops identity is declared (`sops = false`). Bootstrap/operator SSH and
   GCP access are recovery dependencies, not a backup.
-- `gcp-agent`: recover repo clone/store by reprovisioning; encrypted host-scoped
-  login credentials and GitHub access are managed through sops. Personal age
-  key/host identity and provisioning access are recovery dependencies. Work
-  existing only in unpushed branches, worktrees, or session files is not covered
-  by a declared backup.
 
 The installer and CI configurations are generated/test outputs, not additional
 persistent backed-up hosts. The WSL Home Manager output has no backup job of its

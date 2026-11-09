@@ -78,13 +78,9 @@ let
             53 # AdGuard DNS
             3001 # AdGuard web UI
           ];
-          # gcp-agent has no other resolver: AdGuard is the tailnet-wide global
-          # nameserver, so without this `gh`/`claude` on gcp-agent cannot
-          # resolve any external hostname (DNS queries time out).
-          agent = [ 53 ];
-          # gcp-builder is in the same bind: AdGuard is its only resolver, so
-          # without DNS it cannot resolve cache.nixos.org and every offloaded
-          # closure build stalls on cache lookups. Grant tag:builder -> :53.
+          # gcp-builder has no other resolver: AdGuard is the tailnet-wide
+          # global nameserver, so without DNS it cannot resolve cache.nixos.org
+          # and every offloaded closure build stalls on cache lookups.
           builder = [ 53 ];
           # External CI runners use a pre-approved tag and only need SSH for
           # the homeserver's CI maintenance/deployment surface.
@@ -106,9 +102,6 @@ let
         tag = "builder";
         acceptFrom = {
           workstation = [ 22 ];
-          # gcp-agent offloads heavy builds here too (its own dedicated build
-          # key, see hosts/gcp-agent/nix-remote-build.nix).
-          agent = [ 22 ];
           # GitHub runners run CI on this host. A separate tag from `ci`, which
           # can also reach the homeserver.
           ci-builder = [ 22 ];
@@ -116,26 +109,6 @@ let
       };
       deploy.sshUser = "user";
       sops = false;
-    };
-
-    # On-demand GCP host for running Claude Code sessions (issue-loop
-    # orchestration), not Nix builds. Normally powered off; started for a
-    # session and self-powers-off when idle (see hosts/gcp-agent). Unlike
-    # gcp-builder it carries secrets (sops = default true): its own claude
-    # login and a scoped GitHub PAT for branch push + PR creation. Disposable:
-    # state is a repo clone + nix store, recoverable by reprovisioning, so no
-    # backup. Heavy builds/tests offload to gcp-builder, so no nested virt
-    # requirement — e2 family is fine.
-    gcp-agent = {
-      system = "x86_64-linux";
-      status = "active";
-      homeManager.role = "agent";
-      tailnetFQDN = "gcp-agent.${tailnetDomain}";
-      tailscale = {
-        tag = "agent";
-        acceptFrom.workstation = [ 22 ];
-      };
-      deploy.sshUser = "user";
     };
 
   };

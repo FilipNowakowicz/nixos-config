@@ -401,23 +401,6 @@ let
     invariants.gcpBuilderUsersAreKeyOnly
   ];
 
-  # gcp-agent shares gcp-builder's SSH posture (tailnet-only, key-only login)
-  # but, unlike every other GCP target, keeps NARROW sudo: it runs autonomous
-  # Claude Code sessions, so it must not grant deploy-rs-style broad NOPASSWD —
-  # a session compromise must not be trivially root. The two SSH checks are
-  # host-agnostic; reuse them. Heavy builds offload to gcp-builder, so this box
-  # never needs activation sudo.
-  gcpAgentAccessInvariants = [
-    invariants.gcpBuilderSshTailscaleOnly
-    invariants.gcpBuilderUsersAreKeyOnly
-    {
-      name = "gcp-agent keeps wheelNeedsPassword (narrow sudo)";
-      check =
-        cfg:
-        invariants.require cfg.security.sudo.wheelNeedsPassword "security.sudo.wheelNeedsPassword must stay true on gcp-agent (narrow sudo; it runs autonomous sessions and does not deploy)";
-    }
-  ];
-
   # Lint the Prometheus alert rules with promtool. Renders the exact same
   # shared data the observability module deploys (lib/observability-alerts.nix)
   # so a typo in a metric name, label, or expr fails the light lane instead of
@@ -780,7 +763,6 @@ let
     "homeserver-gcp" =
       homeserverAccessInvariants ++ homeserverBackupInvariants ++ homeserverAlertDeliveryInvariants;
     "gcp-builder" = gcpBuilderAccessInvariants;
-    "gcp-agent" = gcpAgentAccessInvariants;
   };
 
   baselineInvariantsFor =
@@ -866,12 +848,9 @@ let
             )
           );
           reviewed = [
-            "agent->builder:22"
-            "agent->server:53"
             "builder->server:53"
             "ci->server:22"
             "ci-builder->builder:22"
-            "workstation->agent:22"
             "workstation->builder:22"
             "workstation->server:22"
             "workstation->server:3001"
