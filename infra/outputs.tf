@@ -11,15 +11,6 @@ output "instance_zone" {
   value = google_compute_instance.homeserver_gcp.zone
 }
 
-output "builder_external_ip" {
-  description = "External IP of the gcp-builder instance (ephemeral; only routable while the VM is running)"
-  value       = google_compute_instance.gcp_builder.network_interface[0].access_config[0].nat_ip
-}
-
-output "builder_name" {
-  value = google_compute_instance.gcp_builder.name
-}
-
 output "agent_external_ip" {
   description = "External IP of the gcp-agent instance (ephemeral; only routable while the VM is running)"
   value       = google_compute_instance.gcp_agent.network_interface[0].access_config[0].nat_ip

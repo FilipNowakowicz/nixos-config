@@ -12,7 +12,6 @@ gcp_project = "your-gcp-project-id"
 
 # On-demand hosts: 8 + 2 vCPU leave 2 for the homeserver within the 12-vCPU project quota.
 # Compute is billed while running; persistent disks remain billed while stopped.
-# builder_machine_type = "n2-standard-8" # 8 vCPU / 32 GB; supports nested virtualization
 # agent_machine_type   = "e2-standard-2" # 2 vCPU / 8 GB; offloads heavy builds to the builder
 
 # Daily GCE boot disk snapshots are provider-local fast rollback, not a restic replacement.

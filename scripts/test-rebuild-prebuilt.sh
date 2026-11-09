@@ -10,7 +10,7 @@ cp "$script_dir/rebuild-prebuilt.sh" "$work/repo/scripts/"
 cp "$script_dir/lib/builder.sh" "$work/repo/scripts/lib/"
 export TEST_REPO="$work/repo" TEST_LOG="$work/log" TEST_STATUS="$work/status"
 export TEST_REV=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-export BUILDER_FQDN=builder.example.test
+export BUILDER_FQDN=builder.example.test BUILDER_ZONE=test-zone
 export TEST_HOST=main TEST_COPY_FAIL=0 TEST_STATUS_FAIL=0 TEST_REF_FAIL=0
 export PATH="$work/bin:$PATH"
 cat >"$work/bin/git" <<'STUB'

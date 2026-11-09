@@ -85,7 +85,7 @@ so that every build step runs on the builder, and copies the closure back.
 | Variable          | Default                              | Effect                                                                 |
 | :---------------- | :----------------------------------- | :--------------------------------------------------------------------- |
 | `USE_BUILDER`     | `1`                                  | Set `0` to run `validate.sh` locally.                                  |
-| `BUILDER_ZONE`    | `europe-west2-a`                     | GCE zone of the builder VM.                                            |
+| `BUILDER_ZONE`    | found automatically                  | GCE zone of the builder VM; it can move on a capacity shortage.        |
 | `BUILDER_SSH_KEY` | `/run/secrets/gcp_builder_build_key` | Override the caller’s SSH private-key file (CI uses a temporary file). |
 | `BUILDER_FQDN`    | `gcp-builder.<tailnet>.ts.net`       | Tailnet name of the builder.                                           |
 | `BUILDER_MAXJOBS` | `8`                                  | Remote `maxjobs` passed to `--builders` by `rebuild`.                  |

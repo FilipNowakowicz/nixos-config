@@ -33,70 +33,20 @@ resource "google_compute_firewall" "builder_tailscale" {
   source_ranges = ["0.0.0.0/0"]
 }
 
-resource "google_compute_instance" "gcp_builder" {
-  name              = local.builder_name
-  machine_type      = var.builder_machine_type
-  zone              = var.zone
-  tags              = [local.builder_name]
-  resource_policies = [google_compute_resource_policy.builder_weekly_prebuild.self_link]
-
-  # Nested virtualization so the builder can advertise the "kvm"/"nixos-test"
-  # Nix system-features and run booted NixOS tests offloaded from `main`.
-  advanced_machine_features {
-    enable_nested_virtualization = true
-  }
-
-  boot_disk {
-    initialize_params {
-      image = "projects/${var.bootstrap_image_project}/global/images/family/${var.bootstrap_image_family}"
-      size  = var.builder_disk_size_gb
-      type  = var.disk_type
-    }
-  }
-
-  network_interface {
-    network = "default"
-    access_config {}
-  }
-
-  metadata = {
-    # Temporary bootstrap access for nixos-anywhere (same flow as homeserver).
-    bootstrap-ssh-public-key = var.bootstrap_ssh_public_key
-    serial-port-enable       = "TRUE"
-
-    startup-script = <<-EOT
-      #!/bin/bash
-      set -euo pipefail
-
-      BOOTSTRAP_KEY="$(curl -fsS -H 'Metadata-Flavor: Google' \
-        http://metadata.google.internal/computeMetadata/v1/instance/attributes/bootstrap-ssh-public-key)"
-
-      if ! id -u bootstrap >/dev/null 2>&1; then
-        useradd --create-home --shell /bin/bash bootstrap
-      fi
-
-      install -d -m 700 -o bootstrap -g bootstrap /home/bootstrap/.ssh
-      printf '%s\n' "$BOOTSTRAP_KEY" > /home/bootstrap/.ssh/authorized_keys
-      chown bootstrap:bootstrap /home/bootstrap/.ssh/authorized_keys
-      chmod 600 /home/bootstrap/.ssh/authorized_keys
-
-      printf 'bootstrap ALL=(ALL) NOPASSWD:ALL\n' >/etc/sudoers.d/90-bootstrap
-      chmod 440 /etc/sudoers.d/90-bootstrap
-
-      systemctl reload ssh || systemctl reload sshd || true
-    EOT
-  }
-
+# The VM moves between zones when one runs out of capacity (scripts/lib/builder.sh),
+# so Terraform cannot track it. Its definition is in git history for a full
+# reprovision. See hosts/gcp-builder/CLAUDE.md.
+removed {
+  from = google_compute_instance.gcp_builder
   lifecycle {
-    ignore_changes = [
-      metadata["bootstrap-ssh-public-key"],
-      metadata["startup-script"],
-      # Power state is managed out-of-band (gcloud start/stop + the in-guest
-      # idle-shutdown timer); never let Terraform fight the start/stop loop.
-      desired_status,
-      # Disk type cannot change in place; pin like the homeserver instance.
-      boot_disk[0].initialize_params[0].type,
-    ]
+    destroy = false
+  }
+}
+
+removed {
+  from = google_compute_instance_iam_member.ci_builder_start
+  lifecycle {
+    destroy = false
   }
 }
 
@@ -131,9 +81,83 @@ resource "google_service_account" "ci_builder_start" {
   display_name = "CI: start gcp-builder"
 }
 
-resource "google_compute_instance_iam_member" "ci_builder_start" {
-  zone          = var.zone
-  instance_name = google_compute_instance.gcp_builder.name
-  role          = "roles/compute.instanceAdmin.v1"
-  member        = "serviceAccount:${google_service_account.ci_builder_start.email}"
+locals {
+  # IAM conditions allow at most 12 logical operators, so zonal resources match
+  # by region and name rather than by listing every zone.
+  ci_builder_zonal_suffixes = [
+    "/instances/${local.builder_name}",
+    "/instances/${local.builder_name}-probe",
+    "/disks/${local.builder_name}",
+    "/disks/${local.builder_name}-probe",
+  ]
+  ci_builder_shared_resources = [
+    "projects/${var.gcp_project}/global/snapshots/${local.builder_name}-move",
+    "projects/${var.gcp_project}/global/networks/default",
+    "projects/${var.gcp_project}/regions/${var.region}/subnetworks/default",
+    "projects/${var.gcp_project}/regions/${var.region}/resourcePolicies/${google_compute_resource_policy.builder_weekly_prebuild.name}",
+  ]
+  ci_builder_condition = join(" || ", concat(
+    ["(resource.name.startsWith('projects/${var.gcp_project}/zones/${var.region}-') && (${join(" || ", [for suffix in local.ci_builder_zonal_suffixes : "resource.name.endsWith('${suffix}')"])}))"],
+    [for name in local.ci_builder_shared_resources : "resource.name == '${name}'"],
+  ))
+}
+
+# Everything CI needs to start the builder or move it to another zone. Bound
+# only to the resources above, so this account cannot touch any other VM.
+resource "google_project_iam_custom_role" "ci_builder_move" {
+  role_id = "ciBuilderMove"
+  title   = "CI: start and move gcp-builder"
+  permissions = [
+    "compute.disks.create",
+    "compute.disks.createSnapshot",
+    "compute.disks.delete",
+    "compute.disks.get",
+    "compute.disks.use",
+    "compute.disks.useReadOnly",
+    "compute.instances.create",
+    "compute.instances.delete",
+    "compute.instances.get",
+    "compute.instances.setMetadata",
+    "compute.instances.setTags",
+    "compute.instances.start",
+    "compute.instances.addResourcePolicies",
+    "compute.instances.updateShieldedInstanceConfig",
+    "compute.networks.use",
+    "compute.networks.useExternalIp",
+    "compute.resourcePolicies.use",
+    "compute.snapshots.create",
+    "compute.snapshots.delete",
+    "compute.snapshots.get",
+    "compute.snapshots.setLabels",
+    "compute.snapshots.useReadOnly",
+    "compute.subnetworks.use",
+    "compute.subnetworks.useExternalIp",
+  ]
+}
+
+resource "google_project_iam_member" "ci_builder_move" {
+  project = var.gcp_project
+  role    = google_project_iam_custom_role.ci_builder_move.id
+  member  = "serviceAccount:${google_service_account.ci_builder_start.email}"
+  condition {
+    title      = "gcp-builder resources only"
+    expression = local.ci_builder_condition
+  }
+}
+
+# Polling a long-running operation has no named resource to condition on.
+resource "google_project_iam_custom_role" "ci_builder_operations" {
+  role_id = "ciBuilderOperations"
+  title   = "CI: follow compute operations"
+  permissions = [
+    "compute.globalOperations.get",
+    "compute.regionOperations.get",
+    "compute.zoneOperations.get",
+  ]
+}
+
+resource "google_project_iam_member" "ci_builder_operations" {
+  project = var.gcp_project
+  role    = google_project_iam_custom_role.ci_builder_operations.id
+  member  = "serviceAccount:${google_service_account.ci_builder_start.email}"
 }
