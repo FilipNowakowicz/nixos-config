@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Take a screenshot: screenshot.py area|window|screen|text [REGION].
 
-Saves to ~/Pictures/Screenshots, copies it, and prints {"path": ...}. The text mode
+Saves to the XDG pictures directory's Screenshots folder, copies it, and prints {"path": ...}. The text mode
 reads the words in an area instead, copies them, saves nothing and prints
 {"text": ...}. Prints nothing if the selection was cancelled. A REGION ("x,y wxh")
 skips the selection, for an area the picker already has.
@@ -61,7 +61,12 @@ if mode != "screen" and not region:
 if mode == "text":
     read_text(region)
 
-folder = pathlib.Path.home() / "Pictures/Screenshots"
+pictures = run("xdg-user-dir", "PICTURES").stdout.strip()
+if pictures and pathlib.Path(pictures).is_absolute() and pathlib.Path(pictures) != pathlib.Path.home():
+    folder = pathlib.Path(pictures)
+else:
+    folder = pathlib.Path(os.environ.get("XDG_DATA_HOME", str(pathlib.Path.home() / ".local/share"))) / "pictures"
+folder = folder / "Screenshots"
 folder.mkdir(parents=True, exist_ok=True)
 path = folder / time.strftime("Screenshot %Y-%m-%d at %H.%M.%S.png")
 

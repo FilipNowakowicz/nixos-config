@@ -196,14 +196,14 @@ in
           wait_for(lambda s: s["screenshot"], "screenshot-picker")
           # 3 picks Screen, the third option, and the picture lands at once.
           machine.send_key("3")
-          machine.wait_until_succeeds("ls /home/user/Pictures/Screenshots/*.png", timeout=timedelta(seconds=20))
+          machine.wait_until_succeeds("ls /home/user/.local/share/pictures/Screenshots/*.png", timeout=timedelta(seconds=20))
           retry(lambda _: not state()["screenshot"], timeout=timedelta(seconds=5))
 
       with subtest("a dragged area is captured at its size"):
-          machine.succeed("rm /home/user/Pictures/Screenshots/*.png")
+          machine.succeed("rm /home/user/.local/share/pictures/Screenshots/*.png")
           session('quiet-shell-ipc captureArea "10,20 200x100"')
-          machine.wait_until_succeeds("ls /home/user/Pictures/Screenshots/*.png", timeout=timedelta(seconds=20))
-          header = machine.succeed("od -An -tx1 -j16 -N8 /home/user/Pictures/Screenshots/*.png").split()
+          machine.wait_until_succeeds("ls /home/user/.local/share/pictures/Screenshots/*.png", timeout=timedelta(seconds=20))
+          header = machine.succeed("od -An -tx1 -j16 -N8 /home/user/.local/share/pictures/Screenshots/*.png").split()
           size = (int("".join(header[:4]), 16), int("".join(header[4:]), 16))
           assert size == (200, 100), f"the area came out {size}"
 

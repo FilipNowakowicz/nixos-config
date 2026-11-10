@@ -298,7 +298,29 @@ hl.bind("SUPER + CTRL + h", hl.dsp.window.resize({ x = -60, y = 0, relative = tr
 hl.bind("SUPER + CTRL + j", hl.dsp.window.resize({ x = 0, y = 60, relative = true }), { repeating = true })
 hl.bind("SUPER + CTRL + k", hl.dsp.window.resize({ x = 0, y = -60, relative = true }), { repeating = true })
 hl.bind("SUPER + CTRL + l", hl.dsp.window.resize({ x = 60, y = 0, relative = true }), { repeating = true })
-hl.bind("SUPER + mouse:272", hl.dsp.window.drag(), { mouse = true })
+hl.config({ binds = { drag_center_window = false } })
+local drag_window = hl.bind("SUPER + mouse:272", hl.dsp.window.drag(), { mouse = true })
+-- A sole tile would only lift and drop back into the same place. Keep floating
+-- windows draggable and allow rearranging workspaces with two or more tiles.
+local function follow_drag_window()
+	local w = hl.get_active_window()
+	local count = 0
+	if w and not w.floating then
+		for _, other in ipairs(hl.get_windows()) do
+			if not other.floating and other.workspace and w.workspace and other.workspace.id == w.workspace.id then
+				count = count + 1
+			end
+		end
+	end
+	drag_window:set_enabled(w ~= nil and (w.floating or count > 1))
+end
+-- Open/close signals can precede the final window list. Read it on the next tick.
+for _, event in ipairs({ "window.active", "window.open", "window.close", "window.update_state", "window.move_to_workspace", "workspace.active" }) do
+	hl.on(event, function()
+		hl.timer(follow_drag_window, { timeout = 1, type = "oneshot" })
+	end)
+end
+follow_drag_window()
 hl.bind("SUPER + mouse:273", hl.dsp.window.resize(), { mouse = true })
 hl.bind("SUPER + 1", hl.dsp.focus({ workspace = 1 }))
 hl.bind("SUPER + 2", hl.dsp.focus({ workspace = 2 }))

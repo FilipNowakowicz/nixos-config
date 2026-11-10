@@ -151,7 +151,7 @@ Item {
         anchors.rightMargin: 16
         anchors.top: parent.top
         anchors.topMargin: 11
-        text: "K ␣ J"
+        text: "J ␣ K"
     }
     Icon { anchors.horizontalCenter: parent.horizontalCenter; y: 26; visible: root.media !== null && !root.showsCover; name: "music"; size: 20; color: Theme.dim }
     Column {
@@ -173,7 +173,7 @@ Item {
         anchors.bottomMargin: 7
         visible: root.media !== null
         Repeater {
-            model: [["skip-back", "previous", "Previous track (K)"], [root.media && root.media.playing ? "pause" : "play", "play-pause", "Play or pause (Space)"], ["skip-forward", "next", "Next track (J)"]]
+            model: [["skip-back", "previous", "Previous track (J)"], [root.media && root.media.playing ? "pause" : "play", "play-pause", "Play or pause (Space)"], ["skip-forward", "next", "Next track (K)"]]
             Press {
                 required property var modelData
                 Layout.alignment: Qt.AlignHCenter

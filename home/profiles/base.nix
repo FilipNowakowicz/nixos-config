@@ -1,4 +1,9 @@
-{ config, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 {
   # ── Packages ────────────────────────────────────────────────────────────────
   home.packages = with pkgs; [
@@ -234,7 +239,7 @@
     desktop = null;
     documents = null;
     music = null;
-    pictures = null;
+    pictures = lib.mkDefault null;
     projects = null;
     publicShare = null;
     templates = null;

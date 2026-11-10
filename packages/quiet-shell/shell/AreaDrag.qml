@@ -22,18 +22,15 @@ MouseArea {
         Sys.screenshot("area", `${Math.round(origin.x + a.x)},${Math.round(origin.y + a.y)} ${Math.max(1, Math.round(a.width))}x${Math.max(1, Math.round(a.height))}`);
     }
 
-    Rectangle {
-        anchors.fill: parent
-        color: Theme.bg
-        opacity: 0.2
-    }
+    // Keep the desktop sharp: translucent paint across this layer asks Hyprland
+    // to blur the whole screen, hiding the detail the user is trying to select.
     Rectangle {
         visible: root.dragging
         x: root.area.x
         y: root.area.y
         width: root.area.width
         height: root.area.height
-        color: Theme.fill
+        color: "transparent"
         border.width: 2
         border.color: Theme.on
     }
