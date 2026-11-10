@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-11-10-admin-merge-races-deploy-merge-gate
+date: 2026-11-10
+expires: 2027-02-10
+status: promoted
+route: implement-fix
+best_form: ci-gate
+evidence: [pr-#494, run-42731506531, scripts/check-deploy-merge-gate.cjs:65]
+observation: admin-merging a PR before its nix.yml merge-gate finishes (merged 00:51:36, gate passed 00:54:05) makes the push-triggered deploy-homeserver run fail closed with "Cannot establish a successful PR merge-gate"; looks like CI failure but is a race
+proposed_upgrade: make check-deploy-merge-gate.cjs poll in-progress PR nix.yml runs for merge-gate (bounded timeout) before failing, or document waiting for merge-gate before admin-merging PRs touching deploy-homeserver paths
+agent: claude
+type: workflow-gotcha
+dedupe_key: ci:admin-merge-races-deploy-merge-gate
+triggers: [gh pr merge --admin, deploy-homeserver.yml failure]
+targets: [scripts/check-deploy-merge-gate.cjs, .github/workflows/deploy-homeserver.yml]
