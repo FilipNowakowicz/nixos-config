@@ -9,7 +9,9 @@
 # same reason. Patterns are deliberately narrow: false silence beats nagging.
 #
 #   ask   — destructive block-device ops, LUKS format/erase, recursive rm of a
-#           top-level path, or a redirect into a raw disk device
+#           top-level path, a redirect into a raw disk device, or an admin
+#           PR merge (`gh pr merge --admin` bypasses merge-gate and races the
+#           homeserver deploy gate; only the user decides to force-merge)
 #   deny  — a plain nix build or flake check on a host that can offload to gcp-builder
 #   allow — everything else falls through (exit 0, no output)
 set -uo pipefail
@@ -87,6 +89,11 @@ while IFS= read -r stmt; do
   cryptsetup)
     matches "$stmt" 'luksFormat|luksErase|luksRemoveKey|luksKillSlot|(^|[[:space:]])erase' &&
       emit ask "This cryptsetup command destroys LUKS data or key slots and is not reversible. Confirm the device and slot."
+    ;;
+  gh)
+    matches "$stmt" '(^|[[:space:]])pr[[:space:]]+merge([[:space:]]|$)' &&
+      matches "$stmt" '(^|[[:space:]])--admin([[:space:]=]|$)' &&
+      emit ask "'gh pr merge --admin' bypasses branch protection and merge-gate. Only admin-merge when the user explicitly asked for it; otherwise merge normally or use --auto."
     ;;
   rm)
     if matches "$stmt" '(-[[:alnum:]]*[rR]|--recursive)' &&

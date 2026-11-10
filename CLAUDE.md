@@ -94,8 +94,9 @@ shared profiles changed, build all affected hosts.
   are the safety net for bypass-permissions mode. The edit guard _denies_ direct
   edits to `*.enc`/`*.age`/`secrets/**`/the age key (use `sops`) and _asks_
   before editing any `disko.nix`. The Bash guard _asks_ before catastrophic
-  block-device ops (`dd`/`mkfs`/`wipefs`/partitioning), LUKS format/erase, and
-  recursive `rm` of a top-level path. A blocked/prompted action there is by
+  block-device ops (`dd`/`mkfs`/`wipefs`/partitioning), LUKS format/erase,
+  recursive `rm` of a top-level path, and `gh pr merge --admin` (admin-merge
+  only when the user explicitly asks; otherwise merge after `merge-gate`). A blocked/prompted action there is by
   design, not a failure.
 - **Agent-spawn dirty-checkout guard** —
   `.claude/hooks/guard-agent-dirty-checkout.sh` (PreToolUse on the `Agent`
