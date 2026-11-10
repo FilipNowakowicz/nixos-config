@@ -63,7 +63,7 @@ Singleton {
 
     // For the shell's own messages. An urgent one still shows during Focus.
     function post(title, body, urgent, image) {
-        const entry = { source: null, app: "System", title, body, at: new Date(), image: image || "" };
+        const entry = { source: null, system: true, app: "System", title, body, at: new Date(), image: image || "" };
         items = [entry].concat(items);
         if (urgent || !Sys.focusMode) {
             banner = entry;
@@ -77,7 +77,7 @@ Singleton {
         imageSupported: true
         onNotification: n => {
             n.tracked = true;
-            const entry = { source: n, app: n.appName, title: n.summary, body: n.body, at: new Date() };
+            const entry = { source: n, app: n.appName, icon: n.appIcon, title: n.summary, body: n.body, at: new Date() };
             // Apps can close their own notifications. Quickshell destroys the
             // object after this signal; retain the history without a dead QObject
             // whose dismiss()/actions would throw when the card is used later.

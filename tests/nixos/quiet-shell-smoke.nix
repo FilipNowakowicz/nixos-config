@@ -212,13 +212,14 @@ in
           session("setsid ${dbusPython}/bin/python3 ${../quiet-shell/fakes/player.py} /tmp/player.log >/dev/null 2>&1 &")
           session("quiet-shell-ipc controls")
           wait_for(lambda s: s["panel"] == "controls" and s["media"] and s["media"]["playing"], "now-playing")
-          # Dvorak again: J and K sit on the QWERTY c and v keys.
+          # Dvorak again: J and K sit on the QWERTY c and v keys, J on the left goes
+          # back and K on the right goes forward.
           for key in ("spc", "c", "v"):
               machine.send_key(key)
           machine.wait_until_succeeds("test $(wc -l < /tmp/player.log) -ge 3", timeout=timedelta(seconds=10))
           sent = machine.succeed("cat /tmp/player.log").split()
           # Space while playing asks for a pause outright.
-          assert sent == ["pause", "next", "previous"], sent
+          assert sent == ["pause", "previous", "next"], sent
           # The pause shows without waiting for a poll.
           retry(lambda _: not state()["media"]["playing"], timeout=timedelta(seconds=5))
           session("quiet-shell-ipc close")
@@ -227,7 +228,8 @@ in
           session("quiet-shell-ipc controls")
           wait_for(lambda s: s["panel"] == "controls" and s["media"], "cover-before-skip")
           before = state()["media"]["title"]
-          machine.send_key("c")
+          # K, the next track, on Dvorak.
+          machine.send_key("v")
           seen = []
           def changed(_):
               media = state()["media"]

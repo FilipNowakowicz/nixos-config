@@ -396,7 +396,8 @@ def notifications_banner_history_clear():
     wait(lambda: ui()["panel"] == "notifications", "centre")
     time.sleep(0.3)
     shot("notifications")
-    typed("c")
+    # Below the calendar and its "Up next" agenda.
+    click(1876, 379)
     wait(lambda: ui()["notices"] == 0, "clear all")
 
 
@@ -434,7 +435,8 @@ def focus_silences_banners():
     shell("notifications")
     wait(lambda: ui()["panel"] == "notifications", "centre")
     time.sleep(0.3)
-    click(1877, 274)
+    # Below the calendar and its "Up next" agenda.
+    click(1876, 379)
 
 
 @test
