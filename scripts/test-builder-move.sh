@@ -54,6 +54,7 @@ run_start() (
   # shellcheck source=scripts/lib/builder.sh disable=SC1091
   source "$script_dir/lib/builder.sh"
   start_builder 2>/dev/null || return 1
+  # shellcheck disable=SC2154 # builder_zone is set by the sourced lib/builder.sh
   [[ ${1:-} == "$builder_zone" ]]
 )
 reset_cloud() {
