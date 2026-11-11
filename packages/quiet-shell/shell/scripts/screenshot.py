@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Take a screenshot: screenshot.py area|window|screen|text [REGION].
 
-Saves to ~/Pictures/Screenshots, copies it, and prints {"path": ...}. The text mode
-reads the words in an area instead, copies them, saves nothing and prints
-{"text": ...}. Prints nothing if the selection was cancelled. A REGION ("x,y wxh")
-skips the selection, for an area the picker already has.
+Saves to Screenshots in the XDG pictures directory, copies it, and prints
+{"path": ...}. The text mode reads the words in an area instead, copies them,
+saves nothing and prints {"text": ...}. Prints nothing if the selection was
+cancelled. A REGION ("x,y wxh") skips the selection, for an area the picker
+already has.
 """
 
 import json
@@ -61,7 +62,13 @@ if mode != "screen" and not region:
 if mode == "text":
     read_text(region)
 
-folder = pathlib.Path.home() / "Pictures/Screenshots"
+# xdg-user-dir answers $HOME when no pictures directory is configured; never
+# litter $HOME itself, and never bring back ~/Pictures.
+home = pathlib.Path.home()
+pictures = pathlib.Path(run("xdg-user-dir", "PICTURES").stdout.strip() or home)
+if not pictures.is_absolute() or pictures == home:
+    pictures = pathlib.Path(os.environ.get("XDG_DATA_HOME") or home / ".local/share") / "pictures"
+folder = pictures / "Screenshots"
 folder.mkdir(parents=True, exist_ok=True)
 path = folder / time.strftime("Screenshot %Y-%m-%d at %H.%M.%S.png")
 

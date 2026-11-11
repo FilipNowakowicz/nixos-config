@@ -11,7 +11,7 @@ Item {
 
     // A letter does what a click on that control's pill does. Wi-Fi and VPN open their
     // details rather than switching, so a stray key can't drop the connection.
-    // Space and j/k drive the player, Vim-style: j is the next track, k the previous.
+    // Space plays/pauses; j goes back and k goes forward.
     // h and l are the volume slider's left and right.
     function pressLetter(letter) {
         const actions = {
@@ -28,8 +28,8 @@ Item {
             a: () => Sys.toggleAwake(),
             m: () => Sys.toggleMute(),
             " ": () => Sys.mediaCommand("play-pause"),
-            j: () => Sys.mediaCommand("next"),
-            k: () => Sys.mediaCommand("previous")
+            j: () => Sys.mediaCommand("previous"),
+            k: () => Sys.mediaCommand("next")
         };
         if (!actions[letter])
             return false;
@@ -86,7 +86,7 @@ Item {
                 name: "VPN"
                 hint: "V"
                 icon: "shield"
-                subtitle: !Sys.has("vpn") ? "Unavailable" : (Sys.vpnOn ? [Sys.tailscaleOn ? "Tailscale" : "", Sys.mullvadOn ? "Mullvad" : ""].filter(x => x).join(" + ") : "Off")
+                subtitle: !Sys.has("vpn") ? "Unavailable" : Sys.tailscaleOn && Sys.mullvadOn ? "TS + Mullvad" : Sys.tailscaleOn ? "Tailscale" : Sys.mullvadOn ? "Mullvad" : "Off"
                 on: Sys.vpnOn
                 writeKey: "tailscale"
                 detail: "vpn"

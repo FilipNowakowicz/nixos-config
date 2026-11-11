@@ -21,6 +21,8 @@ in
 {
   imports = [ ../theme/module.nix ];
 
+  xdg.userDirs.pictures = "${config.xdg.dataHome}/pictures";
+
   home.packages = [
     (pkgs.writeShellApplication {
       name = "hypr-layout-cycle";
@@ -97,21 +99,40 @@ in
     "f %h/.local/share/quiet-shell/notes.md 0600 - - -"
   ];
 
-  # Brings the notes along from ~/notes.md, their old home. Runs at the switch that
-  # changes the path, so the file and the shell move together. An empty new file is
-  # only the tmpfiles placeholder; real notes there are never overwritten.
-  home.activation.moveNotesOutOfHome = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    old="$HOME/notes.md"
-    new="${config.xdg.dataHome}/quiet-shell/notes.md"
-    if [[ -f $old && ! -L $old ]]; then
-      if [[ -s $new ]]; then
-        warnEcho "Not moving $old: $new already has notes. Merge them by hand."
-      else
-        run mkdir -p "$(dirname "$new")"
-        run mv -f "$old" "$new"
+  home.activation = {
+    # Move the directory as a whole before XDG creates the destination. Never
+    # merge two existing trees or follow a user-created Pictures symlink.
+    movePicturesOutOfHome =
+      lib.hm.dag.entryBetween [ "createXdgUserDirectories" ] [ "writeBoundary" ]
+        ''
+          old="$HOME/Pictures"
+          new="${config.xdg.userDirs.pictures}"
+          if [[ -d $old && ! -L $old ]]; then
+            if [[ -e $new || -L $new ]]; then
+              warnEcho "Not moving $old: $new already exists. Merge them by hand."
+            else
+              run mkdir -p "$(dirname "$new")"
+              run mv -T -- "$old" "$new"
+            fi
+          fi
+        '';
+
+    # Brings the notes along from ~/notes.md, their old home. Runs at the switch that
+    # changes the path, so the file and the shell move together. An empty new file is
+    # only the tmpfiles placeholder; real notes there are never overwritten.
+    moveNotesOutOfHome = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      old="$HOME/notes.md"
+      new="${config.xdg.dataHome}/quiet-shell/notes.md"
+      if [[ -f $old && ! -L $old ]]; then
+        if [[ -s $new ]]; then
+          warnEcho "Not moving $old: $new already has notes. Merge them by hand."
+        else
+          run mkdir -p "$(dirname "$new")"
+          run mv -f "$old" "$new"
+        fi
       fi
-    fi
-  '';
+    '';
+  };
 
   systemd.user.services = {
     # A unit so it heals by itself when a rebuild severs its Wayland connection.

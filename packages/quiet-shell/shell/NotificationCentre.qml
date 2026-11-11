@@ -78,6 +78,10 @@ ColumnLayout {
     // Vim-style, laid out as the grid is: h and l a day, j and k a week, H, L, J
     // and K a month, g or t back to today.
     function pressKey(text) {
+        if (text === "c") {
+            Notify.clear();
+            return true;
+        }
         const moves = {
             h: () => moveDays(-1),
             l: () => moveDays(1),
@@ -249,7 +253,7 @@ ColumnLayout {
             implicitWidth: 62
             implicitHeight: 22
             radius: 11
-            name: "Clear all"
+            name: "Clear all (C)"
             onClicked: Notify.clear()
             Label { anchors.centerIn: parent; text: "Clear all"; font.pixelSize: 11 }
         }

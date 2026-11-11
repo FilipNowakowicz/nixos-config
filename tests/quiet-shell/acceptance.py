@@ -396,8 +396,28 @@ def notifications_banner_history_clear():
     wait(lambda: ui()["panel"] == "notifications", "centre")
     time.sleep(0.3)
     shot("notifications")
-    click(1877, 274)
+    # Below the calendar and its "Up next" agenda.
+    click(1876, 379)
     wait(lambda: ui()["notices"] == 0, "clear all")
+
+
+@test
+def notifications_closed_by_app_can_still_be_cleared():
+    # The live QObject disappears when an app withdraws its notification. History
+    # must remain usable alongside a notification that is still live.
+    notice = sh("notify-send", "-p", "Withdrawn", "Keep this in history").stdout.strip()
+    wait(lambda: ui()["notices"] >= 1, "history")
+    reply = sh("dbus-send", "--session", "--dest=org.freedesktop.Notifications", "--type=method_call", "--print-reply", "/org/freedesktop/Notifications", "org.freedesktop.Notifications.CloseNotification", f"uint32:{notice}")
+    assert reply.returncode == 0, reply.stderr
+    time.sleep(0.2)
+    before = ui()["notices"]
+    sh("notify-send", "Still live", "Clear both")
+    wait(lambda: ui()["notices"] == before + 1, "live notice")
+    shell("notifications")
+    wait(lambda: ui()["panel"] == "notifications", "centre")
+    time.sleep(0.3)
+    typed("c")
+    wait(lambda: ui()["notices"] == 0 and not ui()["banner"], "clear withdrawn and live notices")
 
 
 @test
@@ -415,7 +435,8 @@ def focus_silences_banners():
     shell("notifications")
     wait(lambda: ui()["panel"] == "notifications", "centre")
     time.sleep(0.3)
-    click(1877, 274)
+    # Below the calendar and its "Up next" agenda.
+    click(1876, 379)
 
 
 @test

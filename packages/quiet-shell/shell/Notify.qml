@@ -10,24 +10,27 @@ Singleton {
     property var banner: null
 
     function clear() {
-        for (const n of items)
-            if (n.source) n.source.dismiss();
+        const previous = items;
         items = [];
         banner = null;
+        openApps = [];
+        timer.stop();
+        for (const n of previous)
+            if (n.source) n.source.dismiss();
     }
     function remove(entry) {
-        if (entry.source) entry.source.dismiss();
         items = items.filter(i => i !== entry);
         if (banner === entry)
             banner = null;
+        if (entry.source) entry.source.dismiss();
     }
 
     // The app decides what happens next, so the notification has done its job.
     function invoke(entry, action) {
-        action.invoke();
         items = items.filter(i => i !== entry);
         if (banner === entry)
             banner = null;
+        action.invoke();
     }
 
     // One card per app, newest first, unless that app has been opened out.
@@ -60,7 +63,7 @@ Singleton {
 
     // For the shell's own messages. An urgent one still shows during Focus.
     function post(title, body, urgent, image) {
-        const entry = { source: null, app: "System", title, body, at: new Date(), image: image || "" };
+        const entry = { source: null, system: true, app: "System", title, body, at: new Date(), image: image || "" };
         items = [entry].concat(items);
         if (urgent || !Sys.focusMode) {
             banner = entry;
@@ -74,7 +77,16 @@ Singleton {
         imageSupported: true
         onNotification: n => {
             n.tracked = true;
-            const entry = { source: n, app: n.appName, title: n.summary, body: n.body, at: new Date() };
+            const entry = { source: n, app: n.appName, icon: n.appIcon, title: n.summary, body: n.body, at: new Date() };
+            // Apps can close their own notifications. Quickshell destroys the
+            // object after this signal; retain the history without a dead QObject
+            // whose dismiss()/actions would throw when the card is used later.
+            n.closed.connect(() => {
+                const saved = Object.assign({}, entry, { source: null });
+                root.items = root.items.map(i => i === entry ? saved : i);
+                if (root.banner === entry)
+                    root.banner = saved;
+            });
             root.items = [entry].concat(root.items);
             if (!Sys.focusMode || n.urgency === NotificationUrgency.Critical) {
                 root.banner = entry;

@@ -28,6 +28,7 @@
   wireplumber,
   wl-clipboard,
   wlsunset,
+  xdg-user-dirs,
   xdg-utils,
   # Directories for commands the desktop provides. They come last on PATH, so the
   # session and test fakes still win.
@@ -76,6 +77,7 @@ let
     wireplumber
     wl-clipboard
     wlsunset
+    xdg-user-dirs
     xdg-utils
   ];
 in
