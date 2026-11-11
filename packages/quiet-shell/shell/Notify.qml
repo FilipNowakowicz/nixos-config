@@ -62,13 +62,15 @@ Singleton {
     }
 
     // For the shell's own messages. An urgent one still shows during Focus.
-    function post(title, body, urgent, image) {
-        const entry = { source: null, system: true, app: "System", title, body, at: new Date(), image: image || "" };
+    // `actions` are buttons, each { text, invoke }; `app` names the sender.
+    function post(title, body, urgent, image, actions, app) {
+        const entry = { source: null, system: true, app: app || "System", title, body, at: new Date(), image: image || "", actions: actions || [] };
         items = [entry].concat(items);
         if (urgent || !Sys.focusMode) {
             banner = entry;
             timer.restart();
         }
+        return entry;
     }
 
     NotificationServer {

@@ -9,7 +9,7 @@ Item {
     signal showMore
 
     readonly property var source: entry ? entry.source : null
-    readonly property var actions: source ? source.actions.filter(a => a.identifier !== "default") : []
+    readonly property var actions: source ? source.actions.filter(a => a.identifier !== "default") : entry && entry.actions ? entry.actions : []
     readonly property var primary: source ? source.actions.find(a => a.identifier === "default") : null
     readonly property bool hovered: hover.hovered
     readonly property string saved: entry && entry.image ? entry.image : ""

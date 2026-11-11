@@ -49,6 +49,9 @@ Password requests use `fakes/TestAuth.qml`, because the private session has no s
 so the real polkit flow has to be tried by hand. This system has no `pkexec`, but from a
 terminal outside a tty session `systemctl start fprintd.service` asks for a password.
 
+`fakes/agent_events.py` stands in for `agent-desktop events --follow`: tests append
+events to `RUNDIR/agent-events.jsonl`, and the commands in them are other fakes.
+
 Not covered: real network, Bluetooth and audio changes; and hardware frame pacing.
 
 ## Keyboard and focus probes
