@@ -420,11 +420,13 @@ def agent_request_banner_runs_its_command():
     wait(lambda: ["nm-connection-editor", "agent-take", "s1"] in fake()["log"], "take command ran")
     agent_event(event="control_taken", session="s1")
     wait(lambda: ui()["agentRequests"] == 0, "request settled")
+    # Requests to use the person's own screen are left to the client: no banner.
     agent_event(event="host_requested", request="h1", reason="Open the router page", minutes=15, approve_command="nm-connection-editor agent-approve", deny_command="nm-connection-editor agent-deny")
-    wait(lambda: ui()["agentRequests"] == 1, "host request")
-    agent_event(event="host_expired", request="h1")
-    wait(lambda: ui()["agentRequests"] == 0, "expired request settled")
+    agent_event(event="human_requested", session="s2", reason="Solve the CAPTCHA", take_command="nm-connection-editor agent-take s2")
+    wait(lambda: ui()["agentRequests"] == 1, "only the session request")
     assert ["nm-connection-editor", "agent-approve"] not in fake()["log"], "nothing is approved without a click"
+    agent_event(event="human_withdrawn", session="s2")
+    wait(lambda: ui()["agentRequests"] == 0, "withdrawn request settled")
 
 
 @test

@@ -3,14 +3,16 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// Agent Desktop's events (`agent-desktop events --follow`). A request for the person
-// becomes a banner whose buttons run the command the event carries, as printed for
-// a terminal. Nothing is answered without a click, and the banner goes away once the
-// request is answered, withdrawn or taken.
+// Agent Desktop's events (`agent-desktop events --follow`). A request to take a
+// private session (for example to sign in) becomes a banner whose buttons run the
+// command the event carries, as printed for a terminal. Nothing is taken without a
+// click, and the banner goes away once the request is withdrawn or taken.
+// Requests to use your own screen are not shown here: the agent's client asks for
+// those, or Agent Desktop sends its own notification.
 Singleton {
     id: root
 
-    // Session or host request -> its notice, while it waits for the person.
+    // Session -> its notice, while the request waits for the person.
     property var waiting: ({})
     readonly property int requests: Object.keys(waiting).length
     readonly property var command: {
@@ -60,17 +62,6 @@ Singleton {
             if (event.browser && event.browser.restarted === false)
                 Notify.post("The agent's browser did not restart", event.browser.error || "", false, "", [], "Agent Desktop");
             break;
-        case "host_requested":
-            settle("host:" + event.request);
-            wait("host:" + event.request, Notify.post("An agent asks to use your screen", (event.reason || "") + (event.minutes ? " · " + event.minutes + " min" : ""), true, "", [
-                { text: "Allow", invoke: () => root.run(event.approve_command) },
-                { text: "Decline", invoke: () => root.run(event.deny_command) }
-            ], "Agent Desktop"));
-            break;
-        case "host_answered":
-        case "host_expired":
-            settle("host:" + event.request);
-            break;
         }
     }
 
@@ -88,7 +79,13 @@ Singleton {
             }
         }
         // Without Agent Desktop the command fails at once; look again now and then.
-        onExited: retry.restart()
+        // The stream starts again with what is live, so forget what it said before:
+        // a request settled while it was down would otherwise stay up.
+        onExited: {
+            for (const key of Object.keys(root.waiting))
+                root.settle(key);
+            retry.restart();
+        }
     }
     Timer { id: retry; interval: 30000; onTriggered: stream.running = true }
 }
