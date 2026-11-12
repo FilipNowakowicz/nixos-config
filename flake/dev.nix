@@ -265,6 +265,9 @@ in
       theme-module = import ../tests/home/theme-module.nix {
         inherit nixpkgs system;
       };
+      agent-desktop-guard = import ../tests/home/agent-desktop-guard.nix {
+        inherit nixpkgs system;
+      };
       quiet-shell-status = import ../tests/packages/quiet-shell-status.nix {
         inherit nixpkgs system;
       };
