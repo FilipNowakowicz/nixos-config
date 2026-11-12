@@ -5,7 +5,10 @@ let
   guard = pkgs.writeShellApplication {
     name = "agent-desktop-guard";
     runtimeInputs = [
+      pkgs.coreutils
+      pkgs.gawk
       pkgs.gnugrep
+      pkgs.gnused
       pkgs.jq
     ];
     text = builtins.readFile ../files/agents/agent-desktop-guard.sh;

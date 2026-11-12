@@ -10,7 +10,10 @@ let
   guard = pkgs.writeShellApplication {
     name = "agent-desktop-guard";
     runtimeInputs = [
+      pkgs.coreutils
+      pkgs.gawk
       pkgs.gnugrep
+      pkgs.gnused
       pkgs.jq
     ];
     text = builtins.readFile ../../home/files/agents/agent-desktop-guard.sh;
@@ -55,7 +58,20 @@ pkgs.runCommand "agent-desktop-guard-tests"
     expect ask '{"tool_name":"Bash","tool_input":{"command":"agent-desktop host start --minutes 5"}}'
     expect ask '{"tool_name":"Bash","tool_input":{"command":"cd ~/agent-desktop && uv run agent-desktop host approve"}}'
     expect ask '{"tool_name":"Bash","tool_input":{"command":"python -m agent_desktop.cli host start"}}'
+    expect ask '{"tool_name":"Bash","tool_input":{"command":"AGENT_DESKTOP_X=1 nohup ~/agent-desktop/.venv/bin/agent-desktop host start"}}'
+    expect ask '{"tool_name":"Bash","tool_input":{"command":"uv --directory /x run agent-desktop host start; echo done"}}'
+    expect ask '{"tool_name":"Bash","tool_input":{"command":"ls\nagent-desktop host approve"}}'
+    expect ask '{"tool_name":"Bash","tool_input":{"command":"echo $(agent-desktop host start)"}}'
     expect "" '{"tool_name":"Bash","tool_input":{"command":"agent-desktop host status"}}'
+    # Mentions of the command are not runs of it: no prompt for a commit
+    # message, a PR body, a search or an echo.
+    expect "" '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"Explain agent-desktop host start\""}}'
+    expect "" '{"tool_name":"Bash","tool_input":{"command":"grep -rn '"'"'agent-desktop host start'"'"' docs"}}'
+    expect "" '{"tool_name":"Bash","tool_input":{"command":"gh pr create --body \"$(cat <<'"'"'EOF'"'"'\nRun agent-desktop host start to share the screen.\nEOF\n)\""}}'
+    expect "" '{"tool_name":"Bash","tool_input":{"command":"echo agent-desktop host start"}}'
+    expect "" '{"tool_name":"Bash","tool_input":{"command":"uv run echo agent-desktop host start"}}'
+    expect "" '{"tool_name":"Bash","tool_input":{"command":"cd ~/agent-desktop/artifacts/vm && qemu-system-x86_64 -netdev user,hostfwd=tcp::2222-:22"}}'
+    expect "" '{"tool_name":"Bash","tool_input":{"command":"agent-desktop host starter"}}'
     expect "" '{"tool_name":"Bash","tool_input":{"command":"agent-desktop host stop"}}'
     expect "" '{"tool_name":"Bash","tool_input":{"command":"agent-desktop take s1"}}'
     expect "" '{"tool_name":"Bash","tool_input":{"command":"ls -la"}}'
