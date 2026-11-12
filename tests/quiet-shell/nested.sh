@@ -15,6 +15,9 @@ unset HYPRLAND_INSTANCE_SIGNATURE
 for c in nm-connection-editor hyprlock grim slurp curl khal fd xdg-open cliphist wl-copy nmcli bluetoothctl tailscale mullvad wpctl pw-dump pw-metadata brightnessctl powerprofilesctl playerctl quiet-buds pgrep pkill systemctl systemd-run theme-switch setsid; do
   ln -sf "$repo/tests/quiet-shell/fakes/fake.py" "$run/bin/$c"
 done
+# Agent Desktop's event stream, fed by tests through a file.
+ln -sf "$repo/tests/quiet-shell/fakes/agent_events.py" "$run/bin/agent-desktop"
+export QUIET_AGENT_EVENTS_FILE="$run/agent-events.jsonl"
 echo 64 >"$run/power/BAT0/capacity"
 echo Discharging >"$run/power/BAT0/status"
 export QUIET_TEST_AUTH="file://$repo/tests/quiet-shell/fakes/TestAuth.qml"

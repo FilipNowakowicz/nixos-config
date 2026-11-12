@@ -130,6 +130,8 @@ SOUND_GO = (1889, 343)
 # The App icons rows under the eight themes in the Theme detail, and the dock's only app.
 ICONS_COLOUR, ICONS_MONO = (1740, 392), (1740, 426)
 DOCK_FIRST = (960, 1040)
+# The first button of an agent request banner (Take control).
+AGENT_TAKE = (1693, 123)
 VOLUME_Y, BRIGHT_Y = 343, 393
 CC_ICON, BATTERY, CLOCK = (1778, 21), (1732, 21), (1850, 21)
 tests = []
@@ -399,6 +401,32 @@ def notifications_banner_history_clear():
     # Below the calendar and its "Up next" agenda.
     click(1876, 379)
     wait(lambda: ui()["notices"] == 0, "clear all")
+
+
+def agent_event(**event):
+    with (run / "agent-events.jsonl").open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps({"at": time.time(), **event}) + "\n")
+
+
+@test
+def agent_request_banner_runs_its_command():
+    # A sign-in request from Agent Desktop: a banner with the event's own commands.
+    # Clicking runs that command; answering elsewhere takes the banner away.
+    agent_event(event="human_requested", session="s1", reason="Sign in to the console", login=True, take_command="nm-connection-editor agent-take s1", paste_command="nm-connection-editor agent-paste s1")
+    wait(lambda: ui()["agentRequests"] == 1 and ui()["banner"], "agent banner")
+    time.sleep(0.3)
+    shot("agent-request")
+    click(*AGENT_TAKE)
+    wait(lambda: ["nm-connection-editor", "agent-take", "s1"] in fake()["log"], "take command ran")
+    agent_event(event="control_taken", session="s1")
+    wait(lambda: ui()["agentRequests"] == 0, "request settled")
+    # Requests to use the person's own screen are left to the client: no banner.
+    agent_event(event="host_requested", request="h1", reason="Open the router page", minutes=15, approve_command="nm-connection-editor agent-approve", deny_command="nm-connection-editor agent-deny")
+    agent_event(event="human_requested", session="s2", reason="Solve the CAPTCHA", take_command="nm-connection-editor agent-take s2")
+    wait(lambda: ui()["agentRequests"] == 1, "only the session request")
+    assert ["nm-connection-editor", "agent-approve"] not in fake()["log"], "nothing is approved without a click"
+    agent_event(event="human_withdrawn", session="s2")
+    wait(lambda: ui()["agentRequests"] == 0, "withdrawn request settled")
 
 
 @test
