@@ -352,6 +352,7 @@ let
 
   mainBackupInvariants = [
     invariants.mainLocalBackupProtectsCriticalPaths
+    invariants.persistentNetworkTimersSurviveResume
     mainBackupPathsArePersisted
     mainBtrbkPolicyMatchesLocalSnapshotIntent
   ];

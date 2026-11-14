@@ -631,6 +631,52 @@ rec {
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
 
+  # On a host with both wait-online providers disabled (main),
+  # network-online.target never blocks. A Persistent=true timer then fires its
+  # missed run the instant the machine resumes, before Wi-Fi/VPN/DNS are back,
+  # and a network unit with no probe or retry fails once and stays stale until
+  # the next slot (2026-11-14: restic-backups-local, ResticBackupStale).
+  # Network units = ordered after/wanting network-online.target, or restic-*.
+  # Each must start with a "*-wait-*" ExecStartPre probe or set Restart=on-failure.
+  persistentNetworkTimersSurviveResume = {
+    name = "persistent network timers wait for connectivity after resume";
+    check =
+      cfg:
+      let
+        services = cfg.systemd.services or { };
+        waitOnlineDisabled =
+          !(services.systemd-networkd-wait-online.enable or true)
+          && !(services.NetworkManager-wait-online.enable or true);
+        persistentTimers = lib.filterAttrs (
+          _: t: (t.enable or true) && (t.timerConfig.Persistent or false)
+        ) (cfg.systemd.timers or { });
+        unitFor = name: timer: lib.removeSuffix ".service" (timer.timerConfig.Unit or "${name}.service");
+        isNetworkUnit =
+          name: svc:
+          lib.hasPrefix "restic-" name
+          || lib.any (t: t == "network-online.target") (
+            (svc.after or [ ]) ++ (svc.wants or [ ]) ++ (svc.requires or [ ])
+          );
+        hasProbe =
+          svc:
+          let
+            pre = lib.toList (svc.serviceConfig.ExecStartPre or [ ]);
+          in
+          pre != [ ] && lib.hasInfix "-wait-" (baseNameOf (toString (lib.head pre)));
+        unprotected = lib.filter (
+          unit:
+          let
+            svc = services.${unit} or { };
+          in
+          isNetworkUnit unit svc && !(hasProbe svc) && (svc.serviceConfig.Restart or "no") != "on-failure"
+        ) (lib.mapAttrsToList unitFor persistentTimers);
+      in
+      mkResult (!waitOnlineDisabled || unprotected == [ ]) (
+        "Persistent-timer network unit(s) with no leading *-wait-* ExecStartPre or Restart=on-failure "
+        + "(network-online.target is a no-op here): ${formatList unprotected}"
+      );
+  };
+
   # Pre-sorted so the check can compare directly without sorting a constant on
   # every eval. Mirrors hosts/main/default.nix's agentMaintenanceCommands.
   mainExpectedAgentMaintenanceCommands = [

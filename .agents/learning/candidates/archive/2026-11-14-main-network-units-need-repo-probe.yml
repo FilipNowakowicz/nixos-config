@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-11-14-main-network-units-need-repo-probe
+date: 2026-11-14
+expires: 2027-02-14
+status: promoted
+route: implement-fix
+best_form: invariant
+evidence: [hosts/main/backups.nix waitForRepo, journalctl restic-backups-local 2026-11-14 17:16 "lookup api.backblazeb2.com: Temporary failure in name resolution" right after 32h S3 resume]
+observation: main disables wait-online so network-online.target never blocks; Persistent=true timers fire instantly on resume before DNS, fail once, and stay stale until the next slot (ResticBackupStale fired)
+proposed_upgrade: invariant asserting every main oneshot with Persistent timer + After=network-online.target has a connectivity-probe ExecStartPre (or Restart=on-failure); start with restic-* units
+agent: claude
+type: repo-fix
+dedupe_key: main:network-online-noop-persistent-timer-on-resume
+targets: [lib/invariants.nix, hosts/main/backups.nix]
