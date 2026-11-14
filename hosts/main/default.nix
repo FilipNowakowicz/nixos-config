@@ -79,6 +79,7 @@ in
     ./anonymous.nix
     ./backups.nix
     ./disko.nix
+    ./gaming.nix
     ./impermanence.nix
     ./hardware-configuration.nix
     ./networking.nix
