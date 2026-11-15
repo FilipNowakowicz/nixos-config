@@ -165,6 +165,17 @@ in
       script = "rm -rf /run/systemd/netif";
     };
 
+    # fprintd drives the sensor through the Tudor host process. With no ordering
+    # between them, shutdown stopped the host first. fprintd, in the middle of
+    # hyprlock's verify, then ignored SIGTERM for the full 90s default timeout.
+    # Ordering it after the host makes shutdown stop fprintd first. It keeps
+    # nothing in memory (enrollments are written when they are made), so a
+    # short kill timeout covers any other way it can hang.
+    fprintd = lib.mkIf (!config.profiles.ci) {
+      after = [ "tudor-host-launcher.service" ];
+      serviceConfig.TimeoutStopSec = "5s";
+    };
+
     libvirtd-config.postStart = ''
       cat > /var/lib/libvirt/secret.conf <<'EOF'
       encrypt_data = 0
