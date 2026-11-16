@@ -97,7 +97,12 @@ stdenv.mkDerivation {
     substitute $src/tudor-host-launcher/tudor-host-launcher.service \
       $out/lib/systemd/system/tudor-host-launcher.service \
       --replace-fail '/sbin/tudor' "$out/bin/tudor"
-    install -D $src/libfprint-tod/60-tudor-libfprint-tod.rules -t $out/lib/udev/rules.d
+    # fprintd opens the sensor as root, so the upstream rule's plugdev group grants
+    # nothing; NixOS has no such group and udev warned about it on every event.
+    mkdir -p $out/lib/udev/rules.d
+    substitute $src/libfprint-tod/60-tudor-libfprint-tod.rules \
+      $out/lib/udev/rules.d/60-tudor-libfprint-tod.rules \
+      --replace-fail ', GROUP="plugdev"' ""
     install -D tudor-host-launcher/net.reactivated.TudorHostLauncher.service -t $out/share/dbus-1/system-services
     install -D $src/tudor-host-launcher/net.reactivated.TudorHostLauncher.conf -t $out/share/dbus-1/system.d
 
