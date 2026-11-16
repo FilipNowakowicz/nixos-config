@@ -120,8 +120,9 @@ in
       "x-scheme-handler/https" = "firefox.desktop";
       "x-scheme-handler/about" = "firefox.desktop";
 
-      # PDF (Firefox built-in viewer)
-      "application/pdf" = "firefox.desktop";
+      # PDF: Zathura, so a document opened from Spotlight or a file manager
+      # lands in the reader. PDFs from the web still open in Firefox's viewer.
+      "application/pdf" = "org.pwmt.zathura-pdf-mupdf.desktop";
 
       # Images
       "image/jpeg" = "imv.desktop";
