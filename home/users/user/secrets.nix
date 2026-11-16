@@ -40,13 +40,6 @@ in
       age.keyFile = "${configDir}/sops/age/keys.txt";
 
       secrets = {
-        gemini-oauth-creds = {
-          format = "json";
-          sopsFile = ./secrets/gemini-oauth_creds.json;
-          key = "";
-          path = "${homeDir}/.gemini/oauth_creds.json";
-        };
-
         gh-hosts = {
           format = "yaml";
           sopsFile = ./secrets/gh-hosts.yaml;
