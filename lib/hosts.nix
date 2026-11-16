@@ -51,7 +51,15 @@ let
       tailscale = {
         tag = "workstation";
         ip4 = "100.111.88.61";
-        acceptFrom.workstation = [ 22 ];
+        acceptFrom = {
+          workstation = [ 22 ];
+          # KDE Connect from the phone: 1716 for the link, 1739-1764 for file
+          # transfers. Its UDP discovery broadcast doesn't cross the tailnet, so
+          # the phone adds this host by its tailnet IP. An untagged phone on the
+          # admin's account already passes the break-glass rule; tagging it
+          # tag:phone confines it to these ports.
+          phone = [ 1716 ] ++ builtins.genList (i: 1739 + i) 26;
+        };
       };
       backup.class = "standard";
       hardware.diskById = "/dev/disk/by-id/nvme-eui.0025388401c2aa47";

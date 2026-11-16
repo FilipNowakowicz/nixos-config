@@ -848,17 +848,24 @@ let
               )
             )
           );
-          reviewed = [
-            "builder->server:53"
-            "ci->server:22"
-            "ci-builder->builder:22"
-            "workstation->builder:22"
-            "workstation->server:22"
-            "workstation->server:3001"
-            "workstation->server:443"
-            "workstation->server:53"
-            "workstation->workstation:22"
-          ];
+          # KDE Connect: link port 1716 plus the 1739-1764 transfer range.
+          phoneKdeConnect = map (p: "phone->workstation:${toString p}") (
+            [ 1716 ] ++ builtins.genList (i: 1739 + i) 26
+          );
+          reviewed = lib.sort builtins.lessThan (
+            phoneKdeConnect
+            ++ [
+              "builder->server:53"
+              "ci->server:22"
+              "ci-builder->builder:22"
+              "workstation->builder:22"
+              "workstation->server:22"
+              "workstation->server:3001"
+              "workstation->server:443"
+              "workstation->server:53"
+              "workstation->workstation:22"
+            ]
+          );
         in
         mkResult (
           actual == reviewed

@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  hostRegistry,
   ...
 }:
 let
@@ -80,8 +81,10 @@ in
     # "loose" keeps a weaker source-reachability check, but relaxes anti-spoofing
     # protection compared with strict mode.
     firewall.checkReversePath = "loose";
+    # KDE Connect (home/profiles/phone.nix) listens here too, for the phone over
+    # the tailnet only; its port list lives with the ACL in the host registry.
     firewall.interfaces.tailscale0 = {
-      allowedTCPPorts = [ 22 ];
+      allowedTCPPorts = [ 22 ] ++ hostRegistry.main.tailscale.acceptFrom.phone;
     };
     # Point to systemd-resolved stub for split DNS (Tailscale tailnet hostnames)
     nameservers = [ "127.0.0.53" ];
