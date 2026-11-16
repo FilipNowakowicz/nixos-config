@@ -162,6 +162,7 @@ docs)
   bash scripts/check-ci-closure-targets.sh
   bash scripts/check-ci-closure-targets.sh --self-test
   bash .agents/learning/scripts/validate-candidates.sh
+  bash .agents/learning/scripts/validate-candidates.sh --self-test
   bash .agents/learning/scripts/index-candidates.sh --self-test
   bash .agents/learning/scripts/scaffold-promotion-check.sh --self-test
   bash .agents/repo-map/scripts/validate.sh
@@ -172,6 +173,7 @@ flake-eval)
   ;;
 
 light)
+  bash .agents/learning/promotions/persistent-network-timer-probe.sh
   bash .agents/learning/promotions/bluetooth-boot-trigger.sh
   bash .agents/learning/promotions/mullvad-cli-package-unit.sh
   # The pre-commit derivation is intentionally excluded from CI: its hooks

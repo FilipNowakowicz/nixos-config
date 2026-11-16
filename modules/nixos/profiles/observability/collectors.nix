@@ -553,6 +553,11 @@ in
         "alloy/config.alloy".text = alloyConfig;
       };
 
+      # mkIf sits on the attribute, not on the required `text` leaf: guarding
+      # the leaf still registers an empty submodule instance, and any later read
+      # of `text` throws "accessed but has no value defined" (fixed in #334).
+      # tests/nixos/profile-observability.nix's `obs` node, which leaves
+      # collectors.metrics off, catches a regression.
       system.activationScripts.exportSystemMetadata = lib.mkIf cfg.collectors.metrics.enable {
         text = "${mkPromScript {
           name = "system_metadata.prom";

@@ -269,7 +269,55 @@ let
       lib.recursiveUpdate bluetoothBootConfig { systemd.timers.bluetooth-load-btusb = timer; }
     );
 
+  resumeTimerConfig = svc: {
+    systemd = {
+      services = {
+        systemd-networkd-wait-online.enable = false;
+        NetworkManager-wait-online.enable = false;
+        restic-backups-local = svc;
+      };
+      timers.restic-backups-local.timerConfig.Persistent = true;
+    };
+  };
+  checkResumeTimer =
+    svc: (invariants.persistentNetworkTimersSurviveResume.check (resumeTimerConfig svc)).passed;
+
   failures = lib.runTests {
+    testResumeTimerAcceptsLeadingWaitProbe = {
+      expr = checkResumeTimer {
+        serviceConfig.ExecStartPre = [
+          "/nix/store/x-restic-backups-local-wait-repo"
+          "/nix/store/y-pre-start"
+        ];
+      };
+      expected = true;
+    };
+    testResumeTimerAcceptsRestartOnFailure = {
+      expr = checkResumeTimer { serviceConfig.Restart = "on-failure"; };
+      expected = true;
+    };
+    testResumeTimerRejectsUnprotectedResticUnit = {
+      expr = checkResumeTimer { serviceConfig.ExecStartPre = [ "/nix/store/y-pre-start" ]; };
+      expected = false;
+    };
+    testResumeTimerRejectsProbeNotFirst = {
+      expr = checkResumeTimer {
+        serviceConfig.ExecStartPre = [
+          "/nix/store/y-pre-start"
+          "/nix/store/x-wait-repo"
+        ];
+      };
+      expected = false;
+    };
+    testResumeTimerIgnoresHostsWithWorkingWaitOnline = {
+      expr =
+        (invariants.persistentNetworkTimersSurviveResume.check (
+          lib.recursiveUpdate (resumeTimerConfig { }) {
+            systemd.services.NetworkManager-wait-online.enable = true;
+          }
+        )).passed;
+      expected = true;
+    };
     testMinimalObservabilityPasses = {
       expr = (invariants.observabilityStaysMinimal.check { }).passed;
       expected = true;

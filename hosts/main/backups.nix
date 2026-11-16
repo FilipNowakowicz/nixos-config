@@ -1,6 +1,31 @@
-{ config, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   inherit (config.lib.profiles.observability) mkPromScript;
+
+  # network-online.target is a no-op here: main force-disables both
+  # wait-online providers (see networking.nix), so it orders against nothing.
+  # Probe the B2 backend directly with a bounded retry instead, so both restic
+  # units wait for real connectivity. This matters most after a long suspend:
+  # Persistent=true fires the missed run the instant the machine resumes,
+  # before Wi-Fi/VPN/DNS are back, and a single failed attempt otherwise
+  # leaves the backup stale until the next daily slot.
+  waitForRepo =
+    unit:
+    pkgs.writeShellScript "${unit}-wait-repo" ''
+      for _ in $(${pkgs.coreutils}/bin/seq 1 30); do
+        ${pkgs.restic}/bin/restic cat config \
+          --repository-file=${config.sops.secrets.restic_repository.path} \
+          >/dev/null 2>&1 && exit 0
+        ${pkgs.coreutils}/bin/sleep 10
+      done
+      echo "${unit}: B2 repo unreachable after ~5min" >&2
+      exit 1
+    '';
 in
 {
   # Hidden maintenance mount for the filesystem top-level. btrbk snapshots
@@ -93,13 +118,19 @@ in
 
   systemd = {
     services = {
-      restic-backups-local.serviceConfig.ExecStartPost = mkPromScript {
-        name = "restic_backup.prom";
-        lines = [
-          "# HELP restic_last_backup_timestamp_seconds Unix timestamp of last successful restic backup"
-          "# TYPE restic_last_backup_timestamp_seconds gauge"
-          "restic_last_backup_timestamp_seconds $(${pkgs.coreutils}/bin/date +%s)"
-        ];
+      restic-backups-local.serviceConfig = {
+        # Runs before the restic module's own pre-start, which opens the repo
+        # and fails hard on the first DNS error. Inherits the module's
+        # EnvironmentFile (B2 creds) and RESTIC_PASSWORD_FILE.
+        ExecStartPre = lib.mkBefore [ (waitForRepo "restic-backups-local") ];
+        ExecStartPost = mkPromScript {
+          name = "restic_backup.prom";
+          lines = [
+            "# HELP restic_last_backup_timestamp_seconds Unix timestamp of last successful restic backup"
+            "# TYPE restic_last_backup_timestamp_seconds gauge"
+            "restic_last_backup_timestamp_seconds $(${pkgs.coreutils}/bin/date +%s)"
+          ];
+        };
       };
 
       btrbk-local-snapshot-dir = {
@@ -115,24 +146,12 @@ in
 
       restic-check-local = {
         description = "Restic workstation repository integrity check";
-        # network-online.target is a no-op here: main force-disables both
-        # wait-online providers (see networking.nix), so the target is reached
-        # immediately and orders against nothing. Probe the B2 backend directly
-        # with a bounded retry in ExecStartPre instead, so the check waits for
-        # real connectivity rather than relying on a target that never blocks.
+        # See waitForRepo above for why this probes B2 instead of relying on
+        # network-online.target.
         environment.RESTIC_PASSWORD_FILE = config.sops.secrets.restic_password.path;
         serviceConfig = {
           Type = "oneshot";
-          ExecStartPre = pkgs.writeShellScript "restic-check-wait-repo" ''
-            for _ in $(${pkgs.coreutils}/bin/seq 1 30); do
-              ${pkgs.restic}/bin/restic cat config \
-                --repository-file=${config.sops.secrets.restic_repository.path} \
-                >/dev/null 2>&1 && exit 0
-              ${pkgs.coreutils}/bin/sleep 10
-            done
-            echo "restic-check-local: B2 repo unreachable after ~5min" >&2
-            exit 1
-          '';
+          ExecStartPre = waitForRepo "restic-check-local";
           ExecStart = "${pkgs.restic}/bin/restic check --repository-file=${config.sops.secrets.restic_repository.path} --read-data-subset=1G";
           ExecStartPost = mkPromScript {
             name = "restic_check.prom";

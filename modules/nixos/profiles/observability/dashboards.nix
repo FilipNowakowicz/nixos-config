@@ -53,131 +53,6 @@ let
     ref: ref.backend != null && !(backendEnabled ref.backend)
   ) panelDatasourceRefs;
 
-  fleetDashboard = dash.mkDashboard {
-    uid = "homeserver-fleet-overview";
-    title = "Homeserver Fleet Overview";
-    panels = [
-      (dash.timeseriesPanel {
-        id = 1;
-        title = "CPU Usage %";
-        ds = dash.prometheusDS;
-        gridPos = dash.gridPos {
-          x = 0;
-          y = 0;
-          w = 12;
-          h = 8;
-        };
-        targets = [
-          (dash.target {
-            expr = "100 - (avg by(host) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)";
-            legendFormat = "{{host}}";
-          })
-        ];
-      })
-      (dash.timeseriesPanel {
-        id = 3;
-        title = "Memory Usage %";
-        ds = dash.prometheusDS;
-        gridPos = dash.gridPos {
-          x = 12;
-          y = 0;
-          w = 12;
-          h = 8;
-        };
-        targets = [
-          (dash.target {
-            expr = "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100";
-            legendFormat = "{{host}}";
-          })
-        ];
-      })
-      (dash.timeseriesPanel {
-        id = 4;
-        title = "Disk Usage %";
-        ds = dash.prometheusDS;
-        gridPos = dash.gridPos {
-          x = 0;
-          y = 8;
-          w = 12;
-          h = 8;
-        };
-        targets = [
-          (dash.target {
-            expr = ''(1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|efivarfs|squashfs|devtmpfs",mountpoint="/"} / node_filesystem_size_bytes) * 100'';
-            legendFormat = "{{host}}";
-          })
-        ];
-      })
-      (dash.timeseriesPanel {
-        id = 5;
-        title = "Failed Systemd Units";
-        ds = dash.prometheusDS;
-        gridPos = dash.gridPos {
-          x = 12;
-          y = 8;
-          w = 12;
-          h = 8;
-        };
-        targets = [
-          (dash.target {
-            expr = ''sum by(host) (node_systemd_unit_state{state="failed"})'';
-            legendFormat = "{{host}}";
-          })
-        ];
-      })
-      (dash.timeseriesPanel {
-        id = 6;
-        title = "Backup Age (hours)";
-        ds = dash.prometheusDS;
-        gridPos = dash.gridPos {
-          x = 0;
-          y = 16;
-          w = 12;
-          h = 8;
-        };
-        targets = [
-          (dash.target {
-            expr = "(time() - restic_last_backup_timestamp_seconds) / 3600";
-            legendFormat = "{{host}}";
-          })
-        ];
-      })
-      (dash.timeseriesPanel {
-        id = 7;
-        title = "Backup Check Age (hours)";
-        ds = dash.prometheusDS;
-        gridPos = dash.gridPos {
-          x = 12;
-          y = 16;
-          w = 12;
-          h = 8;
-        };
-        targets = [
-          (dash.target {
-            expr = "(time() - restic_last_check_timestamp_seconds) / 3600";
-            legendFormat = "{{host}}";
-          })
-        ];
-      })
-      (dash.logsPanel {
-        id = 2;
-        title = "Systemd Journal Logs";
-        ds = dash.lokiDS;
-        gridPos = dash.gridPos {
-          x = 0;
-          y = 24;
-          w = 24;
-          h = 8;
-        };
-        targets = [
-          (dash.target {
-            expr = "{job=\"systemd-journal\"}";
-          })
-        ];
-      })
-    ];
-  };
-
   securityEventsDashboard = dash.mkDashboard {
     uid = "security-events";
     title = "Security Events";
@@ -270,9 +145,9 @@ in
     default = { };
     description = ''
       Grafana dashboards to render under /etc/grafana-dashboards/<name>.json.
-      The built-in `fleet` dashboard is pre-registered; toggle it via
-      `dashboards.fleet.enable`. Add new dashboards by setting
-      `dashboards.<name>.definition`.
+      The built-in `security-events` dashboard is pre-registered (off by
+      default); toggle it via `dashboards.security-events.enable`. Add new
+      dashboards by setting `dashboards.<name>.definition`.
     '';
   };
 
@@ -293,11 +168,6 @@ in
         }";
       }
     ];
-
-    profiles.observability.dashboards.fleet = {
-      enable = lib.mkDefault false;
-      definition = fleetDashboard;
-    };
 
     profiles.observability.dashboards.security-events = {
       enable = lib.mkDefault false;
