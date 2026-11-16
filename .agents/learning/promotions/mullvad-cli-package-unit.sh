@@ -13,6 +13,17 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$repo_root"
 
+# scripts/on-builder.sh syncs tracked files without .git to a builder that has
+# no git, so fall back to walking the tree there. Without the fallback the
+# failed `git ls-files` fed an empty list and the check silently passed.
+list_nix_files() {
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git ls-files -- '*.nix'
+  else
+    find . -name .git -prune -o -type f -name '*.nix' -print | sed 's|^\./||'
+  fi
+}
+
 has_failed=0
 while IFS= read -r path; do
   [[ -z $path || ! -f $path ]] && continue
@@ -26,6 +37,6 @@ while IFS= read -r path; do
     echo "(pkgs.mullvad-vpn does not reliably expose the CLI; services.mullvad-vpn.package does.)" >&2
     has_failed=1
   fi
-done < <(git ls-files)
+done < <(list_nix_files)
 
 exit "$has_failed"
