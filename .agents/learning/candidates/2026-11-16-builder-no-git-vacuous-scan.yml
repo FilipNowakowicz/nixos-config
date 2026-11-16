@@ -1,0 +1,13 @@
+schema: learning-candidate/v1
+id: 2026-11-16-builder-no-git-vacuous-scan
+date: 2026-11-16
+expires: 2027-02-16
+status: open
+route: implement-fix
+best_form: test
+evidence: [pr-#513, ".agents/learning/promotions/mullvad-cli-package-unit.sh: 'line 29: git: command not found' then exit 0 under validate.sh light"]
+observation: on-builder.sh rsyncs tracked files without .git to a builder with no git; a `git ls-files` feeding `< <(...)` fails silently so file-scanning checks under validate.sh light pass vacuously
+proposed_upgrade: lib test that greps scripts invoked by validate.sh light for `git ls-files` without a no-git fallback, or make on-builder.sh put git on the remote PATH and sync .git-free mode explicitly
+type: workflow-gotcha
+dedupe_key: validate:builder-no-git-vacuous-scan
+triggers: [scripts/on-builder.sh, scripts/validate.sh light, ".agents/learning/promotions/*.sh"]

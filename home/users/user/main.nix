@@ -2,6 +2,7 @@
 {
   imports = [
     ../../profiles/agent-desktop.nix
+    ../../profiles/agent-usage.nix
     ../../profiles/calendar.nix
     ../../profiles/ntfy-notifications.nix
     ../../profiles/python-development.nix

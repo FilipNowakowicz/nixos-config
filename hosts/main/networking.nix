@@ -52,6 +52,24 @@ let
 
     "$ip_bin" route flush cache 2>/dev/null || true
     "$ip_bin" -6 route flush cache 2>/dev/null || true
+
+    # Mullvad numbers its two policy rules just ahead of the rules present when
+    # it connects. If it connects before tailscaled has added its bypass rule
+    # (pref 5210, for tailscaled's own 0x80000-marked sockets), Mullvad's rules
+    # land behind it (seen at boot: 32764/32765). tailscaled's control-plane
+    # traffic then matches the bypass rule first, leaves outside the tunnel and
+    # is rejected by lockdown, so Tailscale stays logged out until Mullvad next
+    # reconnects. A reconnect renumbers the rules ahead of tailscaled's.
+    rule_pref() {
+      "$ip_bin" rule show | ${pkgs.gawk}/bin/awk -F: -v pattern="$1" \
+        'index($0, pattern) { print $1; exit }'
+    }
+    mullvad_pref=$(rule_pref "lookup 1836018789")
+    tailscale_pref=$(rule_pref "fwmark 0x80000/0xff0000 lookup main")
+    if [[ -n $mullvad_pref && -n $tailscale_pref ]] && ((mullvad_pref > tailscale_pref)); then
+      echo "tailscale-bypass-routing: Mullvad rule $mullvad_pref is behind tailscaled's $tailscale_pref; reconnecting Mullvad" >&2
+      ${config.services.mullvad-vpn.package}/bin/mullvad reconnect
+    fi
   '';
 in
 {
@@ -140,7 +158,12 @@ in
     # dedicated tailscale-bypass-routing.service is the surface that fails
     # loudly on discovery failure.
     tailscaled.postStart = lib.mkAfter "${tailscaleBypassRules} || true";
-    mullvad-daemon.postStart = lib.mkAfter "${tailscaleBypassRules} || true";
+    mullvad-daemon = {
+      postStart = lib.mkAfter "${tailscaleBypassRules} || true";
+      # Let tailscaled add its policy rules first, so Mullvad's first connect
+      # numbers its own ahead of them (see the rule-order check above).
+      after = [ "tailscaled.service" ];
+    };
 
     # Tailscale coexistence is handled at the nftables layer: outgoing
     # tailscale0 packets are marked with Mullvad's split-tunnel exclusion
