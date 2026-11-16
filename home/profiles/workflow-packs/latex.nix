@@ -16,6 +16,7 @@ in
         ps.scheme-medium
         ps.enumitem
         ps.titlesec
+        ps.needspace
       ]))
     ];
   };
