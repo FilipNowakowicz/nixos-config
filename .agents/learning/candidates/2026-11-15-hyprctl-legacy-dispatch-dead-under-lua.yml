@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-11-15-hyprctl-legacy-dispatch-dead-under-lua
+date: 2026-11-15
+expires: 2027-05-15
+status: open
+route: implement-fix
+best_form: invariant
+evidence: [journalctl -b -1 hypridle "error: 3 [string \"return hl.dispatch(dpms on)\"]:1: ')' expected near 'on'", home/desktop/default.nix hypridle after_sleep_cmd/on-timeout/on-resume (pre-fix "hyprctl dispatch dpms on"), hyprland src/config/lua/bindings/LuaBindingsInternal.cpp:317 parseToggleStr unknown->TOGGLE, live probe hl.dsp.dpms({foo='on'}) toggled eDP-1 off and hyprctl still printed ok]
+observation: under Lua config legacy "hyprctl dispatch <dispatcher> <args>" strings in HM-generated configs (hypridle) fail silently at runtime and left the screen dark after resume; hl.dsp togglable dispatchers treat an unknown/missing action as toggle and hyprctl returns ok for anything, so live-probing dpms can blank the user's screen
+proposed_upgrade: invariant over main's rendered hypridle.conf (and other HM text configs) rejecting "hyprctl dispatch " not followed by a quoted hl. expression; add a hosts/main/CLAUDE.md gotcha line never to probe togglable hl.dsp dispatchers live with guessed args, read LuaBindingsDispatchers.cpp instead
+agent: claude
+type: workflow-gotcha
+dedupe_key: hyprland:legacy-hyprctl-dispatch-under-lua-config
+targets: [flake/checks.nix, home/desktop/default.nix, hosts/main/CLAUDE.md]

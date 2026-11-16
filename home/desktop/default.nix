@@ -17,6 +17,12 @@ let
       "/run/current-system/sw/bin"
     ];
   };
+
+  # Under the Lua config, `hyprctl dispatch` takes a Lua dispatcher expression.
+  # The legacy `dispatch dpms on` form fails with a Lua syntax error, which
+  # left the screen dark after resume. An unknown action toggles instead of
+  # failing, so only pass "on" or "off".
+  dpms = action: "hyprctl dispatch \"hl.dsp.dpms({ action = '${action}' })\"";
 in
 {
   imports = [ ../theme/module.nix ];
@@ -66,7 +72,7 @@ in
       enable = true;
       settings = {
         general = {
-          after_sleep_cmd = "hyprctl dispatch dpms on";
+          after_sleep_cmd = dpms "on";
           before_sleep_cmd = "loginctl lock-session";
           lock_cmd = "pidof hyprlock || ${pkgs.hyprlock}/bin/hyprlock";
         };
@@ -80,8 +86,8 @@ in
           }
           {
             timeout = 330;
-            on-timeout = "hyprctl dispatch dpms off";
-            on-resume = "hyprctl dispatch dpms on";
+            on-timeout = dpms "off";
+            on-resume = dpms "on";
           }
           {
             timeout = 900;

@@ -254,7 +254,10 @@ Item {
         id: fileDelay
         interval: 180
         onTriggered: {
-            fileSearch.command = ["fd", "--type", "f", "--fixed-strings", "--max-results", "3", "--color", "never", "--", root.query, Quickshell.env("HOME")];
+            // fd stops at the first matches its parallel walk happens on, so ask for
+            // plenty and rank them below; three of a checkout's source files would
+            // otherwise crowd out the PDF that was meant.
+            fileSearch.command = ["fd", "--type", "f", "--fixed-strings", "--max-results", "200", "--color", "never", "--", root.query, Quickshell.env("HOME")];
             fileSearch.running = true;
         }
     }
@@ -263,10 +266,18 @@ Item {
         stdout: StdioCollector {
             onStreamFinished: {
                 const home = Quickshell.env("HOME");
+                const query = root.query.toLowerCase();
+                // Readable documents first, then other documents, then a name that
+                // starts with what was typed, then the shallowest path.
+                const readers = /\.(pdf|epub|djvu)$/i;
+                const documents = /\.(docx?|odt|xlsx?|ods|pptx?|odp|md|txt)$/i;
+                const rank = file => (readers.test(file.name) ? 0 : documents.test(file.name) ? 2 : 6)
+                    + (file.name.toLowerCase().startsWith(query) ? 0 : 1)
+                    + file.path.split("/").length / 100;
                 root.files = text.split("\n").filter(p => p).map(path => {
                     const at = path.lastIndexOf("/");
                     return { path, name: path.slice(at + 1), folder: path.slice(0, at).replace(home, "~") };
-                });
+                }).sort((a, b) => rank(a) - rank(b)).slice(0, 3);
             }
         }
     }

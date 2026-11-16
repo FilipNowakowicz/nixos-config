@@ -319,6 +319,12 @@ rec {
         (lib.optionalString (
           bothEnabled && mullvadLockdown == null
         ) "systemd.services.mullvad-lockdown must exist")
+        # Mullvad numbers its policy rules ahead of those present when it
+        # connects; starting first puts them behind tailscaled's bypass rule.
+        (lib.optionalString (
+          bothEnabled
+          && !builtins.elem "tailscaled.service" (cfg.systemd.services.mullvad-daemon.after or [ ])
+        ) "mullvad-daemon.service must start after tailscaled.service")
       ];
     in
     mkResult (!bothEnabled || violations == [ ]) (
