@@ -10,6 +10,7 @@ noise control.
 """
 
 import json
+import os
 import re
 import socket
 import subprocess
@@ -21,6 +22,7 @@ MANAGER_UUID = "2e73a4ad-332d-41fc-90e2-16bef06523f2"
 STATUS, ACKNOWLEDGE, SET_NOISE_CONTROL = 0x61, 0x42, 0x78
 START, END = 0xFD, 0xDD
 MODES = {"off": 0, "anc": 1, "ambient": 2, "adaptive": 3}
+NAMES = {number: name for name, number in MODES.items()}
 
 
 def checksum(data):
@@ -59,25 +61,25 @@ def frames(buffer):
 def status(payload):
     """A bud that isn't linked reports 0%, which would read as flat, so leave it out.
 
-    No noise-control mode here: on Buds4 Pro firmware the status message is the
-    same byte for byte in Off, ANC and Ambient, so the shell remembers the mode
-    it last set instead of reading a wrong one.
+    Byte 12 is the noise-control mode, the same number SET_NOISE_CONTROL takes.
     """
     linked = payload[6]
     return {
         "left": payload[2] if linked >> 4 else None,
         "right": payload[3] if linked & 15 else None,
         "case": payload[7] or None,
+        "mode": NAMES.get(payload[12]),
     }
 
 
 def acknowledged(message, payload):
-    """The Buds acknowledge a setting with its message id and a status byte, 0 for done.
+    """The Buds acknowledge a setting with its message id, then the mode now in effect.
 
-    The second byte is not the mode that was set: expecting that matched only Off
-    (0), so ANC and Ambient switched but were reported as failed.
+    Returns that mode's name, or None for any other message.
     """
-    return message == ACKNOWLEDGE and len(payload) >= 1 and payload[0] == SET_NOISE_CONTROL and (len(payload) < 2 or payload[1] == 0)
+    if message == ACKNOWLEDGE and len(payload) >= 2 and payload[0] == SET_NOISE_CONTROL:
+        return NAMES.get(payload[1])
+    return None
 
 
 def channel(address):
@@ -101,9 +103,40 @@ def channel(address):
             lookup.kill()
 
 
-def connect(address, port):
+def cache_file(address):
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache")
+    return os.path.join(base, "quiet-shell", "buds-" + address.replace(":", "") + ".channel")
+
+
+def link_to(address):
+    """Connect on the channel found last time, and look it up again only if that fails.
+
+    The Buds sometimes refuse SDP for minutes while their manager channel still
+    answers, so a lookup on every call left the card stuck.
+    """
+    path = cache_file(address)
+    try:
+        with open(path) as cached:
+            link = connect(address, int(cached.read()), tries=2)
+        if link:
+            return link
+    except (OSError, ValueError):
+        pass
+    port = channel(address)
+    if port is None:
+        return None
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as cached:
+            cached.write(str(port))
+    except OSError:
+        pass
+    return connect(address, port)
+
+
+def connect(address, port, tries=8):
     # The Buds need a moment to release the channel after the last client leaves.
-    for _ in range(8):
+    for _ in range(tries):
         link = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
         link.settimeout(8)
         try:
@@ -142,8 +175,7 @@ def main():
     target = MODES.get(sys.argv[3]) if command == "set" and len(sys.argv) > 3 else None
     if command == "set" and target is None:
         sys.exit(2)
-    port = channel(address)
-    link = connect(address, port) if port else None
+    link = link_to(address)
     if link is None:
         sys.exit(1)
     with link:
@@ -151,7 +183,8 @@ def main():
             result = wait_for(link, lambda message, payload: status(payload) if message == STATUS and len(payload) > 12 else None)
         else:
             link.send(frame(SET_NOISE_CONTROL, bytes([target])))
-            result = wait_for(link, lambda message, payload: {"mode": sys.argv[3]} if acknowledged(message, payload) else None)
+            mode = wait_for(link, acknowledged)
+            result = {"mode": mode} if mode == sys.argv[3] else None
     if result is None:
         sys.exit(1)
     print(json.dumps(result))
