@@ -8,7 +8,7 @@ const source = fs
   .replace(/^\.pragma library\s*$/m, "");
 const S = vm.runInNewContext(
   source +
-    "\n({ score, wordsMatch, calculate, convert, frecency, byUse, remember, topHit })",
+    "\n({ score, wordsMatch, calculate, convert, frecency, byUse, remember, topHit, timer })",
 );
 
 // Sums
@@ -128,5 +128,45 @@ let big = { picks: {}, typed: {} };
 for (let i = 0; i < 450; i++) big = S.remember(big, "q" + i, "k" + i, now + i);
 assert.equal(Object.keys(big.picks).length, 400);
 assert.ok("k449" in big.picks && !("k0" in big.picks), "the stalest go first");
+
+// Timers and alarms
+{
+  const now = new Date(2026, 10, 16, 22, 0, 0).getTime();
+  const t = (text) => {
+    const r = S.timer(text, now);
+    return r && [r.title, r.label, (r.at - now) / 1000];
+  };
+  assert.deepEqual(t("timer 10m tea"), ["Timer · 10 min", "tea", 600]);
+  assert.deepEqual(
+    t("timer 10 tea"),
+    ["Timer · 10 min", "tea", 600],
+    "a bare number is minutes",
+  );
+  assert.deepEqual(t("timer 1h30"), ["Timer · 1 h 30 min", "", 5400]);
+  assert.deepEqual(t("timer 1h 30m pasta"), [
+    "Timer · 1 h 30 min",
+    "pasta",
+    5400,
+  ]);
+  assert.deepEqual(t("timer 90s"), ["Timer · 1 min 30 s", "", 90]);
+  assert.deepEqual(t("timer 1,5h break time"), [
+    "Timer · 1 h 30 min",
+    "break time",
+    5400,
+  ]);
+  assert.deepEqual(t("25 min timer"), ["Timer · 25 min", "", 1500]);
+  assert.equal(t("timer tea"), null);
+  assert.equal(t("timer 0"), null);
+  assert.equal(t("timer 9 days"), null, "an unknown unit is no timer");
+  assert.deepEqual(t("alarm 23"), ["Alarm · 23:00", "", 3600]);
+  assert.deepEqual(
+    t("alarm 7:30 lecture"),
+    ["Alarm · 07:30 tomorrow", "lecture", 34200],
+    "a time already past is tomorrow",
+  );
+  assert.deepEqual(t("alarm 6pm"), ["Alarm · 18:00 tomorrow", "", 72000]);
+  assert.equal(t("alarm 25"), null);
+  assert.equal(t("firefox"), null);
+}
 
 console.log("quiet-shell search: ok");

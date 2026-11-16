@@ -1,5 +1,6 @@
 {
   lib,
+  bash,
   stdenvNoCC,
   makeWrapper,
   writers,
@@ -13,6 +14,7 @@
   grim,
   hyprlock,
   khal,
+  libnotify,
   mullvad-vpn,
   networkmanager,
   networkmanagerapplet,
@@ -20,6 +22,7 @@
   power-profiles-daemon,
   procps,
   slurp,
+  sound-theme-freedesktop,
   systemd,
   tailscale,
   tesseract,
@@ -99,6 +102,7 @@ stdenvNoCC.mkDerivation {
       --set QT_WAYLAND_DISABLED_INTERFACES ${lib.concatStringsSep "," textInput} \
       --set QUIET_ZONE_TAB ${tzdata}/share/zoneinfo/zone.tab \
       --set QUIET_COUNTRY_TAB ${tzdata}/share/zoneinfo/iso3166.tab \
+      --set QUIET_TIMER_RING $out/bin/quiet-timer-ring \
       --suffix PATH : ${
         lib.concatStringsSep ":" (
           [
@@ -111,6 +115,15 @@ stdenvNoCC.mkDerivation {
     makeWrapper ${python3}/bin/python3 $out/bin/quiet-buds \
       --add-flags "$out/share/quiet-shell/scripts/buds.py" \
       --suffix PATH : ${lib.makeBinPath [ bluez ]}
+    makeWrapper ${lib.getExe bash} $out/bin/quiet-timer-ring \
+      --add-flags "$out/share/quiet-shell/scripts/timer-ring.sh" \
+      --set PATH ${
+        lib.makeBinPath [
+          libnotify
+          pipewire
+        ]
+      } \
+      --set QUIET_ALARM_SOUND ${sound-theme-freedesktop}/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga
     makeWrapper ${quickshell}/bin/qs $out/bin/quiet-shell-ipc \
       --add-flags "ipc -p $out/share/quiet-shell call shell"
     runHook postInstall
