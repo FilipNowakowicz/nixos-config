@@ -41,7 +41,7 @@ ColumnLayout {
                 Press {
                     id: mode
                     required property var modelData
-                    readonly property bool selected: !!root.info && root.info.mode === modelData[0]
+                    readonly property bool selected: Sys.budsMode === modelData[0]
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     radius: 16

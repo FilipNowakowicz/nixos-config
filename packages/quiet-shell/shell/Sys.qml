@@ -247,12 +247,24 @@ Singleton {
         const command = want ? ["sh", "-c", 'bluetoothctl power on && bluetoothctl connect "$0"', buds.addr] : ["bluetoothctl", "disconnect", buds.addr];
         write("buds", command, s => !!s.bluetooth && !!s.bluetooth.buds && s.bluetooth.buds.connected === want, "The Buds didn't " + (want ? "connect." : "disconnect."), { timeout: 15000 });
     }
+    // The mode last picked on the card. It shows at once while the Buds take a
+    // moment to confirm, and a pick made meanwhile is sent once they have.
+    property string budsWanted: ""
+    readonly property string budsMode: budsWanted !== "" && pending("buds-mode") ? budsWanted : budsInfo ? budsInfo.mode || "" : ""
     function setBudsMode(mode) {
         if (!budsConnected)
             return;
+        budsWanted = mode;
+        if (pending("buds-mode"))
+            return;
         write("buds-mode", ["quiet-buds", "set", buds.addr, mode], () => !!budsInfo && budsInfo.mode === mode, "Noise control didn't change.", {
             timeout: 15000,
-            after: () => root.budsInfo = Object.assign({}, root.budsInfo, { mode })
+            after: () => {
+                root.budsInfo = Object.assign({}, root.budsInfo, { mode });
+                root.dismiss("buds-mode");
+                if (root.budsWanted !== mode)
+                    root.setBudsMode(root.budsWanted);
+            }
         });
     }
     // Spotlight's timers and alarms are transient systemd user timers, so they
@@ -292,7 +304,7 @@ Singleton {
     }
 
     function refreshBuds() {
-        if (budsConnected && !budsRead.running) {
+        if (budsConnected && !budsRead.running && !pending("buds-mode")) {
             budsRead.command = ["quiet-buds", "read", buds.addr];
             budsRead.running = true;
         }
@@ -304,10 +316,9 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    // A reading has no noise-control mode (see buds.py), so keep the
-                    // one this shell last set.
-                    const read = JSON.parse(text);
-                    root.budsInfo = Object.assign({ mode: root.budsInfo ? root.budsInfo.mode : null }, read);
+                    // The reading includes the mode, so a change made on the Buds
+                    // themselves shows up too.
+                    root.budsInfo = JSON.parse(text);
                 } catch (e) {
                     // Keep the last reading. The card falls back to BlueZ's battery figure.
                 }
