@@ -173,7 +173,10 @@ let
         wantedBy = [ "multi-user.target" ];
       };
       tailscaled.postStart = "tailscale-bypass-rules || true";
-      mullvad-daemon.postStart = "tailscale-bypass-rules || true";
+      mullvad-daemon = {
+        postStart = "tailscale-bypass-rules || true";
+        after = [ "tailscaled.service" ];
+      };
       mullvad-lockdown = { };
     };
   };
@@ -728,6 +731,16 @@ let
           }
         )).message;
       expected = "tailscale-mullvad-compat nftables chain must set Mullvad's conntrack bypass mark";
+    };
+
+    testMullvadTailscaleCoexistenceRejectsMullvadBeforeTailscaled = {
+      expr =
+        (invariants.checkMullvadTailscaleCoexistence (
+          lib.recursiveUpdate mullvadTailscaleConfig {
+            systemd.services.mullvad-daemon.after = [ ];
+          }
+        )).message;
+      expected = "mullvad-daemon.service must start after tailscaled.service";
     };
 
     testTrustedUsersMatchExpectedSet = {
