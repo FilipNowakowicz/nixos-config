@@ -5,7 +5,8 @@ Usage: buds.py read ADDRESS | buds.py set ADDRESS off|anc|ambient
 
 Samsung's protocol is undocumented, so a message is only trusted if its checksum
 passes. The layout follows GalaxyBudsClient, and was checked on Buds4 Pro. BlueZ
-already reports one battery figure; this adds each bud, the case and noise control.
+already reports one battery figure; this adds each bud and the case, and sets
+noise control.
 """
 
 import json
@@ -56,15 +57,27 @@ def frames(buffer):
 
 
 def status(payload):
-    """A bud that isn't linked reports 0%, which would read as flat, so leave it out."""
+    """A bud that isn't linked reports 0%, which would read as flat, so leave it out.
+
+    No noise-control mode here: on Buds4 Pro firmware the status message is the
+    same byte for byte in Off, ANC and Ambient, so the shell remembers the mode
+    it last set instead of reading a wrong one.
+    """
     linked = payload[6]
-    mode = next((name for name, value in MODES.items() if value == payload[12]), None)
     return {
         "left": payload[2] if linked >> 4 else None,
         "right": payload[3] if linked & 15 else None,
         "case": payload[7] or None,
-        "mode": mode,
     }
+
+
+def acknowledged(message, payload):
+    """The Buds acknowledge a setting with its message id and a status byte, 0 for done.
+
+    The second byte is not the mode that was set: expecting that matched only Off
+    (0), so ANC and Ambient switched but were reported as failed.
+    """
+    return message == ACKNOWLEDGE and len(payload) >= 1 and payload[0] == SET_NOISE_CONTROL and (len(payload) < 2 or payload[1] == 0)
 
 
 def channel(address):
@@ -138,8 +151,7 @@ def main():
             result = wait_for(link, lambda message, payload: status(payload) if message == STATUS and len(payload) > 12 else None)
         else:
             link.send(frame(SET_NOISE_CONTROL, bytes([target])))
-            agreed = bytes([SET_NOISE_CONTROL, target])
-            result = wait_for(link, lambda message, payload: {"mode": sys.argv[3]} if message == ACKNOWLEDGE and payload[:2] == agreed else None)
+            result = wait_for(link, lambda message, payload: {"mode": sys.argv[3]} if acknowledged(message, payload) else None)
     if result is None:
         sys.exit(1)
     print(json.dumps(result))

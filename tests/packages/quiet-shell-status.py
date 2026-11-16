@@ -75,12 +75,18 @@ captured = bytes.fromhex(
 )
 found, rest = buds.frames(captured + captured[:5])
 assert len(found) == 1 and found[0][0] == buds.STATUS and rest == captured[:5], (found, rest)
-assert buds.status(found[0][1]) == {"left": None, "right": 99, "case": None, "mode": "off"}, buds.status(found[0][1])
+assert buds.status(found[0][1]) == {"left": None, "right": 99, "case": None}, buds.status(found[0][1])
 corrupt = bytearray(captured)
 corrupt[8] ^= 1
 assert buds.frames(bytes(corrupt))[0] == [], "a bad checksum must never be trusted"
 sent = buds.frame(buds.SET_NOISE_CONTROL, bytes([buds.MODES["anc"]]))
 assert buds.frames(sent)[0] == [(0x78, b"\x01")], sent.hex()
+# Buds4 Pro acknowledges every mode with the message id and 0 (seen live: 78 00).
+for mode in ("off", "anc", "ambient"):
+    assert buds.acknowledged(buds.ACKNOWLEDGE, bytes([buds.SET_NOISE_CONTROL, 0])), mode
+assert not buds.acknowledged(buds.ACKNOWLEDGE, bytes([buds.SET_NOISE_CONTROL, 1])), "a non-zero status is a refusal"
+assert not buds.acknowledged(buds.ACKNOWLEDGE, bytes([0x79, 0])), "another setting's acknowledgement"
+assert not buds.acknowledged(buds.STATUS, bytes([buds.SET_NOISE_CONTROL, 0]))
 print("quiet-shell buds: ok")
 
 with tempfile.TemporaryDirectory() as tmp:
