@@ -212,16 +212,28 @@ Item {
         }
     }
 
-    Column {
+    // The side column scrolls once notifications, notes and agents outgrow the
+    // screen, instead of running off the bottom.
+    Flickable {
         id: side
         anchors.right: parent.right
         anchors.rightMargin: 24
         y: 24
         width: 340
-        spacing: 12
-        ControlCentre { width: 340 }
-        NotificationCentre { compact: true; visible: Ui.detail === "" }
-        NotesCard { width: 340; visible: Ui.detail === "" }
-        AgentsCard { width: 340; visible: Ui.detail === "" && hasContent }
+        height: parent.height - 48
+        contentHeight: sideColumn.implicitHeight
+        interactive: contentHeight > height
+        boundsBehavior: Flickable.StopAtBounds
+        clip: true
+
+        Column {
+            id: sideColumn
+            width: 340
+            spacing: 12
+            ControlCentre { width: 340 }
+            NotificationCentre { compact: true; visible: Ui.detail === "" }
+            NotesCard { width: 340; visible: Ui.detail === "" }
+            AgentsCard { width: 340; visible: Ui.detail === "" && hasContent }
+        }
     }
 }
