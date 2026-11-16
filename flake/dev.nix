@@ -23,13 +23,16 @@ let
       {
         # CI runners are external to the NixOS host registry, but use a
         # pre-approved Tailscale tag to reach the homeserver over SSH;
-        # `ci-builder` reaches only gcp-builder.
+        # `ci-builder` reaches only gcp-builder. A phone tagged `phone` reaches
+        # only KDE Connect on main.
         aclJson = builtins.toJSON (
           aclGen.mkAcl {
             inherit hostRegistry;
             externalTags = [
               "ci"
               "ci-builder"
+              # The phone, which pairs with main over KDE Connect.
+              "phone"
             ];
           }
         );
