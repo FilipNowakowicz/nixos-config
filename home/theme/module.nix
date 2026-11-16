@@ -80,6 +80,10 @@ let
       target = "${config.xdg.configHome}/hypr/hyprlock-colors.conf";
     }
     {
+      source = "zathura-colors";
+      target = "${config.xdg.configHome}/zathura/colors";
+    }
+    {
       source = "quiet-colors.json";
       target = "${config.xdg.configHome}/quiet-shell/colors.json";
     }
@@ -106,6 +110,14 @@ let
     ${mkThemeLinkCommands "$theme_dir"}
         }
   '';
+
+  # "rrggbb" -> "rgba(r,g,b,alpha)", for options that take no hex alpha.
+  rgba =
+    hex: alpha:
+    let
+      channel = i: toString (lib.fromHexString (builtins.substring i 2 hex));
+    in
+    "rgba(${channel 0},${channel 2},${channel 4},${alpha})";
 
   # Helper to generate theme config text
   mkThemeConfig = themeName: theme: {
@@ -180,6 +192,38 @@ let
       $fail   = rgb(cc241d)
     '';
 
+    # Zathura reads this at start and on :source. Its D-Bus interface has no
+    # way to run a command, so open windows keep their colours until then.
+    "themes/${themeName}/zathura-colors".text = ''
+      set default-bg "#${theme.colors.bg}"
+      set default-fg "#${theme.colors.text}"
+      set statusbar-bg "#${theme.colors.brown}"
+      set statusbar-fg "#${theme.colors.text}"
+      set inputbar-bg "#${theme.colors.bg}"
+      set inputbar-fg "#${theme.colors.text}"
+      set notification-bg "#${theme.colors.brown}"
+      set notification-fg "#${theme.colors.text}"
+      set notification-warning-bg "#${theme.colors.brown}"
+      set notification-warning-fg "#${theme.colors.amber}"
+      set notification-error-bg "#${theme.colors.brown}"
+      set notification-error-fg "#${theme.colors.orange}"
+      set completion-bg "#${theme.colors.brown}"
+      set completion-fg "#${theme.colors.text}"
+      set completion-group-bg "#${theme.colors.bg}"
+      set completion-group-fg "#${theme.colors.amber}"
+      set completion-highlight-bg "#${theme.colors.amber}"
+      set completion-highlight-fg "#${theme.colors.bg}"
+      set index-bg "#${theme.colors.bg}"
+      set index-fg "#${theme.colors.text}"
+      set index-active-bg "#${theme.colors.amber}"
+      set index-active-fg "#${theme.colors.bg}"
+      set highlight-color "${rgba theme.colors.amber "0.4"}"
+      set highlight-active-color "${rgba theme.colors.orange "0.6"}"
+      set recolor-lightcolor "#${theme.colors.bg}"
+      set recolor-darkcolor "#${theme.colors.text}"
+      set recolor-keephue true
+    '';
+
     # Quiet shell colors, plus the theme list for its picker
     "themes/${themeName}/quiet-colors.json".text = builtins.toJSON {
       name = themeName;
@@ -231,7 +275,7 @@ in
         `''${themeDir}/themes/` (without the .nix extension). Defaults to the
         theme selected in `active.nix`, which is the single source of truth that
         the runtime `theme-switch` script rewrites. Theme assets are symlinked
-        into XDG config paths for Kitty, Hyprland, and Quiet Shell on every
+        into XDG config paths for Kitty, Hyprland, Zathura and Quiet Shell on every
         rebuild.
       '';
       example = "mono-mesh";
