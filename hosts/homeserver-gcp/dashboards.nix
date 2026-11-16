@@ -46,8 +46,6 @@ let
 in
 {
   profiles.observability.dashboards = {
-    # Overview's fleet-comparison row supersedes the standalone Fleet board.
-    fleet.enable = false;
     security-events.enable = true;
 
     overview = {

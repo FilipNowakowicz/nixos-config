@@ -166,8 +166,9 @@ Runbook: [`.claude/main/usbguard.md`](../../.claude/main/usbguard.md)
 
 Runbook: [`.claude/main/displaylink.md`](../../.claude/main/displaylink.md)
 
-`modules/nixos/hardware/displaylink.nix` adds the driver (gated `!profiles.ci`
-so the unfree blob stays out of `merge-gate`). Three manual prerequisites before
+`modules/nixos/hardware/displaylink.nix` adds the driver when
+`hardware.displaylinkDock.enable = true` (off by default; also gated
+`!profiles.ci` so the unfree blob stays out of `merge-gate`). Three manual prerequisites before
 a dock works: prefetch the `requireFile` driver blob, add a USBGuard allow rule
 for the dock, and connect it before logging into Hyprland.
 

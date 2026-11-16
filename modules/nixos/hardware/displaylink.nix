@@ -35,9 +35,14 @@
 # suspend/resume hooks. We only supplement what it leaves out for a Wayland,
 # greetd-driven, Intel-pinned session.
 let
-  enable = !config.profiles.ci;
+  enable = config.hardware.displaylinkDock.enable && !config.profiles.ci;
 in
 {
+  # Opt-in: the dock is used rarely, and the driver costs a manual blob
+  # prefetch, a patched evdi kernel module, and two nixpkgs workarounds.
+  # Set `hardware.displaylinkDock.enable = true;` in the host before docking.
+  options.hardware.displaylinkDock.enable = lib.mkEnableOption "the DisplayLink USB dock driver (evdi + DisplayLinkManager)";
+
   config = lib.mkIf enable {
     # The pinned nixpkgs ships a displaylink package that takes `linuxPackages`
     # (to find evdi), but its NixOS module still calls

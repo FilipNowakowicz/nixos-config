@@ -2,6 +2,35 @@
 # Validate compact learning-candidate routing metadata.
 set -euo pipefail
 
+if [ "${1:-}" = --self-test ]; then
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+  mkdir -p "$tmp/candidates/archive"
+  cat >"$tmp/candidates/a.yml" <<'YAML'
+schema: learning-candidate/v1
+id: a
+date: 2026-01-01
+expires: 2026-12-31
+status: open
+route: promote-doc
+best_form: doc
+evidence: x
+observation: x
+proposed_upgrade: x
+YAML
+  if ! bash "$0" "$tmp" 2>/dev/null; then
+    echo "self-test: valid candidate rejected" >&2
+    exit 1
+  fi
+  cp "$tmp/candidates/a.yml" "$tmp/candidates/archive/a.yml"
+  if bash "$0" "$tmp" 2>/dev/null; then
+    echo "self-test: candidate present in both candidates/ and archive/ was accepted" >&2
+    exit 1
+  fi
+  printf 'validate-candidates self-test passed\n'
+  exit 0
+fi
+
 root=${1:-.agents/learning}
 candidate_dir="$root/candidates"
 rc=0
@@ -38,6 +67,13 @@ while IFS= read -r path; do
     continue
     ;;
   esac
+
+  # An archived (promoted/rejected) candidate must not also sit in the open
+  # queue. Squash merges from an old base have resurrected archived copies.
+  if [ -e "$candidate_dir/archive/${path##*/}" ]; then
+    printf '%s: also present in archive/; delete the open copy\n' "$path" >&2
+    rc=1
+  fi
 
   for field in "${required_fields[@]}"; do
     if ! grep -Eq "^${field}:" "$path"; then
