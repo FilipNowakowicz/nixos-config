@@ -1,6 +1,8 @@
 # DisplayLink External Monitor (USB dock)
 
-`main` drives DisplayLink docks via `modules/nixos/hardware/displaylink.nix`.
+`main` can drive DisplayLink docks via `modules/nixos/hardware/displaylink.nix`.
+The driver is **off by default**: set `hardware.displaylinkDock.enable = true;`
+in `hosts/main/default.nix` and rebuild before using the dock.
 DisplayLink is **not** a normal DP/HDMI output — the dock has no real DRM
 connector. The unfree `DisplayLinkManager` daemon scrapes frames from the
 `evdi` virtual GPU and ships them over USB. Three host quirks gate it working:

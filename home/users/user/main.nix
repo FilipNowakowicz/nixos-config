@@ -20,7 +20,6 @@
     })
 
     galaxy-buds-client
-    modrinth-app
   ];
 
   services.easyeffects = {
