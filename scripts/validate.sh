@@ -162,6 +162,7 @@ docs)
   bash scripts/check-ci-closure-targets.sh
   bash scripts/check-ci-closure-targets.sh --self-test
   bash .agents/learning/scripts/validate-candidates.sh
+  bash .agents/learning/scripts/validate-candidates.sh --self-test
   bash .agents/learning/scripts/index-candidates.sh --self-test
   bash .agents/learning/scripts/scaffold-promotion-check.sh --self-test
   bash .agents/repo-map/scripts/validate.sh

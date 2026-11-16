@@ -19,6 +19,11 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$repo_root"
 
+# Plaintext values, hashes and generated private keys are staged here. One EXIT
+# trap removes it however the script ends, including on a failed sops call.
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -77,7 +82,7 @@ rotate_one() {
   sops_set_from_file "$file" "$key" "$src"
   nix fmt "$file" >/dev/null 2>&1 || die "nix fmt failed on $file"
   local got
-  got=$(mktemp)
+  got=$(mktemp -p "$scratch")
   sops_get_to_file "$file" "$key" "$got"
   if ! cmp -s "$src" "$got"; then
     rm -f "$got"
@@ -92,7 +97,7 @@ cmd_set() {
   [[ -n $file && -n $key ]] || die "usage: set <file> <key>  (value on stdin)"
   require_tools sops jq nix
   local src
-  src=$(mktemp)
+  src=$(mktemp -p "$scratch")
   cat >"$src" # raw stdin, byte-exact (trailing newline preserved if present)
   [[ -s $src ]] || die "empty value on stdin; aborting"
   rotate_one "$file" "$key" "$src"
@@ -105,7 +110,7 @@ cmd_random() {
   [[ -n $file && -n $key ]] || die "usage: random <file> <key> [len]"
   require_tools sops jq nix base64
   local src
-  src=$(mktemp)
+  src=$(mktemp -p "$scratch")
   # alnum-only so the value is safe in env files / URLs; no trailing newline.
   LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c "$len" >"$src"
   printf '\n  generated %s-char random secret\n' "$len" >&2
@@ -124,7 +129,7 @@ cmd_password() {
   [[ -n $pw ]] || die "empty password; aborting"
   [[ $pw == "$pw2" ]] || die "passwords do not match"
   hash=$(printf '%s' "$pw" | mkpasswd -m "$method" --stdin)
-  src=$(mktemp)
+  src=$(mktemp -p "$scratch")
   printf '%s' "$hash" >"$src" # hash only, no trailing newline
   rotate_one "$file" "$key" "$src"
   rm -f "$src"
@@ -136,7 +141,7 @@ cmd_sshkey() {
   [[ -n $file && -n $key ]] || die "usage: sshkey <file> <key> [comment]"
   require_tools sops jq nix ssh-keygen
   local dir
-  dir=$(mktemp -d)
+  dir=$(mktemp -d -p "$scratch")
   ssh-keygen -t ed25519 -N "" -C "$comment" -f "$dir/key" >/dev/null
   # The private key file keeps OpenSSH's trailing newline, which we preserve.
   rotate_one "$file" "$key" "$dir/key"
@@ -160,9 +165,9 @@ cmd_observability() {
 
   local pw src_pw src_ht
   pw=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 48)
-  src_pw=$(mktemp)
+  src_pw=$(mktemp -p "$scratch")
   printf '%s' "$pw" >"$src_pw"
-  src_ht=$(mktemp)
+  src_ht=$(mktemp -p "$scratch")
   printf '%s:%s\n' "$user" "$(printf '%s' "$pw" | mkpasswd -m bcrypt --stdin)" >"$src_ht"
 
   rotate_one "$main" observability_ingest_password "$src_pw"

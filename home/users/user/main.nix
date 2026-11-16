@@ -1,6 +1,7 @@
 { pkgs, ... }:
 {
   imports = [
+    ../../profiles/agent-desktop.nix
     ../../profiles/calendar.nix
     ../../profiles/ntfy-notifications.nix
     ../../profiles/python-development.nix
@@ -19,7 +20,6 @@
     })
 
     galaxy-buds-client
-    modrinth-app
   ];
 
   services.easyeffects = {
