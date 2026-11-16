@@ -145,7 +145,12 @@ in
     nix-ld.enable = true;
   };
 
-  virtualisation.libvirtd.enable = true;
+  virtualisation.libvirtd = {
+    enable = true;
+    # Only x86_64 KVM guests (Whonix) run here; the default multi-target qemu
+    # adds about 1 GiB of emulators for other architectures.
+    qemu.package = pkgs.qemu_kvm;
+  };
 
   systemd.services = {
     # The initrd runs systemd-networkd for SSH unlock (boot.initrd.network
@@ -328,6 +333,10 @@ in
 
   # ── Services ────────────────────────────────────────────────────────────────
   services = {
+    # Enabled by default with a graphical session, and pulls in about 645 MiB
+    # of mbrola voices. Nothing here uses system text-to-speech.
+    speechd.enable = false;
+
     thermald.enable = true;
     power-profiles-daemon.enable = true;
     fwupd.enable = true;
