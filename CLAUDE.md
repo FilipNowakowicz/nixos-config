@@ -147,17 +147,11 @@ Managed with sops-nix + age. Edit secrets with `sops <file>`.
 - `boot.initrd.secrets` MUST only point to sops-managed `/run/secrets/*`
   paths (e.g., `config.sops.secrets.X.path`) — enforced by a native NixOS
   assertion in `modules/nixos/profiles/sops-base.nix`.
-- **Generate-keypair-then-encrypt-then-shred sequences must run as one
-  `nix develop -c bash -c '...'` invocation**, with `set -euo pipefail` and a
-  cleanup `trap` on the plaintext key, not as separate top-level zsh commands.
-  A prior run chained `ssh-keygen`, `sops -e ... > out.enc`, and `shred -u` as
-  separate top-level commands outside `nix develop`; `sops` was missing from
-  `PATH`, so `sops -e ... > out.enc` exited 127 with `command not found` and
-  produced a 0-byte `out.enc`, but zsh's `set -e` did not abort before
-  `shred -u` ran — destroying the only copy of the freshly-generated private
-  key. Running the whole sequence inside one `nix develop` invocation
-  guarantees `sops`/`ssh-to-age` are on `PATH` and lets a single shell's
-  `set -euo pipefail` and `trap` catch failures before any destructive step.
+- **Rotate or generate secrets with `bash scripts/rotate-secret.sh`**
+  (`sshkey`, `set`, `random`, `password`): it keeps values byte-exact, stages
+  plaintext in a trap-cleaned scratch dir, and re-verifies the decrypt. Never
+  chain keygen, `sops -e` and `shred` as separate shell commands; a failed
+  `sops` once let `shred` destroy the only copy of a new key.
 
 See [`docs/security.md`](docs/security.md) for the full secrets/exposure model.
 
@@ -184,14 +178,6 @@ See [`docs/security.md`](docs/security.md) for the full secrets/exposure model.
 - Prefer Home Manager for user-level config over system-level.
 - Keep things declarative — avoid imperative workarounds.
 - Flag anything that might cause issues on rebuild.
-- When guarding an option inside a NixOS submodule type with `lib.mkIf`,
-  apply it at the attribute level (`attr = lib.mkIf cond { ... }`), not on a
-  required leaf (`attr.leaf = lib.mkIf cond ...`). The latter still registers
-  an empty submodule instance even though the leaf definition is filtered
-  out, so any later access to that undefined required leaf throws an
-  "accessed but has no value defined" error (see
-  `modules/nixos/profiles/observability/collectors.nix`'s
-  `exportSystemMetadata`, fixed in PR #334). A profile test node with the
-  guarded feature disabled — e.g. `tests/nixos/profile-observability.nix`'s
-  `obs` node, which doesn't enable `collectors.metrics` — already builds the
-  closure and would catch a regression of this shape.
+- Guard a NixOS submodule option with `lib.mkIf` at the attribute level
+  (`attr = lib.mkIf cond { ... }`), never on a required leaf; see the comment
+  on `exportSystemMetadata` in `modules/nixos/profiles/observability/collectors.nix`.
