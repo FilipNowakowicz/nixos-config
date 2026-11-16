@@ -159,6 +159,19 @@ Item {
         const relayQuery = /^mullvad\s+(.*)$/i.exec(query);
         if (relayQuery)
             return mullvadResults(relayQuery[1]);
+        const timer = Search.timer(query, Date.now());
+        if (timer)
+            return [{ group: timer.alarm ? "Alarm" : "Timer", title: timer.title, note: timer.label || "Start", kind: "action", glyph: "clock",
+                      value: () => { Sys.startTimer(timer); Ui.close(); } }];
+        if (/^(?:timers?|alarms?)$/i.test(query.trim())) {
+            const left = at => {
+                const minutes = Math.max(0, Math.round((at - Date.now()) / 60000));
+                return minutes < 60 ? minutes + " min left" : Qt.formatDateTime(new Date(at), "HH:mm");
+            };
+            const running = Sys.timers.map(t => ({ group: "Running", title: t.name, note: left(t.at) + " · Cancel", kind: "action", glyph: "clock",
+                                                   value: () => Sys.cancelTimer(t.unit) }));
+            return running.length ? running : [{ group: "Timers", title: "No timers running", note: "Try “timer 10m tea” or “alarm 7:30”", kind: "action", glyph: "clock", value: () => {} }];
+        }
         if (query.startsWith(">")) {
             const cmd = query.slice(1).trim();
             return [{ group: "Command", title: cmd || "Type a command", note: "Run", kind: "command", value: cmd }];
@@ -228,6 +241,8 @@ Item {
     onQueryChanged: {
         if (/^mullvad\s/i.test(query) && !Sys.countries.length)
             Sys.loadCountries();
+        if (/^(?:timers?|alarms?)$/i.test(query))
+            Sys.refreshTimers();
         files = [];
         fileSearch.running = false;
         if (query.length >= 3 && !query.startsWith(">") && !clipboardMode)

@@ -255,6 +255,42 @@ Singleton {
             after: () => root.budsInfo = Object.assign({}, root.budsInfo, { mode })
         });
     }
+    // Spotlight's timers and alarms are transient systemd user timers, so they
+    // survive a shell restart and still ring after a suspend that spans them.
+    property var timers: []
+    function startTimer(timer) {
+        const at = Math.floor(timer.at / 1000);
+        const kind = timer.alarm ? "Alarm" : "Timer";
+        const name = timer.label || timer.title.replace(/^\S+ · /, "");
+        Quickshell.execDetached(["systemd-run", "--user", "--collect",
+            "--unit", "quiet-timer-" + at + "-" + Math.floor(Math.random() * 1e6),
+            "--description", kind + ": " + name,
+            "--on-calendar", "@" + at, "--timer-property=AccuracySec=1s",
+            "--", Quickshell.env("QUIET_TIMER_RING") || "notify-send", kind === "Alarm" ? name : name + " is done", timer.title]);
+        Qt.callLater(refreshTimers);
+    }
+    function cancelTimer(unit) {
+        Quickshell.execDetached(["systemctl", "--user", "stop", unit]);
+        timers = timers.filter(t => t.unit !== unit);
+    }
+    function refreshTimers() {
+        if (!timerList.running)
+            timerList.running = true;
+    }
+    Process {
+        id: timerList
+        command: ["systemctl", "--user", "show", "--timestamp=unix", "-p", "Id,Description,NextElapseUSecRealtime", "quiet-timer-*.timer"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.timers = text.split(/\n\s*\n/).map(block => {
+                    const field = name => ((new RegExp("^" + name + "=(.*)$", "m")).exec(block) || [])[1] || "";
+                    const at = parseInt(field("NextElapseUSecRealtime").replace("@", ""), 10);
+                    return { unit: field("Id"), name: field("Description"), at: at * 1000 };
+                }).filter(t => t.unit && t.at > 0).sort((a, b) => a.at - b.at);
+            }
+        }
+    }
+
     function refreshBuds() {
         if (budsConnected && !budsRead.running) {
             budsRead.command = ["quiet-buds", "read", buds.addr];

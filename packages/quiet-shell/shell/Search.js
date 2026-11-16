@@ -242,3 +242,59 @@ function topHit(results, memory, query, now) {
     });
     return best;
 }
+
+// "timer 10m tea", "timer 1h30", "25 min timer", "alarm 7:30 lecture", "alarm 6pm".
+// Returns when it goes off (ms since the epoch), a label and how to show it, or null.
+// A bare number is minutes; an alarm at a time already past today is for tomorrow.
+function timer(text, now) {
+    const t = text.trim().toLowerCase();
+    const units = { h: 3600, hr: 3600, hrs: 3600, hour: 3600, hours: 3600, m: 60, min: 60, mins: 60, minute: 60, minutes: 60, s: 1, sec: 1, secs: 1, second: 1, seconds: 1 };
+    // Numbers with units, in any order; one without a unit is minutes, as is the
+    // number after hours in "1h30".
+    const readSpan = text => {
+        const tokens = [];
+        const rest = text.replace(/(\d+(?:[.,]\d+)?)\s*([a-z]*)/g, (_, n, unit) => { tokens.push([parseFloat(n.replace(",", ".")), unit]); return ""; });
+        if (rest.trim() !== "" || tokens.length === 0) return null;
+        let seconds = 0;
+        for (let i = 0; i < tokens.length; i++) {
+            const [n, unit] = tokens[i];
+            const bare = unit === "" && (i === 0 ? tokens.length === 1 : tokens[i - 1][1] in units && units[tokens[i - 1][1]] === 3600 && i === tokens.length - 1);
+            if (!bare && !(unit in units)) return null;
+            seconds += n * (bare ? 60 : units[unit]);
+        }
+        return seconds > 0 && seconds <= 7 * 86400 ? Math.round(seconds) : null;
+    };
+    let m = /^(?:timer|countdown)\s+(.+)$/.exec(t);
+    let duration = null, label = "";
+    if (m) {
+        // The label is whatever follows the longest leading run that reads as a span.
+        const words = m[1].split(/\s+/);
+        for (let i = words.length; i > 0 && duration === null; i--) {
+            duration = readSpan(words.slice(0, i).join(" "));
+            if (duration !== null) label = words.slice(i).join(" ");
+        }
+        // "timer 9 days" is a unit this doesn't know, not nine minutes called "days".
+        if (/^(?:d|days?|w|weeks?|ms)\b/.test(label)) return null;
+    } else if ((m = /^(.+?)\s+timer(?:\s+(.*))?$/.exec(t))) {
+        duration = readSpan(m[1]);
+        label = m[2] || "";
+    }
+    if (duration !== null) {
+        const parts = [[Math.floor(duration / 3600), "h"], [Math.floor(duration % 3600 / 60), "min"], [duration % 60, "s"]]
+            .filter(p => p[0] > 0).map(p => p[0] + " " + p[1]);
+        return { at: now + duration * 1000, label: label.trim(), title: "Timer · " + parts.join(" "), alarm: false };
+    }
+    m = /^(?:alarm|wake(?: me)?(?: at)?)\s+(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?(?:\s+(.*))?$/.exec(t);
+    if (!m) return null;
+    let hour = parseInt(m[1], 10);
+    const minute = m[2] ? parseInt(m[2], 10) : 0;
+    if (m[3] === "pm" && hour < 12) hour += 12;
+    if (m[3] === "am" && hour === 12) hour = 0;
+    if (hour > 23 || minute > 59) return null;
+    const at = new Date(now);
+    at.setHours(hour, minute, 0, 0);
+    const tomorrow = at.getTime() <= now;
+    if (tomorrow) at.setDate(at.getDate() + 1);
+    const clock = String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
+    return { at: at.getTime(), label: (m[4] || "").trim(), title: "Alarm · " + clock + (tomorrow ? " tomorrow" : ""), alarm: true };
+}
