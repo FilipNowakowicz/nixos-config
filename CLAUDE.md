@@ -26,7 +26,10 @@ under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
 
 ## Deploy Commands
 
-- **`main`:** `nh os switch --hostname main .` (alias: `rebuild`).
+- **`main`:** `nh os switch --hostname main .` (alias: `rebuild`) interactively.
+  Agents and other non-interactive sessions use `sudo nixos-switch-main`
+  (add `--remote` to build on `gcp-builder` after `bash scripts/on-builder.sh true`
+  starts it), a narrow NOPASSWD wrapper.
 - **`homeserver-gcp`:** `deploy '.#homeserver-gcp'` for ongoing updates.
   `scripts/deploy-gcp.sh` is **provisioning/reinstall only** (Terraform apply +
   `nixos-anywhere`), not an ongoing-deploy alias. Note `deploy-rs` can appear

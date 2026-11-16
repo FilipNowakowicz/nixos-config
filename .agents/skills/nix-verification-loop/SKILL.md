@@ -70,9 +70,10 @@ host-denylist derived from `lib/hosts.nix`) and `tests/lib/mini-fleet-flake.nix`
 - **A successful build is not a live switch.** In non-interactive sessions
   `nh os switch --hostname main .` can build the generation and then fail
   activation with `sudo: a terminal is required to read the password`, leaving
-  the new services absent from the running generation. Confirm sudo is usable
-  (`sudo -n true`) before claiming a host is switched; if it is not, report the
-  build as done and a user-authenticated switch as the remaining step.
+  the new services absent from the running generation. On `main`, switch
+  non-interactively with `sudo -n nixos-switch-main` (NOPASSWD wrapper; add
+  `--remote` to build on `gcp-builder`). Only if that fails, report the build
+  as done and a user-authenticated switch as the remaining step.
 - **`deploy-rs` runs broad flake checks before any remote activation.** A
   `deploy '.#homeserver-gcp'` can fail on an unrelated `main-ci` invariant or a
   repo-wide `pre-commit` check (`checks.x86_64-linux.invariants-main-ci`,
