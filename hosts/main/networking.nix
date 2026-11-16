@@ -85,6 +85,9 @@ in
     # the tailnet only; its port list lives with the ACL in the host registry.
     firewall.interfaces.tailscale0 = {
       allowedTCPPorts = [ 22 ] ++ hostRegistry.main.tailscale.acceptFrom.phone;
+      # Adding the PC by IP on the phone starts with a UDP identity packet to
+      # 1716; the TCP link follows only after main answers it.
+      allowedUDPPorts = [ 1716 ];
     };
     # Point to systemd-resolved stub for split DNS (Tailscale tailnet hostnames)
     nameservers = [ "127.0.0.53" ];
