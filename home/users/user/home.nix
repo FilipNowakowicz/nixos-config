@@ -7,14 +7,6 @@
 let
   inherit (config.fleet) hostName skipHeavyPackages;
   nixRepo = "${config.home.homeDirectory}/nix";
-  privateUserJs = ../../files/firefox/private-user.js;
-  langgraphPython = pkgs.python3.withPackages (
-    ps: with ps; [
-      langchain
-      langgraph
-      langgraph-cli
-    ]
-  );
   claudeLatest = pkgs.writeShellApplication {
     name = "claude";
     runtimeInputs = [ pkgs.nodejs ];
@@ -29,34 +21,18 @@ in
     (with pkgs; [
       claudeLatest
       lazyactions
-
-      (writeShellApplication {
-        name = "firefox-private";
-        runtimeInputs = [ pkgs.firefox ];
-        text = ''
-          profile=$(mktemp -d)
-          trap 'rm -rf "$profile"' EXIT
-          cp ${privateUserJs} "$profile/user.js"
-          firefox --profile "$profile" --no-remote "$@"
-        '';
-      })
-
     ])
     ++ lib.optionals (!skipHeavyPackages) (
       with pkgs;
       [
         # Workstation-only packages; keep shared base lean for servers and CI.
         nodejs
-        langgraphPython
         clang-tools
         gnumake
         gcc
         yt-dlp
         ffmpeg
         antigravity-cli
-        grok-cli
-        opencode
-        opencode-claude-auth
         gh
         steam-run
       ]
