@@ -127,25 +127,6 @@ in
   inherit allNixosConfigs ciNixosConfigs deployCheckNixosConfigs;
 
   homeConfigurations = {
-    user = home-manager.lib.homeManagerConfiguration {
-      inherit pkgs;
-      extraSpecialArgs = {
-        inherit inputs;
-      };
-      modules = [
-        inputs.sops-nix.homeManagerModules.sops
-        ../home/users/user/home.nix
-        ../home/profiles/desktop.nix
-        {
-          fleet = {
-            hostName = "main";
-            skipHeavyPackages = false;
-            enableSpotify = true;
-          };
-        }
-      ];
-    };
-
     "user@wsl" = home-manager.lib.homeManagerConfiguration {
       inherit pkgs;
       extraSpecialArgs = {
