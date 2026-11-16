@@ -268,7 +268,10 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    root.budsInfo = JSON.parse(text);
+                    // A reading has no noise-control mode (see buds.py), so keep the
+                    // one this shell last set.
+                    const read = JSON.parse(text);
+                    root.budsInfo = Object.assign({ mode: root.budsInfo ? root.budsInfo.mode : null }, read);
                 } catch (e) {
                     // Keep the last reading. The card falls back to BlueZ's battery figure.
                 }

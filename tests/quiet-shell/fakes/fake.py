@@ -181,7 +181,7 @@ elif cmd == "playerctl":
         state["playing"] = not state["playing"]
 elif cmd == "quiet-buds":
     if args[0] == "read":
-        print(json.dumps({"left": 88, "right": 92, "case": 40, "mode": state.get("buds_mode", "off")}))
+        print(json.dumps({"left": 88, "right": 92, "case": 40}))
     else:
         state["buds_mode"] = args[2]
         print(json.dumps({"mode": args[2]}))
