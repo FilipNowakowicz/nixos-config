@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
@@ -143,72 +144,22 @@ Item {
         }
     }
 
-    // Each window gets a tile its own shape, packed into rows like justified text, with
-    // as many rows as makes the windows largest. A grid of equal cells shrank a tall
-    // window into a wide cell: a half-screen PDF beside a floating window came out at a
-    // third of its size, its text a blur.
-    function pack(sizes, w, h, gap) {
-        const n = sizes.length;
-        if (n === 0 || w <= 0 || h <= 0)
-            return [];
-        const ratios = sizes.map(s => s && s[0] > 0 && s[1] > 0 ? s[0] / s[1] : 1.6);
-        const total = ratios.reduce((a, b) => a + b, 0);
-        let best = null;
-        for (let rows = 1; rows <= n; rows++) {
-            // Fill rows in order, starting a new one once this one holds its share.
-            const lines = [[]];
-            let sum = 0;
-            ratios.forEach((r, i) => {
-                const line = lines[lines.length - 1];
-                if (line.length > 0 && lines.length < rows && sum + r / 2 > total * lines.length / rows)
-                    lines.push([]);
-                lines[lines.length - 1].push(i);
-                sum += r;
-            });
-            let height = (h - gap * (lines.length - 1)) / lines.length;
-            for (const line of lines) {
-                const width = line.reduce((a, i) => a + ratios[i], 0);
-                height = Math.min(height, (w - gap * (line.length - 1)) / width);
-            }
-            if (!best || height > best.height)
-                best = { lines, height };
-        }
-        // Never larger than the windows themselves, which would only blur them.
-        const tallest = Math.max(...sizes.map(s => s && s[1] > 0 ? s[1] : 0));
-        const height = tallest > 0 ? Math.min(best.height, tallest) : best.height;
-        const out = new Array(n);
-        const top = (h - best.lines.length * height - gap * (best.lines.length - 1)) / 2;
-        best.lines.forEach((line, row) => {
-            const width = line.reduce((a, i) => a + ratios[i] * height, 0) + gap * (line.length - 1);
-            let x = (w - width) / 2;
-            for (const i of line) {
-                out[i] = { x, y: top + row * (height + gap), width: ratios[i] * height, height };
-                x += ratios[i] * height + gap;
-            }
-        });
-        return out;
-    }
-
-    Item {
+    GridLayout {
         id: grid
         x: 48
         y: 170
         width: parent.width - 48 - side.width - 72
         height: parent.height - 170 - 104
-        // Room for the margins around each picture, so its tile keeps the window's shape.
-        readonly property var tiles: root.pack(root.windows.map(t => t.lastIpcObject.size ? [t.lastIpcObject.size[0] + 8, t.lastIpcObject.size[1] + 8] : null), width, height, 18)
+        columns: Math.max(1, Math.ceil(Math.sqrt(root.windows.length)))
+        rowSpacing: 18
+        columnSpacing: 18
         Repeater {
             model: root.windows
             Press {
                 id: tile
                 required property var modelData
-                required property int index
-                readonly property var place: grid.tiles[index] ?? { x: 0, y: 0, width: 0, height: 0 }
-                readonly property real scale: modelData.workspace && modelData.workspace.monitor ? modelData.workspace.monitor.scale : 1
-                x: place.x
-                y: place.y
-                width: place.width
-                height: place.height
+                Layout.fillWidth: true
+                Layout.fillHeight: true
                 radius: 12
                 name: modelData.title
                 rest: "transparent"
@@ -233,8 +184,7 @@ Item {
                         appId: tile.modelData.wayland ? tile.modelData.wayland.appId : ""
                         iconSize: 72
                         lit: tile.hovered
-                        // Captured at the size it is shown, in device pixels, so it is never stretched.
-                        captureSize: Qt.size(Math.max(64, Math.ceil((tile.width - 8) * tile.scale)), Math.max(64, Math.ceil((tile.height - 8) * tile.scale)))
+                        captureSize: Qt.size(960, 600)
                     }
                 }
                 Label { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 8; text: tile.modelData.title; font.pixelSize: 12 }
@@ -262,16 +212,28 @@ Item {
         }
     }
 
-    Column {
+    // The side column scrolls once notifications, notes and agents outgrow the
+    // screen, instead of running off the bottom.
+    Flickable {
         id: side
         anchors.right: parent.right
         anchors.rightMargin: 24
         y: 24
         width: 340
-        spacing: 12
-        ControlCentre { width: 340 }
-        NotificationCentre { compact: true; visible: Ui.detail === "" }
-        NotesCard { width: 340; visible: Ui.detail === "" }
-        AgentsCard { width: 340; visible: Ui.detail === "" && hasContent }
+        height: parent.height - 48
+        contentHeight: sideColumn.implicitHeight
+        interactive: contentHeight > height
+        boundsBehavior: Flickable.StopAtBounds
+        clip: true
+
+        Column {
+            id: sideColumn
+            width: 340
+            spacing: 12
+            ControlCentre { width: 340 }
+            NotificationCentre { compact: true; visible: Ui.detail === "" }
+            NotesCard { width: 340; visible: Ui.detail === "" }
+            AgentsCard { width: 340; visible: Ui.detail === "" && hasContent }
+        }
     }
 }
