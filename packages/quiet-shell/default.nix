@@ -12,6 +12,7 @@
   cliphist,
   curl,
   fd,
+  glib,
   grim,
   hyprlock,
   khal,
@@ -63,6 +64,7 @@ let
     cliphist
     curl
     fd
+    glib
     grim
     hyprlock
     khal

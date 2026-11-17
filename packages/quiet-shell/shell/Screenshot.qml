@@ -54,7 +54,7 @@ Item {
             implicitHeight: 60
             radius: 16
             name: "Cancel"
-            onClicked: Ui.close()
+            onClicked: Ui.cancelScreenshot()
             Label { anchors.centerIn: parent; text: "Cancel"; font.pixelSize: 12; color: Theme.dim }
         }
     }

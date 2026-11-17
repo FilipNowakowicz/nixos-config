@@ -167,10 +167,26 @@ Singleton {
         panel = "dock";
     }
 
+    // The picker opens over whatever is showing, so the control centre, the
+    // notifications, the overview or the cheat sheet can be captured too. Only
+    // what would take the keyboard from the picker goes away.
     function toggleScreenshot() {
-        const want = !screenshot;
-        close();
-        screenshot = want;
+        if (screenshot) {
+            cancelScreenshot();
+            return;
+        }
+        confirm = null;
+        dockMenu = null;
+        switcher = false;
+        spotlight = false;
+        clipboard = false;
+        screenshot = true;
+    }
+    // Back to what was showing before the picker, or to nothing.
+    function cancelScreenshot() {
+        screenshot = false;
+        if (panel === "" && !overview && !cheatSheet)
+            topRevealed = false;
     }
     function toggleCheatSheet() {
         const want = !cheatSheet;
@@ -224,6 +240,8 @@ Singleton {
     function back() {
         if (auth)
             auth.cancelAuthenticationRequest();
+        else if (screenshot)
+            cancelScreenshot();
         else if (detail === "mullvad")
             detail = "vpn";
         else if (detail !== "")

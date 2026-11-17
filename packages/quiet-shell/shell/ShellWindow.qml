@@ -40,7 +40,10 @@ PanelWindow {
         Keys.onPressed: event => {
             if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
                 return;
-            if (Ui.panel === "controls" && Ui.detail === "")
+            // The picker sits over any panel left open for the picture, so it hears keys first.
+            if (Ui.screenshot)
+                event.accepted = shot.pressKey(event.text);
+            else if (Ui.panel === "controls" && Ui.detail === "")
                 event.accepted = controls.pressLetter(event.text.toLowerCase());
             else if (Ui.panel === "controls")
                 event.accepted = controls.pressDetailKey(event);
@@ -48,8 +51,6 @@ PanelWindow {
                 event.accepted = menus.pressLetter(event.text.toLowerCase());
             else if (Ui.panel === "notifications")
                 event.accepted = notifications.pressKey(event.text);
-            else if (Ui.screenshot)
-                event.accepted = shot.pressKey(event.text);
         }
         Keys.onReturnPressed: event => {
             if (Ui.switcher) Ui.commitSwitcher();

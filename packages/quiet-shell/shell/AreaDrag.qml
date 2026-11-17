@@ -1,8 +1,8 @@
 import QtQuick
 
 // Under the screenshot picker: dragging anywhere on the screen captures that area,
-// without choosing Area first. A click that doesn't drag closes the picker, as a
-// click outside any panel does.
+// without choosing Area first. A click that doesn't drag closes the picker and
+// leaves whatever was open under it.
 MouseArea {
     id: root
     // The screen's place in Hyprland's layout, which grim's region is measured in.
@@ -15,7 +15,7 @@ MouseArea {
     onPressed: mouse => start = Qt.point(mouse.x, mouse.y)
     onReleased: {
         if (!dragging) {
-            Ui.close();
+            Ui.cancelScreenshot();
             return;
         }
         const a = area;
