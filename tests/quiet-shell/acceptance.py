@@ -112,7 +112,7 @@ def clean():
     move(960, 600)
     time.sleep(0.45)
     keep_log = fake().get("log", [])[-5:]
-    set_fake(wifi=True, bt=True, tailscale=True, mullvad=False, night=False, awake=False, muted=False, fail=[], stick=[], log=keep_log)
+    set_fake(wifi=True, bt=True, tailscale=True, mullvad=False, night=False, awake=False, muted=False, fail=[], stick=[], log=keep_log, timers=[], ringing=[])
     wait(lambda: not ui()["top"], "shell to hide")
     wait(lambda: ui()["sys"]["wifi"]["on"] and ui()["sys"]["bluetooth"]["on"], "state to settle", timeout=70)
 
@@ -134,6 +134,8 @@ DOCK_FIRST = (960, 1040)
 AGENT_TAKE = (1693, 123)
 VOLUME_Y, BRIGHT_Y = 343, 393
 CC_ICON, BATTERY, CLOCK = (1778, 21), (1732, 21), (1850, 21)
+# The timer pill at the top centre, and the buttons of the card it grows into.
+TIMER_PILL, TIMER_SNOOZE, TIMER_STOP = (960, 21), (880, 82), (1040, 82)
 tests = []
 
 
@@ -385,6 +387,45 @@ def spotlight_finds_windows():
     shot("spotlight-results")
     key("Escape")
     wait(lambda: not ui()["spotlight"], "escape")
+
+
+def ring_now():
+    """The timer elapses: systemd drops the timer and starts its ringing service."""
+    pending = fake()["timers"][0]
+    set_fake(timers=[], ringing=[dict(pending, at=int(time.time()))])
+
+
+@test
+def timer_counts_down_then_rings_until_stopped():
+    shell("spotlight")
+    wait(lambda: ui()["spotlight"], "spotlight")
+    typed("timer 10m tea")
+    key("Return")
+    wait(lambda: [t["name"] for t in fake()["timers"]] == ["Timer: tea"], "timer to start")
+    wait(lambda: ui()["timers"] == ["tea"], "pill to show the timer")
+    assert not ui()["top"], "the countdown shows without the bar"
+    shot("timer-pill")
+    ring_now()
+    # The pill opens Spotlight's timer list, which looks again and finds it ringing.
+    click(*TIMER_PILL)
+    wait(lambda: ui()["spotlight"] and ui()["query"] == "timers", "timer list")
+    wait(lambda: ui()["ringing"] == ["tea"], "ring")
+    key("Escape")
+    wait(lambda: not ui()["spotlight"], "spotlight to close")
+    time.sleep(0.4)
+    shot("timer-ringing")
+    click(*TIMER_SNOOZE)
+    wait(lambda: not fake()["ringing"] and [t["name"] for t in fake()["timers"]] == ["Timer: tea"], "snooze")
+    assert abs(fake()["timers"][0]["at"] - time.time() - 300) < 10, fake()["timers"]
+    wait(lambda: ui()["ringing"] == [] and ui()["timers"] == ["tea"], "card to give way to the pill")
+    ring_now()
+    click(*TIMER_PILL)
+    wait(lambda: ui()["ringing"] == ["tea"], "second ring")
+    key("Escape")
+    wait(lambda: not ui()["spotlight"], "spotlight to close")
+    click(*TIMER_STOP)
+    wait(lambda: not fake()["ringing"] and not fake()["timers"], "stop")
+    wait(lambda: ui()["ringing"] == [] and ui()["timers"] == [], "card to go")
 
 
 @test

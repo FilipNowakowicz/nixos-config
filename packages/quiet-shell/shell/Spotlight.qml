@@ -161,16 +161,15 @@ Item {
             return mullvadResults(relayQuery[1]);
         const timer = Search.timer(query, Date.now());
         if (timer)
-            return [{ group: timer.alarm ? "Alarm" : "Timer", title: timer.title, note: timer.label || "Start", kind: "action", glyph: "clock",
+            return [{ group: timer.alarm ? "Alarm" : "Timer", title: timer.title, note: timer.label || "Start", kind: "action", glyph: timer.alarm ? "alarm-clock" : "timer",
                       value: () => { Sys.startTimer(timer); Ui.close(); } }];
         if (/^(?:timers?|alarms?)$/i.test(query.trim())) {
-            const left = at => {
-                const minutes = Math.max(0, Math.round((at - Date.now()) / 60000));
-                return minutes < 60 ? minutes + " min left" : Qt.formatDateTime(new Date(at), "HH:mm");
-            };
-            const running = Sys.timers.map(t => ({ group: "Running", title: t.name, note: left(t.at) + " · Cancel", kind: "action", glyph: "clock",
+            const left = t => t.kind === "Alarm" ? Qt.formatDateTime(new Date(t.at), "HH:mm") : Sys.countdown(t.at, Date.now()) + " left";
+            const ringing = Sys.ringing.map(t => ({ group: "Ringing", title: t.name, note: "Stop", kind: "action", glyph: "alarm-clock",
+                                                    value: () => { Sys.stopRinging(t.unit); Ui.close(); } }));
+            const running = Sys.timers.map(t => ({ group: "Running", title: t.name, note: left(t) + " · Cancel", kind: "action", glyph: t.kind === "Alarm" ? "alarm-clock" : "timer",
                                                    value: () => Sys.cancelTimer(t.unit) }));
-            return running.length ? running : [{ group: "Timers", title: "No timers running", note: "Try “timer 10m tea” or “alarm 7:30”", kind: "action", glyph: "clock", value: () => {} }];
+            return ringing.length + running.length ? ringing.concat(running) : [{ group: "Timers", title: "No timers running", note: "Try “timer 10m tea” or “alarm 7:30”", kind: "action", glyph: "timer", value: () => {} }];
         }
         if (query.startsWith(">")) {
             const cmd = query.slice(1).trim();
@@ -361,7 +360,11 @@ Item {
 
     onVisibleChanged: {
         if (!visible) return;
+        // Cleared first, so a seed that matches what was left from last time still
+        // counts as typed: "timers" has to look at the timers again.
         input.text = "";
+        input.text = Ui.spotlightSeed;
+        Ui.spotlightSeed = "";
         selected = 0;
         input.forceActiveFocus();
         if (!ratesRead.running && Date.now() - ratesAt > 3600000)
