@@ -20,7 +20,8 @@ Status: **active** — deployed on GCP and accessible via Tailscale.
 
 - **No LUKS** — GCP provides at-rest disk encryption automatically
 - **No impermanence** — service state persists at `/var/lib/...` on the stateful GCE disk
-- **systemd-boot** — UEFI bootloader (see `hardware-configuration.nix`)
+- **systemd-boot** — UEFI bootloader (see `modules/nixos/hardware/gce-vm.nix`;
+  the shared GCE baseline is `modules/nixos/profiles/gce-server.nix`)
 - **50 GB boot disk** — partitioned by `disko.nix` (512 MB ESP + ext4 root taking the rest)
 
 ## Disk Layout
