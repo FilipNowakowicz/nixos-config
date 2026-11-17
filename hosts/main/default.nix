@@ -180,68 +180,6 @@ in
       after = [ "tudor-host-launcher.service" ];
       serviceConfig.TimeoutStopSec = "5s";
     };
-
-    libvirtd-config.postStart = ''
-      cat > /var/lib/libvirt/secret.conf <<'EOF'
-      encrypt_data = 0
-      EOF
-    '';
-
-    libvirtd = {
-      unitConfig = {
-        Requires = lib.mkForce [
-          ""
-          "libvirtd-config.service"
-        ];
-        After = lib.mkForce [
-          ""
-          "libvirtd.socket"
-          "libvirtd-ro.socket"
-          "libvirtd-admin.socket"
-          "libvirtd-config.service"
-          "virtlogd.socket"
-          "virtlockd.socket"
-          "network.target"
-          "dbus.service"
-          "apparmor.service"
-          "remote-fs.target"
-          "systemd-machined.service"
-        ];
-      };
-      serviceConfig = {
-        Environment = lib.mkForce [
-          "SECRETS_ENCRYPTION_KEY="
-        ];
-        LoadCredentialEncrypted = lib.mkForce [ "" ];
-      };
-    };
-
-    virtsecretd = {
-      unitConfig = {
-        Requires = lib.mkForce [ "" ];
-        After = lib.mkForce [
-          ""
-          "virtsecretd.socket"
-          "virtsecretd-ro.socket"
-          "virtsecretd-admin.socket"
-        ];
-      };
-      serviceConfig = {
-        Environment = lib.mkForce [
-          "SECRETS_ENCRYPTION_KEY="
-        ];
-        LoadCredentialEncrypted = lib.mkForce [ "" ];
-      };
-    };
-
-    virt-secret-init-encryption = {
-      serviceConfig = {
-        ExecStart = lib.mkForce [
-          ""
-          "${pkgs.coreutils}/bin/true"
-        ];
-      };
-    };
   };
 
   environment.systemPackages = with pkgs; [

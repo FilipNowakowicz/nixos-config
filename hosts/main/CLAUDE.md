@@ -62,6 +62,9 @@ Operational state:
 - Crash dumps are stored in the journal by `profiles/security.nix`, not
   persisted as flat files under `/var/lib/systemd/coredump`.
 - `/var/lib/systemd/timers` — `Persistent=true` timer catchup (e.g. `restic-check-local`)
+- `/var/lib/systemd/credential.secret` — systemd-creds host key; libvirt's
+  secrets key is encrypted with it. `credential-host-secret.service` creates it in
+  `/persist` before impermanence mounts it.
 - `/var/cache/restic-backups-local` — restic index/pack cache; loss means re-fetching from B2
 
 ### Declarative-regenerated (rebuilt by NixOS activation each boot)
