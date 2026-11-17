@@ -319,12 +319,18 @@ rec {
         (lib.optionalString (
           bothEnabled && mullvadLockdown == null
         ) "systemd.services.mullvad-lockdown must exist")
-        # Mullvad numbers its policy rules ahead of those present when it
-        # connects; starting first puts them behind tailscaled's bypass rule.
-        (lib.optionalString (
-          bothEnabled
-          && !builtins.elem "tailscaled.service" (cfg.systemd.services.mullvad-daemon.after or [ ])
-        ) "mullvad-daemon.service must start after tailscaled.service")
+        # nixpkgs starts tailscaled after network-online.target, and Mullvad's
+        # packaged unit orders itself before it, so Mullvad-after-tailscaled is
+        # an ordering cycle; systemd broke it at boot by dropping tailscaled.
+        # Rule order is repaired by the bypass script's reconnect instead.
+        (lib.optionalString
+          (
+            bothEnabled
+            && builtins.elem "tailscaled.service" (cfg.systemd.services.mullvad-daemon.after or [ ])
+            && builtins.elem "network-online.target" (cfg.systemd.services.tailscaled.after or [ ])
+          )
+          "mullvad-daemon.service must not start after tailscaled.service (ordering cycle via network-online.target)"
+        )
       ];
     in
     mkResult (!bothEnabled || violations == [ ]) (
