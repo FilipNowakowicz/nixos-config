@@ -1378,7 +1378,7 @@ def screenshot_tool_captures_and_confirms():
     wait(lambda: ui()["screenshot"], "tool")
     time.sleep(0.3)
     shot("screenshot-tool")
-    click(841, 923)
+    click(800, 923)
     wait(lambda: not ui()["screenshot"], "tool to leave the picture")
     wait(lambda: ui()["notices"] == before + 1, "saved notice", timeout=6)
     assert [c for c in fake()["log"] if c[:2] == ["grim", "-g"]], "area not used"
@@ -1388,10 +1388,34 @@ def screenshot_tool_captures_and_confirms():
     shell("screenshot")
     wait(lambda: ui()["screenshot"], "tool again")
     time.sleep(0.3)
-    click(841, 923)
+    click(800, 923)
     time.sleep(1.2)
     set_fake(slurp_cancel=False)
     assert ui()["notices"] == before + 1, "cancelling must not report anything"
+
+
+@test
+def screenshot_keeps_what_is_open_in_the_picture():
+    for opened, check in (("controls", lambda s: s["panel"] == "controls"), ("overview", lambda s: s["overview"])):
+        shell(opened)
+        wait(lambda: check(ui()), opened)
+        before = ui()["notices"]
+        shell("screenshot")
+        wait(lambda: ui()["screenshot"], "picker over " + opened)
+        assert check(ui()), opened + " closed when the picker opened"
+        time.sleep(0.3)
+        shot("screenshot-over-" + opened)
+        # 3 is Screen: the picker leaves the picture, and what was open stays in it.
+        key("3")
+        wait(lambda: ui()["notices"] == before + 1, "saved notice", timeout=6)
+        assert not ui()["screenshot"] and check(ui()), ui()
+        # Escape with the picker open cancels only the picker.
+        shell("screenshot")
+        wait(lambda: ui()["screenshot"], "picker again")
+        key("Escape")
+        wait(lambda: not ui()["screenshot"], "picker to cancel")
+        assert check(ui()), opened + " closed with the picker"
+        shell("close")
 
 
 @test

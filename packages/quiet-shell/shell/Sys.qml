@@ -423,8 +423,25 @@ Singleton {
         const want = !touchpadOn;
         touchpadOn = want;
         Ui.showToggle("touchpad", want);
-        Quickshell.execDetached(["sh", Qt.resolvedUrl("scripts/touchpad.sh").toString().replace("file://", ""), String(want)]);
+        Quickshell.execDetached(["sh", touchpadScript, String(want)]);
     }
+    readonly property string touchpadScript: Qt.resolvedUrl("scripts/touchpad.sh").toString().replace("file://", "")
+    // Closing the lid while kept awake sometimes leaves the touchpad dead on opening,
+    // until it is turned off and on again, which makes the kernel power it up again.
+    // So do that each time the lid opens, unless it was turned off on purpose.
+    Process {
+        id: lidWatch
+        running: true
+        command: ["gdbus", "monitor", "--system", "--dest", "org.freedesktop.login1", "--object-path", "/org/freedesktop/login1"]
+        stdout: SplitParser {
+            onRead: line => {
+                if (line.includes("'LidClosed': <false>") && root.touchpadOn)
+                    Quickshell.execDetached(["sh", "-c", "sh \"$0\" false; sleep 0.5; sh \"$0\" true", root.touchpadScript]);
+            }
+        }
+        onExited: lidRetry.restart()
+    }
+    Timer { id: lidRetry; interval: 30000; onTriggered: lidWatch.running = true }
     property var agenda: []
     // Called when the centre opens. This only reads the local copy, so it costs nothing.
     function refreshAgenda() { agendaRead.running = true; }
@@ -477,7 +494,8 @@ Singleton {
 
     // `region` ("x,y wxh") skips slurp, for an area already dragged out in the picker.
     function screenshot(mode, region) {
-        Ui.close();
+        // Only the picker leaves; anything open under it is part of the picture.
+        Ui.cancelScreenshot();
         capture.command = ["python3", Qt.resolvedUrl("scripts/screenshot.py").toString().replace("file://", ""), mode].concat(region ? [region] : []);
         captureDelay.restart();
     }
