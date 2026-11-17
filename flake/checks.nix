@@ -358,7 +358,6 @@ let
   ];
 
   homeserverAccessInvariants = invariants.deployTargetAccessAssertions ++ [
-    invariants.homeserverSshAndHttpsNotGloballyOpen
     invariants.homeserverSshAndHttpsTailscaleOnly
     invariants.homeserverDeployRunnerRegistrationGcRunbookMatchesConfig
   ];

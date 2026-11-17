@@ -1,5 +1,4 @@
 {
-  lib,
   pkgs,
   hostMeta,
   ...
@@ -58,16 +57,15 @@ in
   };
 
   services.grafana.settings = {
-    # Land on the consolidated single-pane Overview instead of the per-host
-    # main-machine board the shared profile defaults to.
-    dashboards.default_home_dashboard_path = lib.mkForce "/etc/grafana-dashboards/overview.json";
+    # Land on the consolidated single-pane Overview.
+    dashboards.default_home_dashboard_path = "/etc/grafana-dashboards/overview.json";
     analytics = {
       reporting_enabled = false;
       check_for_updates = false;
       check_for_plugin_updates = false;
     };
     server = {
-      domain = lib.mkForce tailnetFQDN;
+      domain = tailnetFQDN;
       root_url = "https://%(domain)s/grafana/";
       serve_from_sub_path = true;
     };

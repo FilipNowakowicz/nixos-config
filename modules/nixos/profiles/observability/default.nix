@@ -88,9 +88,7 @@ in
         server = {
           http_addr = "127.0.0.1";
           http_port = 3000;
-          domain = "localhost";
         };
-        dashboards.default_home_dashboard_path = "/etc/grafana-dashboards/main-machine.json";
         security = {
           admin_user = cfg.grafana.adminUser;
         }

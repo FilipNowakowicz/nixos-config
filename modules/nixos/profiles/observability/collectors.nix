@@ -52,6 +52,50 @@ let
   };
 
   auditSources = cfg.collectors.audit.sources // cfg.collectors.audit.extraSources;
+  # Built-in and host-specific audit streams share one shape.
+  auditSourcesType =
+    with lib.types;
+    attrsOf (
+      submodule (_: {
+        options = {
+          enable = lib.mkOption {
+            type = bool;
+            default = true;
+            description = "Whether to emit this audit stream.";
+          };
+
+          matches = lib.mkOption {
+            type = str;
+            description = "systemd journal match string used by Alloy for this audit stream.";
+            example = "SYSLOG_IDENTIFIER=sudo";
+          };
+
+          eventType = lib.mkOption {
+            type = str;
+            description = "Stable audit event type label for this stream.";
+            example = "sudo";
+          };
+
+          scope = lib.mkOption {
+            type = str;
+            description = "Operational scope label attached to this audit stream.";
+            example = "operator-actions";
+          };
+
+          labels = lib.mkOption {
+            type = attrsOf str;
+            default = { };
+            description = "Additional static labels attached to this audit stream.";
+          };
+
+          formatAsJson = lib.mkOption {
+            type = bool;
+            default = false;
+            description = "Whether to forward full journal entries as JSON for this audit stream.";
+          };
+        };
+      })
+    );
 
   mkRelabelRule =
     {
@@ -315,49 +359,7 @@ in
       enable = lib.mkEnableOption "narrow audit-focused journald streams for Loki";
 
       sources = lib.mkOption {
-        type =
-          with lib.types;
-          attrsOf (
-            submodule (_: {
-              options = {
-                enable = lib.mkOption {
-                  type = bool;
-                  default = true;
-                  description = "Whether to emit this audit stream.";
-                };
-
-                matches = lib.mkOption {
-                  type = str;
-                  description = "systemd journal match string used by Alloy for this audit stream.";
-                  example = "SYSLOG_IDENTIFIER=sudo";
-                };
-
-                eventType = lib.mkOption {
-                  type = str;
-                  description = "Stable audit event type label for this stream.";
-                  example = "sudo";
-                };
-
-                scope = lib.mkOption {
-                  type = str;
-                  description = "Operational scope label attached to this audit stream.";
-                  example = "operator-actions";
-                };
-
-                labels = lib.mkOption {
-                  type = attrsOf str;
-                  default = { };
-                  description = "Additional static labels attached to this audit stream.";
-                };
-
-                formatAsJson = lib.mkOption {
-                  type = bool;
-                  default = false;
-                  description = "Whether to forward full journal entries as JSON for this audit stream.";
-                };
-              };
-            })
-          );
+        type = auditSourcesType;
         default = {
           sudo = {
             matches = "SYSLOG_IDENTIFIER=sudo";
@@ -382,46 +384,7 @@ in
       };
 
       extraSources = lib.mkOption {
-        type =
-          with lib.types;
-          attrsOf (
-            submodule (_: {
-              options = {
-                enable = lib.mkOption {
-                  type = bool;
-                  default = true;
-                  description = "Whether to emit this extra audit stream.";
-                };
-
-                matches = lib.mkOption {
-                  type = str;
-                  description = "systemd journal match string used by Alloy for this audit stream.";
-                };
-
-                eventType = lib.mkOption {
-                  type = str;
-                  description = "Stable audit event type label for this stream.";
-                };
-
-                scope = lib.mkOption {
-                  type = str;
-                  description = "Operational scope label attached to this audit stream.";
-                };
-
-                labels = lib.mkOption {
-                  type = attrsOf str;
-                  default = { };
-                  description = "Additional static labels attached to this audit stream.";
-                };
-
-                formatAsJson = lib.mkOption {
-                  type = bool;
-                  default = false;
-                  description = "Whether to forward full journal entries as JSON for this audit stream.";
-                };
-              };
-            })
-          );
+        type = auditSourcesType;
         default = { };
         description = ''
           Host-specific audit journald streams merged on top of the built-in
@@ -484,7 +447,6 @@ in
               "loadavg"
               "meminfo"
               "netdev"
-              "powersupplyclass"
               "systemd"
               "textfile"
               "thermal_zone"

@@ -82,8 +82,9 @@ in
     ];
   };
 
+  # curl comes from the base profile. jq stays at system level for root and
+  # for checks run over SSH, which don't get Home Manager's PATH.
   environment.systemPackages = [
-    pkgs.curl
     pkgs.dig
     pkgs.gawk
     pkgs.jq
@@ -257,18 +258,6 @@ in
 
   services.prometheus.retentionTime = "30d";
   services.prometheus.extraFlags = [ "--web.enable-remote-write-receiver" ];
-
-  # GCE has no power supply subsystem; omit that collector on this host.
-  services.prometheus.exporters.node.enabledCollectors = pkgs.lib.mkForce [
-    "cpu"
-    "filesystem"
-    "loadavg"
-    "meminfo"
-    "netdev"
-    "systemd"
-    "textfile"
-    "thermal_zone"
-  ];
 
   users.users.user = {
     home = "/home/user";
