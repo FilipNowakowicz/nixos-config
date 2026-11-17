@@ -1,0 +1,22 @@
+name: Report a failed scheduled run
+description: >-
+  Open, or comment on, one issue per workflow when a scheduled run fails, so a
+  red cron job is seen instead of failing quietly for weeks. Needs
+  `issues: write` on the job.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        WORKFLOW: ${{ github.workflow }}
+      run: |
+        title="Scheduled run failing: $WORKFLOW"
+        existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+        if [ -n "$existing" ]; then
+          gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "Failed again: $RUN_URL"
+        else
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" \
+            --body "The scheduled run failed: $RUN_URL. Close this issue once it passes again."
+        fi

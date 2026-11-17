@@ -23,6 +23,7 @@ jobs:
       contents: write
       pull-requests: write
       actions: write
+      issues: write
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
@@ -69,3 +70,7 @@ jobs:
           GH_TOKEN: ${{ secrets.FLAKE_UPDATE_TOKEN }}
           PR_NUMBER: ${{ steps.create-pr.outputs.pull-request-number }}
         run: gh pr merge --auto --squash "$PR_NUMBER"
+
+      - name: Report a failed scheduled run
+        if: failure() && github.event_name == 'schedule'
+        uses: ./.github/actions/report-scheduled-failure

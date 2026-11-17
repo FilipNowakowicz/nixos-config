@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Promoted from: .agents/learning/candidates/2026-08-04-mullvad-cli-package-unit.yml
+# Promoted from: .agents/learning/candidates/archive/2026-08-04-mullvad-cli-package-unit.yml
 #
 # nixpkgs stopped exposing bin/mullvad from pkgs.mullvad-vpn directly (only
 # services.mullvad-vpn.package is guaranteed to carry the CLI); a custom

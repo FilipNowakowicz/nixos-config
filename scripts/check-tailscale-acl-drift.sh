@@ -19,12 +19,24 @@ echo "Building rendered ACL artifact..."
 acl_path="$(nix build '.#packages.x86_64-linux.tailscale-acl' --no-link --print-out-paths)"
 
 echo "Fetching live Tailscale policy..."
-live_json="$(
-  curl -sf \
+# Print the HTTP status on failure: `curl -f` alone made an expired key look
+# like a bare exit 22, and the scheduled check stayed red for seven weeks.
+response="$(mktemp)"
+trap 'rm -f "$response"' EXIT
+status="$(
+  curl -s -o "$response" -w '%{http_code}' \
     --header "Authorization: Bearer ${TAILSCALE_API_KEY}" \
     --header "Accept: application/json" \
     "https://api.tailscale.com/api/v2/tailnet/${TAILSCALE_TAILNET}/acl"
 )"
+if [[ $status != 200 ]]; then
+  echo "Fetching the live policy failed: HTTP $status" >&2
+  if [[ $status == 401 || $status == 403 ]]; then
+    echo "TAILSCALE_API_KEY is likely expired or lacks policy:read; rotate it." >&2
+  fi
+  exit 1
+fi
+live_json="$(cat "$response")"
 
 rendered_normal="$(jq -S '{tagOwners, acls}' "$acl_path")"
 live_normal="$(printf '%s' "$live_json" | jq -S '{tagOwners, acls}')"

@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-09-26-hyprland-exec-once-daemon-stale
 date: 2026-09-26
 expires: 2027-03-26
-status: open
+status: promoted
 route: implement-fix
 best_form: test
 evidence: [home/files/hypr/hyprland.conf exec-once swayosd-server (pre-fix), running swayosd-server 0.3.1 vs client 0.3.2 on PATH, no swayosd layer in hyprctl layers until restart]
