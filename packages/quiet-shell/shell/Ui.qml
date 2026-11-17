@@ -100,6 +100,9 @@ Singleton {
         return candidates.find(name => Quickshell.screens.some(s => s.name === name)) ?? "";
     }
     readonly property bool topShown: topRevealed || pinned || panel !== ""
+    // The bar's app icons, unfolded; they fold again when the bar hides.
+    property bool trayOpen: false
+    onTopShownChanged: if (!topShown) trayOpen = false
     readonly property bool blocking: panel !== "" || spotlight || overview || confirm !== null || switcher || screenshot || cheatSheet || auth !== null
 
     // A focused field can disappear, which would leave the keyboard with nowhere to go.

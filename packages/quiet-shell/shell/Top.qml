@@ -151,40 +151,6 @@ Item {
                 leftPadding: 5
                 rightPadding: 4
                 Layout.alignment: Qt.AlignVCenter
-                Press {
-                    visible: Sys.failedCount > 0
-                    name: "Show failed settings"
-                    width: 18
-                    height: 18
-                    radius: 9
-                    onClicked: Ui.open("controls")
-                    Icon { anchors.centerIn: parent; name: "triangle-alert"; size: 15 }
-                }
-                // Nothing here unless an app asks for it.
-                Repeater {
-                    model: SystemTray.items
-                    Press {
-                        id: trayItem
-                        required property var modelData
-                        width: 18
-                        height: 18
-                        radius: 5
-                        name: modelData.tooltipTitle || modelData.title || modelData.id
-                        onClicked: modelData.onlyMenu ? root.showMenu(trayItem) : modelData.activate()
-                        onSecondaryClicked: modelData.hasMenu ? root.showMenu(trayItem) : modelData.secondaryActivate()
-                        // Grey like the dock's app icons, with colour while pointed at.
-                        property real grey: Theme.monoIcons && !hovered && !activeFocus ? 1 : 0
-                        Behavior on grey { NumberAnimation { duration: Theme.motion; easing.type: Easing.OutCubic } }
-                        Image {
-                            anchors.fill: parent
-                            source: trayItem.modelData.icon
-                            sourceSize: Qt.size(36, 36)
-                            opacity: 1 - 0.12 * trayItem.grey
-                            layer.enabled: trayItem.grey > 0
-                            layer.effect: MultiEffect { saturation: -trayItem.grey }
-                        }
-                    }
-                }
                 // The next timer counts down; an alarm shows the time it is set for.
                 // Either opens Spotlight's list of them.
                 Press {
@@ -215,6 +181,52 @@ Item {
                         spacing: 4
                         Icon { anchors.verticalCenter: parent.verticalCenter; name: "alarm-clock"; size: 14 }
                         Label { anchors.verticalCenter: parent.verticalCenter; text: Sys.nextAlarm ? Qt.formatTime(new Date(Sys.nextAlarm.at), "HH:mm") : ""; font.features: { "tnum": 1 } }
+                    }
+                }
+                Press {
+                    visible: Sys.failedCount > 0
+                    name: "Show failed settings"
+                    width: 18
+                    height: 18
+                    radius: 9
+                    onClicked: Ui.open("controls")
+                    Icon { anchors.centerIn: parent; name: "triangle-alert"; size: 15 }
+                }
+                // Background apps' icons (KDE Connect, EasyEffects, Spotify) stay folded
+                // behind one button until asked for, and fold again when the bar hides.
+                Press {
+                    visible: SystemTray.items.values.length > 0
+                    name: Ui.trayOpen ? "Hide app icons" : "Show app icons"
+                    width: 18
+                    height: 18
+                    radius: 9
+                    toggled: Ui.trayOpen
+                    onClicked: Ui.trayOpen = !Ui.trayOpen
+                    Icon { anchors.centerIn: parent; name: Ui.trayOpen ? "chevron-right" : "chevron-left"; size: 14; color: Theme.dim }
+                }
+                Repeater {
+                    model: SystemTray.items
+                    Press {
+                        id: trayItem
+                        required property var modelData
+                        visible: Ui.trayOpen
+                        width: 18
+                        height: 18
+                        radius: 5
+                        name: modelData.tooltipTitle || modelData.title || modelData.id
+                        onClicked: modelData.onlyMenu ? root.showMenu(trayItem) : modelData.activate()
+                        onSecondaryClicked: modelData.hasMenu ? root.showMenu(trayItem) : modelData.secondaryActivate()
+                        // Grey like the dock's app icons, with colour while pointed at.
+                        property real grey: Theme.monoIcons && !hovered && !activeFocus ? 1 : 0
+                        Behavior on grey { NumberAnimation { duration: Theme.motion; easing.type: Easing.OutCubic } }
+                        Image {
+                            anchors.fill: parent
+                            source: trayItem.modelData.icon
+                            sourceSize: Qt.size(36, 36)
+                            opacity: 1 - 0.12 * trayItem.grey
+                            layer.enabled: trayItem.grey > 0
+                            layer.effect: MultiEffect { saturation: -trayItem.grey }
+                        }
                     }
                 }
                 Icon { visible: Sys.focusMode; name: "bell-off"; size: 15 }

@@ -6,12 +6,17 @@ import QtQuick.Layouts
 // SUPER+x and SUPER+r do the same from anywhere. Running timers live in the bar.
 Item {
     id: root
-    readonly property var ring: Sys.ringing.length ? Sys.ringing[0] : null
+    readonly property var ringing: Sys.ringing.length ? Sys.ringing[0] : null
+    // What the card shows. It keeps the last ring while the card fades out, so
+    // the words don't change to a fallback on the way.
+    property var ring: null
+    onRingingChanged: if (ringing) ring = ringing
     readonly property bool alarm: !!ring && ring.kind === "Alarm"
+    readonly property bool restarts: !!ring && !alarm && ring.seconds > 0
 
     implicitWidth: 340
     implicitHeight: card.implicitHeight
-    opacity: ring ? 1 : 0
+    opacity: ringing ? 1 : 0
     visible: opacity > 0
     Behavior on opacity { NumberAnimation { duration: Theme.motion } }
 
@@ -31,7 +36,7 @@ Item {
                 size: 26
                 // A small shake while it rings, the way a clock would.
                 SequentialAnimation on rotation {
-                    running: root.ring !== null && !Theme.reducedMotion
+                    running: root.ringing !== null && !Theme.reducedMotion
                     loops: Animation.Infinite
                     NumberAnimation { to: 12; duration: 70 }
                     NumberAnimation { to: -12; duration: 140 }
@@ -68,35 +73,24 @@ Item {
             spacing: 8
             Press {
                 Layout.fillWidth: true
-                implicitHeight: 32
-                radius: 16
+                implicitHeight: 38
+                radius: 19
                 rest: Theme.fill
-                name: root.alarm || !root.ring || !root.ring.seconds ? "Snooze" : "Restart"
-                onClicked: Sys.restartRinging(root.ring)
-                Row {
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Label {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: root.alarm || !root.ring || !root.ring.seconds ? "Snooze 10 min" : "Restart " + Sys.duration(root.ring.seconds)
-                    }
-                    Label { anchors.verticalCenter: parent.verticalCenter; text: "Super R"; font.pixelSize: 10; color: Theme.faint }
-                }
+                name: root.restarts ? "Restart" : "Snooze"
+                onClicked: if (root.ringing) Sys.restartRinging(root.ringing)
+                Label { anchors.centerIn: parent; text: root.restarts ? "Restart" : "Snooze" }
+                SuperHint { anchors.right: parent.right; anchors.rightMargin: 13; anchors.top: parent.top; anchors.topMargin: 6; key: "R" }
             }
             Press {
                 Layout.fillWidth: true
-                implicitHeight: 32
-                radius: 16
+                implicitHeight: 38
+                radius: 19
                 rest: Theme.on
                 hover: Theme.on
                 name: "Stop"
-                onClicked: Sys.stopRinging(root.ring.unit)
-                Row {
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Label { anchors.verticalCenter: parent.verticalCenter; text: "Stop"; color: Theme.onText; font.weight: Font.Medium }
-                    Label { anchors.verticalCenter: parent.verticalCenter; text: "Super X"; font.pixelSize: 10; color: Theme.onText; opacity: 0.6 }
-                }
+                onClicked: if (root.ringing) Sys.stopRinging(root.ringing.unit)
+                Label { anchors.centerIn: parent; text: "Stop"; color: Theme.onText; font.weight: Font.Medium }
+                SuperHint { anchors.right: parent.right; anchors.rightMargin: 13; anchors.top: parent.top; anchors.topMargin: 6; key: "X"; tint: Theme.onText }
             }
         }
         Item { implicitHeight: 4 }
