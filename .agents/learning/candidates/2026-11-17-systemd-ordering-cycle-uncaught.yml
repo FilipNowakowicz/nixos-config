@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-11-17-systemd-ordering-cycle-uncaught
+date: 2026-11-17
+expires: 2027-02-17
+status: open
+route: implement-fix
+best_form: test
+evidence: [pr-#542, pr-#504, journalctl -b 'Job tailscaled.service/start deleted to break ordering cycle']
+observation: a nixpkgs bump added tailscaled After=network-online.target; with mullvad Before=network-online and our mullvad After=tailscaled this formed a boot ordering cycle; CI and host builds passed, cycle was logged every boot from 2026-11-16, and systemd only once dropped tailscaled (main off tailnet)
+proposed_upgrade: fail CI on any systemd ordering cycle in main's boot transaction, e.g. assert no 'ordering cycle' line in the journal of the quiet-shell/main smoke VM test, or run systemd-analyze verify default.target over the built units
+agent: claude
+type: repo-fix
+dedupe_key: systemd:ordering-cycle-undetected
+triggers: [nixpkgs bump, systemd.services.*.after edits, flake-update.yml]
+targets: [tests/nixos, flake/checks.nix]
