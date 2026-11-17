@@ -296,8 +296,10 @@ header, and add the host's sops recipient and secrets. See
 | `gcp-builder`    | `deploy '.#gcp-builder'`                 | On-demand remote builder; start the VM first. See its `CLAUDE.md`.   |
 | `user@wsl`       | `home-manager switch --flake .#user@wsl` | Portable Home Manager for WSL.                                       |
 
-`scripts/deploy-gcp.sh` is for provisioning/reinstall only (Terraform apply +
-`nixos-anywhere`), not an ongoing-deploy alias. See
+Agents and other non-interactive sessions switch `main` with
+`sudo nixos-switch-main [--remote]`. `scripts/deploy-gcp.sh` is for
+provisioning/reinstall only (Terraform apply + `nixos-anywhere`), not an
+ongoing-deploy alias. See
 [`docs/operations.md`](docs/operations.md) for the full deploy and recovery
 runbook.
 
@@ -309,14 +311,14 @@ Expected to work from a clean clone, with no hardware or secrets:
 
 ```bash
 bash scripts/validate.sh flake-eval   # fast evaluation gate (nix flake check --no-build)
-bash scripts/validate.sh docs         # Markdown link check
-bash scripts/validate.sh light        # deploy checks, invariants, sops bootstrap, lib tests
+bash scripts/validate.sh docs         # Markdown links and static self-tests
+bash scripts/validate.sh light        # every flake check except pre-commit
 bash scripts/doctor.sh                # clean-clone documentation/eval/format bundle
 nix fmt -- --fail-on-change           # treefmt-nix formatting check
 bash scripts/validate.sh package all  # build CI package outputs and the installer ISO
 ```
 
-Requires extra local capability:
+`bash scripts/validate.sh --help` lists the rest. Requires extra local capability:
 
 - NixOS smoke/profile tests require KVM (`bash scripts/validate.sh heavy`).
 - Switching `main` or `homeserver-gcp` requires the corresponding

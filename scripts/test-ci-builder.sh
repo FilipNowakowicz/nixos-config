@@ -85,7 +85,7 @@ grep -q "github.event.pull_request.head.repo.full_name == github.repository" "$w
 grep -q "!contains(github.event.pull_request.labels.\*.name, 'skip-builder')" "$workflow"
 grep -q 'args: --accept-dns=false' "$workflow"
 [[ $(grep -c 'needs: \[push-policy, changes, builder\]' "$workflow") == 4 ]]
-# The new scripts are part of the planner's shared-module/full-validation path.
-bash scripts/test-ci-plan.sh
+# test-ci-plan.sh runs as its own step in the plan job (and in doctor.sh), so
+# it isn't repeated here.
 bash scripts/test-on-builder.sh
 echo 'CI builder and merge-gate contract tests passed'

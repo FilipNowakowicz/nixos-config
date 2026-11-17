@@ -34,6 +34,26 @@ build_attrs() {
   fi
 }
 
+# Names of a flake attrset's members, one per line. The check and test lists
+# below come from the flake, so a new check or test is built without editing
+# this file, and no list here can drift from the flake.
+flake_names() {
+  nix eval --raw "$1" --apply 'set: builtins.concatStringsSep "\n" (builtins.attrNames set)'
+}
+
+# Build `prefix.name` for each name read on stdin. A process substitution hides a
+# failed `nix eval`, and `nix build` with no attributes builds the default
+# package and passes, so an empty list is an error here, not a quiet pass.
+build_names() {
+  local prefix=$1 names
+  mapfile -t names
+  if ((${#names[@]} == 0)); then
+    echo "validate.sh: no attributes found under $prefix" >&2
+    exit 1
+  fi
+  build_attrs "${names[@]/#/$prefix.}"
+}
+
 show_report_attrs() {
   local output paths_file rc=0
   paths_file="$(mktemp)"
@@ -53,18 +73,19 @@ usage() {
 Usage: $0 <command>
 
 Commands:
-  docs               Check repository Markdown links
+  docs               Check Markdown links and run the static self-tests
   flake-eval         Run flake evaluation only (no builds)
-  light              Build lightweight blocking checks
-  host <name>        Build one host closure: main-ci, main, homeserver-gcp, installer
+  light              Build every flake check except pre-commit
+  host <name>        Build one host closure: main-ci, main, homeserver-gcp, gcp-builder, installer
   hosts              Build all host system closures used in CI
   package <name>     Build one package output used in CI, or package all
   profile-test <name>
-                     Build one profile test: profile-security, profile-observability, profile-hardening
+                     Build one profile test (ciTests.profile-*, e.g. profile-hardening)
   smoke-homeserver-gcp
                      Build the homeserver-gcp endpoint smoke test
+  smoke-quiet-shell  Build the quiet-shell smoke test and the desktop session test
   profile-tests      Build all profile NixOS tests
-  heavy              Build all smoke and profile tests
+  heavy              Build every CI test (all of ciTests)
   cve-reports        Run vulnix CVE scan for each host (requires vulnix in PATH)
   tf-drift           Detect drift in infra/ against live GCP state (read-only plan)
 EOF
@@ -109,24 +130,11 @@ build_host() {
 }
 
 build_profile_test() {
-  case "$1" in
-  profile-security)
-    build_attrs ".#legacyPackages.${system}.ciTests.profile-security"
-    ;;
-  profile-observability)
-    build_attrs ".#legacyPackages.${system}.ciTests.profile-observability"
-    ;;
-  profile-hardening)
-    build_attrs ".#legacyPackages.${system}.ciTests.profile-hardening"
-    ;;
-  profile-runtime-timezone)
-    build_attrs ".#legacyPackages.${system}.ciTests.profile-runtime-timezone"
-    ;;
-  *)
+  if [[ $1 != profile-* ]] || ! flake_names ".#legacyPackages.${system}.ciTests" | grep -qx -- "$1"; then
     echo "Unknown profile test target: $1" >&2
     exit 1
-    ;;
-  esac
+  fi
+  build_attrs ".#legacyPackages.${system}.ciTests.$1"
 }
 
 build_package() {
@@ -166,6 +174,14 @@ docs)
   bash .agents/learning/scripts/index-candidates.sh --self-test
   bash .agents/learning/scripts/scaffold-promotion-check.sh --self-test
   bash .agents/repo-map/scripts/validate.sh
+  # Promotion checks run from `docs` (static) or `light` (they build). Each one
+  # has to be wired into one of them; an unwired promotion protects nothing.
+  for promotion in .agents/learning/promotions/*.sh; do
+    if ! grep -qF "bash $promotion" "$0"; then
+      echo "validate.sh: $promotion is not run by any target" >&2
+      exit 1
+    fi
+  done
   ;;
 
 flake-eval)
@@ -176,35 +192,11 @@ light)
   bash .agents/learning/promotions/persistent-network-timer-probe.sh
   bash .agents/learning/promotions/bluetooth-boot-trigger.sh
   bash .agents/learning/promotions/mullvad-cli-package-unit.sh
-  # The pre-commit derivation is intentionally excluded from CI: its hooks
-  # (statix, deadnix, treefmt, shellcheck, secrets-directory) are already
-  # covered by the lint job and the secrets-directory check below. The
+  # Every flake check except pre-commit, which is intentionally excluded from
+  # CI: its hooks (statix, deadnix, treefmt, shellcheck, secrets-directory) are
+  # already covered by the lint job and the secrets-directory check. The
   # plaintext-secrets scan unique to pre-commit runs in the lint job.
-  build_attrs \
-    ".#checks.${system}.deploy-activate" \
-    ".#checks.${system}.deploy-schema" \
-    ".#checks.${system}.homeserver-gcp-sops-bootstrap" \
-    ".#checks.${system}.invariants-gcp-builder" \
-    ".#checks.${system}.invariants-homeserver-gcp" \
-    ".#checks.${system}.invariants-main" \
-    ".#checks.${system}.invariants-main-ci" \
-    ".#checks.${system}.invariants-registry-security" \
-    ".#checks.${system}.invariants-installer" \
-    ".#checks.${system}.lib-doctor" \
-    ".#checks.${system}.lib-prebuilt" \
-    ".#checks.${system}.lib-deploy-homeserver" \
-    ".#checks.${system}.lib-on-builder" \
-    ".#checks.${system}.lib-generators" \
-    ".#checks.${system}.lib-generators-structured" \
-    ".#checks.${system}.lib-acl" \
-    ".#checks.${system}.lib-invariants" \
-    ".#checks.${system}.lib-mini-fleet-flake" \
-    ".#checks.${system}.observability-alerts-lint" \
-    ".#checks.${system}.secrets-directory" \
-    ".#checks.${system}.lib-scan-plaintext-secrets" \
-    ".#checks.${system}.quiet-shell-status" \
-    ".#checks.${system}.quiet-shell-search" \
-    ".#checks.${system}.theme-module"
+  flake_names ".#checks.${system}" | grep -vx pre-commit | build_names ".#checks.${system}"
   ;;
 
 host)
@@ -246,21 +238,12 @@ profile-test)
   ;;
 
 profile-tests)
-  build_attrs \
-    ".#legacyPackages.${system}.ciTests.profile-security" \
-    ".#legacyPackages.${system}.ciTests.profile-observability" \
-    ".#legacyPackages.${system}.ciTests.profile-hardening" \
-    ".#legacyPackages.${system}.ciTests.profile-runtime-timezone"
+  flake_names ".#legacyPackages.${system}.ciTests" | grep '^profile-' | build_names ".#legacyPackages.${system}.ciTests"
   ;;
 
 heavy)
-  build_attrs \
-    ".#legacyPackages.${system}.ciTests.homeserver-gcp-smoke" \
-    ".#legacyPackages.${system}.ciTests.quiet-shell-smoke" \
-    ".#legacyPackages.${system}.ciTests.profile-security" \
-    ".#legacyPackages.${system}.ciTests.profile-observability" \
-    ".#legacyPackages.${system}.ciTests.profile-hardening" \
-    ".#legacyPackages.${system}.ciTests.profile-runtime-timezone"
+  # Every CI test, desktop-session included.
+  flake_names ".#legacyPackages.${system}.ciTests" | build_names ".#legacyPackages.${system}.ciTests"
   ;;
 
 cve-reports)
