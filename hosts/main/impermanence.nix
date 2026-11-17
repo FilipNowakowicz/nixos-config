@@ -52,25 +52,27 @@
   environment.persistence."/persist".files = [ "/var/lib/systemd/credential.secret" ];
 
   # impermanence bind-mounts a file only when it already exists in /persist;
-  # otherwise it leaves a dangling symlink, and systemd-creds then encrypts
-  # with a throwaway key it never writes out. Create it before persist-files.
-  # `setup` is a no-op on a valid key and fails on an unusable one (a 32-byte
-  # leftover from an earlier attempt sat here), which is set aside, not deleted.
-  system.activationScripts = {
-    credentialHostSecret = {
-      deps = [ "createPersistentStorageDirs" ];
-      text = ''
-        hostKey=/persist/var/lib/systemd/credential.secret
-        setupHostKey() {
-          SYSTEMD_CREDENTIAL_SECRET="$hostKey" ${config.systemd.package}/bin/systemd-creds setup >/dev/null
-        }
-        mkdir -p "''${hostKey%/*}"
-        if ! setupHostKey 2>/dev/null; then
-          mv -f "$hostKey" "$hostKey.invalid"
-          setupHostKey
-        fi
+  # otherwise it leaves a symlink, which systemd-creds refuses (ELOOP). Create
+  # the key there first. This is a stage-2 unit, not an activation script:
+  # activation runs in the initrd, where systemd-creds will not make a host key.
+  systemd.services.credential-host-secret =
+    let
+      hostKey = "/persist/var/lib/systemd/credential.secret";
+    in
+    {
+      description = "Create the persisted systemd-creds host key";
+      wantedBy = [ "local-fs.target" ];
+      before = [ "persist-persist-var-lib-systemd-credential.secret.service" ];
+      unitConfig = {
+        DefaultDependencies = false;
+        RequiresMountsFor = [ "/persist" ];
+        ConditionPathExists = "!${hostKey}";
+      };
+      environment.SYSTEMD_CREDENTIAL_SECRET = hostKey;
+      serviceConfig.Type = "oneshot";
+      script = ''
+        mkdir -p "$(dirname "$SYSTEMD_CREDENTIAL_SECRET")"
+        ${config.systemd.package}/bin/systemd-creds setup
       '';
     };
-    persist-files.deps = [ "credentialHostSecret" ];
-  };
 }
