@@ -172,11 +172,11 @@ let
         ];
         wantedBy = [ "multi-user.target" ];
       };
-      tailscaled.postStart = "tailscale-bypass-rules || true";
-      mullvad-daemon = {
+      tailscaled = {
         postStart = "tailscale-bypass-rules || true";
-        after = [ "tailscaled.service" ];
+        after = [ "network-online.target" ];
       };
+      mullvad-daemon.postStart = "tailscale-bypass-rules || true";
       mullvad-lockdown = { };
     };
   };
@@ -733,14 +733,14 @@ let
       expected = "tailscale-mullvad-compat nftables chain must set Mullvad's conntrack bypass mark";
     };
 
-    testMullvadTailscaleCoexistenceRejectsMullvadBeforeTailscaled = {
+    testMullvadTailscaleCoexistenceRejectsOrderingCycle = {
       expr =
         (invariants.checkMullvadTailscaleCoexistence (
           lib.recursiveUpdate mullvadTailscaleConfig {
-            systemd.services.mullvad-daemon.after = [ ];
+            systemd.services.mullvad-daemon.after = [ "tailscaled.service" ];
           }
         )).message;
-      expected = "mullvad-daemon.service must start after tailscaled.service";
+      expected = "mullvad-daemon.service must not start after tailscaled.service (ordering cycle via network-online.target)";
     };
 
     testTrustedUsersMatchExpectedSet = {

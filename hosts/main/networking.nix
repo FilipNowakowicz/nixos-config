@@ -175,12 +175,13 @@ in
     # dedicated tailscale-bypass-routing.service is the surface that fails
     # loudly on discovery failure.
     tailscaled.postStart = lib.mkAfter "${tailscaleBypassRules} || true";
-    mullvad-daemon = {
-      postStart = lib.mkAfter "${tailscaleBypassRules} || true";
-      # Let tailscaled add its policy rules first, so Mullvad's first connect
-      # numbers its own ahead of them (see the rule-order check above).
-      after = [ "tailscaled.service" ];
-    };
+    # No ordering between the two daemons: nixpkgs starts tailscaled after
+    # network-online.target and mullvad-daemon before it, so "Mullvad after
+    # tailscaled" is a cycle, and systemd broke it by dropping tailscaled's
+    # start job. Whichever starts second, the rule-order check above
+    # (tailscaled's postStart, or tailscale-bypass-routing) reconnects Mullvad
+    # if its rules landed behind tailscaled's.
+    mullvad-daemon.postStart = lib.mkAfter "${tailscaleBypassRules} || true";
 
     # Tailscale coexistence is handled at the nftables layer: outgoing
     # tailscale0 packets are marked with Mullvad's split-tunnel exclusion
