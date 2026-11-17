@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-11-17-systemd-ordering-cycle-uncaught
 date: 2026-11-17
 expires: 2027-02-17
-status: open
+status: promoted
 route: implement-fix
 best_form: test
 evidence: [pr-#542, pr-#504, journalctl -b 'Job tailscaled.service/start deleted to break ordering cycle']

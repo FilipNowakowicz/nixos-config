@@ -4,6 +4,8 @@
   ...
 }:
 {
+  imports = [ ./boot-ordering-check.nix ];
+
   zramSwap.enable = true;
 
   # None of the current hosts use ZFS for root import. Set the upcoming 26.11
