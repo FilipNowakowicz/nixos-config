@@ -1,4 +1,4 @@
-{ inputs, ... }:
+{ config, inputs, ... }:
 {
   imports = [
     inputs.impermanence.nixosModules.impermanence
@@ -45,4 +45,26 @@
     "/var/lib/libvirt" # libvirt VM images and domain definitions (Whonix KVM)
   ];
 
+  # systemd-creds host key. libvirt encrypts its secrets key with it
+  # (virt-secret-init-encryption writes /var/lib/libvirt/secrets/), so a fresh
+  # key on every rollback left that persisted file undecryptable and libvirtd
+  # failed to start.
+  environment.persistence."/persist".files = [ "/var/lib/systemd/credential.secret" ];
+
+  # impermanence bind-mounts a file only when it already exists in /persist;
+  # otherwise it leaves a dangling symlink, and systemd-creds then encrypts
+  # with a throwaway key it never writes out. Create it before persist-files.
+  system.activationScripts = {
+    credentialHostSecret = {
+      deps = [ "createPersistentStorageDirs" ];
+      text = ''
+        hostKey=/persist/var/lib/systemd/credential.secret
+        if [ ! -s "$hostKey" ]; then
+          mkdir -p "''${hostKey%/*}"
+          SYSTEMD_CREDENTIAL_SECRET="$hostKey" ${config.systemd.package}/bin/systemd-creds setup
+        fi
+      '';
+    };
+    persist-files.deps = [ "credentialHostSecret" ];
+  };
 }
