@@ -15,16 +15,16 @@
 
   colors = {
     bg = "06090d";
-    brown = "111820";
-    orange = "d8d2b8";
-    amber = "9bb8bd";
+    surface = "111820";
+    secondary = "d8d2b8";
+    accent = "9bb8bd";
     text = "d7e1df";
   };
 
   # 16-slot ANSI palette tuned to the cool blue-grey / sand palette.
   ansiColors = {
     color0 = "06090d"; # bg (black)
-    color8 = "111820"; # brown (bright black)
+    color8 = "111820"; # surface (bright black)
     color1 = "a36b6b"; # red
     color9 = "c08585"; # bright red
     color2 = "8ba383"; # green

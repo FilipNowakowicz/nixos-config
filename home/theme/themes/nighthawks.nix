@@ -14,16 +14,16 @@
 
   colors = {
     bg = "161a20"; # near black blue-grey
-    brown = "2a3040"; # dark slate surface
-    orange = "4a5568"; # muted blue-grey accent
-    amber = "8aa4b8"; # cold silver-blue highlight
+    surface = "2a3040"; # dark slate surface
+    secondary = "4a5568"; # muted blue-grey accent
+    accent = "8aa4b8"; # cold silver-blue highlight
     text = "c8d0d8"; # cool light grey text
   };
 
   # 16-slot ANSI palette tuned to the cold slate / silver-blue palette.
   ansiColors = {
     color0 = "161a20"; # bg (black)
-    color8 = "2a3040"; # brown (bright black)
+    color8 = "2a3040"; # surface (bright black)
     color1 = "a5616b"; # red (cool)
     color9 = "c27d87"; # bright red
     color2 = "7e9a85"; # green (cool)

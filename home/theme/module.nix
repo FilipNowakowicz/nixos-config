@@ -14,13 +14,46 @@ let
   # Auto-discover all theme files
   themeFiles = builtins.readDir themesDir;
 
+  # The color contract. Every template below reads these slots by name, so a
+  # theme with a missing or misspelt slot fails here, naming the theme, rather
+  # than as an attribute error deep inside one template.
+  colorSlots = [
+    "accent"
+    "bg"
+    "secondary"
+    "surface"
+    "text"
+  ];
+  ansiSlots = map (i: "color${toString i}") (lib.range 0 15);
+  isHex = v: builtins.isString v && builtins.match "[0-9a-fA-F]{6}" v != null;
+
+  checkSlots =
+    themeName: what: slots: attrs:
+    let
+      names = builtins.attrNames attrs;
+      missing = lib.subtractLists names slots;
+      extra = lib.subtractLists slots names;
+      badHex = lib.filter (n: !isHex attrs.${n}) (lib.intersectLists names slots);
+      problems =
+        lib.optional (missing != [ ]) "is missing ${lib.concatStringsSep ", " missing}"
+        ++ lib.optional (extra != [ ]) "has unknown ${lib.concatStringsSep ", " extra}"
+        ++ lib.optional (badHex != [ ]) "needs rrggbb hex in ${lib.concatStringsSep ", " badHex}";
+    in
+    lib.throwIf (problems != [ ]) "theme ${themeName}: ${what} ${lib.concatStringsSep "; " problems}";
+
+  validate =
+    themeName: theme:
+    checkSlots themeName "colors" colorSlots (theme.colors or { }) (
+      checkSlots themeName "ansiColors" ansiSlots (theme.ansiColors or { }) theme
+    );
+
   # Load and validate each theme
   allThemes = lib.mapAttrs' (
     name: _:
     let
       themePath = themesDir + "/${name}";
-      theme = import themePath;
       themeName = lib.removeSuffix ".nix" name;
+      theme = validate themeName (import themePath);
     in
     lib.nameValuePair themeName (theme // { name = themeName; })
   ) (lib.filterAttrs (n: v: v == "regular" && lib.hasSuffix ".nix" n) themeFiles);
@@ -129,22 +162,22 @@ let
       foreground           #${theme.colors.text}
       background           #${theme.colors.bg}
       selection_foreground #${theme.colors.text}
-      selection_background #${theme.colors.brown}
+      selection_background #${theme.colors.surface}
 
-      cursor            #${theme.colors.amber}
+      cursor            #${theme.colors.accent}
       cursor_text_color #${theme.colors.bg}
 
-      url_color #${theme.colors.amber}
+      url_color #${theme.colors.accent}
 
-      active_border_color   #${theme.colors.amber}
-      inactive_border_color #${theme.colors.brown}
-      bell_border_color     #${theme.colors.orange}
+      active_border_color   #${theme.colors.accent}
+      inactive_border_color #${theme.colors.surface}
+      bell_border_color     #${theme.colors.secondary}
 
       wayland_titlebar_color #${theme.colors.bg}
 
       active_tab_foreground   #${theme.colors.text}
       active_tab_background   #${theme.colors.bg}
-      inactive_tab_foreground #${theme.colors.brown}
+      inactive_tab_foreground #${theme.colors.surface}
       inactive_tab_background #${theme.colors.bg}
       tab_bar_background      #${theme.colors.bg}
 
@@ -170,8 +203,8 @@ let
     # Hyprland colors
     "themes/${themeName}/hypr-colors.lua".text = ''
       return {
-        active = "rgb(${theme.colors.amber})",
-        inactive = "rgb(${theme.colors.brown})",
+        active = "rgb(${theme.colors.accent})",
+        inactive = "rgb(${theme.colors.surface})",
         shadow = "rgba(${theme.colors.bg}cc)",
         background = "rgb(${theme.colors.bg})",
       }
@@ -179,17 +212,17 @@ let
 
     # Hyprlock colors
     "themes/${themeName}/hyprlock-colors.conf".text = ''
-      $text   = rgb(${theme.colors.text})
-      $bg     = rgb(${theme.colors.bg})
-      $amber  = rgb(${theme.colors.amber})
-      $orange = rgb(${theme.colors.orange})
-      $muted  = rgba(${theme.colors.text}b3)
-      $glass  = rgba(${theme.colors.text}d9)
-      $field  = rgba(${theme.colors.bg}80)
-      $edge   = rgba(${theme.colors.text}2e)
+      $text      = rgb(${theme.colors.text})
+      $bg        = rgb(${theme.colors.bg})
+      $accent    = rgb(${theme.colors.accent})
+      $secondary = rgb(${theme.colors.secondary})
+      $muted     = rgba(${theme.colors.text}b3)
+      $glass     = rgba(${theme.colors.text}d9)
+      $field     = rgba(${theme.colors.bg}80)
+      $edge      = rgba(${theme.colors.text}2e)
       # No theme defines a red, and a failed unlock should read as an error
       # in every theme, so this one stays fixed.
-      $fail   = rgb(cc241d)
+      $fail      = rgb(cc241d)
     '';
 
     # Zathura reads this at start and on :source. Its D-Bus interface has no
@@ -197,28 +230,28 @@ let
     "themes/${themeName}/zathura-colors".text = ''
       set default-bg "#${theme.colors.bg}"
       set default-fg "#${theme.colors.text}"
-      set statusbar-bg "#${theme.colors.brown}"
+      set statusbar-bg "#${theme.colors.surface}"
       set statusbar-fg "#${theme.colors.text}"
       set inputbar-bg "#${theme.colors.bg}"
       set inputbar-fg "#${theme.colors.text}"
-      set notification-bg "#${theme.colors.brown}"
+      set notification-bg "#${theme.colors.surface}"
       set notification-fg "#${theme.colors.text}"
-      set notification-warning-bg "#${theme.colors.brown}"
-      set notification-warning-fg "#${theme.colors.amber}"
-      set notification-error-bg "#${theme.colors.brown}"
-      set notification-error-fg "#${theme.colors.orange}"
-      set completion-bg "#${theme.colors.brown}"
+      set notification-warning-bg "#${theme.colors.surface}"
+      set notification-warning-fg "#${theme.colors.accent}"
+      set notification-error-bg "#${theme.colors.surface}"
+      set notification-error-fg "#${theme.colors.secondary}"
+      set completion-bg "#${theme.colors.surface}"
       set completion-fg "#${theme.colors.text}"
       set completion-group-bg "#${theme.colors.bg}"
-      set completion-group-fg "#${theme.colors.amber}"
-      set completion-highlight-bg "#${theme.colors.amber}"
+      set completion-group-fg "#${theme.colors.accent}"
+      set completion-highlight-bg "#${theme.colors.accent}"
       set completion-highlight-fg "#${theme.colors.bg}"
       set index-bg "#${theme.colors.bg}"
       set index-fg "#${theme.colors.text}"
-      set index-active-bg "#${theme.colors.amber}"
+      set index-active-bg "#${theme.colors.accent}"
       set index-active-fg "#${theme.colors.bg}"
-      set highlight-color "${rgba theme.colors.amber "0.4"}"
-      set highlight-active-color "${rgba theme.colors.orange "0.6"}"
+      set highlight-color "${rgba theme.colors.accent "0.4"}"
+      set highlight-active-color "${rgba theme.colors.secondary "0.6"}"
       set recolor-lightcolor "#${theme.colors.bg}"
       set recolor-darkcolor "#${theme.colors.text}"
       set recolor-keephue true
@@ -227,8 +260,7 @@ let
     # Quiet shell colors, plus the theme list for its picker
     "themes/${themeName}/quiet-colors.json".text = builtins.toJSON {
       name = themeName;
-      inherit (theme.colors) bg text;
-      accent = theme.colors.amber;
+      inherit (theme.colors) bg text accent;
       themes = builtins.attrNames validThemes;
     };
 
@@ -240,9 +272,9 @@ let
     # stays the single source of truth for every theme's palette.
     "themes/${themeName}/vars".text = ''
       bg=${theme.colors.bg}
-      brown=${theme.colors.brown}
-      orange=${theme.colors.orange}
-      amber=${theme.colors.amber}
+      surface=${theme.colors.surface}
+      secondary=${theme.colors.secondary}
+      accent=${theme.colors.accent}
       text=${theme.colors.text}
     '';
   };

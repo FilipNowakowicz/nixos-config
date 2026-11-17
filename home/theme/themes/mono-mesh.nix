@@ -14,16 +14,16 @@
 
   colors = {
     bg = "0a0a0a"; # near black background
-    brown = "2a2a2a"; # dark surface
-    orange = "888888"; # mid grey accent
-    amber = "cccccc"; # light grey highlight
+    surface = "2a2a2a"; # dark surface
+    secondary = "888888"; # mid grey accent
+    accent = "cccccc"; # light grey highlight
     text = "e8e8e8"; # near white text
   };
 
   # 16-slot ANSI palette: neutral monochrome grey-scale.
   ansiColors = {
     color0 = "0a0a0a"; # bg (black)
-    color8 = "2a2a2a"; # brown (bright black)
+    color8 = "2a2a2a"; # surface (bright black)
     color1 = "8a8a8a"; # red (neutral grey)
     color9 = "a6a6a6"; # bright red
     color2 = "999999"; # green

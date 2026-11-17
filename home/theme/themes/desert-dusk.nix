@@ -14,21 +14,21 @@
 
   colors = {
     bg = "1c1a18"; # dark background
-    brown = "4a3728"; # mid brown
-    orange = "9b5d22"; # toned warm orange accent
-    amber = "c77a24"; # softer amber highlight
+    surface = "4a3728"; # mid brown
+    secondary = "9b5d22"; # toned warm orange accent
+    accent = "c77a24"; # softer amber highlight
     text = "f0d0a0"; # cream text
   };
 
   # 16-slot ANSI palette tuned to the warm desert / gruvbox palette.
   ansiColors = {
     color0 = "1c1a18"; # bg (black)
-    color8 = "4a3728"; # brown (bright black)
+    color8 = "4a3728"; # surface (bright black)
     color1 = "cc4a3a"; # red
     color9 = "e26450"; # bright red
     color2 = "a08a2e"; # green (olive)
     color10 = "c2a83f"; # bright green
-    color3 = "c77a24"; # yellow (amber accent)
+    color3 = "c77a24"; # yellow (accent)
     color11 = "e09b3c"; # bright yellow
     color4 = "7a8a5e"; # blue (muted khaki-blue)
     color12 = "97a878"; # bright blue

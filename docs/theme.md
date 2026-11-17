@@ -22,7 +22,7 @@ guarantee.
 Each theme is a small Nix attrset:
 
 - `name` — must match the filename (without `.nix`).
-- `colors` — the five-slot palette: `bg`, `brown`, `orange`, `amber`, `text`
+- `colors` — the five-slot palette: `bg`, `surface` (panels, inactive borders), `secondary` (a second accent: bells, warnings), `accent` (focus, cursor, highlights), `text`
   (plain hex, no `#`).
 - `ansiColors` — a 16-slot ANSI palette (`color0`…`color15`) for the terminal.
 - `colorscheme` — Neovim intent (`name`, `background`, and a contrast hint),
@@ -36,7 +36,7 @@ for each, generates under `~/.config/themes/<name>/`:
 
 - `kitty-theme.conf`, `hypr-colors.lua`, `hyprlock-colors.conf`,
   `quiet-colors.json`, a `wallpaper` symlink, and
-- `vars` — a shell-sourceable file (`bg=…`, `amber=…`, …) consumed by the
+- `vars` — a shell-sourceable file (`bg=…`, `accent=…`, …) consumed by the
   runtime switcher.
 
 It also emits `~/.config/themes/links.sh` (the symlink map) and a Home Manager
