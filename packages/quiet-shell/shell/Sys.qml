@@ -43,10 +43,11 @@ Singleton {
     readonly property bool tailscaleOn: state.vpn ? state.vpn.tailscale : false
     readonly property bool mullvadOn: state.vpn ? state.vpn.mullvad : false
     readonly property bool vpnOn: tailscaleOn || mullvadOn
-    readonly property int volume: state.sink ? state.sink.level : 0
+    readonly property int volume: pendingLevels.sink !== undefined ? pendingLevels.sink.value : state.sink ? state.sink.level : 0
     readonly property bool muted: state.sink ? state.sink.muted : false
-    readonly property int micLevel: state.source ? state.source.level : 0
-    readonly property int brightness: state.brightness === undefined || state.brightness === null ? 0 : state.brightness
+    readonly property int micLevel: pendingLevels.source !== undefined ? pendingLevels.source.value : state.source ? state.source.level : 0
+    readonly property int brightness: pendingLevels.brightness !== undefined ? pendingLevels.brightness.value
+        : state.brightness === undefined || state.brightness === null ? 0 : state.brightness
     readonly property string profile: state.profile || "balanced"
     readonly property var battery: state.battery || null
     // Spotify over MPRIS: its signals arrive at once, where a poll lagged seconds.
@@ -182,11 +183,36 @@ Singleton {
         }
     }
 
-    // A slider drag sends many writes; only the latest level matters.
+    // A slider drag sends many writes. Send the latest level at most every 60ms
+    // while it moves (restarting the timer instead would send nothing until the
+    // drag paused), and report the level just set until the status read catches
+    // up, so a released knob does not jump back to the old value.
     property var levelTargets: ({})
+    property var pendingLevels: ({})
     function setLevel(kind, value) {
-        levelTargets[kind] = Math.round(value);
-        levelTimer.restart();
+        const v = Math.round(value);
+        levelTargets[kind] = v;
+        pendingLevels = Object.assign({}, pendingLevels, { [kind]: { value: v, at: Date.now() } });
+        if (!levelTimer.running)
+            levelTimer.start();
+        pendingExpiry.restart();
+    }
+    // Drop pending levels the status now reports, or that it has had time to.
+    function settlePendingLevels(force) {
+        const reported = { sink: volumeOf(state.sink), source: volumeOf(state.source), brightness: state.brightness };
+        const kept = {};
+        for (const kind of Object.keys(pendingLevels)) {
+            const p = pendingLevels[kind];
+            if (!force && reported[kind] !== p.value && Date.now() - p.at < 1500)
+                kept[kind] = p;
+        }
+        pendingLevels = kept;
+    }
+    function volumeOf(node) { return node ? node.level : undefined; }
+    Timer {
+        id: pendingExpiry
+        interval: 1500
+        onTriggered: { root.settlePendingLevels(true); root.refresh(); }
     }
     Timer {
         id: levelTimer
@@ -743,6 +769,7 @@ Singleton {
             onStreamFinished: {
                 try {
                     root.state = JSON.parse(text);
+                    root.settlePendingLevels(false);
                     root.reconcile();
                 } catch (e) {
                     console.warn("quiet-shell: bad status output", e);
