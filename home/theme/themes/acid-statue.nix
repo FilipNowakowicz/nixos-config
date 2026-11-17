@@ -2,6 +2,7 @@
 # Values are plain hex without '#' — prepend '#' for CSS, use directly in rgb() for Hyprland.
 {
   name = "acid-statue";
+  displayName = "Acid Statue";
   enabled = true;
 
   # Neovim colorscheme. gruvbox-material is the only loaded scheme; per-theme we

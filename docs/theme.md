@@ -66,6 +66,10 @@ asserting the generated `vars` and Kitty palette match the theme definition.
 ## Adding a theme
 
 1. Add `home/theme/themes/<name>.nix` and `home/theme/wallpapers/<name>.<ext>`.
+   Encode the wallpaper once at no more than twice the screen size, as
+   high-quality JPEG unless it is flat enough that a PNG is smaller:
+   `magick in.png -strip -resize '3840x2160^>' -quality 92 -interlace JPEG <name>.jpg`.
+   Git keeps every version of a binary forever.
 2. Rebuild so Home Manager generates its assets.
 3. `theme-switch <name>`, or `theme-switch --save <name>` to also make it the
    default in `active.nix`, which GTK and Neovim pick up at the next rebuild.

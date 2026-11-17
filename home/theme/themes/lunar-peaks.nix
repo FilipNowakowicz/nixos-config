@@ -41,5 +41,5 @@
     color15 = "ffffff"; # bright white
   };
 
-  wallpaper = ../wallpapers/lunar-peaks.png;
+  wallpaper = ../wallpapers/lunar-peaks.jpg;
 }
