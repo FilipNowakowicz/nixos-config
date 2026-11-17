@@ -85,6 +85,23 @@ def check_target(source: Path, line: int, raw_target: str) -> str | None:
     return f"{source.relative_to(repo)}:{line}: missing link target: {raw_target}"
 
 
+# `scripts/validate.sh <word>` in prose must name a command validate.sh has: a
+# doc once told readers to run `validate.sh profile-hardening`, which only
+# printed the usage. The commands are validate.sh's top-level case labels.
+VALIDATE_COMMANDS = set(
+    re.findall(r"(?m)^([a-z][a-z0-9-]*)\)\s*$", (repo / "scripts/validate.sh").read_text(encoding="utf-8"))
+)
+
+
+def validate_commands(source: Path, text: str) -> list[str]:
+    failures = []
+    for match in re.finditer(r"scripts/validate\.sh\s+([a-z][a-z0-9-]*)", text):
+        if match.group(1) not in VALIDATE_COMMANDS:
+            line = text.count("\n", 0, match.start()) + 1
+            failures.append(f"{source.relative_to(repo)}:{line}: not a validate.sh command: {match.group(1)}")
+    return failures
+
+
 def main() -> int:
     if len(sys.argv) > 1:
         markdown_files = [repo / arg for arg in sys.argv[1:]]
@@ -102,9 +119,10 @@ def main() -> int:
             failure = check_target(source, line, target)
             if failure:
                 failures.append(failure)
+        failures.extend(validate_commands(source, text))
 
     if failures:
-        print("Broken Markdown links:", file=sys.stderr)
+        print("Broken Markdown links or validate.sh commands:", file=sys.stderr)
         for failure in failures:
             print(f"  {failure}", file=sys.stderr)
         return 1
