@@ -77,7 +77,7 @@ if $SAVE; then
     exit 1
   fi
   echo "import ./themes/$THEME.nix" >"$ACTIVE_FILE"
-  echo "Saved $THEME as the default in active.nix; rebuild to update GTK and Neovim"
+  echo "Saved $THEME as the default in active.nix"
 fi
 
 # Check if already active
@@ -104,11 +104,14 @@ link_theme_assets "$THEMES_DIR/$THEME"
 # Live-reload colors come straight from the Nix-generated vars file, so this
 # script never re-parses theme .nix definitions (Nix is the single source).
 # Declared here so their origin is unambiguous; the source below fills them in.
-bg='' surface='' accent=''
+bg='' surface='' accent='' appearance=''
 # shellcheck source=/dev/null
 source "$THEMES_DIR/$THEME/vars"
 
 quiet-shell-ipc reloadTheme >/dev/null 2>&1 || true
+
+# Dark or light for GTK and Firefox, from the same function activation uses.
+apply_theme_appearance "${appearance:-dark}" || echo "Warning: could not set the GTK colour scheme" >&2
 
 # Reload apps
 hyprctl eval "hl.config({general={col={active_border='rgb($accent)',inactive_border='rgb($surface)'}},decoration={shadow={color='rgba(${bg}cc)'}},misc={background_color='rgb($bg)'}})" >/dev/null

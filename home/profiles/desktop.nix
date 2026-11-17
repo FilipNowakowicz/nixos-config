@@ -4,7 +4,6 @@
   ...
 }:
 let
-  isDark = (config.themes._activeThemeAppearance or "dark") == "dark";
   inherit (config.fleet) enableSpotify skipHeavyPackages;
   # Theme-reloaded Wayland UI tools (kitty/swaybg); shared with
   # theme-switch's runtimeInputs in home/theme/module.nix.
@@ -27,6 +26,8 @@ in
         pavucontrol
         blueman
         thunar
+        # Adwaita-dark for GTK 3, which has no colour-scheme of its own.
+        gnome-themes-extra
         tumbler
 
         # ── Browsers / Apps ────────────────────────────────────────────────────
@@ -83,24 +84,16 @@ in
     };
   };
 
-  # GTK theming — derived from the active theme's appearance.
+  # GTK theming. Dark or light follows the running theme live: the theme
+  # module writes the gtk-theme and color-scheme dconf keys on every switch and
+  # activation (home/theme/module.nix), so nothing here pins either.
   gtk = {
     enable = true;
-    theme = {
-      name = if isDark then "Adwaita-dark" else "Adwaita";
-      package = pkgs.gnome-themes-extra;
-    };
     iconTheme = {
       name = "Adwaita";
       package = pkgs.adwaita-icon-theme;
     };
-    gtk3.extraConfig.gtk-application-prefer-dark-theme = isDark;
-    gtk4.extraConfig.gtk-application-prefer-dark-theme = isDark;
   };
-
-  # XDG color-scheme preference (read by GTK4, libadwaita, portals)
-  dconf.settings."org/gnome/desktop/interface".color-scheme =
-    if isDark then "prefer-dark" else "prefer-light";
 
   # Cursor
   home.pointerCursor = {

@@ -27,21 +27,26 @@ in
         ];
       };
       hardware.graphics.enable = true;
-      programs.hyprland.enable = true;
+      programs = {
+        hyprland.enable = true;
+        # As on the real desktop (modules/nixos/profiles/desktop.nix):
+        # theme-switch writes the GTK appearance through dconf.
+        dconf.enable = true;
+        # The greeter's job. /tmp/hold keeps the next login waiting, so the test
+        # can see the logged-out state before the automatic login replaces it.
+        bash.loginShellInit = ''
+          if [ "$(tty)" = /dev/tty1 ]; then
+            while [ -e /tmp/hold ]; do sleep 1; done
+            exec ${pkgs.hyprland}/bin/start-hyprland > /tmp/hyprland.log 2>&1
+          fi
+        '';
+      };
 
       users.users.user = {
         isNormalUser = true;
         inherit uid;
       };
       services.getty.autologinUser = "user";
-      # The greeter's job. /tmp/hold keeps the next login waiting, so the test can
-      # see the logged-out state before the automatic login replaces it.
-      programs.bash.loginShellInit = ''
-        if [ "$(tty)" = /dev/tty1 ]; then
-          while [ -e /tmp/hold ]; do sleep 1; done
-          exec ${pkgs.hyprland}/bin/start-hyprland > /tmp/hyprland.log 2>&1
-        fi
-      '';
 
       home-manager = {
         useGlobalPkgs = true;
@@ -59,7 +64,8 @@ in
     };
 
     testScript = ''
-      theme = "acid-statue"
+      # The light theme, so the switch has to change the default dark appearance.
+      theme = "paper-contours"
       units = ["graphical-session.target", "tray-watcher.service", "quiet-shell.service", "hypridle.service"]
 
       def user(cmd):
@@ -115,5 +121,11 @@ in
           machine.fail("test -e /home/user/active.nix")
           machine.succeed("systemctl restart home-manager-user.service")
           assert f"/themes/{theme}/" in machine.succeed("readlink /home/user/.config/hypr/colors.lua")
+
+      with subtest("the light theme sets GTK to light, and activation keeps it"):
+          scheme = "su user -c '${pkgs.dconf}/bin/dconf read /org/gnome/desktop/interface/color-scheme'"
+          assert machine.succeed(scheme).strip() == "'prefer-light'"
+          gtk = "su user -c '${pkgs.dconf}/bin/dconf read /org/gnome/desktop/interface/gtk-theme'"
+          assert machine.succeed(gtk).strip() == "'Adwaita'"
     '';
   }

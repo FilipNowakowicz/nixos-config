@@ -167,6 +167,22 @@ let
           fi
     ${mkThemeLinkCommands "$theme_dir"}
         }
+
+        # GTK 3 reads its theme name, and GTK 4, libadwaita and the settings
+        # portal (so Firefox) read color-scheme, live from these dconf keys. The
+        # module owns both, so nothing at build time pins dark or light.
+        apply_theme_appearance() {
+          local scheme=prefer-dark gtk_theme=Adwaita-dark
+          if [[ "$1" == light ]]; then
+            scheme=prefer-light gtk_theme=Adwaita
+          fi
+          local session=()
+          if [[ ! -v DBUS_SESSION_BUS_ADDRESS ]]; then
+            session=(${pkgs.dbus}/bin/dbus-run-session --dbus-daemon=${pkgs.dbus}/bin/dbus-daemon)
+          fi
+          printf "[org/gnome/desktop/interface]\ncolor-scheme='%s'\ngtk-theme='%s'\n" "$scheme" "$gtk_theme" |
+            "''${session[@]}" ${pkgs.dconf}/bin/dconf load /
+        }
   '';
 
   # A small crop of each wallpaper for the shell's theme picker, at twice the
@@ -234,6 +250,8 @@ let
     let
       c = theme.colors;
       a = theme.ansiColors;
+      # The strongest foreground: bright white on a dark theme, black on a light one.
+      ink = if theme.appearance == "light" then a.color0 else a.color15;
     in
     {
       base00 = c.bg; # editor background
@@ -242,8 +260,8 @@ let
       base03 = mix c.bg c.text 0.42; # comments, line numbers
       base04 = mix c.bg c.text 0.62; # dark foreground: status text
       base05 = c.text; # foreground
-      base06 = mix c.text a.color15 0.5;
-      base07 = a.color15;
+      base06 = mix c.text ink 0.5;
+      base07 = ink;
       base08 = a.color9; # variables, tags, deleted diff
       base09 = mix a.color9 a.color11 0.5; # constants, numbers
       base0A = a.color11; # types, search
@@ -279,7 +297,7 @@ let
 
       active_tab_foreground   #${theme.colors.text}
       active_tab_background   #${theme.colors.bg}
-      inactive_tab_foreground #${theme.colors.surface}
+      inactive_tab_foreground #${mix theme.colors.bg theme.colors.text 0.45}
       inactive_tab_background #${theme.colors.bg}
       tab_bar_background      #${theme.colors.bg}
 
@@ -374,6 +392,7 @@ let
     "themes/${themeName}/quiet-colors.json".text = builtins.toJSON {
       name = themeName;
       inherit (theme.colors) bg text accent;
+      inherit (theme) appearance;
       themes = pickerEntries;
     };
 
@@ -389,6 +408,7 @@ let
       secondary=${theme.colors.secondary}
       accent=${theme.colors.accent}
       text=${theme.colors.text}
+      appearance=${theme.appearance}
     '';
   };
 
@@ -432,17 +452,11 @@ in
       description = ''
         Absolute path to the working-tree `active.nix` that declares the default
         theme as `import ./themes/<name>.nix`. `theme-switch --save` rewrites it,
-        which feeds build-time consumers (Neovim colorscheme, GTK light/dark) at
-        the next rebuild. A plain `theme-switch` leaves it alone and records its
+        so the next rebuild starts from that theme on a machine with no runtime
+        choice yet. A plain `theme-switch` leaves it alone and records its
         choice in XDG state. Point it at a file your configuration repository
         tracks.
       '';
-    };
-    _activeThemeAppearance = lib.mkOption {
-      type = lib.types.enum appearances;
-      internal = true;
-      readOnly = true;
-      description = "Whether the build-time default theme is dark or light.";
     };
     _nvimPaletteFile = lib.mkOption {
       type = lib.types.str;
@@ -457,7 +471,6 @@ in
   };
 
   config = {
-    themes._activeThemeAppearance = activeTheme.appearance;
     themes._nvimPaletteFile = nvimPaletteFile;
     home.packages = [ themeSwitch ];
     xdg.configFile = themeConfigs // {
@@ -486,7 +499,7 @@ in
     # Symlink active theme configs into live app paths on every activation.
     # Read the runtime choice at activation time so a theme-switch survives a
     # rebuild even when the generation was built with another theme.
-    home.activation.linkActiveTheme = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    home.activation.linkActiveTheme = lib.hm.dag.entryAfter [ "linkGeneration" "dconfSettings" ] ''
       . "${config.xdg.configHome}/themes/links.sh"
 
       active_theme="${activeTheme.name}"
@@ -499,6 +512,13 @@ in
       fi
 
       link_theme_assets "${config.xdg.configHome}/themes/$active_theme"
+
+      # After dconfSettings, which resets the keys this module owns.
+      appearance=$(. "${config.xdg.configHome}/themes/$active_theme/vars" && echo "$appearance")
+      if [[ ! -v DRY_RUN ]]; then
+        apply_theme_appearance "''${appearance:-dark}" ||
+          warnEcho "theme: could not set the GTK colour scheme"
+      fi
     '';
   };
 }

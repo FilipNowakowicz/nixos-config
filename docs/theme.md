@@ -62,7 +62,10 @@ directly), so there is no separate `themes.active` wiring to keep in sync.
    rebuilds, without touching the repo;
 3. sources `links.sh` and relinks the pre-generated assets into live app paths;
 4. sources the generated `vars` file for the colors it needs;
-5. reloads Hyprland, Quiet Shell, Kitty, Neovim (SIGUSR1) and the wallpaper
+5. sets GTK and the settings portal (so Firefox) to dark or light through the
+   `gtk-theme` and `color-scheme` dconf keys, which the module owns: activation
+   re-applies the running theme's appearance after Home Manager's dconf load;
+6. reloads Hyprland, Quiet Shell, Kitty, Neovim (SIGUSR1) and the wallpaper
    in place.
 
 Because the switcher consumes the **same** Nix-generated assets and `vars` file
@@ -80,7 +83,7 @@ asserting the generated `vars` and Kitty palette match the theme definition.
    Git keeps every version of a binary forever.
 2. Rebuild so Home Manager generates its assets.
 3. `theme-switch <name>`, or `theme-switch --save <name>` to also make it the
-   default in `active.nix`, which GTK picks up at the next rebuild.
+   default in `active.nix` for machines with no runtime choice yet.
 
 ## Public module (`homeModules.runtime-theme`)
 

@@ -12,16 +12,18 @@ Singleton {
     property color accent: "#cccccc"
     property color text: "#e8e8e8"
     property string name: "mono-mesh"
+    // A light theme draws dark text on pale glass; a few derived colours flip.
+    property bool light: false
     property var themes: []
 
     // App icons stay grey until pointed at, chosen or focused. Kept across restarts.
     property bool monoIcons: true
     onMonoIconsChanged: if (iconsFile.loaded) iconsFile.setText(monoIcons ? "mono" : "colour")
 
-    readonly property real glassAlpha: 0.42
+    readonly property real glassAlpha: light ? 0.56 : 0.42
     readonly property color glass: Qt.rgba(bg.r, bg.g, bg.b, glassAlpha)
     readonly property color hairline: Qt.rgba(text.r, text.g, text.b, 0.15)
-    readonly property color litEdge: Qt.rgba(text.r, text.g, text.b, 0.34)
+    readonly property color litEdge: light ? Qt.rgba(1, 1, 1, 0.75) : Qt.rgba(text.r, text.g, text.b, 0.34)
     readonly property color fill: Qt.rgba(text.r, text.g, text.b, 0.12)
     readonly property color fillHover: Qt.rgba(text.r, text.g, text.b, 0.2)
     readonly property color track: Qt.rgba(text.r, text.g, text.b, 0.22)
@@ -82,6 +84,7 @@ Singleton {
                 root.accent = "#" + c.accent;
                 root.text = "#" + c.text;
                 root.name = c.name || root.name;
+                root.light = c.appearance === "light";
                 root.themes = c.themes ? c.themes.map(root.pickerEntry) : root.themes;
             } catch (e) {
                 console.warn("quiet-shell: bad colours file", e);
