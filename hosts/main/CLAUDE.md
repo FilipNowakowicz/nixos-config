@@ -201,7 +201,10 @@ Three mechanisms keep both VPNs running simultaneously:
    chain accepts traffic with `ct mark 0x00000f41` and the return traffic is also
    accepted via the same conntrack mark propagated by Mullvad's prerouting chain.
    Setting only the packet mark is insufficient — Mullvad's output chain only
-   checks the conntrack mark, not the packet mark.
+   checks the conntrack mark, not the packet mark. A `prerouting` chain in the
+   same table marks connections peers open _to_ main (KDE Connect from the
+   phone, SSH) on `tailscale0`, which Mullvad's input chain otherwise drops;
+   `nixos-fw` still limits them to the `tailscale0` ports.
 2. **Main-table route injection** (`tailscale-bypass-routing.service`): adds
    `100.64.0.0/10 dev tailscale0` and `fd7a:115c:a1e0::/48 dev tailscale0` to
    the main IPv4/IPv6 routing tables. Mullvad's own `lookup main
