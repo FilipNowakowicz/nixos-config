@@ -134,8 +134,9 @@ DOCK_FIRST = (960, 1040)
 AGENT_TAKE = (1693, 123)
 VOLUME_Y, BRIGHT_Y = 343, 393
 CC_ICON, BATTERY, CLOCK = (1778, 21), (1732, 21), (1850, 21)
+TRAY_TOGGLE, TRAY_ITEM = (1652, 21), (1653, 21)
 # The bar's timer countdown, and the buttons of the card a ringing timer shows.
-TIMER_CHIP, TIMER_RESTART, TIMER_STOP = (1610, 21), (880, 82), (1040, 82)
+TIMER_CHIP, TIMER_RESTART, TIMER_STOP = (1630, 21), (880, 82), (1040, 82)
 tests = []
 
 
@@ -932,11 +933,15 @@ def tray_item_appears_and_activates():
     tray = subprocess.Popen([os.environ["QUIET_TRAY_PYTHON"], str(repo / "tests/quiet-shell/fakes/tray.py"), str(log)], env=env)
     try:
         wait(lambda: ui()["tray"] == ["quiet-test"], "tray item")
-        move(1664, 0)
+        move(TRAY_TOGGLE[0], 0)
         wait(lambda: ui()["top"], "top reveal")
         time.sleep(0.3)
+        shot("tray-folded")
+        # App icons stay folded behind one button until it is pressed.
+        click(*TRAY_TOGGLE)
+        wait(lambda: ui()["trayOpen"], "tray to unfold")
         shot("tray")
-        click(1664, 21)
+        click(*TRAY_ITEM)
         wait(lambda: "activate" in log.read_text(), "activation")
     finally:
         tray.terminate()

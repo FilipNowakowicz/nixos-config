@@ -73,15 +73,7 @@ Item {
                 rest: Theme.fill
                 name: root.alarm || !root.ring || !root.ring.seconds ? "Snooze" : "Restart"
                 onClicked: Sys.restartRinging(root.ring)
-                Row {
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Label {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: root.alarm || !root.ring || !root.ring.seconds ? "Snooze 10 min" : "Restart " + Sys.duration(root.ring.seconds)
-                    }
-                    Label { anchors.verticalCenter: parent.verticalCenter; text: "Super R"; font.pixelSize: 10; color: Theme.faint }
-                }
+                Label { anchors.centerIn: parent; text: root.alarm || !root.ring || !root.ring.seconds ? "Snooze 10 min" : "Restart " + Sys.duration(root.ring.seconds) }
             }
             Press {
                 Layout.fillWidth: true
@@ -91,14 +83,17 @@ Item {
                 hover: Theme.on
                 name: "Stop"
                 onClicked: Sys.stopRinging(root.ring.unit)
-                Row {
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Label { anchors.verticalCenter: parent.verticalCenter; text: "Stop"; color: Theme.onText; font.weight: Font.Medium }
-                    Label { anchors.verticalCenter: parent.verticalCenter; text: "Super X"; font.pixelSize: 10; color: Theme.onText; opacity: 0.6 }
-                }
+                Label { anchors.centerIn: parent; text: "Stop"; color: Theme.onText; font.weight: Font.Medium }
             }
         }
-        Item { implicitHeight: 4 }
+        Label {
+            Layout.fillWidth: true
+            Layout.topMargin: -3
+            horizontalAlignment: Text.AlignHCenter
+            text: "Super X stops · Super R " + (root.alarm || !root.ring || !root.ring.seconds ? "snoozes" : "restarts")
+            font.pixelSize: 10
+            color: Theme.faint
+        }
+        Item { implicitHeight: 2 }
     }
 }
