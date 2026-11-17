@@ -246,7 +246,6 @@ in
 
   environment.systemPackages = with pkgs; [
     efibootmgr
-    nh
     nixGc14d
     nixosSwitchMain
     sbctl
@@ -344,6 +343,9 @@ in
 
   # ── Services ────────────────────────────────────────────────────────────────
   services = {
+    # The battery, on top of the collectors every host gets; servers have none.
+    prometheus.exporters.node.enabledCollectors = [ "powersupplyclass" ];
+
     # Enabled by default with a graphical session, and pulls in about 645 MiB
     # of mbrola voices. Nothing here uses system text-to-speech.
     speechd.enable = false;

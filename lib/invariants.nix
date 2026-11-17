@@ -844,11 +844,6 @@ rec {
 
   deployTargetAccessAssertions = deployTargetBaseAccessAssertions ++ deployTargetSopsAssertions;
 
-  homeserverSshAndHttpsNotGloballyOpen = {
-    name = "SSH and HTTPS are not globally open";
-    check = cfg: checkNoGlobalTCPPorts [ 22 443 ] cfg;
-  };
-
   homeserverDeployRunnerRegistrationGcRunbookMatchesConfig = {
     name = "homeserver deploy runner config matches operational contract";
     check =

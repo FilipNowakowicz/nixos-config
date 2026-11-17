@@ -30,7 +30,6 @@ let
         else if name == "homeserver-gcp" then
           invariants.deployTargetAccessAssertions
           ++ [
-            invariants.homeserverSshAndHttpsNotGloballyOpen
             invariants.homeserverSshAndHttpsTailscaleOnly
           ]
         else
