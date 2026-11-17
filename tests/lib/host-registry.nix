@@ -21,11 +21,7 @@ let
         443
       ];
     };
-    homeManager = {
-      role = "server";
-      enableSpotify = false;
-      packs = [ ];
-    };
+    homeManager.role = "server";
     backup = {
       class = "critical";
       name = "b2";

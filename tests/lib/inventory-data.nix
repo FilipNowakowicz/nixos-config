@@ -109,7 +109,6 @@ let
         "deployUser"
         "backupClass"
         "homeManagerRole"
-        "homeManagerProfiles"
         "tailscaleTracked"
         "drift"
       ];
@@ -130,7 +129,6 @@ let
           deployUser
           backupClass
           homeManagerRole
-          homeManagerProfiles
           tailscaleTracked
           ;
       };
@@ -142,7 +140,6 @@ let
         deployUser = "user";
         backupClass = "standard";
         homeManagerRole = "server";
-        homeManagerProfiles = [ ];
         tailscaleTracked = true;
       };
     };

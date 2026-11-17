@@ -84,7 +84,6 @@ let
       deployUser = meta.deploy.sshUser or null;
       backupClass = meta.backup.class or null;
       homeManagerRole = meta.homeManager.role or null;
-      homeManagerProfiles = meta.homeManager.profiles or [ ];
       impermanence = (c.environment.persistence or { }) != { };
       openTCPPorts = c.networking.firewall.allowedTCPPorts or [ ];
       openUDPPorts = c.networking.firewall.allowedUDPPorts or [ ];

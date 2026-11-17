@@ -19,31 +19,16 @@ let
     server = ../home/users/user/server.nix;
   };
 
-  homeManagerProfileModules = {
-    desktop = ../home/profiles/desktop.nix;
-  };
-
   homeManagerHostModules = {
     main = ../home/users/user/main.nix;
   };
 
   mkHomeManagerImports =
     hostMeta:
-    let
-      hm = hostMeta.homeManager;
-      enabledPacks = hm.packs or [ ];
-      workflowPackModule = {
-        config = lib.mkMerge (
-          map (pack: lib.setAttrByPath [ "workflowPacks" pack "enable" ] true) enabledPacks
-        );
-      };
-    in
-    [ homeManagerRoleModules.${hm.role} ]
-    ++ map (profile: homeManagerProfileModules.${profile}) (hm.profiles or [ ])
+    [ homeManagerRoleModules.${hostMeta.homeManager.role} ]
     ++
       lib.optional (builtins.hasAttr hostMeta.name homeManagerHostModules)
-        homeManagerHostModules.${hostMeta.name}
-    ++ lib.optional (enabledPacks != [ ]) workflowPackModule;
+        homeManagerHostModules.${hostMeta.name};
 
   mkNixos =
     host: variantArgs:
@@ -54,7 +39,6 @@ let
       };
       extraModules = variantArgs.extraModules or [ ];
       homeManagerExtraArgs = builtins.removeAttrs variantArgs [
-        "enableSpotify"
         "extraModules"
         "skipHeavyPackages"
       ];
@@ -62,7 +46,6 @@ let
         fleet = {
           hostName = host;
           skipHeavyPackages = variantArgs.skipHeavyPackages or false;
-          enableSpotify = variantArgs.enableSpotify or (hostMeta.homeManager.enableSpotify or true);
         };
       };
       configurationRevision = self.dirtyShortRev or self.shortRev or self.dirtyRev or self.rev or null;
@@ -138,7 +121,6 @@ in
           fleet = {
             hostName = "wsl";
             skipHeavyPackages = false;
-            enableSpotify = true;
           };
         }
       ];

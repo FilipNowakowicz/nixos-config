@@ -95,7 +95,6 @@
         ],
         "invariantStatus": "pass"
       },
-      "homeManagerProfiles": [],
       "homeManagerRole": "server",
       "impermanence": false,
       "name": "homeserver-gcp",
@@ -186,7 +185,6 @@
       "deployUser",
       "backupClass",
       "homeManagerRole",
-      "homeManagerProfiles",
       "tailscaleTracked",
       "drift"
     ]

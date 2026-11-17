@@ -42,6 +42,7 @@ in
     ./common.nix
     ./codex.nix
     ./secrets.nix
+    ../../profiles/desktop.nix
     ../../profiles/workflow-packs
     ../../desktop
   ];

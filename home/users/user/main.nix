@@ -9,6 +9,13 @@
     ../../profiles/python-development.nix
   ];
 
+  workflowPacks = {
+    browsing.enable = true;
+    coding.enable = true;
+    latex.enable = true;
+    learning.enable = true;
+  };
+
   home.packages = with pkgs; [
     # This machine's dock and panel policy, called from hyprland.lua.
     (writeShellApplication {

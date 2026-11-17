@@ -90,7 +90,6 @@ Stable host fields are:
 - `deployUser`
 - `backupClass`
 - `homeManagerRole`
-- `homeManagerProfiles`
 - `tailscaleTracked`
 - `drift`
 
@@ -129,7 +128,6 @@ Minimal example:
       "deployUser": "user",
       "backupClass": "critical",
       "homeManagerRole": null,
-      "homeManagerProfiles": [],
       "tailscaleTracked": true,
       "closureSizeBytes": 1234567890,
       "drift": {
