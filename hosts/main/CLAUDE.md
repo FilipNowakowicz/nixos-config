@@ -219,12 +219,15 @@ In the anonymous specialisation all three mechanisms are removed and
 - **Old roots are not normal backups**; they are local forensic rollback artifacts retained for 30 days.
 - **Anonymous specialisation is a boot target, not a runtime switch**; booting it fresh is the correct path — attempting to reach it via `nixos-specialise` mid-session does not teardown running services correctly.
 - **Whonix VMs require Gateway before Workstation**; starting Workstation without a running Gateway leaves it without a Tor route.
-- **`hyprctl keyword` does not work with the Lua config** (Hyprland 0.57+, `home/files/hypr/hyprland.lua`):
-  it returns `unknown request`. To change an option live, run
-  `hyprctl dispatch 'hl.config({ render = { cm_auto_hdr = 0 } })'`. It prints an
-  `hl.dispatch: expected a dispatcher` error but still applies the option, so confirm
-  with `hyprctl getoption render:cm_auto_hdr` (`set: true`). Put the same call in
-  `hyprland.lua` to make it permanent.
+- **Under the Lua config (Hyprland 0.57+), `hyprctl keyword` is gone and
+  `hyprctl dispatch` takes an `hl.dsp` expression**, e.g.
+  `hyprctl dispatch "hl.dsp.dpms({ action = 'on' })"`; change options with
+  `hyprctl eval 'hl.config({ ... })'` and confirm with `hyprctl getoption`.
+  `.agents/learning/promotions/no-legacy-hyprctl-dispatch.sh` rejects the
+  legacy forms. Never probe a togglable `hl.dsp` dispatcher live with guessed
+  arguments: an unknown action means toggle and `hyprctl` still prints `ok`,
+  so a dpms probe can blank the screen. Read Hyprland's
+  `LuaBindingsDispatchers.cpp` instead.
 - **`exec-once` helpers are not restarted on rebuild, or after a crash.**
   Hyprland `exec-once` fires only at session login, so `nh os switch` /
   `home-manager switch` leaves any changed helper running its pre-rebuild

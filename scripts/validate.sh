@@ -155,6 +155,10 @@ build_package() {
 
 case "$command" in
 docs)
+  bash .agents/learning/promotions/promotions-scan-without-git.sh
+  bash .agents/learning/promotions/hyprland-start-runs-oneshots-only.sh
+  bash .agents/learning/promotions/no-legacy-hyprctl-dispatch.sh
+  bash .agents/learning/promotions/scheduled-workflows-report-failure.sh
   bash .agents/learning/promotions/quiet-shell-private-restart.sh
   bash scripts/check-doc-links.sh
   bash .agents/scripts/agent-issue-readiness --self-test

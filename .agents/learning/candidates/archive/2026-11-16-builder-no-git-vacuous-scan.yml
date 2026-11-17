@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-11-16-builder-no-git-vacuous-scan
 date: 2026-11-16
 expires: 2027-02-16
-status: open
+status: promoted
 route: implement-fix
 best_form: test
 evidence: [pr-#513, ".agents/learning/promotions/mullvad-cli-package-unit.sh: 'line 29: git: command not found' then exit 0 under validate.sh light"]

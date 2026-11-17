@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-11-09-qt-wayland-frame-callback-redraw-loop
 date: 2026-11-09
 expires: 2027-05-09
-status: open
+status: superseded
 route: promote-doc
 best_form: doc
 evidence: [issue-#486, pr-#487, tests/nixos/quiet-shell-smoke.nix-start_shell]

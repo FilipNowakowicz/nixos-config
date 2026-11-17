@@ -6,13 +6,6 @@ set -euo pipefail
 exec 9>"${XDG_RUNTIME_DIR:-/tmp}/hypr-display-mode.lock"
 flock -w 20 9
 
-# Probe the running parser, not the installed package or config filenames.
-# During a rebuild the old compositor can outlive the package/config switch.
-lua_config=false
-if [[ $(hyprctl eval 'assert(type(hl) == "table")' 2>/dev/null) == ok ]]; then
-  lua_config=true
-fi
-
 external_output="DVI-I-1"
 internal_output="eDP-1"
 
@@ -34,28 +27,16 @@ move_workspaces_to() {
   local output="$1"
 
   for workspace in $(seq 1 10); do
-    if $lua_config; then
-      hyprctl dispatch "hl.dsp.workspace.move({workspace=${workspace},monitor='${output}'})" >/dev/null
-    else
-      hyprctl dispatch moveworkspacetomonitor "$workspace" "$output" >/dev/null
-    fi
+    hyprctl dispatch "hl.dsp.workspace.move({workspace=${workspace},monitor='${output}'})" >/dev/null
   done
 }
 
 set_monitor() {
   local output="$1" mode="$2" position="${3:-auto}" reply
-  if $lua_config; then
-    if [[ $mode == disable ]]; then
-      reply=$(hyprctl eval "hl.monitor({output='$output',disabled=true})")
-    else
-      reply=$(hyprctl eval "hl.monitor({output='$output',mode='$mode',position='$position',scale=1,disabled=false})")
-    fi
+  if [[ $mode == disable ]]; then
+    reply=$(hyprctl eval "hl.monitor({output='$output',disabled=true})")
   else
-    if [[ $mode == disable ]]; then
-      reply=$(hyprctl keyword monitor "$output,disable")
-    else
-      reply=$(hyprctl keyword monitor "$output,$mode,$position,1")
-    fi
+    reply=$(hyprctl eval "hl.monitor({output='$output',mode='$mode',position='$position',scale=1,disabled=false})")
   fi
   [[ $reply == ok ]] || {
     echo "$reply" >&2
