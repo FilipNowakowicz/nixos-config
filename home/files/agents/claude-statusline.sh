@@ -3,7 +3,8 @@
 #
 # Claude Code hands its usage limits only to the status line, so this also
 # records them for the quiet shell's agents card: the account's limits in
-# claude.json, and one small file per session that the card lists as running.
+# claude.json, and one small file per session naming the process that runs it,
+# which the card lists while that process is alive.
 # Writing is best effort; the status line never fails because of it.
 
 input=$(cat)
@@ -21,9 +22,28 @@ record() {
   local id
   id=$(jq -r '.session_id // empty' <<<"$input" | tr -cd 'A-Za-z0-9-')
   [ -n "$id" ] || return
-  jq --argjson at "$now" '{
+  # The Claude process that owns this session: the nearest ancestor that is not
+  # a shell. With its start time and the boot id, the card can tell whether the
+  # session is still running instead of guessing from the file's age.
+  local pid=$PPID comm stat
+  while [ "$pid" -gt 1 ]; do
+    comm=$(cat "/proc/$pid/comm") || return
+    case $comm in
+    sh | bash | dash | zsh) pid=$(awk '{ print $4 }' "/proc/$pid/stat") || return ;;
+    *) break ;;
+    esac
+  done
+  stat=$(cat "/proc/$pid/stat") || return
+  stat=${stat##*) }
+  jq --argjson at "$now" \
+    --argjson pid "$pid" \
+    --arg started "$(awk '{ print $20 }' <<<"$stat")" \
+    --arg boot "$(cat /proc/sys/kernel/random/boot_id)" '{
       id: .session_id,
       at: $at,
+      pid: $pid,
+      started: $started,
+      boot: $boot,
       cwd: (.workspace.current_dir // .cwd // ""),
       project: (.workspace.project_dir // ""),
       model: (.model.display_name // ""),

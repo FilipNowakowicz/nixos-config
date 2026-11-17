@@ -15,7 +15,8 @@ import sys
 import time
 
 # A session that has spoken in the last few minutes is working; one quiet for
-# longer is idle, and after a few hours it is gone from the list.
+# longer is idle. Codex sessions drop off the list after a few hours quiet;
+# Claude sessions are listed while their process runs.
 WORKING = 3 * 60
 SHOWN = 6 * 3600
 # Codex logs can grow large; its latest limits are in the last lines.
@@ -58,6 +59,34 @@ def mtime(path):
         return 0
 
 
+def process_start(pid):
+    """Start time of a running process, in clock ticks since boot, or None."""
+    try:
+        stat = pathlib.Path(f"/proc/{int(pid)}/stat").read_text()
+    except (OSError, TypeError, ValueError):
+        return None
+    # Fields after the parenthesised command name; the start time is field 22.
+    return stat.rsplit(")", 1)[1].split()[19]
+
+
+def boot_id():
+    try:
+        return pathlib.Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+    except OSError:
+        return None
+
+
+def running(record, boot):
+    """The status line names the Claude process that owns a session. Checking its
+    start time and the boot keeps a reused pid from reviving a closed session."""
+    return (
+        boot is not None
+        and record.get("boot") == boot
+        and record.get("started") is not None
+        and process_start(record.get("pid")) == str(record["started"])
+    )
+
+
 def state(now, at):
     return "working" if now - at < WORKING else "idle"
 
@@ -67,12 +96,19 @@ def claude(base, now):
     limits = usage.get("rate_limits") or {}
     five = limits.get("five_hour") or {}
     week = limits.get("seven_day") or {}
-    sessions = []
+    boot = boot_id()
+    # A resumed session first reports under a fresh id, then under the one it
+    # resumes; both name the same process, so keep only its newest record.
+    newest = {}
     for path in (base / "claude-sessions").glob("*.json"):
         s = load(path)
-        at = mtime(path)
-        if not s or now - at > SHOWN:
+        if not s or not running(s, boot):
             continue
+        at = mtime(path)
+        if s["pid"] not in newest or at > newest[s["pid"]][1]:
+            newest[s["pid"]] = (s, at, path)
+    sessions = []
+    for s, at, path in newest.values():
         cwd = s.get("cwd") or ""
         sessions.append({
             "tool": "claude",

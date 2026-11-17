@@ -37,15 +37,33 @@ with tempfile.TemporaryDirectory() as tmp:
         "five_hour": {"used_percentage": 97, "resets_at": NOW - 60},
         "seven_day": {"used_percentage": 41.6, "resets_at": NOW + 3600},
     }}))
-    working = usage / "claude-sessions/a.json"
-    working.write_text(json.dumps({"id": "a", "cwd": "/home/u/nix", "project": "/home/u/nix", "model": "Opus", "context": 12}))
-    touch(working, NOW - 30)
-    idle = usage / "claude-sessions/b.json"
-    idle.write_text(json.dumps({"id": "b", "cwd": "/home/u/notes", "model": "Sonnet", "context": None}))
-    touch(idle, NOW - 1800)
-    stale = usage / "claude-sessions/c.json"
-    stale.write_text(json.dumps({"id": "c", "cwd": "/home/u/old"}))
-    touch(stale, NOW - 7 * 3600)
+    # Session records name the process that runs them; real processes stand in.
+    boot = pathlib.Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+
+    def started(pid):
+        return pathlib.Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19]
+
+    def record(name, at, **fields):
+        path = usage / f"claude-sessions/{name}.json"
+        path.write_text(json.dumps({"id": name, **fields}))
+        touch(path, at)
+
+    def owned(pid):
+        return {"pid": pid, "started": started(pid), "boot": boot}
+
+    sleeper = subprocess.Popen(["sleep", "60"])
+    finished = subprocess.Popen(["true"])
+    finished.wait()
+    me = os.getpid()
+    record("a", NOW - 30, cwd="/home/u/nix", project="/home/u/nix", model="Opus", context=12, **owned(me))
+    # A resume first reports under a fresh id from the same process; only the newest record counts.
+    record("a-phantom", NOW - 600, cwd="/home/u/nix", **owned(me))
+    # Idle for longer than Codex sessions are shown, but its process still runs.
+    record("b", NOW - 7 * 3600, cwd="/home/u/notes", model="Sonnet", context=None, **owned(sleeper.pid))
+    # Closed: the process is gone. Older boot: the pid may be reused. Old format: no process at all.
+    record("closed", NOW - 60, cwd="/home/u/old", pid=finished.pid, started="1", boot=boot)
+    record("old-boot", NOW - 60, cwd="/home/u/old", pid=me, started=started(me), boot="another-boot")
+    record("no-pid", NOW - 60, cwd="/home/u/old")
     (usage / "claude-sessions/broken.json").write_text("{not json")
 
     # A Codex log from two days ago, with a cut-off last line after the limits.
@@ -67,10 +85,11 @@ with tempfile.TemporaryDirectory() as tmp:
     assert got["claude"]["week"] == {"used": 42, "resets": NOW + 3600}, got["claude"]
     assert got["codex"]["five_hour"] == {"used": 0, "resets": None}, got["codex"]
     assert got["codex"]["week"] == {"used": 12, "resets": NOW + 86400}, got["codex"]
-    # Newest first; the seven-hour-old session and the old Codex log are not listed.
+    # Newest first; only running Claude sessions, and not the old Codex log.
     assert [(s["id"], s["state"], s["project"]) for s in got["sessions"]] == [
         ("a", "working", "nix"),
         ("b", "idle", "notes"),
     ], got["sessions"]
+    sleeper.kill()
 
 print("quiet-shell agents.py: ok")
