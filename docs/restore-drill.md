@@ -3,17 +3,13 @@
 Quarterly procedure for verifying that Grafana and AdGuard Home
 data can be recovered from the B2 restic repository.
 
-**Last drill:** 2026-06-07 - automated `restore-drill-b2.service` run (first
-execution after deploy): Vaultwarden, Grafana, and AdGuard Home all restored
-from B2 into the scratch root and came up successfully against the recovered
-state (`restore-drill: full-service restore drill PASSED`,
-`restore_drill_last_success_timestamp_seconds = 1780824447`). The manual
-quarterly exercise below has not yet been run by a human; the automated drill
-exercises the same recovery path on its quarterly schedule in the meantime.
-
-This field records the last manual quarterly restore exercise. The homeserver
-backup milestone also added the restore runbook, weekly `restic-check-b2`
-verification, and the Grafana **Backup Health** dashboard.
+The automated `restore-drill-b2.service` exercises the same recovery path on a
+quarterly schedule. Its freshness is enforced rather than written down: the
+drill exports `restore_drill_last_success_timestamp_seconds`, and the
+`RestoreDrillStale` alert in `lib/observability-alerts.nix` fires when
+the last success is more than 100 days old. The homeserver backup milestone
+also added the restore runbook, weekly `restic-check-b2` verification, and the
+Grafana **Backup Health** dashboard.
 
 This drill is layer 6 of the broader backup validation pattern — the human
 exercise that complements the automated restore canary, freshness metrics, and

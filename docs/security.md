@@ -344,16 +344,13 @@ Security validation is split by where each rule belongs:
 `main` keeps `security.sudo.wheelNeedsPassword = true`. It also declares a
 narrow `security.sudo.extraRules` allowlist for the primary user so interactive
 agents can perform repeat maintenance without a password prompt. The allowlist
-lives in `agentMaintenanceCommands` in `hosts/main/default.nix`.
-
-Allowed command categories are limited to:
-
-- starting/statusing the local Restic backup and check units;
-- `bootctl` status/cleanup;
-- deleting an explicitly named EFI boot entry with `efibootmgr -b XXXX -B`;
-- Nix garbage collection through the fixed-argument `nix-gc-14d` wrapper;
-- local `main` activation through the fixed-argument `nixos-switch-main`
-  wrapper.
+lives in `agentMaintenanceCommands` in `hosts/main/default.nix`, and its
+reviewed copy, `mainExpectedAgentMaintenanceCommands` in `lib/invariants.nix`,
+is the authoritative list: widening it means changing both, and the
+`invariants-main` check fails if they differ. It covers starting and checking
+the local btrbk and Restic units, `bootctl` status/cleanup, deleting a named
+EFI entry, the fixed-argument `nix-gc-14d` wrapper, and the
+`nixos-switch-main` wrapper, which accepts only `--remote`.
 
 Do not broaden this to full passwordless sudo. Additions should be exact-command
 maintenance operations and should keep normal interactive sudo passworded.
@@ -510,7 +507,7 @@ separated:
 | Bluetooth     | enabled                   | disabled                                                                              |
 | SSH           | enabled (tailscale0 only) | disabled                                                                              |
 | Tailscale     | enabled                   | disabled                                                                              |
-| Observability | Prometheus, Alloy, OTel   | all disabled                                                                          |
+| Observability | Alloy metrics collectors  | all disabled                                                                          |
 | Backups       | Restic + btrbk timers     | all disabled                                                                          |
 | AppArmor      | disabled                  | enabled                                                                               |
 | Mullvad       | running, manual connect   | running, auto-connect + explicit connect, lockdown always on                          |

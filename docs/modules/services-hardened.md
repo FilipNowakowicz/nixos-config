@@ -187,5 +187,5 @@ For local changes, start with:
 
 ```sh
 bash scripts/validate.sh flake-eval
-bash scripts/validate.sh profile-hardening
+bash scripts/validate.sh profile-test profile-hardening
 ```

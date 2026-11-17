@@ -140,23 +140,11 @@ deployed.
 
 ## Scoped Agent Maintenance Sudo
 
-Normal `wheel` sudo still requires a password. `hosts/main/default.nix` declares
-a narrow `agentMaintenanceCommands` allowlist for `user` with `NOPASSWD`.
-
-Allowed categories:
-
-- start/status for `btrbk-local`;
-- start/status for `restic-backups-local` and `restic-check-local`;
-- `bootctl status --no-pager` and `bootctl cleanup`;
-- `efibootmgr -b XXXX -B` for explicit EFI entry deletion;
-- `nix-gc-14d` for fixed-argument Nix garbage collection;
-- `nixos-switch-main` for fixed-argument local `main` activation.
-
-Do not replace this with broad passwordless sudo. Add new commands only when
-they are repeat maintenance operations and can be expressed narrowly.
-The `nixos-switch-main` exception is root-equivalent because it activates from
-the user-writable `/home/user/nix` checkout; keep it as the only passwordless
-switch path unless a future reviewed immutable activation flow replaces it.
+Normal `wheel` sudo still requires a password. A narrow `NOPASSWD` allowlist
+(`agentMaintenanceCommands`, reviewed in `lib/invariants.nix`) covers the
+btrbk/Restic, `bootctl`, `efibootmgr -b XXXX -B`, `nix-gc-14d` and
+`nixos-switch-main [--remote]` commands above. Policy and the reasons:
+[`docs/security.md`](../../docs/security.md#scoped-agent-maintenance-sudo).
 
 ## USBGuard: Adding a New USB Device
 
