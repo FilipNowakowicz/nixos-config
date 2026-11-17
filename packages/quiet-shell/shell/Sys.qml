@@ -273,21 +273,25 @@ Singleton {
     // Spotlight's timers and alarms are transient systemd user timers, so they
     // survive a shell restart and still ring after a suspend that spans them.
     // A timer that went off runs quiet-timer-ring as its service; while that runs
-    // it is ringing, and the shell shows a card to stop or snooze it.
-    property var timers: []     // { unit, name, kind, label, at }, soonest first
-    property var ringing: []    // { unit, name, kind, label, at }, the service units
+    // it is ringing, and the shell shows a card to stop it, restart a timer, or
+    // snooze an alarm. A timer's length is in its unit name, for Restart.
+    property var timers: []     // { unit, name, kind, label, at, seconds }, soonest first
+    property var ringing: []    // the same, for the service units; `at` is when it went off
+    readonly property var nextTimer: timers.find(t => t.kind === "Timer") || null
+    readonly property var nextAlarm: timers.find(t => t.kind === "Alarm") || null
     function startTimer(timer) {
         const at = Math.floor(timer.at / 1000);
         const kind = timer.alarm ? "Alarm" : "Timer";
         const name = timer.label || timer.title.replace(/^\S+ · /, "");
-        const unit = "quiet-timer-" + at + "-" + Math.floor(Math.random() * 1e6);
+        const seconds = timer.alarm ? 0 : Math.max(1, Math.round(timer.at / 1000 - Date.now() / 1000));
+        const unit = "quiet-timer-" + at + "-" + seconds + "-" + Math.floor(Math.random() * 1e6);
         Quickshell.execDetached(["systemd-run", "--user", "--collect", "--unit", unit,
             "--description", kind + ": " + name,
             "--on-calendar", "@" + at, "--timer-property=AccuracySec=1s",
             "--", Quickshell.env("QUIET_TIMER_RING") || "sleep", "120"]);
         // Shown at once: a look at systemd now could beat systemd-run to it, find
         // nothing, and stop looking. The next regular look confirms it.
-        timers = timers.concat([{ unit: unit + ".timer", name: kind + ": " + name, kind, label: name, at: at * 1000 }])
+        timers = timers.concat([{ unit: unit + ".timer", name: kind + ": " + name, kind, label: name, at: at * 1000, seconds }])
             .sort((a, b) => a.at - b.at);
     }
     function cancelTimer(unit) {
@@ -298,10 +302,16 @@ Singleton {
         Quickshell.execDetached(["systemctl", "--user", "stop", unit]);
         ringing = ringing.filter(t => t.unit !== unit);
     }
-    function snooze(ring) {
+    // Restart runs a timer again for as long as it first ran; an alarm, or a timer
+    // from before lengths were kept, snoozes for ten minutes.
+    function restartRinging(ring) {
         stopRinging(ring.unit);
-        startTimer({ at: Date.now() + 5 * 60000, label: ring.label, title: ring.label, alarm: ring.kind === "Alarm" });
+        const seconds = ring.seconds || 600;
+        startTimer({ at: Date.now() + seconds * 1000, label: ring.label, title: ring.label, alarm: ring.kind === "Alarm" });
     }
+    // The shortcuts act on the ring that went off first.
+    function stopFirstRing() { if (ringing.length) stopRinging(ringing[0].unit); }
+    function restartFirstRing() { if (ringing.length) restartRinging(ringing[0]); }
     function refreshTimers() {
         if (!timerList.running)
             timerList.running = true;
@@ -324,17 +334,25 @@ Singleton {
                     const stamp = name => parseInt(field(name).replace("@", ""), 10) * 1000 || 0;
                     const name = field("Description");
                     const split = /^(Timer|Alarm): (.*)$/.exec(name);
-                    return { unit: field("Id"), name, kind: split ? split[1] : "Timer", label: split ? split[2] : name,
+                    const length = /^quiet-timer-\d+-(\d+)-\d+\./.exec(field("Id"));
+                    return { unit: field("Id"), name, kind: split ? split[1] : "Timer", label: split ? split[2] : name, seconds: length ? parseInt(length[1], 10) : 0,
                              active: /^(active|activating)$/.test(field("ActiveState")), next: stamp("NextElapseUSecRealtime"), since: stamp("ActiveEnterTimestamp") };
                 });
                 root.timers = units.filter(u => u.unit.endsWith(".timer") && u.next > 0)
-                    .map(u => ({ unit: u.unit, name: u.name, kind: u.kind, label: u.label, at: u.next })).sort((a, b) => a.at - b.at);
+                    .map(u => ({ unit: u.unit, name: u.name, kind: u.kind, label: u.label, at: u.next, seconds: u.seconds })).sort((a, b) => a.at - b.at);
                 root.ringing = units.filter(u => u.unit.endsWith(".service") && u.active)
-                    .map(u => ({ unit: u.unit, name: u.name, kind: u.kind, label: u.label, at: u.since })).sort((a, b) => a.at - b.at);
+                    .map(u => ({ unit: u.unit, name: u.name, kind: u.kind, label: u.label, at: u.since, seconds: u.seconds })).sort((a, b) => a.at - b.at);
             }
         }
     }
     // "4:05" or "1:02:05" until `at`, for the bar and the ringing card.
+    // A timer's length for a button: "45 s", "10 min", "1 h 30".
+    function duration(seconds) {
+        if (seconds < 60) return seconds + " s";
+        const minutes = Math.round(seconds / 60);
+        if (minutes < 60) return minutes + " min";
+        return Math.floor(minutes / 60) + " h" + (minutes % 60 ? " " + (minutes % 60 < 10 ? "0" : "") + minutes % 60 : "");
+    }
     function countdown(at, now) {
         const s = Math.max(0, Math.ceil((at - now) / 1000));
         const two = n => (n < 10 ? "0" : "") + n;

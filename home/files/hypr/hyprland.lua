@@ -352,6 +352,9 @@ hl.bind("XF86AudioMicMute", hl.dsp.global("quiet-shell:micMute"))
 hl.bind("XF86Launch8", hl.dsp.global("quiet-shell:touchpad"))
 hl.bind("XF86TouchpadToggle", hl.dsp.global("quiet-shell:touchpad"))
 hl.bind("SUPER + V", hl.dsp.global("quiet-shell:clipboard"))
+-- A ringing timer or alarm: stop it, or restart the timer (snooze the alarm).
+hl.bind("SUPER + x", hl.dsp.global("quiet-shell:timerStop"))
+hl.bind("SUPER + r", hl.dsp.global("quiet-shell:timerRestart"))
 -- Floating lifts the window to the middle at a usable size, so the change is visible.
 hl.bind("SUPER + T", function()
 	local w = hl.get_active_window()
