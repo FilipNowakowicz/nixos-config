@@ -191,11 +191,25 @@ elif cmd == "pkill":
     state["night"] = False
 elif cmd == "setsid":
     state["night"] = True
+elif cmd == "systemctl" and "show" in args:
+    # Spotlight's timers: `timers` are pending, `ringing` have gone off. Each is
+    # {"unit", "name", "at"} with `at` in seconds, the way systemd's units read.
+    blocks = [f"Id={t['unit']}.timer\nDescription={t['name']}\nActiveState=active\nNextElapseUSecRealtime=@{t['at']}" for t in state.get("timers", [])]
+    blocks += [f"Id={t['unit']}.service\nDescription={t['name']}\nActiveState=active\nActiveEnterTimestamp=@{t['at']}" for t in state.get("ringing", [])]
+    print("\n\n".join(blocks))
 elif cmd == "systemctl":
     if "is-active" in args:
         done(0 if state["awake"] else 3)
     if "stop" in args:
-        state["awake"] = False
+        unit = args[-1]
+        if unit.startswith("quiet-timer-"):
+            for key in ("timers", "ringing"):
+                state[key] = [t for t in state.get(key, []) if not unit.startswith(t["unit"] + ".")]
+        else:
+            state["awake"] = False
+elif cmd == "systemd-run" and "--on-calendar" in args:
+    unit, name, at = (args[args.index(flag) + 1] for flag in ("--unit", "--description", "--on-calendar"))
+    state.setdefault("timers", []).append({"unit": unit, "name": name, "at": int(at[1:])})
 elif cmd == "systemd-run":
     state["awake"] = True
 elif cmd == "fd":

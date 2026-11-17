@@ -199,6 +199,13 @@ Singleton {
         close();
         spotlight = want;
     }
+    // Spotlight opened with something already typed, like "timers" from the bar.
+    property string spotlightSeed: ""
+    function openSpotlight(seed) {
+        close();
+        spotlightSeed = seed;
+        spotlight = true;
+    }
     function openClipboard() {
         close();
         clipboard = true;

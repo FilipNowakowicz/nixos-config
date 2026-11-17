@@ -7,6 +7,7 @@
   quickshell,
   python3,
   bluez,
+  coreutils,
   brightnessctl,
   cliphist,
   curl,
@@ -14,7 +15,6 @@
   grim,
   hyprlock,
   khal,
-  libnotify,
   mullvad-vpn,
   networkmanager,
   networkmanagerapplet,
@@ -22,7 +22,7 @@
   power-profiles-daemon,
   procps,
   slurp,
-  sound-theme-freedesktop,
+  sox,
   systemd,
   tailscale,
   tesseract,
@@ -88,7 +88,10 @@ stdenvNoCC.mkDerivation {
   pname = "quiet-shell";
   version = "0.1.0";
   src = ./shell;
-  nativeBuildInputs = [ makeWrapper ];
+  nativeBuildInputs = [
+    makeWrapper
+    sox
+  ];
   dontBuild = true;
 
   installPhase = ''
@@ -97,6 +100,7 @@ stdenvNoCC.mkDerivation {
     cp -r . $out/share/quiet-shell
     # Towns for Spotlight's location search, from GeoNames (CC BY 4.0); see update-cities.py.
     gzip -d $out/share/quiet-shell/data/cities.tsv.gz
+    bash scripts/make-chime.sh $out/share/quiet-shell/assets/chime.flac
     makeWrapper ${quickshell}/bin/qs $out/bin/quiet-shell \
       --add-flags "-p $out/share/quiet-shell" \
       --set QT_WAYLAND_DISABLED_INTERFACES ${lib.concatStringsSep "," textInput} \
@@ -119,11 +123,11 @@ stdenvNoCC.mkDerivation {
       --add-flags "$out/share/quiet-shell/scripts/timer-ring.sh" \
       --set PATH ${
         lib.makeBinPath [
-          libnotify
+          coreutils
           pipewire
         ]
       } \
-      --set QUIET_ALARM_SOUND ${sound-theme-freedesktop}/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga
+      --set QUIET_ALARM_SOUND $out/share/quiet-shell/assets/chime.flac
     makeWrapper ${quickshell}/bin/qs $out/bin/quiet-shell-ipc \
       --add-flags "ipc -p $out/share/quiet-shell call shell"
     runHook postInstall

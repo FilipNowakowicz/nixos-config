@@ -57,7 +57,10 @@ Singleton {
     // A player reports no track for a moment between songs. Keep showing the last one
     // through that gap, so only a real stop reads as "Not playing".
     property var media: null
-    Component.onCompleted: media = currentTrack
+    Component.onCompleted: {
+        media = currentTrack;
+        refreshTimers();
+    }
     onCurrentTrackChanged: {
         if (currentTrack) {
             trackGap.stop();
@@ -269,38 +272,74 @@ Singleton {
     }
     // Spotlight's timers and alarms are transient systemd user timers, so they
     // survive a shell restart and still ring after a suspend that spans them.
-    property var timers: []
+    // A timer that went off runs quiet-timer-ring as its service; while that runs
+    // it is ringing, and the shell shows a card to stop or snooze it.
+    property var timers: []     // { unit, name, kind, label, at }, soonest first
+    property var ringing: []    // { unit, name, kind, label, at }, the service units
     function startTimer(timer) {
         const at = Math.floor(timer.at / 1000);
         const kind = timer.alarm ? "Alarm" : "Timer";
         const name = timer.label || timer.title.replace(/^\S+ · /, "");
-        Quickshell.execDetached(["systemd-run", "--user", "--collect",
-            "--unit", "quiet-timer-" + at + "-" + Math.floor(Math.random() * 1e6),
+        const unit = "quiet-timer-" + at + "-" + Math.floor(Math.random() * 1e6);
+        Quickshell.execDetached(["systemd-run", "--user", "--collect", "--unit", unit,
             "--description", kind + ": " + name,
             "--on-calendar", "@" + at, "--timer-property=AccuracySec=1s",
-            "--", Quickshell.env("QUIET_TIMER_RING") || "notify-send", kind === "Alarm" ? name : name + " is done", timer.title]);
-        Qt.callLater(refreshTimers);
+            "--", Quickshell.env("QUIET_TIMER_RING") || "sleep", "120"]);
+        // Shown at once: a look at systemd now could beat systemd-run to it, find
+        // nothing, and stop looking. The next regular look confirms it.
+        timers = timers.concat([{ unit: unit + ".timer", name: kind + ": " + name, kind, label: name, at: at * 1000 }])
+            .sort((a, b) => a.at - b.at);
     }
     function cancelTimer(unit) {
         Quickshell.execDetached(["systemctl", "--user", "stop", unit]);
         timers = timers.filter(t => t.unit !== unit);
     }
+    function stopRinging(unit) {
+        Quickshell.execDetached(["systemctl", "--user", "stop", unit]);
+        ringing = ringing.filter(t => t.unit !== unit);
+    }
+    function snooze(ring) {
+        stopRinging(ring.unit);
+        startTimer({ at: Date.now() + 5 * 60000, label: ring.label, title: ring.label, alarm: ring.kind === "Alarm" });
+    }
     function refreshTimers() {
         if (!timerList.running)
             timerList.running = true;
     }
+    // Look again when the next one is due, and every two seconds while one rings,
+    // so a ring that ends by itself or from a terminal leaves the screen too.
+    Timer {
+        running: root.timers.length > 0 || root.ringing.length > 0
+        repeat: true
+        interval: root.ringing.length > 0 ? 2000 : Math.max(500, Math.min(30000, (root.timers.length ? root.timers[0].at : 0) - Date.now() + 300))
+        onTriggered: root.refreshTimers()
+    }
     Process {
         id: timerList
-        command: ["systemctl", "--user", "show", "--timestamp=unix", "-p", "Id,Description,NextElapseUSecRealtime", "quiet-timer-*.timer"]
+        command: ["systemctl", "--user", "show", "--timestamp=unix", "-p", "Id,Description,ActiveState,NextElapseUSecRealtime,ActiveEnterTimestamp", "quiet-timer-*.timer", "quiet-timer-*.service"]
         stdout: StdioCollector {
             onStreamFinished: {
-                root.timers = text.split(/\n\s*\n/).map(block => {
+                const units = text.split(/\n\s*\n/).map(block => {
                     const field = name => ((new RegExp("^" + name + "=(.*)$", "m")).exec(block) || [])[1] || "";
-                    const at = parseInt(field("NextElapseUSecRealtime").replace("@", ""), 10);
-                    return { unit: field("Id"), name: field("Description"), at: at * 1000 };
-                }).filter(t => t.unit && t.at > 0).sort((a, b) => a.at - b.at);
+                    const stamp = name => parseInt(field(name).replace("@", ""), 10) * 1000 || 0;
+                    const name = field("Description");
+                    const split = /^(Timer|Alarm): (.*)$/.exec(name);
+                    return { unit: field("Id"), name, kind: split ? split[1] : "Timer", label: split ? split[2] : name,
+                             active: /^(active|activating)$/.test(field("ActiveState")), next: stamp("NextElapseUSecRealtime"), since: stamp("ActiveEnterTimestamp") };
+                });
+                root.timers = units.filter(u => u.unit.endsWith(".timer") && u.next > 0)
+                    .map(u => ({ unit: u.unit, name: u.name, kind: u.kind, label: u.label, at: u.next })).sort((a, b) => a.at - b.at);
+                root.ringing = units.filter(u => u.unit.endsWith(".service") && u.active)
+                    .map(u => ({ unit: u.unit, name: u.name, kind: u.kind, label: u.label, at: u.since })).sort((a, b) => a.at - b.at);
             }
         }
+    }
+    // "4:05" or "1:02:05" until `at`, for the bar and the ringing card.
+    function countdown(at, now) {
+        const s = Math.max(0, Math.ceil((at - now) / 1000));
+        const two = n => (n < 10 ? "0" : "") + n;
+        const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
+        return (h > 0 ? h + ":" + two(m) : m) + ":" + two(s % 60);
     }
 
     function refreshBuds() {

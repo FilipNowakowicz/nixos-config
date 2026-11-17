@@ -29,6 +29,7 @@ PanelWindow {
         Region { item: win.fullscreenApp ? null : hotTop }
         Region { item: win.fullscreenApp ? null : hotBottom }
         Region { item: Notify.banner && win.focused ? banner : null }
+        Region { item: island.visible ? island : null }
     }
 
     Item {
@@ -179,6 +180,14 @@ PanelWindow {
             visible: opacity > 0 && win.focused
             anchors.horizontalCenter: parent.horizontalCenter
             y: parent.height * 0.82
+        }
+
+        TimerIsland {
+            id: island
+            visible: opacity > 0 && win.focused
+            quiet: win.fullscreenApp
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: 6
         }
 
         Confirm { visible: Ui.confirm !== null && win.focused; z: 10 }
