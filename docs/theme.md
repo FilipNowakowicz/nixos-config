@@ -22,11 +22,13 @@ guarantee.
 Each theme is a small Nix attrset:
 
 - `name` — must match the filename (without `.nix`).
-- `colors` — the five-slot palette: `bg`, `surface` (panels, inactive borders), `secondary` (a second accent: bells, warnings), `accent` (focus, cursor, highlights), `text`
-  (plain hex, no `#`).
+- `displayName` — the title the shell picker shows.
+- `colors` — the five-slot palette, plain hex without `#`: `bg`, `surface`
+  (panels, inactive borders), `secondary` (a second accent: bells, warnings),
+  `accent` (focus, cursor, highlights, Neovim functions) and `text`. The module
+  rejects a theme with a missing, unknown or non-hex slot.
 - `ansiColors` — a 16-slot ANSI palette (`color0`…`color15`) for the terminal.
-- `colorscheme` — Neovim intent (`name`, `background`, and a contrast hint),
-  consumed by the neovim module via `themes._activeThemeColorscheme`.
+- `appearance` — `"dark"` (the default) or `"light"`.
 - `wallpaper` — a path under `home/theme/wallpapers/`.
 
 ## Build time (Nix is the single source of truth)
@@ -35,7 +37,12 @@ Each theme is a small Nix attrset:
 for each, generates under `~/.config/themes/<name>/`:
 
 - `kitty-theme.conf`, `hypr-colors.lua`, `hyprlock-colors.conf`,
-  `quiet-colors.json`, a `wallpaper` symlink, and
+  `zathura-colors`, a `wallpaper` symlink,
+- `quiet-colors.json` — the shell's colours plus every theme's title, palette
+  and a wallpaper thumbnail for its picker,
+- `nvim-palette.lua` — a base16 scheme derived from `colors` and `ansiColors`,
+  which Neovim applies with `mini.base16` (`home/files/nvim/lua/config/theme.lua`),
+  and
 - `vars` — a shell-sourceable file (`bg=…`, `accent=…`, …) consumed by the
   runtime switcher.
 
@@ -55,7 +62,8 @@ directly), so there is no separate `themes.active` wiring to keep in sync.
    rebuilds, without touching the repo;
 3. sources `links.sh` and relinks the pre-generated assets into live app paths;
 4. sources the generated `vars` file for the colors it needs;
-5. reloads Hyprland, Quiet Shell, Kitty, and the wallpaper in place.
+5. reloads Hyprland, Quiet Shell, Kitty, Neovim (SIGUSR1) and the wallpaper
+   in place.
 
 Because the switcher consumes the **same** Nix-generated assets and `vars` file
 that a rebuild produces — rather than re-deriving colors by parsing theme `.nix`
@@ -72,7 +80,7 @@ asserting the generated `vars` and Kitty palette match the theme definition.
    Git keeps every version of a binary forever.
 2. Rebuild so Home Manager generates its assets.
 3. `theme-switch <name>`, or `theme-switch --save <name>` to also make it the
-   default in `active.nix`, which GTK and Neovim pick up at the next rebuild.
+   default in `active.nix`, which GTK picks up at the next rebuild.
 
 ## Public module (`homeModules.runtime-theme`)
 
@@ -111,8 +119,8 @@ reload mechanics are fixed — not a generic theming framework.
 
 Importing the module activates it and adds `theme-switch` to `home.packages`
 (consistent with the repo's other `homeModules`, which activate on import). The
-neovim/GTK colorscheme intent is exposed through the internal
-`themes._activeThemeColors` / `themes._activeThemeColorscheme` options.
+neovim module finds the live palette through the internal
+`themes._nvimPaletteFile` option.
 
 ### What it reloads (`desktop-runtime.nix`)
 

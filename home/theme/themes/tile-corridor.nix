@@ -5,11 +5,8 @@
   displayName = "Tile Corridor";
   enabled = true;
 
-  colorscheme = {
-    name = "gruvbox-material";
-    background = "dark";
-    contrast = "hard"; # near-black hallway
-  };
+  # Dark or light: GTK, Firefox and Neovim follow it.
+  appearance = "dark";
 
   colors = {
     bg = "0e0d0c"; # shadowed walls

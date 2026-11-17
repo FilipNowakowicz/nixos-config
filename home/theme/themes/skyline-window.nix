@@ -5,11 +5,8 @@
   displayName = "Skyline Window";
   enabled = true;
 
-  colorscheme = {
-    name = "gruvbox-material";
-    background = "dark";
-    contrast = "hard"; # near-black room
-  };
+  # Dark or light: GTK, Firefox and Neovim follow it.
+  appearance = "dark";
 
   colors = {
     bg = "0c0d0f"; # the unlit room

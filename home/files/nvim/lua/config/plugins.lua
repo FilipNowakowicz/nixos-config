@@ -14,7 +14,11 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 require("lazy").setup({
-  { "sainnhe/gruvbox-material", lazy = false, priority = 1000 },
+  -- Colours: the desktop theme's base16 palette (config/theme.lua), or
+  -- gruvbox-material where there is no desktop theme. lazy.nvim loads the
+  -- fallback when it is first asked for by :colorscheme.
+  { "nvim-mini/mini.base16", lazy = false, priority = 1000 },
+  { "sainnhe/gruvbox-material", lazy = true },
 
   { "nvim-tree/nvim-web-devicons", lazy = true },
 

@@ -186,6 +186,28 @@ let
       expected = true;
     };
 
+    # Neovim's base16 palette is built from the theme: background from bg,
+    # functions in the accent, and the theme's appearance.
+    testNvimPalette = {
+      expr =
+        let
+          text = files."themes/mono-mesh/nvim-palette.lua".text;
+        in
+        lib.all (s: lib.hasInfix s text) [
+          ''["background"] = "dark"''
+          ''["base00"] = "#${monoTheme.colors.bg}"''
+          ''["base05"] = "#${monoTheme.colors.text}"''
+          ''["base0D"] = "#${monoTheme.colors.accent}"''
+        ];
+      expected = true;
+    };
+
+    # The palette is relinked with the other assets on every switch.
+    testNvimPaletteLinked = {
+      expr = lib.hasInfix "nvim-palette.lua" files."themes/links.sh".text;
+      expected = true;
+    };
+
     # A theme on the old brown/orange/amber keys is rejected at evaluation.
     testStaleColorKeysRejected = {
       expr =

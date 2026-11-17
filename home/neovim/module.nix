@@ -53,20 +53,15 @@ let
     markers = projectMarkers;
   };
 
-  # Colorscheme selection comes from the active theme (home/theme), so a theme
-  # switch repaints Neovim instead of leaving a hardcoded gruvbox value.
-  themeColorscheme = config.themes._activeThemeColorscheme or { };
+  # With the theme module, Neovim paints itself from the running theme's
+  # palette (home/theme); without it (WSL), it keeps gruvbox-material.
+  themePalette = config.themes._nvimPaletteFile or null;
 
   generatedConfig = {
     languages = languageConfig;
 
-    ui = {
-      colorscheme = {
-        name = themeColorscheme.name or "gruvbox-material";
-        background = themeColorscheme.background or "dark";
-        contrast = themeColorscheme.contrast or "medium";
-      };
-    };
+    # Left out rather than null: vim.json.decode turns null into a truthy vim.NIL.
+    ui = lib.optionalAttrs (themePalette != null) { theme_palette = themePalette; };
 
     lsp = {
       enable = lspEnable;

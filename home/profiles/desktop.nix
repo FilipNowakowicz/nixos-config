@@ -4,7 +4,7 @@
   ...
 }:
 let
-  isDark = (config.themes._activeThemeColorscheme or { }).background or "dark" == "dark";
+  isDark = (config.themes._activeThemeAppearance or "dark") == "dark";
   inherit (config.fleet) enableSpotify skipHeavyPackages;
   # Theme-reloaded Wayland UI tools (kitty/swaybg); shared with
   # theme-switch's runtimeInputs in home/theme/module.nix.
@@ -83,7 +83,7 @@ in
     };
   };
 
-  # GTK theming — derived from the active theme's colorscheme.background.
+  # GTK theming — derived from the active theme's appearance.
   gtk = {
     enable = true;
     theme = {
