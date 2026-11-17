@@ -16,9 +16,8 @@
 #     .exitNodeCanProvide — optional capability flag; false when omitted
 #     .exitNodeUse — optional host name selected as this host's exit node
 #   homeManager — primary-user Home Manager mapping for this host
-#     .role     — entrypoint module under home/users/user
-#     .profiles — extra profile modules under home/profiles
-#     .enableSpotify — whether to include the proprietary Spotify package
+#     .role     — entrypoint module under home/users/user; host additions live
+#                 in home/users/user/<host>.nix
 #   backup      — drives modules/nixos/profiles/backup.nix retention policy
 #     .class    — "critical" (14d/8w/6m/2y) | "standard" (7d/4w/3m); absent = no backup module
 #     .name     — restic backup job name; defaults to "local"
@@ -36,17 +35,7 @@ let
     main = {
       system = "x86_64-linux";
       status = "active";
-      homeManager = {
-        role = "desktop";
-        profiles = [ "desktop" ];
-        enableSpotify = true;
-        packs = [
-          "browsing"
-          "coding"
-          "latex"
-          "learning"
-        ];
-      };
+      homeManager.role = "desktop";
       tailnetFQDN = "main.${tailnetDomain}";
       tailscale = {
         tag = "workstation";

@@ -23,17 +23,6 @@ let
     "legacy-supported"
   ];
 
-  knownHomeManagerProfiles = [
-    "desktop"
-  ];
-
-  knownHomeManagerPacks = [
-    "browsing"
-    "coding"
-    "latex"
-    "learning"
-  ];
-
   stableInventoryFields = [
     "name"
     "system"
@@ -42,7 +31,6 @@ let
     "deployUser"
     "backupClass"
     "homeManagerRole"
-    "homeManagerProfiles"
     "tailscaleTracked"
     "drift"
   ];
@@ -130,33 +118,14 @@ let
           )
           "${name}.tailscale: expected tag string, optional acceptFrom ports, ip4, route lists, and exit-node metadata"
         )
-        (ok
-          (
-            !p "homeManager"
-            || (
-              builtins.isAttrs cfg.homeManager
-              && builtins.elem (cfg.homeManager.role or null) knownHomeManagerRoles
-              && (
-                !cfg.homeManager ? profiles
-                || (
-                  builtins.isList cfg.homeManager.profiles
-                  && builtins.all builtins.isString cfg.homeManager.profiles
-                  && builtins.all (profile: builtins.elem profile knownHomeManagerProfiles) cfg.homeManager.profiles
-                )
-              )
-              && (!cfg.homeManager ? enableSpotify || builtins.isBool cfg.homeManager.enableSpotify)
-              && (
-                !cfg.homeManager ? packs
-                || (
-                  builtins.isList cfg.homeManager.packs
-                  && builtins.all builtins.isString cfg.homeManager.packs
-                  && builtins.all (pack: builtins.elem pack knownHomeManagerPacks) cfg.homeManager.packs
-                )
-              )
-            )
+        (ok (
+          !p "homeManager"
+          || (
+            builtins.isAttrs cfg.homeManager
+            && builtins.attrNames cfg.homeManager == [ "role" ]
+            && builtins.elem cfg.homeManager.role knownHomeManagerRoles
           )
-          "${name}.homeManager: expected role in ${builtins.toJSON knownHomeManagerRoles}, profiles from ${builtins.toJSON knownHomeManagerProfiles}, and packs from ${builtins.toJSON knownHomeManagerPacks}"
-        )
+        ) "${name}.homeManager: expected only a role in ${builtins.toJSON knownHomeManagerRoles}")
         (ok
           (
             !p "backup"
@@ -193,8 +162,6 @@ in
       knownFields
       knownHomeManagerRoles
       knownStatuses
-      knownHomeManagerProfiles
-      knownHomeManagerPacks
       stableInventoryFields
       repoLocalInventoryFields
       ;
