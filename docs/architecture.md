@@ -96,7 +96,8 @@ The "Features" of the system. A profile typically imports multiple modules and c
 
 The entry points. A host file should be a "thin" composition of:
 
-1.  Hardware configuration (`hardware-configuration.nix`).
+1.  Hardware configuration (`hardware-configuration.nix`, or a shared module
+    under `modules/nixos/hardware/` when VMs are identical, like `gce-vm.nix`).
 2.  Disk layout (`disko.nix`).
 3.  A list of Profile imports.
 4.  Host-specific secrets and identity.

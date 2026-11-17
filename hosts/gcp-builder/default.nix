@@ -1,63 +1,32 @@
 {
   inputs,
+  lib,
   pkgs,
   ...
 }:
-let
-  binaryCache = import ../../lib/binary-cache.nix;
-in
 {
   imports = [
     inputs.disko.nixosModules.disko
     ./prebuilt.nix
-    ./hardware-configuration.nix
     ./disko.nix
-    ../../modules/nixos/profiles/base.nix
-    ../../modules/nixos/profiles/machine-common.nix
-    ../../modules/nixos/profiles/security.nix
-    ../../modules/nixos/profiles/server-common.nix
-    ../../modules/nixos/profiles/sops-base.nix
-    ../../modules/nixos/profiles/user.nix
+    ../../modules/nixos/profiles/gce-server.nix
   ];
 
   system = {
     stateVersion = "24.11";
   };
 
-  # Broad passwordless sudo: deploy-rs needs it for activation. SSH/build access
-  # to this target is therefore root-equivalent; keep SSH Tailscale-scoped and
-  # key-only. This is a disposable, on-demand build box, not a service host.
-  security.sudo.wheelNeedsPassword = false;
+  # gce-server.nix grants broad passwordless sudo and trusts `user` for remote
+  # builds, so SSH/build access here is root-equivalent. This is a disposable,
+  # on-demand build box, not a service host.
 
   networking = {
     hostName = "gcp-builder";
-    firewall = {
-      checkReversePath = "loose";
-      interfaces.tailscale0.allowedTCPPorts = [ 22 ];
-    };
-  };
-
-  boot = {
-    loader.timeout = 1;
-    kernelParams = [
-      "console=tty1"
-      "console=ttyS0,115200n8"
-      "systemd.journald.forward_to_console=1"
-    ];
-  };
-
-  profiles = {
-    # deploy-rs and `main`'s distributed builds connect as `user`; trust it so
-    # the daemon accepts remote-build store operations and restricted settings.
-    nix.extraTrustedUsers = [ "user" ];
+    firewall.interfaces.tailscale0.allowedTCPPorts = [ 22 ];
   };
 
   nix = {
     settings = {
-      trusted-public-keys = [
-        binaryCache.cacheNixosOrgPublicKey
-        binaryCache.mainLocalPublicKey
-      ];
       # This box exists to build; let it use the whole VM.
       max-jobs = "auto";
       cores = 0;
@@ -88,23 +57,9 @@ in
     # deregistered while down and lose its stable name), pre-tagged tag:builder.
     # After first join the node identity persists on disk, so the key is used once.
     tailscale = {
-      enable = true;
-      openFirewall = true;
       authKeyFile = "/var/lib/tailscale-authkey";
-      # --reset so each boot-time `tailscale up` (tailscaled-autoconnect)
-      # normalizes every pref to default and cannot self-wedge on drifted
-      # persisted prefs ("changing settings requires mentioning all non-default
-      # flags"), which would leave this tailnet-only-SSH host unreachable. The
-      # advertised tag is mentioned explicitly, so --reset preserves it.
-      extraUpFlags = [
-        "--advertise-tags=tag:builder"
-        "--reset"
-      ];
-    };
-
-    journald.settings.Journal = {
-      ForwardToConsole = true;
-      MaxLevelConsole = "info";
+      # gce-server.nix adds --reset, so the tag must be mentioned here to survive.
+      extraUpFlags = lib.mkBefore [ "--advertise-tags=tag:builder" ];
     };
   };
 
@@ -215,7 +170,6 @@ in
   # builds as this (trusted) user; these merge with the personal keys from
   # sops-base.
   users.users.user = {
-    home = "/home/user";
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC+J1RPvpFJ6zpeeio5N6xWIcSIdBfgmjOexo27FGLLw github-ci-gcp-builder"
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIESg3U6QT7ur+a/rRDksMKWOrOVS1uHr7u+LfhmgLl9U nix-remote-build-main-to-gcp-builder"

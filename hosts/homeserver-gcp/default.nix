@@ -7,7 +7,6 @@
   ...
 }:
 let
-  binaryCache = import ../../lib/binary-cache.nix;
   inherit (hostMeta) tailnetFQDN;
   hostDriftInventory = {
     schemaVersion = 1;
@@ -43,7 +42,6 @@ in
 {
   imports = [
     inputs.disko.nixosModules.disko
-    ./hardware-configuration.nix
     ./disko.nix
     ./nginx.nix
     ./adguard.nix
@@ -58,29 +56,15 @@ in
     ./tailscale-cert.nix
     ./grafana.nix
     ./dashboards.nix
-    ../../modules/nixos/profiles/base.nix
-    ../../modules/nixos/profiles/machine-common.nix
-    ../../modules/nixos/profiles/security.nix
-    ../../modules/nixos/profiles/server-common.nix
-    ../../modules/nixos/profiles/sops-base.nix
-    ../../modules/nixos/profiles/user.nix
+    ../../modules/nixos/profiles/gce-server.nix
   ];
 
   system = {
     stateVersion = "24.11";
   };
 
-  # Broad passwordless sudo: deploy-rs needs it for activation. SSH access to
-  # this target is therefore root-equivalent; keep SSH Tailscale-scoped and
-  # key-only.
-  security.sudo.wheelNeedsPassword = false;
-
-  nix = {
-    settings.trusted-public-keys = [
-      binaryCache.cacheNixosOrgPublicKey
-      binaryCache.mainLocalPublicKey
-    ];
-  };
+  # gce-server.nix grants broad passwordless sudo for deploy-rs activation, so
+  # SSH access here is root-equivalent; keep it Tailscale-scoped and key-only.
 
   # curl comes from the base profile. jq stays at system level for root and
   # for checks run over SSH, which don't get Home Manager's PATH.
@@ -94,29 +78,13 @@ in
 
   networking = {
     hostName = "homeserver-gcp";
-    firewall = {
-      checkReversePath = "loose";
-      interfaces.tailscale0.allowedTCPPorts = [
-        22
-        443
-      ];
-    };
-  };
-
-  boot = {
-    loader.timeout = 1;
-    kernelParams = [
-      "console=tty1"
-      "console=ttyS0,115200n8"
-      "systemd.journald.forward_to_console=1"
+    firewall.interfaces.tailscale0.allowedTCPPorts = [
+      22
+      443
     ];
   };
 
   profiles = {
-    # deploy-rs remoteBuild connects as `user`; trust it so remote builds do not
-    # trip restricted-setting warnings from the daemon.
-    nix.extraTrustedUsers = [ "user" ];
-
     observability = {
       enable = true;
       alertWebhookUrlFile = config.sops.secrets.alertmanager_webhook_url.path;
@@ -163,20 +131,8 @@ in
   };
 
   services = {
-    tailscale = {
-      enable = true;
-      openFirewall = true;
-      authKeyFile = config.sops.secrets.tailscale_auth_key.path;
-      # `--reset` makes the boot-time `tailscale up` normalize every pref to the
-      # declared set instead of reconciling against persisted on-disk prefs.
-      # Without it, any drift in /var/lib/tailscale (e.g. a stale RouteAll /
-      # Hostname pref) makes `tailscale up` abort with "changing settings
-      # requires mentioning all non-default flags", so tailscaled-autoconnect
-      # fails, the node never joins, SSH (tailnet-only) is unreachable, and the
-      # off-box heartbeat fires — exactly the 2026-06-21 outage. Resetting on
-      # every autoconnect keeps this host purely declarative and self-healing.
-      extraUpFlags = [ "--reset" ];
-    };
+    # gce-server.nix enables Tailscale with --reset.
+    tailscale.authKeyFile = config.sops.secrets.tailscale_auth_key.path;
 
     systemd-failure-notify = {
       enable = true;
@@ -189,11 +145,6 @@ in
         "tailscaled"
         "heartbeat-ping"
       ];
-    };
-
-    journald.settings.Journal = {
-      ForwardToConsole = true;
-      MaxLevelConsole = "info";
     };
 
     hardened = {
@@ -257,7 +208,6 @@ in
   services.prometheus.extraFlags = [ "--web.enable-remote-write-receiver" ];
 
   users.users.user = {
-    home = "/home/user";
     hashedPasswordFile = config.sops.secrets.user_password.path;
     # Private half is only the HOMESERVER_DEPLOY_SSH_KEY GitHub secret, used by
     # the deploy workflow's tag:ci job. Root-equivalent through deploy-rs.
