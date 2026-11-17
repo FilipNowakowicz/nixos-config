@@ -144,6 +144,31 @@ let
         }
   '';
 
+  # A small crop of each wallpaper for the shell's theme picker, at twice the
+  # size the picker draws it. Built once per wallpaper, not at switch time.
+  mkThumbnail =
+    themeName: theme:
+    pkgs.runCommandLocal "theme-thumbnail-${themeName}.jpg"
+      { nativeBuildInputs = [ pkgs.imagemagick ]; }
+      ''
+        magick ${theme.wallpaper} -strip -alpha off -resize '208x117^' \
+          -gravity center -extent 208x117 -quality 88 "$out"
+      '';
+
+  # What the picker shows for every theme: its name, a wallpaper thumbnail and
+  # the colours it paints the shell with. Identical in every theme's JSON.
+  pickerEntries = lib.mapAttrsToList (themeName: theme: {
+    name = themeName;
+    title = theme.displayName or themeName;
+    inherit (theme.colors)
+      bg
+      surface
+      accent
+      text
+      ;
+    thumbnail = "${mkThumbnail themeName theme}";
+  }) validThemes;
+
   # "rrggbb" -> "rgba(r,g,b,alpha)", for options that take no hex alpha.
   rgba =
     hex: alpha:
@@ -261,7 +286,7 @@ let
     "themes/${themeName}/quiet-colors.json".text = builtins.toJSON {
       name = themeName;
       inherit (theme.colors) bg text accent;
-      themes = builtins.attrNames validThemes;
+      themes = pickerEntries;
     };
 
     # Wallpaper symlink

@@ -59,19 +59,49 @@ let
   monoTheme = import ../../home/theme/themes/mono-mesh.nix;
   varsText = files."themes/mono-mesh/vars".text;
   kittyText = files."themes/mono-mesh/kitty-theme.conf".text;
+  # Thumbnails are store paths, which fromJSON refuses to see in its input.
+  shellColorsText =
+    builtins.unsafeDiscardStringContext
+      files."themes/mono-mesh/quiet-colors.json".text;
 
   failures = lib.runTests {
     testQuietShellColors = {
-      expr = builtins.fromJSON files."themes/mono-mesh/quiet-colors.json".text;
+      expr = builtins.fromJSON shellColorsText;
       expected = {
         name = "mono-mesh";
         inherit (monoTheme.colors) bg text;
         accent = monoTheme.colors.accent;
-        themes = builtins.fromJSON (
-          builtins.toJSON (builtins.fromJSON files."themes/mono-mesh/quiet-colors.json".text).themes
-        );
+        themes = builtins.fromJSON (builtins.toJSON (builtins.fromJSON shellColorsText).themes);
       };
     };
+
+    # The picker gets every theme with its title, palette and a thumbnail.
+    testPickerEntries =
+      let
+        entries = (builtins.fromJSON shellColorsText).themes;
+        mono = lib.findFirst (e: e.name == "mono-mesh") null entries;
+      in
+      {
+        expr = {
+          count = builtins.length entries;
+          mono = removeAttrs mono [ "thumbnail" ];
+          thumbnailIsStorePath = lib.hasPrefix builtins.storeDir mono.thumbnail;
+        };
+        expected = {
+          count = builtins.length (builtins.attrNames (builtins.readDir ../../home/theme/themes));
+          mono = {
+            name = "mono-mesh";
+            title = monoTheme.displayName;
+            inherit (monoTheme.colors)
+              bg
+              surface
+              accent
+              text
+              ;
+          };
+          thumbnailIsStorePath = true;
+        };
+      };
 
     testHyprlandLuaColors = {
       expr = lib.all (line: lib.hasInfix line files."themes/mono-mesh/hypr-colors.lua".text) [

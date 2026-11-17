@@ -57,6 +57,14 @@ Item {
             }
         }
         if (kind !== "mullvad") {
+            // In the theme grid, h and l move across and j and k a whole row.
+            if (kind === "theme" && (Ui.detailCursor === "" || Ui.detailCursor.startsWith("theme "))) {
+                const across = letter === "h" || event.key === Qt.Key_Left ? -1 : letter === "l" || event.key === Qt.Key_Right ? 1 : 0;
+                if (across || step) {
+                    moveCursor(across || step * themeGrid.columns);
+                    return true;
+                }
+            }
             if (step) {
                 moveCursor(step);
                 return true;
@@ -368,16 +376,25 @@ Item {
         FailRow { Layout.fillWidth: true; writeKey: "device-source" }
 
         // Theme
-        Repeater {
-            model: root.kind === "theme" ? Theme.themes : []
-            DetailRow {
-                required property var modelData
-                Layout.fillWidth: true
-                name: modelData
-                title: modelData.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
-                selected: modelData === Theme.name
-                busy: Sys.pendingFor("theme", modelData)
-                onClicked: Sys.setTheme(modelData)
+        GridLayout {
+            id: themeGrid
+            visible: root.kind === "theme"
+            Layout.fillWidth: true
+            Layout.topMargin: 2
+            columns: 3
+            columnSpacing: 0
+            rowSpacing: 0
+            Repeater {
+                model: root.kind === "theme" ? Theme.themes : []
+                ThemeTile {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    entry: modelData
+                    selected: modelData.name === Theme.name
+                    busy: Sys.pendingFor("theme", modelData.name)
+                    onClicked: Sys.setTheme(modelData.name)
+                }
             }
         }
         FailRow { Layout.fillWidth: true; writeKey: "theme" }

@@ -127,8 +127,9 @@ WIFI_TOGGLE, WIFI_LABEL = (1603, 73), (1660, 73)
 FOCUS_TOGGLE = (1603, 283)
 AWAKE, NIGHT, THEME = (1784, 213), (1874, 213), (1777, 283)
 SOUND_GO = (1889, 343)
-# The App icons rows under the eight themes in the Theme detail, and the dock's only app.
-ICONS_COLOUR, ICONS_MONO = (1740, 392), (1740, 426)
+# The App icons rows under the three rows of theme tiles (eight themes) in the Theme
+# detail, and the dock's only app.
+ICONS_COLOUR, ICONS_MONO = (1740, 371), (1740, 405)
 DOCK_FIRST = (960, 1040)
 # The first button of an agent request banner (Take control).
 AGENT_TAKE = (1693, 123)

@@ -45,6 +45,22 @@ Singleton {
     // it also calls this. The watcher just covers edits made by hand.
     function reload() { colors.reload(); }
 
+    // One picker tile. A plain name (an older colours file) still gets a tile, drawn
+    // from this theme's colours with no picture.
+    function pickerEntry(entry) {
+        const t = typeof entry === "string" ? { name: entry } : entry;
+        const hex = (v, fallback) => v ? "#" + v : fallback;
+        return {
+            name: t.name,
+            title: t.title || t.name.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
+            bg: hex(t.bg, root.bg),
+            surface: hex(t.surface, Qt.rgba(root.text.r, root.text.g, root.text.b, 0.12)),
+            accent: hex(t.accent, root.accent),
+            text: hex(t.text, root.text),
+            thumbnail: t.thumbnail ? "file://" + t.thumbnail : ""
+        };
+    }
+
     FileView {
         id: iconsFile
         property bool loaded: false
@@ -66,7 +82,7 @@ Singleton {
                 root.accent = "#" + c.accent;
                 root.text = "#" + c.text;
                 root.name = c.name || root.name;
-                root.themes = c.themes || root.themes;
+                root.themes = c.themes ? c.themes.map(root.pickerEntry) : root.themes;
             } catch (e) {
                 console.warn("quiet-shell: bad colours file", e);
             }
