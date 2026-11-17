@@ -103,12 +103,23 @@ in
     # Setting the conntrack mark also propagates to return traffic via Mullvad's
     # prerouting chain, so inbound tailscale0 packets are accepted by Mullvad's input
     # chain under the same ct mark 0x00000f41 rule.
+    #
+    # That covers only replies. A connection a peer opens to main (the phone's
+    # KDE Connect identity packet, an SSH login) arrives unmarked and Mullvad's
+    # input chain drops it, so the prerouting chain marks new tailscale0
+    # connections too. This only gets them past Mullvad: nixos-fw still admits
+    # just the ports in firewall.interfaces.tailscale0, and Tailscale's ACL
+    # still decides which peers may send at all.
     nftables.tables."tailscale-mullvad-compat" = {
       family = "inet";
       content = ''
         chain output {
           type filter hook output priority filter - 1;
           oifname "tailscale0" ct mark set 0x00000f41 meta mark set 0x6d6f6c65
+        }
+        chain prerouting {
+          type filter hook prerouting priority mangle - 1;
+          iifname "tailscale0" ct mark set 0x00000f41
         }
       '';
     };
