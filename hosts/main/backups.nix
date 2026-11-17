@@ -5,8 +5,6 @@
   ...
 }:
 let
-  inherit (config.lib.profiles.observability) mkPromScript;
-
   # network-online.target is a no-op here: main force-disables both
   # wait-online providers (see networking.nix), so it orders against nothing.
   # Probe the B2 backend directly with a bounded retry instead, so both restic
@@ -110,9 +108,6 @@ in
         "/var/lib/libvirt/qemu/ram"
         "/var/lib/libvirt/qemu/snapshot"
       ];
-      repositoryFile = config.sops.secrets.restic_repository.path;
-      passwordFile = config.sops.secrets.restic_password.path;
-      environmentFile = config.sops.secrets.b2_credentials.path;
     };
   };
 
@@ -123,14 +118,6 @@ in
         # and fails hard on the first DNS error. Inherits the module's
         # EnvironmentFile (B2 creds) and RESTIC_PASSWORD_FILE.
         ExecStartPre = lib.mkBefore [ (waitForRepo "restic-backups-local") ];
-        ExecStartPost = mkPromScript {
-          name = "restic_backup.prom";
-          lines = [
-            "# HELP restic_last_backup_timestamp_seconds Unix timestamp of last successful restic backup"
-            "# TYPE restic_last_backup_timestamp_seconds gauge"
-            "restic_last_backup_timestamp_seconds $(${pkgs.coreutils}/bin/date +%s)"
-          ];
-        };
       };
 
       btrbk-local-snapshot-dir = {
@@ -147,31 +134,8 @@ in
       restic-check-local = {
         description = "Restic workstation repository integrity check";
         # See waitForRepo above for why this probes B2 instead of relying on
-        # network-online.target.
-        environment.RESTIC_PASSWORD_FILE = config.sops.secrets.restic_password.path;
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStartPre = waitForRepo "restic-check-local";
-          ExecStart = "${pkgs.restic}/bin/restic check --repository-file=${config.sops.secrets.restic_repository.path} --read-data-subset=1G";
-          ExecStartPost = mkPromScript {
-            name = "restic_check.prom";
-            lines = [
-              "# HELP restic_last_check_timestamp_seconds Unix timestamp of last successful restic integrity check"
-              "# TYPE restic_last_check_timestamp_seconds gauge"
-              "restic_last_check_timestamp_seconds $(${pkgs.coreutils}/bin/date +%s)"
-            ];
-          };
-          EnvironmentFile = config.sops.secrets.b2_credentials.path;
-        };
-      };
-    };
-
-    timers.restic-check-local = {
-      wantedBy = [ "timers.target" ];
-      timerConfig = {
-        OnCalendar = "weekly";
-        RandomizedDelaySec = "2h";
-        Persistent = true;
+        # network-online.target. The rest comes from profiles/backup.nix.
+        serviceConfig.ExecStartPre = waitForRepo "restic-check-local";
       };
     };
   };

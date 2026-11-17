@@ -660,9 +660,6 @@ in
         group = "telemetry-ingest";
         mode = "0440";
       };
-      restic_password = { };
-      restic_repository = { };
-      b2_credentials = { };
       initrd_ssh_host_ed25519_key = { };
     };
   };

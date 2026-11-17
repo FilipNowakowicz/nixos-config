@@ -8,37 +8,12 @@ in
 {
   systemd = {
     services = {
-      # ExecStartPost only runs after every ExecStart command succeeds, so
-      # reaching this script already means the backup completed cleanly — stamp
-      # the freshness metric unconditionally. ($EXIT_STATUS is only exported to
-      # ExecStop/ExecStopPost, never to ExecStartPost, so it cannot gate here.)
-      restic-backups-b2.serviceConfig.ExecStartPost = mkPromScript {
-        name = "restic_backup.prom";
-        lines = [
-          "# HELP restic_last_backup_timestamp_seconds Unix timestamp of last successful restic backup"
-          "# TYPE restic_last_backup_timestamp_seconds gauge"
-          "restic_last_backup_timestamp_seconds $(${pkgs.coreutils}/bin/date +%s)"
-        ];
-      };
-
+      # The backup itself, its metric and the weekly check come from
+      # profiles/backup.nix.
       restic-check-b2 = {
         description = "Restic B2 repository integrity check";
         after = [ "network-online.target" ];
         wants = [ "network-online.target" ];
-        environment.RESTIC_PASSWORD_FILE = config.sops.secrets.restic_password.path;
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = "${pkgs.restic}/bin/restic check --repository-file=${config.sops.secrets.restic_repository.path} --read-data-subset=1G";
-          ExecStartPost = mkPromScript {
-            name = "restic_check.prom";
-            lines = [
-              "# HELP restic_last_check_timestamp_seconds Unix timestamp of last successful restic integrity check"
-              "# TYPE restic_last_check_timestamp_seconds gauge"
-              "restic_last_check_timestamp_seconds $(${pkgs.coreutils}/bin/date +%s)"
-            ];
-          };
-          EnvironmentFile = config.sops.secrets.b2_credentials.path;
-        };
       };
 
       restic-restore-canary-b2 = {
@@ -88,23 +63,12 @@ in
       };
     };
 
-    timers = {
-      restic-check-b2 = {
-        wantedBy = [ "timers.target" ];
-        timerConfig = {
-          OnCalendar = "weekly";
-          RandomizedDelaySec = "2h";
-          Persistent = true;
-        };
-      };
-
-      restic-restore-canary-b2 = {
-        wantedBy = [ "timers.target" ];
-        timerConfig = {
-          OnCalendar = "04:30";
-          Persistent = true;
-          RandomizedDelaySec = "30m";
-        };
+    timers.restic-restore-canary-b2 = {
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "04:30";
+        Persistent = true;
+        RandomizedDelaySec = "30m";
       };
     };
 
@@ -143,8 +107,5 @@ in
       # rules, client policy) — see restore-adguard.md.
       "/var/lib/restic-staging/adguardhome/data/querylog.json"
     ];
-    repositoryFile = config.sops.secrets.restic_repository.path;
-    passwordFile = config.sops.secrets.restic_password.path;
-    environmentFile = config.sops.secrets.b2_credentials.path;
   };
 }
