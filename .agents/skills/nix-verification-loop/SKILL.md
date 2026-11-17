@@ -17,6 +17,7 @@ packages, deploy wiring, secrets boundaries, or generated data in this repo.
    - Package outputs: run `bash scripts/validate.sh package <name>` or `package all`.
    - Profile behavior: run `bash scripts/validate.sh profile-test <name>`.
    - Homeserver routing: run `bash scripts/validate.sh smoke-homeserver-gcp` when endpoint behavior changes.
+   - Quiet shell or desktop session: run `bash scripts/validate.sh smoke-quiet-shell` (KVM).
    - Markdown-only repo docs: run `bash scripts/validate.sh docs`.
 2. If new files are created for a Nix flake check or build, stage them before
    expecting Nix to see them.

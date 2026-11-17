@@ -50,19 +50,10 @@ Home Manager, backup, and hardware identifiers.
 
 ## Validation Shortcuts
 
-| Command                                         | Purpose                                                |
-| ----------------------------------------------- | ------------------------------------------------------ |
-| `bash scripts/validate.sh flake-eval`           | Fast evaluation gate (`nix flake check --no-build`).   |
-| `bash scripts/validate.sh light`                | Deploy checks, invariants, sops bootstrap, lib tests.  |
-| `bash scripts/validate.sh hosts`                | Build every host system closure.                       |
-| `bash scripts/validate.sh host <name>`          | Build a single host closure.                           |
-| `bash scripts/validate.sh profile-tests`        | Build all profile-specific NixOS tests.                |
-| `bash scripts/validate.sh smoke-homeserver-gcp` | Booted smoke test for the homeserver routing surface.  |
-| `bash scripts/validate.sh package all`          | Build CI package outputs and installer ISO.            |
-| `bash scripts/validate.sh heavy`                | Full KVM-backed suite.                                 |
-| `bash scripts/validate.sh cve-reports`          | CVE scan reports for each host.                        |
-| `statix check .` / `deadnix .`                  | Nix lint.                                              |
-| `pre-commit run --all-files`                    | Full hook set (treefmt, shellcheck, statix, deadnix…). |
+`bash scripts/validate.sh --help` lists the commands (`flake-eval`, `light`,
+`host <name>`, `profile-tests`, `heavy`, …); the check and test lists behind
+them come from the flake. Nix lint is `statix check .` / `deadnix .`, and
+`pre-commit run --all-files` runs the full hook set.
 
 For repo changes, use the `nix-verification-loop` skill to choose the smallest
 meaningful validation command. Validate only what you changed: if `main`

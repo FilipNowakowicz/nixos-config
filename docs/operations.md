@@ -6,18 +6,17 @@ README high-level; put command-heavy procedures here.
 ## Canonical Sources
 
 - `README.md` - project overview, host inventory, feature map.
-- `CLAUDE.md` - agent/operator preferences and validation shortcuts.
+- `CLAUDE.md` - agent/operator preferences and deploy commands.
+- `bash scripts/validate.sh --help` - the validation commands.
 - `docs/architecture.md` - structural rules and module boundaries.
 - `docs/security.md` - secrets, network exposure, and hardening model.
 - `docs/restore-drill.md` - quarterly manual restore procedure for the B2 restic repository.
 
 ## Deployment Matrix
 
-| Target           | Status | Command                                  | Notes                                        |
-| :--------------- | :----- | :--------------------------------------- | :------------------------------------------- |
-| `main`           | Active | `nh os switch --hostname main .`         | Primary workstation.                         |
-| `homeserver-gcp` | Active | `deploy '.#homeserver-gcp'`              | GCP homeserver; see `scripts/deploy-gcp.sh`. |
-| `user@wsl`       | Active | `home-manager switch --flake .#user@wsl` | Portable Home Manager profile for WSL.       |
+The per-host deploy commands are in the [README](../README.md#deployment).
+Agents and other non-interactive sessions switch `main` with
+`sudo nixos-switch-main [--remote]` instead of `nh os switch`.
 
 ## main Workstation Operations
 
@@ -333,19 +332,9 @@ the environment, same as the drift check.
 
 ## Validation
 
-Use the narrowest check that covers the files changed.
-
-```bash
-bash scripts/validate.sh flake-eval
-bash scripts/validate.sh light
-bash scripts/validate.sh host main-ci
-bash scripts/validate.sh host homeserver-gcp
-bash scripts/validate.sh hosts
-bash scripts/validate.sh package all
-bash scripts/validate.sh profile-tests
-bash scripts/validate.sh heavy
-bash scripts/validate.sh cve-reports
-```
+Use the narrowest check that covers the files changed. `bash scripts/validate.sh
+--help` lists every command; the check and test lists behind `light`,
+`profile-tests` and `heavy` come from the flake itself.
 
 The CVE report workflow also runs weekly and on PRs that touch `flake.lock`.
 It scans the current flake-built `main` and `homeserver-gcp` closures and uploads
