@@ -6,46 +6,22 @@
 }:
 let
   cfg = config.profiles.impermanence.rollbackRoot;
+  # main is the only impermanent host and its disko layout fixes these names.
+  # They were options once; no host ever set them.
+  device = "/dev/mapper/cryptroot";
+  cryptsetupUnit = "systemd-cryptsetup@cryptroot.service";
+  rootSubvol = "@root";
+  blankSubvol = "@root-blank";
   btrfsMount = "/btrfs_tmp";
-  rootPath = "${btrfsMount}/${cfg.rootSubvol}";
-  blankRootPath = "${btrfsMount}/${cfg.blankSubvol}";
-  oldRootsPath = "${btrfsMount}/${cfg.oldRootsSubvol}";
+  rootPath = "${btrfsMount}/${rootSubvol}";
+  blankRootPath = "${btrfsMount}/${blankSubvol}";
+  oldRootsPath = "${btrfsMount}/old_roots";
 in
 {
   options.profiles.impermanence.rollbackRoot = {
     enable = lib.mkEnableOption ''
       rolling the impermanent root subvolume back to a blank snapshot during initrd boot
     '';
-
-    device = lib.mkOption {
-      type = lib.types.str;
-      default = "/dev/mapper/cryptroot";
-      description = "Block device that contains the btrfs root subvolumes.";
-    };
-
-    cryptsetupUnit = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = "systemd-cryptsetup@cryptroot.service";
-      description = "Initrd cryptsetup unit the rollback service should wait for, or null for an unencrypted device.";
-    };
-
-    rootSubvol = lib.mkOption {
-      type = lib.types.str;
-      default = "@root";
-      description = "Mutable root btrfs subvolume replaced during rollback.";
-    };
-
-    blankSubvol = lib.mkOption {
-      type = lib.types.str;
-      default = "@root-blank";
-      description = "Blank btrfs subvolume used as the rollback source.";
-    };
-
-    oldRootsSubvol = lib.mkOption {
-      type = lib.types.str;
-      default = "old_roots";
-      description = "Btrfs directory, relative to the top-level subvolume, where previous roots are retained.";
-    };
   };
 
   config = lib.mkMerge [
@@ -76,9 +52,9 @@ in
       ];
 
       boot.initrd.systemd.services.rollback-root = {
-        description = "Roll ${cfg.rootSubvol} back to the empty ${cfg.blankSubvol} btrfs snapshot";
+        description = "Roll ${rootSubvol} back to the empty ${blankSubvol} btrfs snapshot";
         wantedBy = [ "initrd.target" ];
-        after = lib.optional (cfg.cryptsetupUnit != null) cfg.cryptsetupUnit;
+        after = [ cryptsetupUnit ];
         before = [ "sysroot.mount" ];
         unitConfig.DefaultDependencies = false;
         serviceConfig.Type = "oneshot";
@@ -86,7 +62,7 @@ in
           set -euo pipefail
 
           mkdir -p ${btrfsMount}
-          mount -t btrfs -o subvol=/ ${cfg.device} ${btrfsMount}
+          mount -t btrfs -o subvol=/ ${device} ${btrfsMount}
 
           if [ -e ${rootPath} ]; then
             timestamp=$(date --date="@$(stat -c %Y ${rootPath})" "+%Y-%m-%d_%H:%M:%S")

@@ -9,6 +9,8 @@
 { config, lib, ... }:
 let
   cfg = config.profiles.runtimeTimezone;
+  # Where the chosen zone's name is kept; persisted on main.
+  stateFile = "/var/lib/runtime-timezone/zone";
   zoneinfo = "/etc/zoneinfo";
 in
 {
@@ -18,11 +20,6 @@ in
       type = lib.types.str;
       example = "Europe/London";
       description = "Zone used until one is chosen, or if the saved one no longer exists.";
-    };
-    stateFile = lib.mkOption {
-      type = lib.types.str;
-      default = "/var/lib/runtime-timezone/zone";
-      description = "Where the chosen zone's name is kept. Must be on persistent storage.";
     };
   };
 
@@ -46,7 +43,7 @@ in
         unitConfig.DefaultDependencies = false;
         serviceConfig.Type = "oneshot";
         script = ''
-          zone=$(cat ${lib.escapeShellArg cfg.stateFile} 2>/dev/null || true)
+          zone=$(cat ${lib.escapeShellArg stateFile} 2>/dev/null || true)
           if [ -z "$zone" ] || [ ! -f "${zoneinfo}/$zone" ]; then
             zone=${lib.escapeShellArg cfg.default}
           fi
@@ -68,10 +65,10 @@ in
           target=$(readlink /etc/localtime) || exit 0
           zone=''${target#*zoneinfo/}
           [ -f "${zoneinfo}/$zone" ] || exit 0
-          [ "$(cat ${lib.escapeShellArg cfg.stateFile} 2>/dev/null)" = "$zone" ] && exit 0
-          mkdir -p "$(dirname ${lib.escapeShellArg cfg.stateFile})"
-          printf '%s\n' "$zone" > ${lib.escapeShellArg cfg.stateFile}.new
-          mv ${lib.escapeShellArg cfg.stateFile}.new ${lib.escapeShellArg cfg.stateFile}
+          [ "$(cat ${lib.escapeShellArg stateFile} 2>/dev/null)" = "$zone" ] && exit 0
+          mkdir -p "$(dirname ${lib.escapeShellArg stateFile})"
+          printf '%s\n' "$zone" > ${lib.escapeShellArg stateFile}.new
+          mv ${lib.escapeShellArg stateFile}.new ${lib.escapeShellArg stateFile}
         '';
       };
     };
