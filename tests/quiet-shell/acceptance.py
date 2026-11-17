@@ -134,8 +134,8 @@ DOCK_FIRST = (960, 1040)
 AGENT_TAKE = (1693, 123)
 VOLUME_Y, BRIGHT_Y = 343, 393
 CC_ICON, BATTERY, CLOCK = (1778, 21), (1732, 21), (1850, 21)
-# The timer pill at the top centre, and the buttons of the card it grows into.
-TIMER_PILL, TIMER_SNOOZE, TIMER_STOP = (960, 21), (880, 82), (1040, 82)
+# The bar's timer countdown, and the buttons of the card a ringing timer shows.
+TIMER_CHIP, TIMER_RESTART, TIMER_STOP = (1610, 21), (880, 82), (1040, 82)
 tests = []
 
 
@@ -395,37 +395,80 @@ def ring_now():
     set_fake(timers=[], ringing=[dict(pending, at=int(time.time()))])
 
 
+def look_at_timers():
+    """Spotlight's timer list looks at systemd again, as the shell does when one is due."""
+    shell("spotlight")
+    wait(lambda: ui()["spotlight"], "spotlight")
+    typed("timers")
+    wait(lambda: ui()["query"] == "timers", "timer list")
+    key("Escape")
+    wait(lambda: not ui()["spotlight"], "spotlight to close")
+
+
 @test
-def timer_counts_down_then_rings_until_stopped():
+def timer_counts_down_in_the_bar_then_rings_until_stopped():
     shell("spotlight")
     wait(lambda: ui()["spotlight"], "spotlight")
     typed("timer 10m tea")
     key("Return")
     wait(lambda: [t["name"] for t in fake()["timers"]] == ["Timer: tea"], "timer to start")
-    wait(lambda: ui()["timers"] == ["tea"], "pill to show the timer")
-    assert not ui()["top"], "the countdown shows without the bar"
-    shot("timer-pill")
-    ring_now()
-    # The pill opens Spotlight's timer list, which looks again and finds it ringing.
-    click(*TIMER_PILL)
-    wait(lambda: ui()["spotlight"] and ui()["query"] == "timers", "timer list")
-    wait(lambda: ui()["ringing"] == ["tea"], "ring")
+    wait(lambda: ui()["timers"] == ["tea"], "the shell to know the timer")
+    # The countdown is part of the bar, so it hides with it.
+    shot("timer-hidden")
+    move(1700, 0)
+    wait(lambda: ui()["top"], "bar")
+    move(1700, 21)
+    time.sleep(0.3)
+    shot("timer-in-bar")
+    click(*TIMER_CHIP)
+    wait(lambda: ui()["spotlight"] and ui()["query"] == "timers", "the chip opens the timer list")
     key("Escape")
     wait(lambda: not ui()["spotlight"], "spotlight to close")
+    ring_now()
+    look_at_timers()
+    wait(lambda: ui()["ringing"] == ["tea"], "ring")
     time.sleep(0.4)
     shot("timer-ringing")
-    click(*TIMER_SNOOZE)
-    wait(lambda: not fake()["ringing"] and [t["name"] for t in fake()["timers"]] == ["Timer: tea"], "snooze")
-    assert abs(fake()["timers"][0]["at"] - time.time() - 300) < 10, fake()["timers"]
-    wait(lambda: ui()["ringing"] == [] and ui()["timers"] == ["tea"], "card to give way to the pill")
+    # Restart runs it again for its own ten minutes.
+    click(*TIMER_RESTART)
+    wait(lambda: not fake()["ringing"] and [t["name"] for t in fake()["timers"]] == ["Timer: tea"], "restart")
+    assert abs(fake()["timers"][0]["at"] - time.time() - 600) < 10, fake()["timers"]
+    wait(lambda: ui()["ringing"] == [] and ui()["timers"] == ["tea"], "card to go")
     ring_now()
-    click(*TIMER_PILL)
+    look_at_timers()
     wait(lambda: ui()["ringing"] == ["tea"], "second ring")
-    key("Escape")
-    wait(lambda: not ui()["spotlight"], "spotlight to close")
     click(*TIMER_STOP)
     wait(lambda: not fake()["ringing"] and not fake()["timers"], "stop")
     wait(lambda: ui()["ringing"] == [] and ui()["timers"] == [], "card to go")
+
+
+@test
+def ringing_timer_answers_its_shortcuts():
+    set_fake(ringing=[{"unit": "quiet-timer-1-300-1", "name": "Timer: eggs", "at": int(time.time())}])
+    look_at_timers()
+    wait(lambda: ui()["ringing"] == ["eggs"], "ring")
+    shell("timerRestart")
+    wait(lambda: not fake()["ringing"] and abs(fake()["timers"][0]["at"] - time.time() - 300) < 10, "restart for five minutes")
+    set_fake(timers=[], ringing=[{"unit": "quiet-timer-2-0-2", "name": "Alarm: lecture", "at": int(time.time())}])
+    look_at_timers()
+    wait(lambda: ui()["ringing"] == ["lecture"], "alarm")
+    shot("alarm-ringing")
+    shell("timerStop")
+    wait(lambda: not fake()["ringing"] and not fake()["timers"], "stop")
+
+
+@test
+def alarm_shows_its_time_in_the_bar():
+    shell("spotlight")
+    wait(lambda: ui()["spotlight"], "spotlight")
+    typed("alarm 7:30 lecture")
+    key("Return")
+    wait(lambda: [t["name"] for t in fake()["timers"]] == ["Alarm: lecture"], "alarm to be set")
+    move(1700, 0)
+    wait(lambda: ui()["top"], "bar")
+    move(1700, 21)
+    time.sleep(0.3)
+    shot("alarm-in-bar")
 
 
 @test

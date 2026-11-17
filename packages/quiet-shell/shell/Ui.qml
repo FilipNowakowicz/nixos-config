@@ -68,6 +68,8 @@ Singleton {
             ["SUPER + W", "Keep the bar open"],
             ["SUPER + slash", "Shortcuts"],
             ["SUPER + SHIFT + n", "Notes"],
+            ["SUPER + x", "Stop a ringing timer"],
+            ["SUPER + r", "Restart timer, snooze alarm"],
             ["Capture"],
             ["SUPER + SHIFT + s", "Screenshot or copy text"],
             ["System"],

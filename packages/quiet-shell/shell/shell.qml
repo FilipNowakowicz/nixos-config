@@ -26,6 +26,8 @@ ShellRoot {
     GlobalShortcut { appid: "quiet-shell"; name: "screenshot"; onPressed: Ui.toggleScreenshot() }
     GlobalShortcut { appid: "quiet-shell"; name: "shortcuts"; onPressed: Ui.toggleCheatSheet() }
     GlobalShortcut { appid: "quiet-shell"; name: "clipboard"; onPressed: Ui.openClipboard() }
+    GlobalShortcut { appid: "quiet-shell"; name: "timerStop"; onPressed: Sys.stopFirstRing() }
+    GlobalShortcut { appid: "quiet-shell"; name: "timerRestart"; onPressed: Sys.restartFirstRing() }
     GlobalShortcut { appid: "quiet-shell"; name: "brightnessUp"; onPressed: Sys.nudgeBrightness(5) }
     GlobalShortcut { appid: "quiet-shell"; name: "brightnessDown"; onPressed: Sys.nudgeBrightness(-5) }
     GlobalShortcut { appid: "quiet-shell"; name: "volumeUp"; onPressed: Sys.nudgeVolume(5) }
@@ -60,6 +62,8 @@ ShellRoot {
         function switcher(step: int): void { Ui.stepSwitcher(step); }
         function switcherDone(): void { Ui.commitSwitcher(); }
         function clipboard(): void { Ui.openClipboard(); }
+        function timerStop(): void { Sys.stopFirstRing(); }
+        function timerRestart(): void { Sys.restartFirstRing(); }
         function screenshot(): void { Ui.toggleScreenshot(); }
         function shortcuts(): void { Ui.toggleCheatSheet(); }
         function pin(): void { Ui.pinned = !Ui.pinned; }

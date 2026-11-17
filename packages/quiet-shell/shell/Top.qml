@@ -17,6 +17,16 @@ Item {
     readonly property alias rightCapsule: right
     readonly property bool hovered: leftHover.hovered || rightHover.hovered
 
+    // Ticks only while a countdown is on screen.
+    property real now: Date.now()
+    Timer {
+        running: Ui.topShown && Sys.nextTimer !== null
+        repeat: true
+        interval: 1000
+        triggeredOnStart: true
+        onTriggered: root.now = Date.now()
+    }
+
     property var hoveredDesk: null
     property real hoveredX: 0
     function showMenu(item) {
@@ -173,6 +183,38 @@ Item {
                             layer.enabled: trayItem.grey > 0
                             layer.effect: MultiEffect { saturation: -trayItem.grey }
                         }
+                    }
+                }
+                // The next timer counts down; an alarm shows the time it is set for.
+                // Either opens Spotlight's list of them.
+                Press {
+                    visible: Sys.nextTimer !== null
+                    name: "Timers"
+                    width: timerRow.implicitWidth + 8
+                    height: 18
+                    radius: 9
+                    onClicked: Ui.openSpotlight("timers")
+                    Row {
+                        id: timerRow
+                        anchors.centerIn: parent
+                        spacing: 4
+                        Icon { anchors.verticalCenter: parent.verticalCenter; name: "timer"; size: 14 }
+                        Label { anchors.verticalCenter: parent.verticalCenter; text: Sys.nextTimer ? Sys.countdown(Sys.nextTimer.at, root.now) : ""; font.features: { "tnum": 1 } }
+                    }
+                }
+                Press {
+                    visible: Sys.nextAlarm !== null
+                    name: "Alarms"
+                    width: alarmRow.implicitWidth + 8
+                    height: 18
+                    radius: 9
+                    onClicked: Ui.openSpotlight("alarms")
+                    Row {
+                        id: alarmRow
+                        anchors.centerIn: parent
+                        spacing: 4
+                        Icon { anchors.verticalCenter: parent.verticalCenter; name: "alarm-clock"; size: 14 }
+                        Label { anchors.verticalCenter: parent.verticalCenter; text: Sys.nextAlarm ? Qt.formatTime(new Date(Sys.nextAlarm.at), "HH:mm") : ""; font.features: { "tnum": 1 } }
                     }
                 }
                 Icon { visible: Sys.focusMode; name: "bell-off"; size: 15 }
