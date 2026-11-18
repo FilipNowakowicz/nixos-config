@@ -89,6 +89,19 @@ let
   activeTheme = validThemes.${cfg.active} or (lib.head (lib.attrValues validThemes));
   runtimeStateFile = "${config.xdg.stateHome}/theme/active";
 
+  # Shows the linked wallpaper through the running awww daemon, waiting up to
+  # five seconds for it to answer. $1 is the transition: "fade" for a theme
+  # switch, "none" when the unit starts.
+  wallpaperFile = "${config.home.homeDirectory}/.local/share/wallpapers/current.png";
+  wallpaperShow = pkgs.writeShellScript "wallpaper-show" ''
+    for ((i = 0; i < 50; i++)); do
+      ${pkgs.awww}/bin/awww query >/dev/null 2>&1 && break
+      ${pkgs.coreutils}/bin/sleep 0.1
+    done
+    exec ${pkgs.awww}/bin/awww img --transition-type "''${1:-fade}" \
+      --transition-duration 0.8 --transition-fps 60 ${lib.escapeShellArg wallpaperFile}
+  '';
+
   # The runtime switcher. Lives with the module so the public homeModule ships
   # both halves of the system; the build-time generation above and this script
   # consume the same generated assets. Paths it needs are injected here rather
@@ -112,6 +125,7 @@ let
     text = ''
       ACTIVE_FILE=${lib.escapeShellArg cfg.activeFile}
       STATE_FILE=${lib.escapeShellArg runtimeStateFile}
+      WALLPAPER_SHOW=${wallpaperShow}
     ''
     + builtins.readFile ../files/scripts/theme-switch.sh;
   };
@@ -139,7 +153,7 @@ let
     }
     {
       source = "wallpaper";
-      target = "${config.home.homeDirectory}/.local/share/wallpapers/current.png";
+      target = wallpaperFile;
     }
     {
       source = "nvim-palette.lua";
@@ -602,22 +616,25 @@ in
     };
 
     # The wallpaper is a unit of its own so it outlives whatever started it: a
-    # theme switch from the shell used to leave swaybg inside the shell's unit,
-    # and a shell restart took the wallpaper with it. theme-switch restarts this
-    # unit; swaybg reads the image only at start.
+    # theme switch from the shell used to leave the wallpaper process inside the
+    # shell's unit, and a shell restart took the wallpaper with it. awww's daemon
+    # stays up across switches; theme-switch asks it to fade to the new image
+    # (wallpaperFade), and restarts the unit only if the daemon is gone.
     systemd.user.services.wallpaper = {
       Unit = {
         Description = "Desktop wallpaper";
         PartOf = [ "graphical-session.target" ];
-        # Every theme switch restarts it, and clicking through themes restarts it
-        # faster than the default limit of five starts in ten seconds, which left
-        # no wallpaper until the next switch.
+        # A fallback restart per switch can outpace the default limit of five
+        # starts in ten seconds, which left no wallpaper until the next switch.
         StartLimitIntervalSec = 0;
         After = [ "graphical-session.target" ];
       };
       Service = {
-        ExecStart = "${pkgs.swaybg}/bin/swaybg -m fill -i ${config.home.homeDirectory}/.local/share/wallpapers/current.png";
-        # A severed Wayland connection can end swaybg cleanly; come back anyway.
+        # No cache: the image always comes from the theme's link, not from
+        # whatever the daemon showed last time.
+        ExecStart = "${pkgs.awww}/bin/awww-daemon --no-cache";
+        ExecStartPost = "${wallpaperShow} none";
+        # A severed Wayland connection can end the daemon cleanly; come back anyway.
         Restart = "always";
         RestartSec = 2;
       };
