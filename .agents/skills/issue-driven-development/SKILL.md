@@ -78,6 +78,16 @@ If the source item is still vague, use `issue-tdd` first.
    - For dependent follow-up work, prefer a stacked branch/PR over waiting for
      each intermediate PR to finish long checks.
 10. Merge only when the requested gate is satisfied.
+    - Never merge a PR whose `baseRefName` is not `main`; it lands in the
+      feature branch, not `main`.
+    - Land a stack of squash-merged PRs bottom-up. Before merging a PR,
+      retarget the PR stacked on it (`gh pr edit <next> --base main`):
+      `--delete-branch` closes, rather than retargets, PRs based on the
+      deleted branch. After the squash, run
+      `git rebase --onto origin/main <old-tip-of-merged-branch> <next-branch>`
+      and `git push --force-with-lease`; do not merge `main` into the stack
+      branch, which conflicts on every shared hunk. Wait for `merge-gate`,
+      then repeat.
 11. Cleanup merged worktrees/branches only after verifying the merge.
 12. Capture a learning candidate only for reusable, evidence-backed lessons.
 

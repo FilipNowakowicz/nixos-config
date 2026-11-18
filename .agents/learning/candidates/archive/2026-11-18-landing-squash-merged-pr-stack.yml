@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-11-18-landing-squash-merged-pr-stack
 date: 2026-11-18
 expires: 2027-05-18
-status: open
+status: promoted
 route: promote-skill
 best_form: skill
 evidence: [pr-#550 closed by GitHub when its base branch was deleted by `gh pr merge 549 --squash --delete-branch`, pr-#549 merged into its base branch theme-picker-swatches instead of main by a merge loop that did not check baseRefName, pr-#548 DIRTY after #546/#547 squash (resolved with --ours; tree identical to #549 tip), prs-#551/#552 landed cleanly via retarget-then-`git rebase --onto origin/main <old-base-tip>`]
