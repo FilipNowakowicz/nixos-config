@@ -12,6 +12,7 @@ Singleton {
     property string detailCursor: ""     // Which row or slider j and k are on.
     property bool spotlight: false
     property bool overview: false
+    property bool board: false           // the agent board
     property bool topRevealed: false
     property bool dockRevealed: false
     property bool pinned: false
@@ -64,6 +65,7 @@ Singleton {
             ["SUPER + c", "Control centre"],
             ["SUPER + n", "Notifications"],
             ["SUPER + o", "Overview"],
+            ["SUPER + a", "Agent board"],
             ["SUPER + V", "Clipboard history"],
             ["SUPER + W", "Keep the bar open"],
             ["SUPER + slash", "Shortcuts"],
@@ -103,7 +105,7 @@ Singleton {
     // The bar's app icons, unfolded; they fold again when the bar hides.
     property bool trayOpen: false
     onTopShownChanged: if (!topShown) trayOpen = false
-    readonly property bool blocking: panel !== "" || spotlight || overview || confirm !== null || switcher || screenshot || cheatSheet || auth !== null
+    readonly property bool blocking: panel !== "" || spotlight || overview || board || confirm !== null || switcher || screenshot || cheatSheet || auth !== null
 
     // A focused field can disappear, which would leave the keyboard with nowhere to go.
     signal refocus
@@ -185,7 +187,7 @@ Singleton {
     // Back to what was showing before the picker, or to nothing.
     function cancelScreenshot() {
         screenshot = false;
-        if (panel === "" && !overview && !cheatSheet)
+        if (panel === "" && !overview && !board && !cheatSheet)
             topRevealed = false;
     }
     function toggleCheatSheet() {
@@ -205,11 +207,13 @@ Singleton {
         spotlight = false;
         clipboard = false;
         overview = false;
+        board = false;
         topRevealed = false;
     }
     function open(name) {
         spotlight = false;
         overview = false;
+        board = false;
         detail = "";
         panel = panel === name ? "" : name;
         if (panel === "")
@@ -236,6 +240,11 @@ Singleton {
         const want = !overview;
         close();
         overview = want;
+    }
+    function toggleBoard() {
+        const want = !board;
+        close();
+        board = want;
     }
     function back() {
         if (auth)

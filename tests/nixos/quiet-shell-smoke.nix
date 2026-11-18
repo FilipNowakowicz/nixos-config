@@ -38,6 +38,28 @@ let
     exec "$@"
   '';
   dbusPython = pkgs.python3.withPackages (ps: [ ps.dbus-next ]);
+  # One running Claude session, as its status line, Claude Code's registry and
+  # the attention hook would record it: waiting for permission, with limits
+  # spent fast enough to run out before they reset. A sleep stands in for Claude.
+  seedAgents = pkgs.writeShellScript "seed-agents" ''
+    set -eu
+    state=''${XDG_STATE_HOME:-$HOME/.local/state}/agent-usage
+    mkdir -p "$state/claude-sessions" "$state/claude-attention" "$HOME/.claude/sessions"
+    setsid sleep 600 </dev/null >/dev/null 2>&1 &
+    pid=$!
+    started=$(awk '{ print $22 }' "/proc/$pid/stat")
+    boot=$(cat /proc/sys/kernel/random/boot_id)
+    now=$(date +%s)
+    printf '{"at":%s,"rate_limits":{"five_hour":{"used_percentage":64,"resets_at":%s},"seven_day":{"used_percentage":88,"resets_at":%s}}}' \
+      "$now" $((now + 10800)) $((now + 200000)) >"$state/claude.json"
+    printf '{"at":%s,"five":20,"week":80}\n' $((now - 7200)) >"$state/claude-history.jsonl"
+    printf '{"id":"s-1","pid":%s,"started":"%s","boot":"%s","cwd":"/home/user/nix","project":"/home/user/nix","model":"Opus","context":31,"cost":2.5}' \
+      "$pid" "$started" "$boot" >"$state/claude-sessions/s-1.json"
+    printf '{"pid":%s,"procStart":"%s","status":"busy","name":"nix-12","startedAt":%s000}' \
+      "$pid" "$started" $((now - 3000)) >"$HOME/.claude/sessions/$pid.json"
+    printf '{"at":%s,"kind":"permission","message":"Claude needs your permission to use Bash"}' \
+      "$now" >"$state/claude-attention/s-1.json"
+  '';
   # Selects the whole screen, as a drag from corner to corner would.
   # Like the real one, it reads window boxes first when stdin isn't a terminal,
   # so a capture that leaves stdin open hangs here too.
@@ -288,6 +310,13 @@ in
           machine.sleep(timedelta(seconds=2))
           machine.succeed("pkill -u user -x foot")
           machine.wait_until_fails("su user -c '${inSession} hyprctl clients' | grep -q preview-source", timeout=timedelta(seconds=10))
+
+      with subtest("the agent board shows a session waiting on you"):
+          session("${seedAgents}")
+          session("quiet-shell-ipc board")
+          wait_for(lambda s: s["board"], "agent-board")
+          session("quiet-shell-ipc close")
+          retry(lambda _: not state()["board"], timeout=timedelta(seconds=10))
 
       with subtest("the calendar moves with Vim keys"):
           def screen_text():

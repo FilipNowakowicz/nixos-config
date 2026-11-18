@@ -23,6 +23,7 @@ ShellRoot {
     GlobalShortcut { appid: "quiet-shell"; name: "spotlight"; onPressed: Ui.toggleSpotlight() }
     GlobalShortcut { appid: "quiet-shell"; name: "notifications"; onPressed: Ui.open("notifications") }
     GlobalShortcut { appid: "quiet-shell"; name: "overview"; onPressed: Ui.toggleOverview() }
+    GlobalShortcut { appid: "quiet-shell"; name: "board"; onPressed: Ui.toggleBoard() }
     GlobalShortcut { appid: "quiet-shell"; name: "screenshot"; onPressed: Ui.toggleScreenshot() }
     GlobalShortcut { appid: "quiet-shell"; name: "shortcuts"; onPressed: Ui.toggleCheatSheet() }
     GlobalShortcut { appid: "quiet-shell"; name: "clipboard"; onPressed: Ui.openClipboard() }
@@ -50,6 +51,7 @@ ShellRoot {
         function notifications(): void { Ui.open("notifications"); }
         function spotlight(): void { Ui.toggleSpotlight(); }
         function overview(): void { Ui.toggleOverview(); }
+        function board(): void { Ui.toggleBoard(); }
         function volume(step: int): void { Sys.nudgeVolume(step); }
         function mute(): void { Sys.nudgeMute(); }
         function brightness(step: int): void { Sys.nudgeBrightness(step); }
@@ -71,7 +73,7 @@ ShellRoot {
         function testAuth(): void { testAuth.active = true; }
         function reloadTheme(): void { Theme.reload(); }
         function state(): string {
-            return JSON.stringify({ panel: Ui.panel, detail: Ui.detail, cursor: Ui.detailCursor, spotlight: Ui.spotlight, overview: Ui.overview, top: Ui.topShown, dock: Ui.dockRevealed, writes: Object.keys(Sys.writes), clipboard: Ui.clipboard, results: Ui.spotlightResults, query: Ui.spotlightQuery, place: Sys.place, clock: Sys.clock("HH:mm"), joining: Sys.joining, auth: Ui.auth ? Ui.auth.message : "", authFailed: !!Ui.auth && Ui.auth.failed, failed: Sys.failedCount, theme: Theme.name, monoIcons: Theme.monoIcons, notices: Notify.items.length, banner: !!Notify.banner, focus: Sys.focusMode, deskHud: Ui.deskHud, screenshot: Ui.screenshot, cheatSheet: Ui.cheatSheet, shortcuts: Ui.shortcuts.reduce((all, column) => all.concat(column), []).filter(r => r.length > 1).map(r => r[0]), weather: Sys.weather, agenda: Sys.agenda, confirm: Ui.confirm ? Ui.confirm.action : "", hud: Ui.hud, media: Sys.media, touchpadOn: Sys.touchpadOn, switcher: Ui.switcher ? Ui.switcherIndex : -1, active: Hyprland.activeToplevel ? Hyprland.activeToplevel.title : "", recent: Dockable.recentWindows.map(t => t.address), apps: Dockable.apps.map(a => ({ name: a.name, windows: a.windows.length, hidden: a.windows.filter(Dockable.isHidden).length })), tray: SystemTray.items.values.map(i => i.id), trayOpen: Ui.trayOpen, screen: Ui.focusedScreen, sys: Sys.state, countries: Sys.countries.map(c => c.code), streams: Sys.appStreams.map(Sys.streamName), agentRequests: Agents.requests, timers: Sys.timers.map(t => t.label), ringing: Sys.ringing.map(t => t.label) });
+            return JSON.stringify({ panel: Ui.panel, detail: Ui.detail, cursor: Ui.detailCursor, spotlight: Ui.spotlight, overview: Ui.overview, board: Ui.board, top: Ui.topShown, dock: Ui.dockRevealed, writes: Object.keys(Sys.writes), clipboard: Ui.clipboard, results: Ui.spotlightResults, query: Ui.spotlightQuery, place: Sys.place, clock: Sys.clock("HH:mm"), joining: Sys.joining, auth: Ui.auth ? Ui.auth.message : "", authFailed: !!Ui.auth && Ui.auth.failed, failed: Sys.failedCount, theme: Theme.name, monoIcons: Theme.monoIcons, notices: Notify.items.length, banner: !!Notify.banner, focus: Sys.focusMode, deskHud: Ui.deskHud, screenshot: Ui.screenshot, cheatSheet: Ui.cheatSheet, shortcuts: Ui.shortcuts.reduce((all, column) => all.concat(column), []).filter(r => r.length > 1).map(r => r[0]), weather: Sys.weather, agenda: Sys.agenda, confirm: Ui.confirm ? Ui.confirm.action : "", hud: Ui.hud, media: Sys.media, touchpadOn: Sys.touchpadOn, switcher: Ui.switcher ? Ui.switcherIndex : -1, active: Hyprland.activeToplevel ? Hyprland.activeToplevel.title : "", recent: Dockable.recentWindows.map(t => t.address), apps: Dockable.apps.map(a => ({ name: a.name, windows: a.windows.length, hidden: a.windows.filter(Dockable.isHidden).length })), tray: SystemTray.items.values.map(i => i.id), trayOpen: Ui.trayOpen, screen: Ui.focusedScreen, sys: Sys.state, countries: Sys.countries.map(c => c.code), streams: Sys.appStreams.map(Sys.streamName), agentRequests: Agents.requests, timers: Sys.timers.map(t => t.label), ringing: Sys.ringing.map(t => t.label) });
         }
     }
 

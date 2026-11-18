@@ -25,7 +25,7 @@ UserPromptSubmit | PostToolUse | SessionEnd)
   rm -f "$file"
   exit 0
   ;;
-Stop) kind=done ;;
+Stop) kind="done" ;;
 Notification)
   case $(jq -r '.notification_type // empty' <<<"$input" 2>/dev/null) in
   permission_prompt) kind=permission ;;
