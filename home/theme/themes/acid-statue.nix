@@ -5,13 +5,8 @@
   displayName = "Acid Statue";
   enabled = true;
 
-  # Neovim colorscheme. gruvbox-material is the only loaded scheme; per-theme we
-  # drive vim.o.background and the gruvbox contrast variant from here.
-  colorscheme = {
-    name = "gruvbox-material";
-    background = "dark";
-    contrast = "medium";
-  };
+  # Dark or light: GTK, Firefox and Neovim follow it.
+  appearance = "dark";
 
   colors = {
     bg = "1e2330"; # dark blue-grey background

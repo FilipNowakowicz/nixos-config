@@ -2,10 +2,8 @@
 # module must reject it by name instead of failing inside a template.
 {
   name = "stale";
-  colorscheme = {
-    name = "gruvbox-material";
-    background = "dark";
-  };
+  # Dark or light: GTK, Firefox and Neovim follow it.
+  appearance = "dark";
   colors = {
     bg = "000000";
     brown = "111111";

@@ -122,5 +122,8 @@ ps -eo pid=,comm= |
   awk '$2 == ".kitty-wrapped" || $2 == "kitty" { print $1 }' |
   xargs -r kill -USR1 2>/dev/null || true
 
+# Neovim repaints from the relinked palette on SIGUSR1 (nvim/lua/config/theme.lua).
+pkill -USR1 -u "$(id -u)" -x nvim 2>/dev/null || true
+
 notify-send "Theme changed" "Switched to: $THEME" || true
 echo "✓ Theme switched to $THEME"
