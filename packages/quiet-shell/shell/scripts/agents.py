@@ -15,6 +15,8 @@ import json
 import os
 import pathlib
 import re
+import stat
+import subprocess
 import sys
 import time
 
@@ -91,6 +93,55 @@ def running(record, boot):
     )
 
 
+def ancestors(pid):
+    """A process and every parent above it, nearest first."""
+    chain = []
+    while isinstance(pid, int) and pid > 1 and pid not in chain:
+        chain.append(pid)
+        try:
+            pid = int(pathlib.Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[1])
+        except (OSError, IndexError, ValueError):
+            break
+    return chain
+
+
+def kitty_windows(runtime):
+    """Every kitty window, from the socket each kitty listens on (see
+    home/files/kitty/kitty.conf): its socket, its id, and the processes in it."""
+    windows = []
+    for sock in sorted(runtime.glob("kitty-*")):
+        try:
+            if not stat.S_ISSOCK(sock.stat().st_mode):
+                continue
+            out = subprocess.run(["kitty", "@", "--to", f"unix:{sock}", "ls"],
+                                 capture_output=True, text=True, timeout=2)
+            listing = json.loads(out.stdout) if out.returncode == 0 else []
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            continue
+        kitty_pid = sock.name.rsplit("-", 1)[-1]
+        for os_window in listing:
+            for tab in os_window.get("tabs") or []:
+                for w in tab.get("windows") or []:
+                    pids = {w.get("pid")} | {f.get("pid") for f in w.get("foreground_processes") or []}
+                    windows.append({
+                        # One kitty process can own many desktop windows; the
+                        # title tells the shell which of them to bring forward.
+                        "terminal": {"socket": str(sock), "window": w.get("id"),
+                                     "kitty": int(kitty_pid) if kitty_pid.isdigit() else None,
+                                     "title": w.get("title") or ""},
+                        "pids": {p for p in pids if isinstance(p, int)},
+                    })
+    return windows
+
+
+def place(sessions, runtime):
+    """Name the kitty window each session runs in, so the shell can type into it."""
+    windows = kitty_windows(runtime) if any(s.get("pid") for s in sessions) else []
+    for s in sessions:
+        chain = ancestors(s.pop("pid", None))
+        s["terminal"] = next((w["terminal"] for w in windows if w["pids"] & set(chain)), None)
+
+
 def state(now, at):
     return "working" if now - at < WORKING else "idle"
 
@@ -141,6 +192,7 @@ def claude(base, sessions_dir, now):
             "at": int(at),
             "state": {"busy": "working", "idle": "idle"}.get(known.get("status")) or state(now, at),
             "name": known.get("name") or "",
+            "pid": s["pid"],
         })
     return {
         "five_hour": window(five.get("used_percentage"), five.get("resets_at"), now),
@@ -270,12 +322,14 @@ def main():
     codex_home = pathlib.Path(os.environ.get("CODEX_HOME") or home / ".codex")
     claude_limits, claude_sessions = claude(state_home / "agent-usage", home / ".claude/sessions", now)
     codex_limits, codex_sessions = codex(codex_home / "sessions", codex_home / "auth.json", now)
-    sessions = sorted(claude_sessions + codex_sessions, key=lambda s: -s["at"])
+    sessions = sorted(claude_sessions + codex_sessions, key=lambda s: -s["at"])[:6]
+    runtime = pathlib.Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+    place(sessions, runtime)
     print(json.dumps({
         "now": int(now),
         "claude": claude_limits,
         "codex": codex_limits,
-        "sessions": sessions[:6],
+        "sessions": sessions,
     }))
 
 

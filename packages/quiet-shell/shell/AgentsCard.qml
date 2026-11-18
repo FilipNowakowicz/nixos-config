@@ -1,11 +1,14 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 
 // How much of each subscribed tool's usage limits is spent, when each comes back,
 // and how many of its sessions are working. A tool whose subscription has ended is
 // left out, even while its last limits are still on record. scripts/agents.py reads
 // what the tools leave behind; it is asked only while the card is on screen.
+// A tool's name unfolds its sessions, each of which can be jumped to or replied to.
 Item {
     id: root
     implicitHeight: body.implicitHeight + 24
@@ -15,6 +18,40 @@ Item {
 
     property var info: null
     property real now: Date.now() / 1000
+    // The tool whose sessions are unfolded, if any.
+    property string open: ""
+    // Reply lines open right now.
+    property int typing: 0
+
+    // The kitty window first (the right tab inside kitty), then the desktop window
+    // that kitty process owns, once the overview is out of the way.
+    function jump(session) {
+        const t = session.terminal;
+        if (!t)
+            return;
+        Quickshell.execDetached(["kitty", "@", "--to", "unix:" + t.socket, "focus-window", "--match", "id:" + t.window]);
+        // One kitty can own several desktop windows: the one showing this session's title.
+        const owned = Hyprland.toplevels.values.filter(x => x.lastIpcObject && x.lastIpcObject.pid === t.kitty);
+        const owner = owned.find(x => x.title === t.title) ?? owned[0];
+        Ui.close();
+        if (owner)
+            Dockable.revealAfterClose(owner);
+    }
+    // Sent through stdin, so kitty types the text exactly and reads no escapes in it.
+    // A bracketed paste keeps the agent from taking it for keystrokes, and the Enter
+    // after it submits.
+    function reply(session, text) {
+        const t = session.terminal;
+        if (!t)
+            return;
+        Quickshell.execDetached(["sh", "-c",
+            'printf %s "$3" | kitty @ --to "unix:$1" send-text --match "id:$2" --bracketed-paste auto --stdin'
+            + ' && sleep 0.1 && kitty @ --to "unix:$1" send-key --match "id:$2" enter',
+            "sh", t.socket, String(t.window), text]);
+        soon.restart();
+    }
+    // A reply usually sets a session working; show that without waiting the full interval.
+    Timer { id: soon; interval: 1500; onTriggered: if (!probe.running && root.typing === 0) probe.running = true }
 
     function has(tool) { return !!tool && tool.paid !== false && (tool.five_hour !== null || tool.week !== null); }
     function sessionsOf(tool) {
@@ -53,7 +90,8 @@ Item {
         running: true
         repeat: true
         triggeredOnStart: true
-        onTriggered: { root.now = Date.now() / 1000; if (!probe.running) probe.running = true; }
+        // New output rebuilds the session rows, which would wipe a reply being typed.
+        onTriggered: { root.now = Date.now() / 1000; if (!probe.running && root.typing === 0) probe.running = true; }
     }
 
     Glass { anchors.fill: parent; radius: 22 }
@@ -72,9 +110,32 @@ Item {
                 readonly property var limits: root.info[modelData[1]]
                 Layout.fillWidth: true
                 spacing: 5
+                readonly property var sessions: root.info.sessions.filter(s => s.tool === modelData[1])
+                readonly property bool unfolded: root.open === modelData[1] && sessions.length > 0
                 RowLayout {
                     Layout.fillWidth: true
-                    Label { Layout.fillWidth: true; text: tool.modelData[0]; font.pixelSize: 12; font.weight: Font.Medium }
+                    Press {
+                        Layout.fillWidth: true
+                        implicitHeight: 22
+                        radius: 8
+                        enabled: tool.sessions.length > 0
+                        name: (tool.unfolded ? "Fold " : "Unfold ") + tool.modelData[0] + " sessions"
+                        onClicked: root.open = tool.unfolded ? "" : tool.modelData[1]
+                        RowLayout {
+                            anchors.fill: parent
+                            spacing: 4
+                            Label { text: tool.modelData[0]; font.pixelSize: 12; font.weight: Font.Medium }
+                            Icon {
+                                visible: tool.sessions.length > 0
+                                name: "chevron-down"
+                                size: 12
+                                color: Theme.faint
+                                rotation: tool.unfolded ? 180 : 0
+                                Behavior on rotation { NumberAnimation { duration: Theme.motion } }
+                            }
+                            Item { Layout.fillWidth: true }
+                        }
+                    }
                     // Something working breathes, as the session rows did.
                     Rectangle {
                         readonly property bool working: root.sessionsOf(tool.modelData[1]).includes("working")
@@ -124,6 +185,18 @@ Item {
                             font.features: { "tnum": 1 }
                             color: limit.w.used >= 90 ? Theme.text : Theme.dim
                         }
+                    }
+                }
+                Repeater {
+                    model: tool.unfolded ? tool.sessions : []
+                    AgentSession {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        session: modelData
+                        onJump: root.jump(modelData)
+                        onReply: text => root.reply(modelData, text)
+                        onReplyingChanged: root.typing += replying ? 1 : -1
+                        Component.onDestruction: if (replying) root.typing -= 1
                     }
                 }
             }

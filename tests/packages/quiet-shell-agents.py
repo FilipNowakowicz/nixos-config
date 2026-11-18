@@ -5,6 +5,7 @@ import datetime
 import json
 import os
 import pathlib
+import socket
 import subprocess
 import sys
 import tempfile
@@ -14,7 +15,11 @@ NOW = 1_800_000_000
 
 
 def run(home):
-    env = {"HOME": str(home), "PATH": os.environ.get("PATH", "")}
+    # Its own runtime directory, so the real kitty windows here are never asked.
+    runtime = home / "runtime"
+    runtime.mkdir(exist_ok=True)
+    env = {"HOME": str(home), "XDG_RUNTIME_DIR": str(runtime),
+           "PATH": f"{home / 'bin'}:{os.environ.get('PATH', '')}"}
     out = subprocess.run([sys.executable, script, str(NOW)], env=env, capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
 
@@ -106,6 +111,38 @@ with tempfile.TemporaryDirectory() as tmp:
         ("a", "working", "nix", ""),
         ("b", "working", "notes", "notes-7"),
     ], got["sessions"]
+    # No kitty listening yet, so nothing to type into.
+    assert [s["terminal"] for s in got["sessions"]] == [None, None], got["sessions"]
+    assert all("pid" not in s for s in got["sessions"]), got["sessions"]
+
+    # A kitty whose window runs this test, so the sleeper it started is inside it.
+    # Another socket's kitty fails; a plain file named like a socket is not asked.
+    runtime = home / "runtime"
+    listening = socket.socket(socket.AF_UNIX)
+    listening.bind(str(runtime / "kitty-4242"))
+    broken = socket.socket(socket.AF_UNIX)
+    broken.bind(str(runtime / "kitty-5151"))
+    (runtime / "kitty-99").write_text("")
+    (home / "bin").mkdir()
+    fake = home / "bin/kitty"
+    fake.write_text(f"""#!{sys.executable}
+import json, sys
+to = sys.argv[sys.argv.index("--to") + 1]
+assert "kitty-99" not in to, to
+if to.endswith("kitty-5151"):
+    sys.exit(1)
+print(json.dumps([{{"tabs": [{{"windows": [
+    {{"id": 1, "pid": 1, "foreground_processes": []}},
+    {{"id": 7, "pid": {os.getppid()}, "title": "claude", "foreground_processes": [{{"pid": {os.getpid()}}}]}},
+]}}]}}]))
+""")
+    fake.chmod(0o755)
+    got = run(home)
+    # Session a's process is this test itself, b's is its child: both are in window 7.
+    assert [s["terminal"] for s in got["sessions"]] == [
+        {"socket": str(runtime / "kitty-4242"), "window": 7, "kitty": 4242, "title": "claude"}] * 2, got["sessions"]
+    listening.close()
+    broken.close()
     sleeper.kill()
 
     # A sign-in token refreshed after that session says the subscription ended.
