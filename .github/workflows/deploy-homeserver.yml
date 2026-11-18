@@ -45,26 +45,35 @@ jobs:
     timeout-minutes: 120
     env:
       BUILDER_FQDN: 100.106.144.121
+    # A superseded commit (main moved on) skips the rest instead of failing:
+    # the newer push runs its own deploy with these changes included.
+    outputs:
+      current: ${{ steps.recheck.outputs.current }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           persist-credentials: false
 
       - name: Require PR merge-gate
+        id: gate
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: await require('./scripts/check-deploy-merge-gate.cjs')({github, context, core})
 
       - name: Reclaim runner disk space
+        if: steps.gate.outputs.current == 'true'
         run: |
           sudo rm -rf /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
 
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        if: steps.gate.outputs.current == 'true'
         with:
           credentials_json: ${{ secrets.BUILDER_CI_GCP_KEY }}
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+        if: steps.gate.outputs.current == 'true'
       - uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4
+        if: steps.gate.outputs.current == 'true'
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
@@ -74,6 +83,7 @@ jobs:
           log-mode: quiet
 
       - name: Validate and build exclusively on builder
+        if: steps.gate.outputs.current == 'true'
         env:
           BUILDER_CI_SSH_KEY: ${{ secrets.BUILDER_CI_SSH_KEY }}
         run: |
@@ -91,7 +101,17 @@ jobs:
             "user@$BUILDER_FQDN:$bundle/closure.nar.zst" "$RUNNER_TEMP/deploy-bundle/"
           ssh -o BatchMode=yes -i "$BUILDER_SSH_KEY" "user@$BUILDER_FQDN" "rm -rf '$bundle'"
 
+      # The build takes long enough for main to move on; re-check so a
+      # superseded run skips the deploy job (and its environment) entirely.
+      - name: Require current main again after the build
+        id: recheck
+        if: steps.gate.outputs.current == 'true'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: await require('./scripts/check-deploy-merge-gate.cjs')({github, context, core})
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: steps.recheck.outputs.current == 'true'
         with:
           name: homeserver-closure-${{ github.sha }}
           path: ${{ runner.temp }}/deploy-bundle/
@@ -105,6 +125,7 @@ jobs:
 
   deploy:
     needs: builder
+    if: needs.builder.outputs.current == 'true'
     runs-on: ubuntu-latest
     environment: homeserver-gcp-deploy
     timeout-minutes: 60
@@ -136,10 +157,12 @@ jobs:
           hostname: deploy-homeserver-${{ github.run_id }}-${{ github.run_attempt }}
           log-mode: quiet
       - name: Require PR merge-gate and current main again before activation
+        id: gate
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: await require('./scripts/check-deploy-merge-gate.cjs')({github, context, core})
       - name: Configure deploy SSH
+        if: steps.gate.outputs.current == 'true'
         env:
           HOMESERVER_DEPLOY_SSH_KEY: ${{ secrets.HOMESERVER_DEPLOY_SSH_KEY }}
         run: |
@@ -154,6 +177,7 @@ jobs:
           printf 'Host homeserver-gcp*\n  HostName %s\n' "$address" >> "$HOME/.ssh/config"
           printf '%s\n' '  IdentityFile ~/.ssh/homeserver-deploy' '  IdentitiesOnly yes' '  BatchMode yes' '  StrictHostKeyChecking accept-new' >> "$HOME/.ssh/config"
       - name: Deploy changed closure and verify health
+        if: steps.gate.outputs.current == 'true'
         run: bash scripts/deploy-homeserver.sh "$RUNNER_TEMP/deploy-bundle"
       - name: Remove temporary deploy key
         if: always()

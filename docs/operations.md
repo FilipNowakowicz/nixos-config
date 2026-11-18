@@ -236,8 +236,10 @@ Once enabled, relevant pushes to `main` and `workflow_dispatch` (confirmation
 `homeserver-gcp`, from `main` only) use the same fail-closed path:
 
 1. Require this exact main commit to be a merged PR whose head passed the
-   `nix.yml` PR workflow and its `merge-gate` job. Missing API evidence, a
-   direct push or a stale main commit stops the run. Recheck before activation.
+   `nix.yml` PR workflow and its `merge-gate` job. Missing API evidence or a
+   direct push fails the run. A superseded commit (main moved on) skips the
+   rest with a notice and ends green, since the newer push deploys it too.
+   Recheck after the build and again before activation.
 2. Join the builder tailnet as `tag:ci-builder` using existing builder secrets:
    `BUILDER_CI_GCP_KEY`, `BUILDER_CI_SSH_KEY`, `TS_OAUTH_CLIENT_ID` and
    `TS_OAUTH_SECRET`. Run evaluation, light checks, the homeserver smoke test

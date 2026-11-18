@@ -12,8 +12,13 @@ if grep -q 'self-hosted\|validation_scope\|continue-on-error' "$workflow"; then
   echo "Unsafe deployment runner or bypass found" >&2
   exit 1
 fi
-[[ $(grep -c "require('./scripts/check-deploy-merge-gate.cjs')" "$workflow") == 2 ]]
+[[ $(grep -c "require('./scripts/check-deploy-merge-gate.cjs')" "$workflow") == 3 ]]
 grep -qF 'needs: builder' "$workflow"
+# A superseded commit skips rather than fails, so activation must stay gated on
+# the last check's `current` output, and the deploy job on the builder's.
+grep -qF "if: needs.builder.outputs.current == 'true'" "$workflow"
+grep -A1 -F -- '- name: Deploy changed closure and verify health' "$workflow" |
+  grep -qF "if: steps.gate.outputs.current == 'true'"
 grep -qF 'tags: tag:ci' "$workflow"
 grep -qF 'scripts/on-builder.sh' "$workflow"
 grep -qF -- '--max-jobs 0 --builders' scripts/deploy-homeserver.sh
