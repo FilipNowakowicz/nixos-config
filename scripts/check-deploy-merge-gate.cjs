@@ -3,6 +3,11 @@
 // A PR merged before its nix.yml run finishes (e.g. an admin merge) would
 // otherwise race this check. While a matching PR run is still pending, poll
 // until it completes or the timeout passes; with nothing pending, fail at once.
+//
+// A newer main commit is not a failure: that push starts its own deploy, which
+// carries this commit's changes too. The check sets output `current` to false
+// and returns, the workflow skips every later step, and the superseded run
+// ends green with a notice instead of red. Every other refusal still throws.
 const PENDING = new Set([
   "queued",
   "in_progress",
@@ -29,8 +34,13 @@ module.exports = async ({
       repo,
       branch: "main",
     });
-    if (latest.data.commit.sha !== commit_sha)
-      throw new Error("Refusing a stale main commit");
+    if (latest.data.commit.sha !== commit_sha) {
+      core.notice(
+        `Skipping deploy: main moved on to ${latest.data.commit.sha}, whose own run deploys these changes`,
+      );
+      core.setOutput("current", "false");
+      return false;
+    }
     const pulls = await github.paginate(
       github.rest.repos.listPullRequestsAssociatedWithCommit,
       { owner, repo, commit_sha, per_page: 100 },
@@ -84,7 +94,8 @@ module.exports = async ({
           )
         ) {
           core.info(`Verified PR #${pr.number} merge-gate for ${commit_sha}`);
-          return;
+          core.setOutput("current", "true");
+          return true;
         }
       }
     }

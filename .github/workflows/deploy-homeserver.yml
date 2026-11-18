@@ -1,6 +1,6 @@
 name: Deploy homeserver-gcp
 
-# Keep disabled in GitHub until review, secret provisioning and a successful manual run.
+# Enabled since 2026-11-09; see docs/operations.md "Automated Homeserver Deploy".
 on:
   push:
     branches: [main]
@@ -27,33 +27,55 @@ permissions:
   pull-requests: read
   actions: read
 
-concurrency:
-  group: deploy-homeserver-gcp
-  cancel-in-progress: false
+# Concurrency is per job, not per run. Builds share a group that a newer push
+# cancels, since only the newest commit will deploy anyway. Activation has its
+# own group that never cancels, so a switch is never interrupted half-applied.
+# A superseded commit (main moved on) skips instead of failing: every check sets
+# `current`, later work runs only while it is 'true', and the newer push's own
+# run deploys these changes.
 
 defaults:
   run:
     shell: bash
 
 jobs:
-  builder:
+  # Its own job so a commit that will never deploy (no merge-gate, or already
+  # superseded) never joins the build group and cannot cancel a real build.
+  gate:
     if: >-
       github.repository == 'FilipNowakowicz/nixos-config'
       && github.ref == 'refs/heads/main'
       && (github.event_name == 'push' || inputs.confirm_target == 'homeserver-gcp')
     runs-on: ubuntu-latest
-    timeout-minutes: 120
-    env:
-      BUILDER_FQDN: 100.106.144.121
+    timeout-minutes: 70
+    outputs:
+      current: ${{ steps.gate.outputs.current }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           persist-credentials: false
-
       - name: Require PR merge-gate
+        id: gate
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: await require('./scripts/check-deploy-merge-gate.cjs')({github, context, core})
+
+  builder:
+    needs: gate
+    if: needs.gate.outputs.current == 'true'
+    concurrency:
+      group: deploy-homeserver-gcp-build
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      BUILDER_FQDN: 100.106.144.121
+    outputs:
+      current: ${{ steps.recheck.outputs.current }}
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          persist-credentials: false
 
       - name: Reclaim runner disk space
         run: |
@@ -91,7 +113,16 @@ jobs:
             "user@$BUILDER_FQDN:$bundle/closure.nar.zst" "$RUNNER_TEMP/deploy-bundle/"
           ssh -o BatchMode=yes -i "$BUILDER_SSH_KEY" "user@$BUILDER_FQDN" "rm -rf '$bundle'"
 
+      # The build takes long enough for main to move on; re-check so a
+      # superseded run skips the deploy job (and its environment) entirely.
+      - name: Require current main again after the build
+        id: recheck
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: await require('./scripts/check-deploy-merge-gate.cjs')({github, context, core})
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: steps.recheck.outputs.current == 'true'
         with:
           name: homeserver-closure-${{ github.sha }}
           path: ${{ runner.temp }}/deploy-bundle/
@@ -105,6 +136,10 @@ jobs:
 
   deploy:
     needs: builder
+    if: needs.builder.outputs.current == 'true'
+    concurrency:
+      group: deploy-homeserver-gcp-activate
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     environment: homeserver-gcp-deploy
     timeout-minutes: 60
@@ -136,10 +171,12 @@ jobs:
           hostname: deploy-homeserver-${{ github.run_id }}-${{ github.run_attempt }}
           log-mode: quiet
       - name: Require PR merge-gate and current main again before activation
+        id: gate
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: await require('./scripts/check-deploy-merge-gate.cjs')({github, context, core})
       - name: Configure deploy SSH
+        if: steps.gate.outputs.current == 'true'
         env:
           HOMESERVER_DEPLOY_SSH_KEY: ${{ secrets.HOMESERVER_DEPLOY_SSH_KEY }}
         run: |
@@ -154,7 +191,29 @@ jobs:
           printf 'Host homeserver-gcp*\n  HostName %s\n' "$address" >> "$HOME/.ssh/config"
           printf '%s\n' '  IdentityFile ~/.ssh/homeserver-deploy' '  IdentitiesOnly yes' '  BatchMode yes' '  StrictHostKeyChecking accept-new' >> "$HOME/.ssh/config"
       - name: Deploy changed closure and verify health
+        if: steps.gate.outputs.current == 'true'
         run: bash scripts/deploy-homeserver.sh "$RUNNER_TEMP/deploy-bundle"
       - name: Remove temporary deploy key
         if: always()
         run: rm -f "$HOME/.ssh/homeserver-deploy"
+
+  # Only a real failure reaches the private ntfy topic, which main shows as a
+  # desktop notification. Superseded skips and cancelled builds stay quiet.
+  notify:
+    needs: [gate, builder, deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Tell the private ntfy topic the deploy failed
+        env:
+          NTFY_TOPIC_URL: ${{ secrets.NTFY_TOPIC_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHORT_SHA: ${{ github.sha }}
+        run: |
+          # A missing secret stays quiet rather than turning the run red twice.
+          [[ -n $NTFY_TOPIC_URL ]] || exit 0
+          curl --fail --silent --show-error --max-time 10 --retry 2 --retry-delay 2 \
+            -H "Title: Homeserver deploy failed" -H "Priority: high" -H "Click: $RUN_URL" \
+            --data-binary "Deploy of ${SHORT_SHA:0:7} failed: $RUN_URL" \
+            "$NTFY_TOPIC_URL" >/dev/null || echo "could not send the failure notification" >&2

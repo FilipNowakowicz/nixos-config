@@ -6,14 +6,23 @@ cd "$repo_root"
 workflow=.github/workflows/deploy-homeserver.yml
 grep -qF 'branches: [main]' "$workflow"
 grep -qF 'workflow_dispatch:' "$workflow"
-grep -qF 'cancel-in-progress: false' "$workflow"
-[[ $(grep -c 'runs-on: ubuntu-latest' "$workflow") == 2 ]]
+# A newer push may cancel a build, never an activation.
+grep -A1 -F 'group: deploy-homeserver-gcp-build' "$workflow" | grep -qF 'cancel-in-progress: true'
+grep -A1 -F 'group: deploy-homeserver-gcp-activate' "$workflow" | grep -qF 'cancel-in-progress: false'
+[[ $(grep -c 'cancel-in-progress: true' "$workflow") == 1 ]]
+[[ $(grep -c 'runs-on: ubuntu-latest' "$workflow") == 4 ]]
 if grep -q 'self-hosted\|validation_scope\|continue-on-error' "$workflow"; then
   echo "Unsafe deployment runner or bypass found" >&2
   exit 1
 fi
-[[ $(grep -c "require('./scripts/check-deploy-merge-gate.cjs')" "$workflow") == 2 ]]
+[[ $(grep -c "require('./scripts/check-deploy-merge-gate.cjs')" "$workflow") == 3 ]]
 grep -qF 'needs: builder' "$workflow"
+# A superseded commit skips rather than fails, so activation must stay gated on
+# the last check's `current` output, and the deploy job on the builder's.
+grep -qF "if: needs.gate.outputs.current == 'true'" "$workflow"
+grep -qF "if: needs.builder.outputs.current == 'true'" "$workflow"
+grep -A1 -F -- '- name: Deploy changed closure and verify health' "$workflow" |
+  grep -qF "if: steps.gate.outputs.current == 'true'"
 grep -qF 'tags: tag:ci' "$workflow"
 grep -qF 'scripts/on-builder.sh' "$workflow"
 grep -qF -- '--max-jobs 0 --builders' scripts/deploy-homeserver.sh

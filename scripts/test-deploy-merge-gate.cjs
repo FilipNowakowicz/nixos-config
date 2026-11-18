@@ -1,7 +1,9 @@
 const assert = require("node:assert/strict");
 const check = require("./check-deploy-merge-gate.cjs");
 const repo = "owner/repo";
+let outputs = {};
 async function run(overrides = {}, options = {}) {
+  outputs = {};
   const data = {
     latest: "merged",
     pulls: [
@@ -58,7 +60,11 @@ async function run(overrides = {}, options = {}) {
       sha: "merged",
       payload: { repository: { full_name: repo } },
     },
-    core: { info() {} },
+    core: {
+      info() {},
+      notice() {},
+      setOutput: (name, value) => (outputs[name] = value),
+    },
     pollMs: 1,
     timeoutMs: 1_000,
     sleep: async () => {},
@@ -66,9 +72,15 @@ async function run(overrides = {}, options = {}) {
   });
 }
 (async () => {
-  await run();
+  assert.equal(await run(), true);
+  assert.equal(outputs.current, "true");
+
+  // A newer main commit skips (its own run deploys these changes); it does
+  // not fail, and it never reports itself as current.
+  assert.equal(await run({ latest: "newer" }), false);
+  assert.equal(outputs.current, "false");
+
   for (const overrides of [
-    { latest: "newer" },
     { pulls: [] },
     { runs: [] },
     { jobs: [] },
@@ -112,14 +124,15 @@ async function run(overrides = {}, options = {}) {
     /Timed out/,
   );
   let branchReads = 0;
-  await assert.rejects(
-    run({
+  assert.equal(
+    await run({
       runs: [inProgress],
       latest: () => (branchReads++ < 1 ? "merged" : "newer"),
     }),
-    /stale/,
+    false,
   );
-  console.log("Deployment merge-gate fail-closed cases passed");
+  assert.equal(outputs.current, "false");
+  console.log("Deployment merge-gate fail-closed and superseded cases passed");
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;

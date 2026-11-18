@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-11-18-deploy-stale-main-reads-as-failure
+date: 2026-11-18
+expires: 2027-02-18
+status: promoted
+route: implement-fix
+best_form: ci-gate
+evidence: [gh-run-44214889129, gh-run-44214214945, gh-run-44212744927, scripts/check-deploy-merge-gate.cjs:32-33]
+observation: Deploy homeserver-gcp runs build ~15-20min then fail red with "Refusing a stale main commit" whenever another PR merges meanwhile; by design, not breakage, but user read it as CI failing
+proposed_upgrade: done in this branch — stale main sets output current=false + notice, later steps and the deploy job skip; re-check after build; wiring asserted in scripts/test-deploy-homeserver.sh
+agent: claude
+type: repo-fix
+dedupe_key: ci:deploy-homeserver-stale-main-red
+triggers: [.github/workflows/deploy-homeserver.yml, "Refusing a stale main commit"]
+targets: [scripts/check-deploy-merge-gate.cjs, .github/workflows/deploy-homeserver.yml]
