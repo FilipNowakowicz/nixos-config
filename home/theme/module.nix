@@ -167,6 +167,10 @@ let
       source = "yazi-theme.toml";
       target = "${config.xdg.configHome}/yazi/theme.toml";
     }
+    {
+      source = "pywal-colors.json";
+      target = "${config.home.homeDirectory}/.cache/wal/colors.json";
+    }
   ];
 
   # Neovim's own config directory is a store path, so its palette link lives
@@ -445,6 +449,40 @@ let
         cmp = border;
         tasks = border;
         help = border;
+      };
+
+    # Pywalfox reads pywal's colors.json and paints Firefox through one of two
+    # fixed templates. The dark one takes background 0, text 15 and accents 10
+    # and 13; the light one takes ink 0, paper from 7, and accents 3 and 5. The
+    # ANSI palette is overlaid so each template finds the theme's own roles.
+    "themes/${themeName}/pywal-colors.json".text =
+      let
+        c = theme.colors;
+        light = theme.appearance == "light";
+        roles =
+          if light then
+            {
+              color0 = c.text;
+              color3 = c.accent;
+              color5 = c.secondary;
+              color7 = c.bg;
+            }
+          else
+            {
+              color0 = c.bg;
+              color10 = c.accent;
+              color13 = c.secondary;
+              color15 = c.text;
+            };
+      in
+      builtins.toJSON {
+        wallpaper = "${theme.wallpaper}";
+        special = {
+          background = "#${c.bg}";
+          foreground = "#${c.text}";
+          cursor = "#${c.accent}";
+        };
+        colors = lib.mapAttrs (_: hex: "#${hex}") (theme.ansiColors // roles);
       };
 
     # btop reads this through color_theme = "desktop" and again on SIGUSR2 from
