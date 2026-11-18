@@ -15,16 +15,16 @@
 
   colors = {
     bg = "0b0d0e";
-    brown = "151718";
-    orange = "a6a6a6";
-    amber = "d8d8d8";
+    surface = "151718";
+    secondary = "a6a6a6";
+    accent = "d8d8d8";
     text = "eeeeee";
   };
 
   # 16-slot ANSI palette: icy monochrome grey-scale with faint cool tinting.
   ansiColors = {
     color0 = "0b0d0e"; # bg (black)
-    color8 = "151718"; # brown (bright black)
+    color8 = "151718"; # surface (bright black)
     color1 = "9a8585"; # red (desaturated)
     color9 = "b89e9e"; # bright red
     color2 = "8a9a8a"; # green (desaturated)

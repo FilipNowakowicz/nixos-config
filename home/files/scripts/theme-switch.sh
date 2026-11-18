@@ -104,14 +104,14 @@ link_theme_assets "$THEMES_DIR/$THEME"
 # Live-reload colors come straight from the Nix-generated vars file, so this
 # script never re-parses theme .nix definitions (Nix is the single source).
 # Declared here so their origin is unambiguous; the source below fills them in.
-bg='' brown='' amber=''
+bg='' surface='' accent=''
 # shellcheck source=/dev/null
 source "$THEMES_DIR/$THEME/vars"
 
 quiet-shell-ipc reloadTheme >/dev/null 2>&1 || true
 
 # Reload apps
-hyprctl eval "hl.config({general={col={active_border='rgb($amber)',inactive_border='rgb($brown)'}},decoration={shadow={color='rgba(${bg}cc)'}},misc={background_color='rgb($bg)'}})" >/dev/null
+hyprctl eval "hl.config({general={col={active_border='rgb($accent)',inactive_border='rgb($surface)'}},decoration={shadow={color='rgba(${bg}cc)'}},misc={background_color='rgb($bg)'}})" >/dev/null
 
 # Warm the kernel page cache so swaybg's decode is CPU-bound, not disk-bound:
 # while the unit restarts, the theme's background colour shows instead.

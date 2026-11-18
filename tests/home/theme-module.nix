@@ -66,7 +66,7 @@ let
       expected = {
         name = "mono-mesh";
         inherit (monoTheme.colors) bg text;
-        accent = monoTheme.colors.amber;
+        accent = monoTheme.colors.accent;
         themes = builtins.fromJSON (
           builtins.toJSON (builtins.fromJSON files."themes/mono-mesh/quiet-colors.json".text).themes
         );
@@ -76,8 +76,8 @@ let
     testHyprlandLuaColors = {
       expr = lib.all (line: lib.hasInfix line files."themes/mono-mesh/hypr-colors.lua".text) [
         "return {"
-        "active = \"rgb(${monoTheme.colors.amber})\""
-        "inactive = \"rgb(${monoTheme.colors.brown})\""
+        "active = \"rgb(${monoTheme.colors.accent})\""
+        "inactive = \"rgb(${monoTheme.colors.surface})\""
         "shadow = \"rgba(${monoTheme.colors.bg}cc)\""
       ];
       expected = true;
@@ -94,9 +94,9 @@ let
     testVarsExposeColorContract = {
       expr = lib.all (line: lib.hasInfix line varsText) [
         "bg=${monoTheme.colors.bg}"
-        "brown=${monoTheme.colors.brown}"
-        "orange=${monoTheme.colors.orange}"
-        "amber=${monoTheme.colors.amber}"
+        "surface=${monoTheme.colors.surface}"
+        "secondary=${monoTheme.colors.secondary}"
+        "accent=${monoTheme.colors.accent}"
         "text=${monoTheme.colors.text}"
       ];
       expected = true;
@@ -153,6 +153,29 @@ let
     # so the documented override is more than a no-op import.
     testDocExampleGeneratesThemeAssets = {
       expr = docExampleThemed.xdg.configFile ? "themes/mono-mesh/vars";
+      expected = true;
+    };
+
+    # A theme on the old brown/orange/amber keys is rejected at evaluation.
+    testStaleColorKeysRejected = {
+      expr =
+        (builtins.tryEval (
+          builtins.attrNames
+            (import themeModulePath {
+              config = lib.recursiveUpdate (stubConfig "stale") {
+                themes.themeDir = ./fixtures/stale-theme;
+              };
+              inherit lib pkgs;
+            }).config.xdg.configFile
+        )).success;
+      expected = false;
+    };
+
+    # Every shipped theme passes the same contract.
+    testAllThemesValid = {
+      expr = lib.all (name: files ? "themes/${name}/vars") (
+        map (lib.removeSuffix ".nix") (builtins.attrNames (builtins.readDir ../../home/theme/themes))
+      );
       expected = true;
     };
   };

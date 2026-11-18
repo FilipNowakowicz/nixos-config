@@ -15,21 +15,21 @@
 
   colors = {
     bg = "071126";
-    brown = "0d1830";
-    orange = "e0c290";
-    amber = "d3ad7a";
+    surface = "0d1830";
+    secondary = "e0c290";
+    accent = "d3ad7a";
     text = "f0d5a2";
   };
 
   # 16-slot ANSI palette tuned to the deep-navy / metallic-gold palette.
   ansiColors = {
     color0 = "071126"; # bg (black)
-    color8 = "0d1830"; # brown (bright black)
+    color8 = "0d1830"; # surface (bright black)
     color1 = "c0614f"; # red
     color9 = "d87a66"; # bright red
     color2 = "9aa86a"; # green
     color10 = "b6c485"; # bright green
-    color3 = "d3ad7a"; # yellow (amber accent)
+    color3 = "d3ad7a"; # yellow (accent)
     color11 = "e0c290"; # bright yellow (gold)
     color4 = "5a78a8"; # blue
     color12 = "7895c2"; # bright blue

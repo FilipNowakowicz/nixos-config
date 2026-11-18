@@ -14,16 +14,16 @@
 
   colors = {
     bg = "1e2330"; # dark blue-grey background
-    brown = "2e3a4a"; # muted slate surface
-    orange = "43675d"; # more muted teal accent
-    amber = "7ea63f"; # toned moss-green highlight
+    surface = "2e3a4a"; # muted slate surface
+    secondary = "43675d"; # more muted teal accent
+    accent = "7ea63f"; # toned moss-green highlight
     text = "c8d4c0"; # cool off-white text
   };
 
   # 16-slot ANSI palette tuned to the acid-green / blue-grey palette.
   ansiColors = {
     color0 = "1e2330"; # bg (black)
-    color8 = "2e3a4a"; # brown (bright black)
+    color8 = "2e3a4a"; # surface (bright black)
     color1 = "b05545"; # red
     color9 = "d06d5a"; # bright red
     color2 = "7ea63f"; # green (acid highlight)
