@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-11-18-landing-squash-merged-pr-stack
+date: 2026-11-18
+expires: 2027-05-18
+status: open
+route: promote-skill
+best_form: skill
+evidence: [pr-#550 closed by GitHub when its base branch was deleted by `gh pr merge 549 --squash --delete-branch`, pr-#549 merged into its base branch theme-picker-swatches instead of main by a merge loop that did not check baseRefName, pr-#548 DIRTY after #546/#547 squash (resolved with --ours; tree identical to #549 tip), prs-#551/#552 landed cleanly via retarget-then-`git rebase --onto origin/main <old-base-tip>`]
+observation: squash-merging a stacked PR with --delete-branch closes (not retargets) PRs based on that branch; merging the next one before retargeting merges it into a feature branch; merging main into a stack branch after an upstream squash conflicts on every shared hunk
+proposed_upgrade: issue-driven-development step 10 - to land a stack, for each PR bottom-up retarget the next PR to main BEFORE merging (gh pr edit N --base main), squash-merge, then `git rebase --onto origin/main <old-tip-of-merged-branch> <next-branch>` and force-with-lease push (tree unchanged, no conflicts), wait for merge-gate, repeat; never merge a PR whose baseRefName is not main
+agent: claude
+type: workflow-gotcha
+dedupe_key: git:landing-stacked-squash-prs
+triggers: [gh pr merge --delete-branch, stacked PRs, squash merge]
+targets: [.agents/skills/issue-driven-development/SKILL.md]
