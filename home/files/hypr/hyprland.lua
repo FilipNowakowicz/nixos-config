@@ -93,6 +93,7 @@ hl.config({ misc = {
 	-- theme's background instead of a random default wallpaper.
 	disable_hyprland_logo = true,
 	force_default_wallpaper = 0,
+	disable_splash_rendering = true,
 	background_color = colors.background,
 } })
 hl.config({ animations = {

@@ -61,6 +61,9 @@ Item {
             if (kind === "theme" && (Ui.detailCursor === "" || Ui.detailCursor.startsWith("theme "))) {
                 const across = letter === "h" || event.key === Qt.Key_Left ? -1 : letter === "l" || event.key === Qt.Key_Right ? 1 : 0;
                 if (across || step) {
+                    // The first move starts from the running theme, not the first tile.
+                    if (Ui.detailCursor === "")
+                        Ui.detailCursor = "theme " + Theme.name;
                     moveCursor(across || step * themeGrid.columns);
                     return true;
                 }
@@ -119,7 +122,7 @@ Item {
                 Icon { anchors.centerIn: parent; name: "chevron-left"; size: 15 }
             }
             Label { Layout.fillWidth: true; text: root.title; font.weight: Font.DemiBold; font.pixelSize: 14 }
-            KeyHint { Layout.rightMargin: 9; text: root.kind === "" ? "" : root.kind === "sound" ? "J K  H L  Enter" : "J K  Enter" }
+            KeyHint { Layout.rightMargin: 9; text: root.kind === "" ? "" : root.kind === "sound" || root.kind === "theme" ? "J K  H L  Enter" : "J K  Enter" }
             Spinner {
                 Layout.rightMargin: 9
                 visible: Sys.scanning && (root.kind === "wifi" || root.kind === "bluetooth")
@@ -392,7 +395,7 @@ Item {
                     Layout.preferredWidth: 1
                     entry: modelData
                     selected: modelData.name === Theme.name
-                    busy: Sys.pendingFor("theme", modelData.name)
+                    busy: Sys.pendingFor("theme", modelData.name) || Sys.queuedTheme === modelData.name
                     onClicked: Sys.setTheme(modelData.name)
                 }
             }

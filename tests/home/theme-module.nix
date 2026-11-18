@@ -71,6 +71,7 @@ let
         name = "mono-mesh";
         inherit (monoTheme.colors) bg text;
         accent = monoTheme.colors.accent;
+        appearance = "dark";
         themes = builtins.fromJSON (builtins.toJSON (builtins.fromJSON shellColorsText).themes);
       };
     };
@@ -207,6 +208,26 @@ let
       expr = lib.hasInfix "nvim-palette.lua" files."themes/links.sh".text;
       expected = true;
     };
+
+    # The light theme carries its appearance to the switcher (GTK, portal) and
+    # to Neovim, whose strongest foreground is then dark ink, not white.
+    testLightThemeAppearance =
+      let
+        paper = import ../../home/theme/themes/paper-contours.nix;
+        palette = files."themes/paper-contours/nvim-palette.lua".text;
+      in
+      {
+        expr = {
+          vars = lib.hasInfix "appearance=light" files."themes/paper-contours/vars".text;
+          background = lib.hasInfix ''["background"] = "light"'' palette;
+          ink = lib.hasInfix ''["base07"] = "#${paper.ansiColors.color0}"'' palette;
+        };
+        expected = {
+          vars = true;
+          background = true;
+          ink = true;
+        };
+      };
 
     # A theme on the old brown/orange/amber keys is rejected at evaluation.
     testStaleColorKeysRejected = {

@@ -1,5 +1,5 @@
 import QtQuick
-import QtQuick.Effects
+import Quickshell.Widgets
 
 // One theme in the picker: its wallpaper, cropped, with the theme's own colours
 // along the bottom, so you see what you get before choosing it.
@@ -22,32 +22,22 @@ Press {
         width: parent.width - 10
         height: Math.round(width * 9 / 16)
 
-        // The theme's background stands in until the picture loads, or when there is none.
-        Rectangle {
-            id: shape
+        // Clipped by the scene graph rather than a mask effect: an offscreen mask
+        // missed thumbnails that finished loading while the panel was hidden.
+        // The theme's background shows where there is no picture.
+        ClippingRectangle {
             anchors.fill: parent
             radius: 10
             color: root.entry.bg
-            layer.enabled: picture.status === Image.Ready
-        }
-        Image {
-            id: picture
-            anchors.fill: parent
-            visible: false
-            layer.enabled: true
-            source: root.entry.thumbnail
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            sourceSize: Qt.size(208, 117)
-        }
-        MultiEffect {
-            anchors.fill: parent
-            visible: picture.status === Image.Ready
-            source: picture
-            maskEnabled: true
-            maskSource: shape
-            maskThresholdMin: 0.5
-            maskSpreadAtMin: 0.2
+            Image {
+                anchors.fill: parent
+                source: root.entry.thumbnail
+                fillMode: Image.PreserveAspectCrop
+                // A 208x117 JPEG decodes in well under a frame, and loading in step
+                // means a rebuilt tile never shows an empty frame first.
+                asynchronous: false
+                sourceSize: Qt.size(208, 117)
+            }
         }
 
         // The theme's palette: surface, accent and text.
