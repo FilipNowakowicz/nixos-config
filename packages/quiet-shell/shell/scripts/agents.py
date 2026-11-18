@@ -2,15 +2,21 @@
 """Print Claude Code and Codex usage limits and recent sessions as JSON.
 
 Claude's limits and sessions come from what its status line records under
-$XDG_STATE_HOME/agent-usage (see home/files/agents/claude-statusline.sh). Codex
-records its limits in its own session logs. Anything missing reports null or an
-empty list, so the card can say there is nothing to show.
+$XDG_STATE_HOME/agent-usage (see home/files/agents/claude-statusline.sh), and
+whether a session is busy from Claude Code's own registry in ~/.claude/sessions.
+Codex records its limits, and the plan they belong to, in its own session logs.
+Anything missing reports null or an empty list, so the card can say there is
+nothing to show.
 """
 
+import base64
 import datetime
 import json
 import os
 import pathlib
+import re
+import stat
+import subprocess
 import sys
 import time
 
@@ -87,11 +93,75 @@ def running(record, boot):
     )
 
 
+def ancestors(pid):
+    """A process and every parent above it, nearest first."""
+    chain = []
+    while isinstance(pid, int) and pid > 1 and pid not in chain:
+        chain.append(pid)
+        try:
+            pid = int(pathlib.Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[1])
+        except (OSError, IndexError, ValueError):
+            break
+    return chain
+
+
+def kitty_windows(runtime):
+    """Every kitty window, from the socket each kitty listens on (see
+    home/files/kitty/kitty.conf): its socket, its id, and the processes in it."""
+    windows = []
+    for sock in sorted(runtime.glob("kitty-*")):
+        try:
+            if not stat.S_ISSOCK(sock.stat().st_mode):
+                continue
+            out = subprocess.run(["kitty", "@", "--to", f"unix:{sock}", "ls"],
+                                 capture_output=True, text=True, timeout=2)
+            listing = json.loads(out.stdout) if out.returncode == 0 else []
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            continue
+        kitty_pid = sock.name.rsplit("-", 1)[-1]
+        for os_window in listing:
+            for tab in os_window.get("tabs") or []:
+                for w in tab.get("windows") or []:
+                    pids = {w.get("pid")} | {f.get("pid") for f in w.get("foreground_processes") or []}
+                    windows.append({
+                        # One kitty process can own many desktop windows; the
+                        # title tells the shell which of them to bring forward.
+                        "terminal": {"socket": str(sock), "window": w.get("id"),
+                                     "kitty": int(kitty_pid) if kitty_pid.isdigit() else None,
+                                     "title": w.get("title") or ""},
+                        "pids": {p for p in pids if isinstance(p, int)},
+                    })
+    return windows
+
+
+def place(sessions, runtime):
+    """Name the kitty window each session runs in, so the shell can type into it."""
+    windows = kitty_windows(runtime) if any(s.get("pid") for s in sessions) else []
+    for s in sessions:
+        chain = ancestors(s.pop("pid", None))
+        s["terminal"] = next((w["terminal"] for w in windows if w["pids"] & set(chain)), None)
+
+
 def state(now, at):
     return "working" if now - at < WORKING else "idle"
 
 
-def claude(base, now):
+def registry(root):
+    """Claude Code's own record of each running session, by pid. It says whether the
+    session is busy, which beats guessing from how recently the status line ran. It
+    is Claude Code's private format, so anything unexpected is simply left out."""
+    found = {}
+    for path in root.glob("*.json"):
+        r = load(path)
+        if not isinstance(r, dict) or not isinstance(r.get("pid"), int):
+            continue
+        if process_start(r["pid"]) != str(r.get("procStart")):
+            continue
+        found[r["pid"]] = r
+    return found
+
+
+def claude(base, sessions_dir, now):
     usage = load(base / "claude.json") or {}
     limits = usage.get("rate_limits") or {}
     five = limits.get("five_hour") or {}
@@ -107,9 +177,11 @@ def claude(base, now):
         at = mtime(path)
         if s["pid"] not in newest or at > newest[s["pid"]][1]:
             newest[s["pid"]] = (s, at, path)
+    live = registry(sessions_dir)
     sessions = []
     for s, at, path in newest.values():
         cwd = s.get("cwd") or ""
+        known = live.get(s["pid"]) or {}
         sessions.append({
             "tool": "claude",
             "id": s.get("id") or path.stem,
@@ -118,12 +190,16 @@ def claude(base, now):
             "model": s.get("model") or "",
             "context": s.get("context"),
             "at": int(at),
-            "state": state(now, at),
+            "state": {"busy": "working", "idle": "idle"}.get(known.get("status")) or state(now, at),
+            "name": known.get("name") or "",
+            "pid": s["pid"],
         })
     return {
         "five_hour": window(five.get("used_percentage"), five.get("resets_at"), now),
         "week": window(week.get("used_percentage"), week.get("resets_at"), now),
         "seen": usage.get("at"),
+        # The status line hands over limits only for a subscription.
+        "paid": None,
     }, sessions
 
 
@@ -137,7 +213,32 @@ def codex_logs(root, now):
     return sorted(logs, key=mtime, reverse=True)
 
 
-def codex(root, now):
+def stamp(text):
+    """An ISO time as Codex writes it, nanoseconds and all."""
+    try:
+        text = re.sub(r"(\.\d{6})\d+", r"\1", text).replace("Z", "+00:00")
+        return datetime.datetime.fromisoformat(text).timestamp()
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
+def signed_plan(auth_path):
+    """The plan named in Codex's sign-in token, and when the token was refreshed.
+    Only its claims are read, from the file Codex keeps; nothing is verified or
+    sent anywhere, and the token itself goes no further than this function."""
+    auth = load(auth_path)
+    if not isinstance(auth, dict) or auth.get("auth_mode") != "chatgpt":
+        return None, None
+    try:
+        part = auth["tokens"]["access_token"].split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))
+        plan = claims["https://api.openai.com/auth"]["chatgpt_plan_type"]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return None, None
+    return plan, stamp(auth.get("last_refresh")) or mtime(auth_path)
+
+
+def codex(root, auth_path, now):
     limits = None
     seen = None
     sessions = []
@@ -180,12 +281,20 @@ def codex(root, now):
         elif limits is not None:
             break
     limits = limits or {}
+    # A session log names the plan its limits belong to, but only as of that
+    # session. The sign-in token is refreshed between sessions, so the newer of
+    # the two says whether there is a subscription now.
+    plan, plan_at = limits.get("plan_type"), seen
+    signed, signed_at = signed_plan(auth_path)
+    if signed is not None and (plan is None or signed_at > (plan_at or 0)):
+        plan = signed
     primary = limits.get("primary") or {}
     secondary = limits.get("secondary") or {}
     return {
         "five_hour": window(primary.get("used_percent"), primary.get("resets_at"), now),
         "week": window(secondary.get("used_percent"), secondary.get("resets_at"), now),
         "seen": seen,
+        "paid": None if plan is None else plan != "free",
     }, sessions
 
 
@@ -211,14 +320,16 @@ def main():
     home = pathlib.Path(os.environ.get("HOME", "/nonexistent"))
     state_home = pathlib.Path(os.environ.get("XDG_STATE_HOME") or home / ".local/state")
     codex_home = pathlib.Path(os.environ.get("CODEX_HOME") or home / ".codex")
-    claude_limits, claude_sessions = claude(state_home / "agent-usage", now)
-    codex_limits, codex_sessions = codex(codex_home / "sessions", now)
-    sessions = sorted(claude_sessions + codex_sessions, key=lambda s: -s["at"])
+    claude_limits, claude_sessions = claude(state_home / "agent-usage", home / ".claude/sessions", now)
+    codex_limits, codex_sessions = codex(codex_home / "sessions", codex_home / "auth.json", now)
+    sessions = sorted(claude_sessions + codex_sessions, key=lambda s: -s["at"])[:6]
+    runtime = pathlib.Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+    place(sessions, runtime)
     print(json.dumps({
         "now": int(now),
         "claude": claude_limits,
         "codex": codex_limits,
-        "sessions": sessions[:6],
+        "sessions": sessions,
     }))
 
 

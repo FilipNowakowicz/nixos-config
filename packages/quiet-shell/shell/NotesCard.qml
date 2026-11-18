@@ -3,11 +3,18 @@ import QtQuick.Layouts
 import Quickshell.Io
 
 // The top of the notes file, so a thought jotted down earlier is in view in the
-// overview. Clicking opens the file (SUPER+SHIFT+N does too).
+// overview. The chevron unfolds the whole file in place, to read without leaving;
+// clicking anywhere else opens the file to edit (SUPER+SHIFT+N does too).
 Item {
     id: root
     implicitHeight: body.implicitHeight + 24
+    Behavior on implicitHeight { NumberAnimation { duration: Theme.motion; easing.type: Easing.OutCubic } }
     readonly property var lines: file.text().split("\n").map(l => l.replace(/\s+$/, "")).filter(l => l.trim() !== "")
+    // Folded, the card takes no more room than a handful of lines.
+    readonly property int folded: 5
+    property bool expanded: false
+    // Unfolded, a long file scrolls inside the card rather than pushing the rest away.
+    readonly property int tallest: 360
 
     FileView {
         id: file
@@ -33,6 +40,22 @@ Item {
             Layout.fillWidth: true
             Label { Layout.fillWidth: true; text: "Notes"; font.pixelSize: 12; font.weight: Font.Medium }
             Label { text: "Super ⇧ N"; font.pixelSize: 10; color: Theme.faint }
+            Press {
+                visible: root.lines.length > root.folded
+                implicitWidth: 22
+                implicitHeight: 22
+                radius: 11
+                name: root.expanded ? "Fold notes" : "Unfold notes"
+                onClicked: root.expanded = !root.expanded
+                Icon {
+                    anchors.centerIn: parent
+                    name: "chevron-down"
+                    size: 14
+                    color: Theme.dim
+                    rotation: root.expanded ? 180 : 0
+                    Behavior on rotation { NumberAnimation { duration: Theme.motion } }
+                }
+            }
         }
         Label {
             visible: root.lines.length === 0
@@ -41,21 +64,37 @@ Item {
             font.pixelSize: 12
             color: Theme.dim
         }
-        Repeater {
-            model: root.lines.slice(0, 8)
-            Label {
-                required property string modelData
-                Layout.fillWidth: true
-                // Headings stand out a little; everything else reads as plain text.
-                text: modelData.replace(/^#+\s*/, "")
-                font.pixelSize: 12
-                font.weight: modelData.startsWith("#") ? Font.Medium : Font.Normal
-                color: modelData.startsWith("#") ? Theme.text : Theme.dim
+        Flickable {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(lineColumn.implicitHeight, root.tallest)
+            contentHeight: lineColumn.implicitHeight
+            interactive: contentHeight > height
+            boundsBehavior: Flickable.StopAtBounds
+            clip: true
+            Column {
+                id: lineColumn
+                width: parent.width
+                spacing: 3
+                Repeater {
+                    model: root.expanded ? root.lines : root.lines.slice(0, root.folded)
+                    Label {
+                        required property string modelData
+                        width: lineColumn.width
+                        // Headings stand out a little; everything else reads as plain text.
+                        text: modelData.replace(/^#+\s*/, "")
+                        // Unfolded is for reading, so long lines wrap; folded keeps one line each.
+                        wrapMode: root.expanded ? Text.Wrap : Text.NoWrap
+                        elide: root.expanded ? Text.ElideNone : Text.ElideRight
+                        font.pixelSize: 12
+                        font.weight: modelData.startsWith("#") ? Font.Medium : Font.Normal
+                        color: modelData.startsWith("#") ? Theme.text : Theme.dim
+                    }
+                }
             }
         }
         Label {
-            visible: root.lines.length > 8
-            text: "+" + (root.lines.length - 8) + " more"
+            visible: !root.expanded && root.lines.length > root.folded
+            text: "+" + (root.lines.length - root.folded) + " more"
             font.pixelSize: 11
             color: Theme.faint
         }

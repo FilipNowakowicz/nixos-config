@@ -212,8 +212,10 @@ Item {
         }
     }
 
-    // The side column scrolls once notifications, notes and agents outgrow the
-    // screen, instead of running off the bottom.
+    // What is going on, rather than every control: what is playing, the four
+    // switches reached for most, notes, agents, the phone and the latest
+    // notifications. Everything else stays in the control centre (SUPER+C). It still
+    // scrolls if a tall notes card or many notifications outgrow the screen.
     Flickable {
         id: side
         anchors.right: parent.right
@@ -230,10 +232,24 @@ Item {
             id: sideColumn
             width: 340
             spacing: 12
-            ControlCentre { width: 340 }
-            NotificationCentre { compact: true; visible: Ui.detail === "" }
-            NotesCard { width: 340; visible: Ui.detail === "" }
-            AgentsCard { width: 340; visible: Ui.detail === "" && hasContent }
+            RowLayout {
+                width: 340
+                spacing: 8
+                NowPlaying { Layout.fillWidth: true; Layout.preferredHeight: 132 }
+                GridLayout {
+                    columns: 2
+                    rowSpacing: 8
+                    columnSpacing: 8
+                    Round { name: "Wi-Fi"; icon: Sys.wifiOn ? "wifi" : "wifi-off"; on: Sys.wifiOn; writeKey: "wifi"; onActivated: Sys.toggleWifi() }
+                    Round { name: "Bluetooth"; icon: "bluetooth"; on: Sys.btOn; writeKey: "bluetooth"; onActivated: Sys.toggleBluetooth() }
+                    Round { name: "VPN"; icon: "shield"; on: Sys.vpnOn; writeKey: "tailscale"; onActivated: Sys.toggleVpn() }
+                    Round { name: "Focus"; icon: "bell-off"; on: Sys.focusMode; onActivated: Sys.focusMode = !Sys.focusMode }
+                }
+            }
+            NotesCard { width: 340 }
+            AgentsCard { width: 340 }
+            PhoneCard { width: 340 }
+            NotificationCentre { compact: true }
         }
     }
 }
