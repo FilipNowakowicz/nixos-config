@@ -119,7 +119,7 @@ Item {
                 Icon { anchors.centerIn: parent; name: "chevron-left"; size: 15 }
             }
             Label { Layout.fillWidth: true; text: root.title; font.weight: Font.DemiBold; font.pixelSize: 14 }
-            KeyHint { Layout.rightMargin: 9; text: root.kind === "" ? "" : root.kind === "sound" ? "J K  H L  Enter" : "J K  Enter" }
+            KeyHint { Layout.rightMargin: 9; text: root.kind === "" ? "" : root.kind === "sound" || root.kind === "theme" ? "J K  H L  Enter" : "J K  Enter" }
             Spinner {
                 Layout.rightMargin: 9
                 visible: Sys.scanning && (root.kind === "wifi" || root.kind === "bluetooth")
@@ -392,7 +392,7 @@ Item {
                     Layout.preferredWidth: 1
                     entry: modelData
                     selected: modelData.name === Theme.name
-                    busy: Sys.pendingFor("theme", modelData.name)
+                    busy: Sys.pendingFor("theme", modelData.name) || Sys.queuedTheme === modelData.name
                     onClicked: Sys.setTheme(modelData.name)
                 }
             }

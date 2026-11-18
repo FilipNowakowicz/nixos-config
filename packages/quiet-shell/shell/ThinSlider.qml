@@ -44,7 +44,7 @@ Slider {
             width: root.visualPosition * parent.width
             height: parent.height
             radius: 2
-            color: Theme.text
+            color: Theme.on
         }
     }
     handle: Rectangle {
@@ -53,7 +53,7 @@ Slider {
         width: root.pressed ? 27 : 22
         height: root.pressed ? 17 : 14
         radius: height / 2
-        color: Theme.text
+        color: Theme.on
         border.width: root.activeFocus ? 2 : 0
         border.color: Theme.accent
         Behavior on width { NumberAnimation { duration: 90 } }

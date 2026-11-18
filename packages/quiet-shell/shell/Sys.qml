@@ -14,6 +14,16 @@ Singleton {
 
     property var state: ({})
     property var writes: ({})
+    // A theme picked while another switch runs; it goes next, and a newer pick
+    // replaces it, so clicking through themes ends on the last one.
+    property string queuedTheme: ""
+    onWritesChanged: {
+        if (queuedTheme !== "" && !pending("theme")) {
+            const next = queuedTheme;
+            queuedTheme = "";
+            Qt.callLater(setTheme, next);
+        }
+    }
 
     // Apps playing sound. Quickshell fills in a node's properties and volume only
     // while something tracks it, so this list must not depend on either. A playback
@@ -731,6 +741,13 @@ Singleton {
         write("awake", cmd, s => !!s.awake === want, "Keep awake didn't change.");
     }
     function setTheme(name) {
+        if (pending("theme")) {
+            queuedTheme = writes.theme.options.target === name ? "" : name;
+            return;
+        }
+        // The running theme: nothing to switch, so no spinner either.
+        if (name === Theme.name)
+            return;
         write("theme", ["theme-switch", name], () => Theme.name === name, "The theme didn't change.", { target: name });
     }
     // One Markdown file for quick thoughts and todos, opened in a floating Neovim.

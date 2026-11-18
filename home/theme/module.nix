@@ -485,6 +485,10 @@ in
       Unit = {
         Description = "Desktop wallpaper";
         PartOf = [ "graphical-session.target" ];
+        # Every theme switch restarts it, and clicking through themes restarts it
+        # faster than the default limit of five starts in ten seconds, which left
+        # no wallpaper until the next switch.
+        StartLimitIntervalSec = 0;
         After = [ "graphical-session.target" ];
       };
       Service = {

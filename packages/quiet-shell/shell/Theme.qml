@@ -15,13 +15,17 @@ Singleton {
     // A light theme draws dark text on pale glass; a few derived colours flip.
     property bool light: false
     property var themes: []
+    property string themesSource: ""
 
     // App icons stay grey until pointed at, chosen or focused. Kept across restarts.
     property bool monoIcons: true
     onMonoIconsChanged: if (iconsFile.loaded) iconsFile.setText(monoIcons ? "mono" : "colour")
 
     readonly property real glassAlpha: light ? 0.56 : 0.42
-    readonly property color glass: Qt.rgba(bg.r, bg.g, bg.b, glassAlpha)
+    // Light glass is frosted toward white, so pills read as lifted off a pale
+    // wallpaper rather than sunk into it.
+    readonly property color glassBase: light ? Qt.tint(bg, Qt.rgba(1, 1, 1, 0.55)) : bg
+    readonly property color glass: Qt.rgba(glassBase.r, glassBase.g, glassBase.b, glassAlpha)
     readonly property color hairline: Qt.rgba(text.r, text.g, text.b, 0.15)
     readonly property color litEdge: light ? Qt.rgba(1, 1, 1, 0.75) : Qt.rgba(text.r, text.g, text.b, 0.34)
     readonly property color fill: Qt.rgba(text.r, text.g, text.b, 0.12)
@@ -29,7 +33,9 @@ Singleton {
     readonly property color track: Qt.rgba(text.r, text.g, text.b, 0.22)
     readonly property color dim: Qt.rgba(text.r, text.g, text.b, 0.66)
     readonly property color faint: Qt.rgba(text.r, text.g, text.b, 0.42)
-    readonly property color on: text
+    // What is switched on. Dark themes light it up in the text colour; on paper a
+    // dark disc reads as inverted, so light themes use the accent.
+    readonly property color on: light ? accent : text
     readonly property color onText: bg
 
     readonly property string font: "Open Runde"
@@ -85,7 +91,13 @@ Singleton {
                 root.text = "#" + c.text;
                 root.name = c.name || root.name;
                 root.light = c.appearance === "light";
-                root.themes = c.themes ? c.themes.map(root.pickerEntry) : root.themes;
+                // Every theme lists the same picker entries; keep the old array (and the
+                // tiles built from it) unless the list itself changed.
+                const list = JSON.stringify(c.themes || null);
+                if (c.themes && list !== root.themesSource) {
+                    root.themesSource = list;
+                    root.themes = c.themes.map(root.pickerEntry);
+                }
             } catch (e) {
                 console.warn("quiet-shell: bad colours file", e);
             }
