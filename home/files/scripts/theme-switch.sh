@@ -113,13 +113,6 @@ quiet-shell-ipc reloadTheme >/dev/null 2>&1 || true
 # Dark or light for GTK and Firefox, from the same function activation uses.
 apply_theme_appearance "${appearance:-dark}" || echo "Warning: could not set the GTK colour scheme" >&2
 
-# Firefox, through Pywalfox when it is installed: the template for dark or
-# light, then the relinked ~/.cache/wal/colors.json. Without a running Firefox
-# the commands find no socket and fail fast; the extension fetches on start.
-if command -v pywalfox >/dev/null; then
-  { timeout 3 pywalfox "${appearance:-dark}" && timeout 3 pywalfox update; } >/dev/null 2>&1 || true
-fi
-
 # Every reload below is best effort: the choice and links above are what a
 # switch must do, and a compositor slow to answer (seen in CI VMs) or a
 # wallpaper that will not start should not undo it or fail it.

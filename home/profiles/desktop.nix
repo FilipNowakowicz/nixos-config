@@ -8,16 +8,6 @@ let
   # Theme-reloaded Wayland UI tools (kitty); shared with
   # theme-switch's runtimeInputs in home/theme/module.nix.
   themedRuntime = import ./desktop-runtime.nix { inherit pkgs; };
-  # nixpkgs ships the Pywalfox host without its Firefox manifest.
-  pywalfoxHost = pkgs.writeTextDir "lib/mozilla/native-messaging-hosts/pywalfox.json" (
-    builtins.toJSON {
-      name = "pywalfox";
-      description = "Pywalfox native messaging host";
-      path = "${pkgs.writeShellScript "pywalfox-start" "exec ${pkgs.pywalfox-native}/bin/pywalfox start"}";
-      type = "stdio";
-      allowed_extensions = [ "pywalfox@frewacom.org" ];
-    }
-  );
 in
 {
   home.packages =
@@ -36,8 +26,6 @@ in
         pavucontrol
         blueman
         thunar
-        # theme-switch drives Firefox's colours through it (see programs.firefox).
-        pywalfox-native
         # Adwaita-dark for GTK 3, which has no colour-scheme of its own.
         gnome-themes-extra
         tumbler
@@ -76,15 +64,6 @@ in
   programs.firefox = {
     enable = true;
     configPath = "${config.xdg.configHome}/mozilla/firefox";
-    # Pywalfox paints the browser from the running desktop theme: the theme
-    # module links a pywal-style colors.json per theme, and theme-switch runs
-    # `pywalfox <dark|light>` and `pywalfox update`, which reach the extension
-    # through this native messaging host.
-    policies.ExtensionSettings."pywalfox@frewacom.org" = {
-      installation_mode = "normal_installed";
-      install_url = "https://addons.mozilla.org/firefox/downloads/latest/pywalfox/latest.xpi";
-    };
-    nativeMessagingHosts = [ pywalfoxHost ];
     profiles."default" = {
       id = 0;
       isDefault = true;
