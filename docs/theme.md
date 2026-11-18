@@ -128,7 +128,8 @@ neovim module finds the live palette through the internal
 ### What it reloads (`desktop-runtime.nix`)
 
 `theme-switch` regenerates and live-reloads a fixed set of Wayland UI tools:
-**kitty** and **swaybg**. That list lives in one place,
+**kitty**; the wallpaper is the module's own `awww` unit, which fades between
+themes. That list lives in one place,
 [`home/profiles/desktop-runtime.nix`](../home/profiles/desktop-runtime.nix), and
 is imported by both the module's `theme-switch` `runtimeInputs` and the desktop
 install list (`home/profiles/desktop.nix`), so the packages you install and the

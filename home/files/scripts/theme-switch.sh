@@ -119,10 +119,12 @@ apply_theme_appearance "${appearance:-dark}" || echo "Warning: could not set the
 hyprctl eval "hl.config({general={col={active_border='rgb($accent)',inactive_border='rgb($surface)'}},decoration={shadow={color='rgba(${bg}cc)'}},misc={background_color='rgb($bg)'}})" >/dev/null ||
   echo "Warning: Hyprland did not take the new colours" >&2
 
-# Warm the kernel page cache so swaybg's decode is CPU-bound, not disk-bound:
-# while the unit restarts, the theme's background colour shows instead.
-cat "$HOME/.local/share/wallpapers/current.png" >/dev/null 2>&1 || true
-systemctl --user restart wallpaper.service || echo "Warning: the wallpaper did not restart" >&2
+# The running awww daemon fades to the relinked image (WALLPAPER_SHOW is
+# injected by the theme module). Only if it is gone does the unit restart,
+# which shows the theme's background colour until the image is up.
+"$WALLPAPER_SHOW" fade >/dev/null 2>&1 ||
+  systemctl --user restart wallpaper.service ||
+  echo "Warning: the wallpaper did not change" >&2
 
 ps -eo pid=,comm= |
   awk '$2 == ".kitty-wrapped" || $2 == "kitty" { print $1 }' |
