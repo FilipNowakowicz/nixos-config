@@ -1,8 +1,13 @@
 pragma Singleton
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 
+// Driving agent sessions' terminals, for the overview's agents card and the agent
+// board. scripts/agents.py names the kitty window each session runs in (its socket
+// and window id, see home/files/kitty/kitty.conf); these act on it.
+//
 // Agent Desktop's events (`agent-desktop events --follow`). A request to take a
 // private session (for example to sign in) becomes a banner whose buttons run the
 // command the event carries, as printed for a terminal. Nothing is taken without a
@@ -18,6 +23,41 @@ Singleton {
     readonly property var command: {
         const custom = Quickshell.env("QUIET_AGENT_EVENTS");
         return custom ? ["sh", "-c", custom] : ["agent-desktop", "events", "--follow"];
+    }
+
+    // The kitty window first (the right tab inside kitty), then the desktop window
+    // that kitty process owns, once the shell's surfaces are out of the way.
+    function jump(session) {
+        const t = session ? session.terminal : null;
+        if (!t)
+            return;
+        Quickshell.execDetached(["kitty", "@", "--to", "unix:" + t.socket, "focus-window", "--match", "id:" + t.window]);
+        // One kitty can own several desktop windows: the one showing this session's title.
+        const owned = Hyprland.toplevels.values.filter(x => x.lastIpcObject && x.lastIpcObject.pid === t.kitty);
+        const owner = owned.find(x => x.title === t.title) ?? owned[0];
+        Ui.close();
+        if (owner)
+            Dockable.revealAfterClose(owner);
+    }
+    // Types text into a session and presses Enter. Sent through stdin, so kitty
+    // types it exactly and reads no escapes in it; a bracketed paste keeps the
+    // agent from taking it for keystrokes, and the Enter after it submits.
+    function reply(session, text) {
+        const t = session ? session.terminal : null;
+        if (!t || text.trim() === "")
+            return;
+        Quickshell.execDetached(["sh", "-c",
+            'printf %s "$3" | kitty @ --to "unix:$1" send-text --match "id:$2" --bracketed-paste auto --stdin'
+            + ' && sleep 0.1 && kitty @ --to "unix:$1" send-key --match "id:$2" enter',
+            "sh", t.socket, String(t.window), text]);
+    }
+    // One key, as kitty names it: "1" picks the first answer of a prompt, "escape"
+    // interrupts the agent.
+    function press(session, key) {
+        const t = session ? session.terminal : null;
+        if (!t)
+            return;
+        Quickshell.execDetached(["kitty", "@", "--to", "unix:" + t.socket, "send-key", "--match", "id:" + t.window, key]);
     }
 
     function run(line) {

@@ -267,6 +267,7 @@ hl.bind("SUPER + W", hl.dsp.global("quiet-shell:pin"))
 hl.bind("SUPER + Space", hl.dsp.global("quiet-shell:spotlight"))
 hl.bind("SUPER + n", hl.dsp.global("quiet-shell:notifications"))
 hl.bind("SUPER + o", hl.dsp.global("quiet-shell:overview"))
+hl.bind("SUPER + a", hl.dsp.global("quiet-shell:board"))
 hl.bind("SUPER + Tab", hl.dsp.global("quiet-shell:switcher"))
 hl.bind("SUPER + SHIFT + Tab", hl.dsp.global("quiet-shell:switcher-back"))
 -- Releasing SUPER ends the switcher. The release bind misses it while Tab is still down,

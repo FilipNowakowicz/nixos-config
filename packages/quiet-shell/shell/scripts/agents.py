@@ -7,6 +7,10 @@ whether a session is busy from Claude Code's own registry in ~/.claude/sessions.
 Codex records its limits, and the plan they belong to, in its own session logs.
 Anything missing reports null or an empty list, so the card can say there is
 nothing to show.
+
+With --detail, for the agent board, each session also carries what it has been
+doing (from its transcript), the bottom of its terminal screen (from kitty), and
+Claude's limits a projection of when they run out at the current pace.
 """
 
 import base64
@@ -161,6 +165,28 @@ def registry(root):
     return found
 
 
+def attention(base, session_id):
+    """Why a session waits on the person, as its hooks recorded it
+    (home/files/agents/claude-attention.sh), or None."""
+    record = load(base / "claude-attention" / f"{session_id}.json")
+    return record if isinstance(record, dict) and record.get("kind") else None
+
+
+def settle(status, waiting, now, at):
+    """One state for the board: waiting (an approval or an answer), working,
+    done (the turn ended and it is your move) or idle."""
+    kind = (waiting or {}).get("kind")
+    if kind in ("permission", "question"):
+        return "waiting"
+    if status == "busy":
+        return "working"
+    if kind in ("done", "idle"):
+        return "done"
+    if status == "idle":
+        return "idle"
+    return state(now, at)
+
+
 def claude(base, sessions_dir, now):
     usage = load(base / "claude.json") or {}
     limits = usage.get("rate_limits") or {}
@@ -182,17 +208,24 @@ def claude(base, sessions_dir, now):
     for s, at, path in newest.values():
         cwd = s.get("cwd") or ""
         known = live.get(s["pid"]) or {}
+        sid = s.get("id") or path.stem
+        waiting = attention(base, sid)
         sessions.append({
             "tool": "claude",
-            "id": s.get("id") or path.stem,
+            "id": sid,
             "cwd": cwd,
             "project": os.path.basename((s.get("project") or cwd).rstrip("/")),
             "model": s.get("model") or "",
             "context": s.get("context"),
             "at": int(at),
-            "state": {"busy": "working", "idle": "idle"}.get(known.get("status")) or state(now, at),
+            "state": settle(known.get("status"), waiting, now, at),
+            "waiting": (waiting or {}).get("message") or "",
             "name": known.get("name") or "",
             "pid": s["pid"],
+            "cost": s.get("cost"),
+            "lines": s.get("lines"),
+            "started": int(known["startedAt"] / 1000) if isinstance(known.get("startedAt"), (int, float)) else None,
+            "transcript": s.get("transcript") or "",
         })
     return {
         "five_hour": window(five.get("used_percentage"), five.get("resets_at"), now),
@@ -201,6 +234,142 @@ def claude(base, sessions_dir, now):
         # The status line hands over limits only for a subscription.
         "paid": None,
     }, sessions
+
+
+def history(path):
+    """Claude's limit readings over time, oldest first, as the status line logs them."""
+    out = []
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return out
+    for line in lines:
+        try:
+            r = json.loads(line)
+            out.append((float(r["at"]), r.get("five"), r.get("week")))
+        except (ValueError, KeyError, TypeError):
+            continue
+    return out
+
+
+# Too short a stretch says nothing about a pace.
+PACE_SPAN = 15 * 60
+
+
+def runs_out(win, samples, since, now):
+    """When a limit window fills at the pace since `since`, if before it resets.
+    The pace is the change from the first reading in that stretch to now."""
+    if not win or win["resets"] is None:
+        return None
+    readings = [(at, used) for at, used in samples if used is not None and at >= since]
+    if not readings or now - readings[0][0] < PACE_SPAN:
+        return None
+    first_at, first_used = readings[0]
+    rate = (win["used"] - float(first_used)) / (now - first_at)
+    if rate <= 0:
+        return None
+    eta = now + (100 - win["used"]) / rate
+    return int(eta) if eta < win["resets"] else None
+
+
+def project(limits, path, now):
+    """Add `runs_out` to Claude's windows: the five-hour one at its pace this
+    window, the week at its pace over the last day."""
+    samples = history(path)
+    five, week = limits["five_hour"], limits["week"]
+    if five:
+        start = five["resets"] - 5 * 3600 if five["resets"] else now
+        five["runs_out"] = runs_out(five, [(a, f) for a, f, _ in samples], start, now)
+    if week:
+        start = max(now - 86400, week["resets"] - 7 * 86400 if week["resets"] else now)
+        week["runs_out"] = runs_out(week, [(a, w) for a, _, w in samples], start, now)
+
+
+# The board shows a handful of each.
+FEED_ITEMS = 60
+# A reply longer than this is cut; the terminal has the rest.
+SAID_CHARS = 6000
+SCREEN_LINES = 18
+
+
+def brief(tool, args):
+    """One line for a tool call: what it ran or touched."""
+    if not isinstance(args, dict):
+        return tool
+    for key in ("description", "command", "file_path", "pattern", "url", "query", "prompt", "path"):
+        value = args.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip().splitlines()[0][:160]
+    return ""
+
+
+def said(content):
+    """The person's own words in a user message, leaving out tool results and the
+    tags Claude Code wraps around commands and reminders."""
+    if isinstance(content, str):
+        parts = [content]
+    elif isinstance(content, list):
+        parts = [c.get("text", "") for c in content if isinstance(c, dict) and c.get("type") == "text"]
+    else:
+        return ""
+    words = [p.strip() for p in parts if p.strip() and not p.lstrip().startswith("<")]
+    return "\n".join(words)
+
+
+def activity(path):
+    """The end of a session's conversation, from its transcript, as a feed to read
+    on the board: your prompts, what it wrote (whole, as Markdown), and its tool
+    calls in one line each; plus your last prompt and its git branch."""
+    found = {"prompt": "", "feed": [], "branch": ""}
+    if not path:
+        return found
+    feed = []
+    for line in tail(pathlib.Path(path), 768 * 1024):
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(entry, dict) or entry.get("isSidechain"):
+            continue
+        if entry.get("gitBranch"):
+            found["branch"] = entry["gitBranch"]
+        message = entry.get("message") or {}
+        if entry.get("type") == "user" and not entry.get("isMeta"):
+            words = said(message.get("content"))
+            if words:
+                found["prompt"] = words[:400]
+                feed.append({"kind": "you", "text": words[:SAID_CHARS]})
+        elif entry.get("type") == "assistant" and isinstance(message.get("content"), list):
+            for c in message["content"]:
+                if not isinstance(c, dict):
+                    continue
+                if c.get("type") == "tool_use":
+                    feed.append({"kind": "tool", "name": c.get("name") or "", "text": brief(c.get("name"), c.get("input"))})
+                elif c.get("type") == "text" and c.get("text", "").strip():
+                    feed.append({"kind": "said", "text": c["text"].strip()[:SAID_CHARS]})
+    found["feed"] = feed[-FEED_ITEMS:]
+    return found
+
+
+def screen(terminal):
+    """The bottom of a session's terminal, as kitty shows it: where a permission
+    prompt or a question waits."""
+    if not terminal:
+        return ""
+    try:
+        out = subprocess.run(
+            ["kitty", "@", "--to", f"unix:{terminal['socket']}", "get-text",
+             "--match", f"id:{terminal['window']}", "--extent", "screen"],
+            capture_output=True, text=True, timeout=2,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    if out.returncode != 0:
+        return ""
+    lines = [l.rstrip() for l in out.stdout.splitlines()]
+    while lines and not lines[-1]:
+        lines.pop()
+    return "\n".join(lines[-SCREEN_LINES:])
 
 
 def codex_logs(root, now):
@@ -316,7 +485,9 @@ def _find(value, key):
 
 
 def main():
-    now = time.time() if len(sys.argv) < 2 else float(sys.argv[1])
+    args = [a for a in sys.argv[1:] if a != "--detail"]
+    detail = "--detail" in sys.argv[1:]
+    now = time.time() if not args else float(args[0])
     home = pathlib.Path(os.environ.get("HOME", "/nonexistent"))
     state_home = pathlib.Path(os.environ.get("XDG_STATE_HOME") or home / ".local/state")
     codex_home = pathlib.Path(os.environ.get("CODEX_HOME") or home / ".codex")
@@ -325,6 +496,15 @@ def main():
     sessions = sorted(claude_sessions + codex_sessions, key=lambda s: -s["at"])[:6]
     runtime = pathlib.Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
     place(sessions, runtime)
+    for s in sessions:
+        transcript = s.pop("transcript", "")
+        if detail:
+            s.update(activity(transcript))
+            # The screen matters where the transcript can't say it: a prompt's
+            # choices while it waits, or a session with no transcript to read.
+            s["screen"] = screen(s["terminal"]) if s["state"] == "waiting" or not s["feed"] else ""
+    if detail:
+        project(claude_limits, state_home / "agent-usage/claude-history.jsonl", now)
     print(json.dumps({
         "now": int(now),
         "claude": claude_limits,

@@ -51,6 +51,8 @@ PanelWindow {
                 event.accepted = menus.pressLetter(event.text.toLowerCase());
             else if (Ui.panel === "notifications")
                 event.accepted = notifications.pressKey(event.text);
+            else if (Ui.board && board.item)
+                event.accepted = board.item.pressKey(event);
         }
         Keys.onReturnPressed: event => {
             if (Ui.switcher) Ui.commitSwitcher();
@@ -111,6 +113,17 @@ PanelWindow {
             Behavior on opacity { NumberAnimation { duration: Theme.motion } }
             Behavior on scale { NumberAnimation { duration: Theme.motion; easing.type: Easing.OutCubic } }
             sourceComponent: Overview {}
+        }
+        // Built only while open, so its probes run only then.
+        Loader {
+            id: board
+            anchors.fill: parent
+            active: (Ui.board || opacity > 0) && win.focused
+            opacity: Ui.board ? 1 : 0
+            scale: Ui.board ? 1 : 1.04
+            Behavior on opacity { NumberAnimation { duration: Theme.motion } }
+            Behavior on scale { NumberAnimation { duration: Theme.motion; easing.type: Easing.OutCubic } }
+            sourceComponent: AgentBoard {}
         }
 
         Top { id: top; anchors.fill: parent; visible: win.focused || Ui.pinned }

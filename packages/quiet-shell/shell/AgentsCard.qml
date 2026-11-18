@@ -1,7 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
-import Quickshell.Hyprland
 import Quickshell.Io
 
 // How much of each subscribed tool's usage limits is spent, when each comes back,
@@ -23,31 +21,8 @@ Item {
     // Reply lines open right now.
     property int typing: 0
 
-    // The kitty window first (the right tab inside kitty), then the desktop window
-    // that kitty process owns, once the overview is out of the way.
-    function jump(session) {
-        const t = session.terminal;
-        if (!t)
-            return;
-        Quickshell.execDetached(["kitty", "@", "--to", "unix:" + t.socket, "focus-window", "--match", "id:" + t.window]);
-        // One kitty can own several desktop windows: the one showing this session's title.
-        const owned = Hyprland.toplevels.values.filter(x => x.lastIpcObject && x.lastIpcObject.pid === t.kitty);
-        const owner = owned.find(x => x.title === t.title) ?? owned[0];
-        Ui.close();
-        if (owner)
-            Dockable.revealAfterClose(owner);
-    }
-    // Sent through stdin, so kitty types the text exactly and reads no escapes in it.
-    // A bracketed paste keeps the agent from taking it for keystrokes, and the Enter
-    // after it submits.
     function reply(session, text) {
-        const t = session.terminal;
-        if (!t)
-            return;
-        Quickshell.execDetached(["sh", "-c",
-            'printf %s "$3" | kitty @ --to "unix:$1" send-text --match "id:$2" --bracketed-paste auto --stdin'
-            + ' && sleep 0.1 && kitty @ --to "unix:$1" send-key --match "id:$2" enter',
-            "sh", t.socket, String(t.window), text]);
+        Agents.reply(session, text);
         soon.restart();
     }
     // A reply usually sets a session working; show that without waiting the full interval.
@@ -107,6 +82,7 @@ Item {
             ColumnLayout {
                 id: tool
                 required property var modelData
+                required property int index
                 readonly property var limits: root.info[modelData[1]]
                 Layout.fillWidth: true
                 spacing: 5
@@ -153,6 +129,16 @@ Item {
                         }
                     }
                     Label { id: count; text: root.sessionsOf(tool.modelData[1]); font.pixelSize: 10; color: Theme.dim }
+                    // Everything about every session, side by side (SUPER+A).
+                    Press {
+                        visible: tool.index === 0
+                        implicitWidth: 22
+                        implicitHeight: 22
+                        radius: 11
+                        name: "Open the agent board"
+                        onClicked: Ui.toggleBoard()
+                        Icon { anchors.centerIn: parent; name: "layout-grid"; size: 12; color: Theme.dim }
+                    }
                 }
                 Repeater {
                     model: [["5h", tool.limits.five_hour], ["week", tool.limits.week]].filter(w => w[1] !== null)
@@ -193,7 +179,7 @@ Item {
                         required property var modelData
                         Layout.fillWidth: true
                         session: modelData
-                        onJump: root.jump(modelData)
+                        onJump: Agents.jump(modelData)
                         onReply: text => root.reply(modelData, text)
                         onReplyingChanged: root.typing += replying ? 1 : -1
                         Component.onDestruction: if (replying) root.typing -= 1
