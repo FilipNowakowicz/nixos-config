@@ -97,6 +97,12 @@ let
           (lib.optionalString (
             !(lib.hasInfix "Do not add `flake.nix`" policy)
           ) "global agent policy must keep Nix-only dependency files out of portable Python repos")
+          (lib.optionalString (
+            !(lib.hasInfix "~/.local/share/worktrees/<repo>/<name>" policy)
+          ) "global agent policy must place worktrees under ~/.local/share/worktrees/<repo>/<name>")
+          (lib.optionalString (
+            !(hm.home.activation ? claudeNoAttribution)
+          ) "Home Manager must disable Claude Code commit/PR attribution")
         ];
       in
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);

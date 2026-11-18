@@ -8,6 +8,21 @@ other agent tooling in commit messages, PR descriptions, or PR bodies. Commits
 should show only the human author unless repository-specific instructions say
 otherwise.
 
+## Git worktrees
+
+Put linked worktrees under `~/.local/share/worktrees/<repo>/<name>` (for
+example `git worktree add ~/.local/share/worktrees/nix/fix-foo -b fix-foo`),
+not in `/tmp`, inside the repository, or in a visible folder in `~`:
+
+- `/tmp` is tmpfs on NixOS workstations and is wiped on reboot, so
+  uncommitted work there is lost. It does not remove stale branches either,
+  because branches live in the primary checkout's `.git`.
+- Commit WIP before long-running validation in a worktree.
+- Clean up after yourself: once the branch is merged and the merge is
+  verified, `git worktree remove <path>` and delete the merged branch. Never
+  remove a worktree another session is still using, or one with uncommitted
+  changes you did not make.
+
 ## Python projects
 
 Unless a repository explicitly declares a different workflow, use `uv` for
