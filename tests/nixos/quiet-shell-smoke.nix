@@ -53,8 +53,12 @@ let
     printf '{"at":%s,"rate_limits":{"five_hour":{"used_percentage":64,"resets_at":%s},"seven_day":{"used_percentage":88,"resets_at":%s}}}' \
       "$now" $((now + 10800)) $((now + 200000)) >"$state/claude.json"
     printf '{"at":%s,"five":20,"week":80}\n' $((now - 7200)) >"$state/claude-history.jsonl"
-    printf '{"id":"s-1","pid":%s,"started":"%s","boot":"%s","cwd":"/home/user/nix","project":"/home/user/nix","model":"Opus","context":31,"cost":2.5}' \
-      "$pid" "$started" "$boot" >"$state/claude-sessions/s-1.json"
+    cat >"$state/s-1.jsonl" <<'EOF'
+    {"type":"user","gitBranch":"agent-board","message":{"content":"Make the board easier to read"}}
+    {"type":"assistant","message":{"content":[{"type":"text","text":"Each column now reads the **conversation**, newest at the bottom:\n\n- your prompts\n- my replies in full\n- tool calls in a line each"},{"type":"tool_use","name":"Bash","input":{"description":"Run the board tests"}}]}}
+    EOF
+    printf '{"id":"s-1","pid":%s,"started":"%s","boot":"%s","cwd":"/home/user/nix","project":"/home/user/nix","model":"Opus","context":31,"cost":2.5,"transcript":"%s"}' \
+      "$pid" "$started" "$boot" "$state/s-1.jsonl" >"$state/claude-sessions/s-1.json"
     printf '{"pid":%s,"procStart":"%s","status":"busy","name":"nix-12","startedAt":%s000}' \
       "$pid" "$started" $((now - 3000)) >"$HOME/.claude/sessions/$pid.json"
     printf '{"at":%s,"kind":"permission","message":"Claude needs your permission to use Bash"}' \

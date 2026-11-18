@@ -3,9 +3,10 @@ import QtQuick.Layouts
 import Quickshell.Io
 
 // Every running agent session side by side (SUPER+A), sorted so the ones waiting
-// on you come first: what you last asked, what it has done since, the bottom of
-// its terminal (where a permission prompt or question shows), and the limits with
-// when they run out at this pace. The reply line at the bottom types into the
+// on you come first. Each column reads its conversation (your prompts, its replies
+// in full, its tool calls), with the bottom of its terminal while it waits on a
+// prompt; the chosen column is widest, and z gives it the whole width. The header
+// has the limits and when they run out at this pace. The reply line at the bottom types into the
 // selected session; number keys answer its prompt, x interrupts it, Return goes to
 // its terminal. scripts/agents.py --detail gathers everything, every few seconds
 // while the board is open.
@@ -16,6 +17,10 @@ Item {
     property real now: Date.now() / 1000
     // Selection follows a session, not a position, as the order changes under it.
     property string selectedId: ""
+    // The chosen session takes the whole width.
+    property bool zoomed: false
+    signal scrollRequested(real step)
+    property string lastOutput: ""
 
     // Waiting on you first, then a finished turn, then work in progress; by name
     // within each, so columns don't swap places as they report.
@@ -41,7 +46,7 @@ Item {
             return;
         const at = (selected + step + sessions.length) % sessions.length;
         selectedId = sessions[at].id;
-        columns.positionViewAtIndex(at, ListView.Contain);
+        keepInView.restart();
     }
     function stateText(s) {
         return ({ waiting: "Needs you", done: "Your turn", working: "Working", idle: "Idle" })[s.state] || s.state;
@@ -55,6 +60,13 @@ Item {
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { Agents.jump(current); return true; }
         if (letter === "r" || letter === "i" || letter === "/") { replyInput.forceActiveFocus(); return true; }
         if (letter === "x") { Agents.press(current, "escape"); soon.restart(); return true; }
+        if (letter === "z") {
+            zoomed = !zoomed;
+            keepInView.restart();
+            return true;
+        }
+        if (letter === "j" || event.key === Qt.Key_Down) { scrollRequested(160); return true; }
+        if (letter === "k" || event.key === Qt.Key_Up) { scrollRequested(-160); return true; }
         if (["1", "2", "3"].includes(event.text)) { Agents.press(current, event.text); soon.restart(); return true; }
         return false;
     }
@@ -64,6 +76,10 @@ Item {
         command: ["python3", Qt.resolvedUrl("scripts/agents.py").toString().replace("file://", ""), "--detail"]
         stdout: StdioCollector {
             onStreamFinished: {
+                // The same output again would only rebuild the feeds and jump them.
+                if (text === root.lastOutput)
+                    return;
+                root.lastOutput = text;
                 try {
                     root.info = JSON.parse(text);
                     if (!root.sessions.some(s => s.id === root.selectedId) && root.sessions.length)
@@ -87,6 +103,9 @@ Item {
         triggeredOnStart: true
         onTriggered: root.refresh()
     }
+    // Choosing or widening a column animates the widths; once they have moved,
+    // bring the chosen one fully into view.
+    Timer { id: keepInView; interval: Theme.motion + 40; onTriggered: columns.positionViewAtIndex(root.selected, ListView.Contain) }
     // After a key or a reply, show what it did without waiting the full interval.
     Timer { id: soon; interval: 700; onTriggered: root.refresh() }
 
@@ -194,13 +213,19 @@ Item {
         boundsBehavior: Flickable.StopAtBounds
         // Repeated output keeps the same delegates, so nothing flickers as it refreshes.
         model: root.sessions.length
-        readonly property real columnWidth: Math.max(380, Math.min(560, (width - spacing * (Math.max(1, count) - 1)) / Math.max(1, count)))
+        // The others share what is left, but never get too narrow to read a line;
+        // past that the row scrolls sideways to keep the chosen one in view.
+        readonly property real chosenWidth: root.zoomed || count <= 1 ? width : Math.max(560, Math.min(900, width * 0.5))
+        readonly property real columnWidth: count <= 1 ? width
+            : Math.max(340, Math.min(560, (width - chosenWidth - spacing * (count - 1)) / (count - 1)))
         delegate: Item {
             id: column
             required property int index
             readonly property var s: root.sessions[index] ?? null
             readonly property bool chosen: index === root.selected
-            width: columns.columnWidth
+            width: chosen ? columns.chosenWidth : root.zoomed ? 0 : columns.columnWidth
+            Behavior on width { NumberAnimation { duration: Theme.motion; easing.type: Easing.OutCubic } }
+            clip: true
             height: columns.height
             visible: s !== null
 
@@ -293,58 +318,112 @@ Item {
 
                 Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.hairline }
 
-                Label { visible: !!column.s && column.s.prompt !== ""; text: "You asked"; font.pixelSize: 10; color: Theme.faint }
-                Label {
-                    visible: !!column.s && column.s.prompt !== ""
+                // The conversation, newest at the bottom: your prompts, what it
+                // wrote in full, and its tool calls in a line each. It keeps to the
+                // newest unless scrolled up (j and k, or the wheel).
+                Flickable {
+                    id: feed
                     Layout.fillWidth: true
-                    text: column.s ? column.s.prompt : ""
-                    wrapMode: Text.Wrap
-                    maximumLineCount: 3
-                    elide: Text.ElideRight
-                    font.pixelSize: 12
-                }
-                Label { visible: !!column.s && column.s.tools && column.s.tools.length > 0; text: "Since then"; font.pixelSize: 10; color: Theme.faint }
-                Repeater {
-                    model: column.s && column.s.tools ? column.s.tools : []
-                    RowLayout {
-                        id: call
-                        required property var modelData
-                        Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.minimumHeight: 120
+                    contentHeight: feedColumn.implicitHeight
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    property bool pinned: true
+                    readonly property real lowest: Math.max(0, contentHeight - height)
+                    onMovementEnded: pinned = contentY >= lowest - 8
+                    onContentHeightChanged: if (pinned) contentY = lowest
+                    onHeightChanged: if (pinned) contentY = lowest
+                    function scrollBy(step) {
+                        contentY = Math.max(0, Math.min(lowest, contentY + step));
+                        pinned = contentY >= lowest - 8;
+                    }
+                    Connections {
+                        target: root
+                        function onScrollRequested(step) { if (column.chosen) feed.scrollBy(step); }
+                    }
+                    Column {
+                        id: feedColumn
+                        width: feed.width
                         spacing: 8
-                        Label { text: call.modelData.name; font.pixelSize: 11; font.weight: Font.Medium; color: Theme.dim }
                         Label {
-                            Layout.fillWidth: true
-                            text: call.modelData.brief
-                            elide: Text.ElideRight
-                            font.pixelSize: 11
+                            visible: !!column.s && (!column.s.feed || column.s.feed.length === 0)
+                            width: parent.width
+                            text: "Nothing to read from its transcript yet."
+                            wrapMode: Text.Wrap
                             color: Theme.faint
+                            font.pixelSize: 12
+                        }
+                        Repeater {
+                            model: column.s && column.s.feed ? column.s.feed : []
+                            Item {
+                                id: item
+                                required property var modelData
+                                width: feedColumn.width
+                                implicitHeight: item.modelData.kind === "tool" ? toolLine.implicitHeight
+                                    : item.modelData.kind === "you" ? you.implicitHeight + 16 : said.implicitHeight
+                                // Your words, set apart like a sent message.
+                                Rectangle {
+                                    visible: item.modelData.kind === "you"
+                                    anchors.fill: parent
+                                    radius: 12
+                                    color: Theme.fill
+                                }
+                                Text {
+                                    id: you
+                                    visible: item.modelData.kind === "you"
+                                    x: 12
+                                    y: 8
+                                    width: parent.width - 24
+                                    text: item.modelData.kind === "you" ? item.modelData.text : ""
+                                    textFormat: Text.PlainText
+                                    wrapMode: Text.Wrap
+                                    color: Theme.text
+                                    font.family: Theme.font
+                                    font.pixelSize: 13
+                                }
+                                Text {
+                                    id: said
+                                    visible: item.modelData.kind === "said"
+                                    width: parent.width
+                                    text: item.modelData.kind === "said" ? item.modelData.text : ""
+                                    textFormat: Text.MarkdownText
+                                    wrapMode: Text.Wrap
+                                    color: Theme.text
+                                    linkColor: Theme.accent
+                                    font.family: Theme.font
+                                    font.pixelSize: 13
+                                    lineHeight: 1.15
+                                }
+                                Label {
+                                    id: toolLine
+                                    visible: item.modelData.kind === "tool"
+                                    width: parent.width
+                                    text: item.modelData.kind === "tool" ? item.modelData.name + "  " + item.modelData.text : ""
+                                    font.pixelSize: 11
+                                    color: Theme.faint
+                                }
+                            }
                         }
                     }
                 }
-                Label {
-                    visible: !!column.s && !!column.s.said
-                    Layout.fillWidth: true
-                    text: column.s ? column.s.said || "" : ""
-                    wrapMode: Text.Wrap
-                    maximumLineCount: 3
-                    elide: Text.ElideRight
-                    font.pixelSize: 12
-                    color: Theme.dim
-                }
 
-                // The bottom of its terminal, as it is now.
+                // The bottom of its terminal, when the transcript can't say it: a
+                // prompt's choices while it waits, or a session with no transcript.
                 Item {
+                    readonly property bool unreachable: !!column.s && !column.s.terminal
+                    visible: !!column.s && (column.s.screen !== "" || unreachable)
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.minimumHeight: 90
+                    Layout.preferredHeight: unreachable ? 52 : Math.min(240, screenText.implicitHeight + 20)
                     Rectangle { anchors.fill: parent; radius: 12; color: Qt.rgba(0, 0, 0, 0.28) }
                     Text {
+                        id: screenText
                         anchors.fill: parent
                         anchors.margins: 10
                         verticalAlignment: Text.AlignBottom
                         clip: true
                         text: !column.s ? "" : column.s.screen
-                            || (column.s.terminal ? "" : "Its terminal was opened before kitty listened on a socket; reopen it to see and drive it here.")
+                            || "Its terminal was opened before kitty listened on a socket; reopen it to see and drive it here."
                         textFormat: Text.PlainText
                         // The screen keeps its own lines; the note about an old terminal wraps.
                         wrapMode: column.s && column.s.screen ? Text.NoWrap : Text.Wrap
@@ -426,7 +505,7 @@ Item {
         anchors.top: replyBar.bottom
         anchors.topMargin: 12
         visible: root.sessions.length > 0
-        text: "h l choose · Return go to · r reply · 1 2 3 answer · x interrupt · Esc close"
+        text: "h l choose · j k scroll · z widen · Return go to · r reply · 1 2 3 answer · x interrupt · Esc close"
         font.pixelSize: 11
         color: Theme.faint
     }

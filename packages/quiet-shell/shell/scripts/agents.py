@@ -286,7 +286,9 @@ def project(limits, path, now):
 
 
 # The board shows a handful of each.
-TOOLS_SHOWN = 6
+FEED_ITEMS = 60
+# A reply longer than this is cut; the terminal has the rest.
+SAID_CHARS = 6000
 SCREEN_LINES = 18
 
 
@@ -315,12 +317,14 @@ def said(content):
 
 
 def activity(path):
-    """What a session has been doing, from the end of its transcript: your last
-    prompt, its recent tool calls, the last thing it wrote, and its git branch."""
-    found = {"prompt": "", "tools": [], "said": "", "branch": ""}
+    """The end of a session's conversation, from its transcript, as a feed to read
+    on the board: your prompts, what it wrote (whole, as Markdown), and its tool
+    calls in one line each; plus your last prompt and its git branch."""
+    found = {"prompt": "", "feed": [], "branch": ""}
     if not path:
         return found
-    for line in tail(pathlib.Path(path), 512 * 1024):
+    feed = []
+    for line in tail(pathlib.Path(path), 768 * 1024):
         try:
             entry = json.loads(line)
         except ValueError:
@@ -334,18 +338,16 @@ def activity(path):
             words = said(message.get("content"))
             if words:
                 found["prompt"] = words[:400]
-                # Tool calls before this prompt belong to earlier work.
-                found["tools"] = []
-                found["said"] = ""
+                feed.append({"kind": "you", "text": words[:SAID_CHARS]})
         elif entry.get("type") == "assistant" and isinstance(message.get("content"), list):
             for c in message["content"]:
                 if not isinstance(c, dict):
                     continue
                 if c.get("type") == "tool_use":
-                    found["tools"].append({"name": c.get("name") or "", "brief": brief(c.get("name"), c.get("input"))})
+                    feed.append({"kind": "tool", "name": c.get("name") or "", "text": brief(c.get("name"), c.get("input"))})
                 elif c.get("type") == "text" and c.get("text", "").strip():
-                    found["said"] = c["text"].strip()[:400]
-    found["tools"] = found["tools"][-TOOLS_SHOWN:]
+                    feed.append({"kind": "said", "text": c["text"].strip()[:SAID_CHARS]})
+    found["feed"] = feed[-FEED_ITEMS:]
     return found
 
 
@@ -498,7 +500,9 @@ def main():
         transcript = s.pop("transcript", "")
         if detail:
             s.update(activity(transcript))
-            s["screen"] = screen(s["terminal"])
+            # The screen matters where the transcript can't say it: a prompt's
+            # choices while it waits, or a session with no transcript to read.
+            s["screen"] = screen(s["terminal"]) if s["state"] == "waiting" or not s["feed"] else ""
     if detail:
         project(claude_limits, state_home / "agent-usage/claude-history.jsonl", now)
     print(json.dumps({

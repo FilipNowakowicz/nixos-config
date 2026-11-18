@@ -188,11 +188,24 @@ print(json.dumps([{{"tabs": [{{"windows": [
     a = got["sessions"][0]
     assert a["prompt"] == "build the board", a
     assert a["branch"] == "board", a
-    assert a["tools"] == [{"name": "Bash", "brief": "Build it"}, {"name": "Edit", "brief": "/repo/agents.py"}], a
-    assert a["said"] == "Starting with the hook.", a
+    # The conversation in order: prompts in your own words, what it wrote, and
+    # tool calls as one line; not reminders, meta entries, tool results or subagents.
+    assert a["feed"] == [
+        {"kind": "you", "text": "first ask"},
+        {"kind": "tool", "name": "Read", "text": "/old"},
+        {"kind": "you", "text": "build the board"},
+        {"kind": "said", "text": "Starting with the hook."},
+        {"kind": "tool", "name": "Bash", "text": "Build it"},
+        {"kind": "tool", "name": "Edit", "text": "/repo/agents.py"},
+    ], a["feed"]
     assert a["cost"] == 1.5, a
-    assert a["screen"].splitlines()[-3:] == ["Do you want to proceed?", "  1. Yes", "  2. No"], a["screen"]
-    assert len(a["screen"].splitlines()) == 18, a["screen"]
+    # Its transcript says it all, so its screen isn't read...
+    assert a["screen"] == "", a
+    # ...but b waits on a prompt, and has no transcript: the bottom of its screen.
+    b = got["sessions"][1]
+    assert b["feed"] == [] and b["state"] == "waiting", b
+    assert b["screen"].splitlines()[-3:] == ["Do you want to proceed?", "  1. Yes", "  2. No"], b["screen"]
+    assert len(b["screen"].splitlines()) == 18, b["screen"]
     # Started 2h ago at 30%, now 50: 10 an hour, so 100 in 5h, past the reset in 3h.
     assert got["claude"]["five_hour"]["runs_out"] is None, got["claude"]
     # From 10 two hours ago to 50 now is 20 an hour: full in 2.5h, before the reset.
