@@ -61,6 +61,9 @@ Item {
             if (kind === "theme" && (Ui.detailCursor === "" || Ui.detailCursor.startsWith("theme "))) {
                 const across = letter === "h" || event.key === Qt.Key_Left ? -1 : letter === "l" || event.key === Qt.Key_Right ? 1 : 0;
                 if (across || step) {
+                    // The first move starts from the running theme, not the first tile.
+                    if (Ui.detailCursor === "")
+                        Ui.detailCursor = "theme " + Theme.name;
                     moveCursor(across || step * themeGrid.columns);
                     return true;
                 }

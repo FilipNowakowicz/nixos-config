@@ -21,13 +21,13 @@ Singleton {
     property bool monoIcons: true
     onMonoIconsChanged: if (iconsFile.loaded) iconsFile.setText(monoIcons ? "mono" : "colour")
 
-    readonly property real glassAlpha: light ? 0.56 : 0.42
-    // Light glass is frosted toward white, so pills read as lifted off a pale
-    // wallpaper rather than sunk into it.
-    readonly property color glassBase: light ? Qt.tint(bg, Qt.rgba(1, 1, 1, 0.55)) : bg
+    readonly property real glassAlpha: light ? 0.5 : 0.42
+    // Light glass is lifted a little toward white, enough to separate pills from a
+    // pale wallpaper without glaring.
+    readonly property color glassBase: light ? Qt.tint(bg, Qt.rgba(1, 1, 1, 0.15)) : bg
     readonly property color glass: Qt.rgba(glassBase.r, glassBase.g, glassBase.b, glassAlpha)
     readonly property color hairline: Qt.rgba(text.r, text.g, text.b, 0.15)
-    readonly property color litEdge: light ? Qt.rgba(1, 1, 1, 0.75) : Qt.rgba(text.r, text.g, text.b, 0.34)
+    readonly property color litEdge: light ? Qt.rgba(1, 1, 1, 0.45) : Qt.rgba(text.r, text.g, text.b, 0.34)
     readonly property color fill: Qt.rgba(text.r, text.g, text.b, 0.12)
     readonly property color fillHover: Qt.rgba(text.r, text.g, text.b, 0.2)
     readonly property color track: Qt.rgba(text.r, text.g, text.b, 0.22)

@@ -113,13 +113,16 @@ quiet-shell-ipc reloadTheme >/dev/null 2>&1 || true
 # Dark or light for GTK and Firefox, from the same function activation uses.
 apply_theme_appearance "${appearance:-dark}" || echo "Warning: could not set the GTK colour scheme" >&2
 
-# Reload apps
-hyprctl eval "hl.config({general={col={active_border='rgb($accent)',inactive_border='rgb($surface)'}},decoration={shadow={color='rgba(${bg}cc)'}},misc={background_color='rgb($bg)'}})" >/dev/null
+# Every reload below is best effort: the choice and links above are what a
+# switch must do, and a compositor slow to answer (seen in CI VMs) or a
+# wallpaper that will not start should not undo it or fail it.
+hyprctl eval "hl.config({general={col={active_border='rgb($accent)',inactive_border='rgb($surface)'}},decoration={shadow={color='rgba(${bg}cc)'}},misc={background_color='rgb($bg)'}})" >/dev/null ||
+  echo "Warning: Hyprland did not take the new colours" >&2
 
 # Warm the kernel page cache so swaybg's decode is CPU-bound, not disk-bound:
 # while the unit restarts, the theme's background colour shows instead.
 cat "$HOME/.local/share/wallpapers/current.png" >/dev/null 2>&1 || true
-systemctl --user restart wallpaper.service
+systemctl --user restart wallpaper.service || echo "Warning: the wallpaper did not restart" >&2
 
 ps -eo pid=,comm= |
   awk '$2 == ".kitty-wrapped" || $2 == "kitty" { print $1 }' |
