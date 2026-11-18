@@ -2,6 +2,7 @@
 # Values are plain hex without '#' — prepend '#' for CSS, use directly in rgb() for Hyprland.
 {
   name = "desert-dusk";
+  displayName = "Desert Dusk";
   enabled = true;
 
   # Neovim colorscheme. gruvbox-material is the only loaded scheme; this warm
@@ -40,5 +41,5 @@
     color15 = "fae3bf"; # bright white
   };
 
-  wallpaper = ../wallpapers/desert-dusk.png;
+  wallpaper = ../wallpapers/desert-dusk.jpg;
 }
