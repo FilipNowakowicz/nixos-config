@@ -14,13 +14,13 @@ script = sys.argv[1]
 NOW = 1_800_000_000
 
 
-def run(home):
+def run(home, *flags):
     # Its own runtime directory, so the real kitty windows here are never asked.
     runtime = home / "runtime"
     runtime.mkdir(exist_ok=True)
     env = {"HOME": str(home), "XDG_RUNTIME_DIR": str(runtime),
            "PATH": f"{home / 'bin'}:{os.environ.get('PATH', '')}"}
-    out = subprocess.run([sys.executable, script, str(NOW)], env=env, capture_output=True, text=True, check=True)
+    out = subprocess.run([sys.executable, script, *flags, str(NOW)], env=env, capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
 
 
@@ -131,6 +131,10 @@ to = sys.argv[sys.argv.index("--to") + 1]
 assert "kitty-99" not in to, to
 if to.endswith("kitty-5151"):
     sys.exit(1)
+if "get-text" in sys.argv:
+    assert sys.argv[sys.argv.index("--match") + 1] == "id:7", sys.argv
+    print("\\n".join(["old line"] * 30 + ["Do you want to proceed?", "  1. Yes", "  2. No", "", ""]))
+    sys.exit(0)
 print(json.dumps([{{"tabs": [{{"windows": [
     {{"id": 1, "pid": 1, "foreground_processes": []}},
     {{"id": 7, "pid": {os.getppid()}, "title": "claude", "foreground_processes": [{{"pid": {os.getpid()}}}]}},
@@ -141,6 +145,66 @@ print(json.dumps([{{"tabs": [{{"windows": [
     # Session a's process is this test itself, b's is its child: both are in window 7.
     assert [s["terminal"] for s in got["sessions"]] == [
         {"socket": str(runtime / "kitty-4242"), "window": 7, "kitty": 4242, "title": "claude"}] * 2, got["sessions"]
+
+    # The board's detail: attention from the hooks, activity from the transcript,
+    # the bottom of the screen from kitty, and when the limits run out.
+    attention = usage / "claude-attention"
+    attention.mkdir()
+    (attention / "b.json").write_text(json.dumps({"at": NOW, "kind": "permission", "message": "Claude needs your permission to use Bash"}))
+    (attention / "a.json").write_text(json.dumps({"at": NOW, "kind": "done", "message": ""}))
+    transcript = home / "a.jsonl"
+    transcript.write_text("\n".join(json.dumps(e) for e in [
+        {"type": "user", "gitBranch": "main", "message": {"role": "user", "content": "first ask"}},
+        {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Read", "input": {"file_path": "/old"}}]}},
+        {"type": "user", "gitBranch": "board", "message": {"content": [{"type": "text", "text": "<system-reminder>x</system-reminder>"}, {"type": "text", "text": "build the board"}]}},
+        {"type": "user", "isMeta": True, "message": {"content": "meta, not said"}},
+        {"type": "user", "message": {"content": [{"type": "tool_result", "content": "ok"}]}},
+        {"type": "assistant", "message": {"content": [
+            {"type": "text", "text": "Starting with the hook."},
+            {"type": "tool_use", "name": "Bash", "input": {"command": "nix build .#x\nsecond line", "description": "Build it"}},
+            {"type": "tool_use", "name": "Edit", "input": {"file_path": "/repo/agents.py"}},
+        ]}},
+        {"type": "assistant", "isSidechain": True, "message": {"content": [{"type": "text", "text": "a subagent"}]}},
+    ]) + "\n{broken")
+    record("a", NOW - 30, cwd="/home/u/nix", project="/home/u/nix", model="Opus", context=12,
+           cost=1.5, transcript=str(transcript), **owned(me))
+    (usage / "claude.json").write_text(json.dumps({"at": NOW, "rate_limits": {
+        "five_hour": {"used_percentage": 50, "resets_at": NOW + 3 * 3600},
+        "seven_day": {"used_percentage": 42, "resets_at": NOW + 3600},
+    }}))
+    # Readings from before this five-hour window and this last day don't count.
+    (usage / "claude-history.jsonl").write_text("\n".join(json.dumps(r) for r in [
+        {"at": NOW - 2 * 86400, "five": 1, "week": 1},
+        {"at": NOW - 4 * 3600, "five": 10, "week": 30},
+        {"at": NOW - 2 * 3600, "five": 30, "week": 42},
+        "not a record",
+    ]))
+    plain = run(home)
+    assert "prompt" not in plain["sessions"][0] and "runs_out" not in plain["claude"]["week"], plain
+    assert [s["state"] for s in plain["sessions"]] == ["done", "waiting"], plain["sessions"]
+    assert plain["sessions"][1]["waiting"] == "Claude needs your permission to use Bash", plain["sessions"]
+
+    got = run(home, "--detail")
+    a = got["sessions"][0]
+    assert a["prompt"] == "build the board", a
+    assert a["branch"] == "board", a
+    assert a["tools"] == [{"name": "Bash", "brief": "Build it"}, {"name": "Edit", "brief": "/repo/agents.py"}], a
+    assert a["said"] == "Starting with the hook.", a
+    assert a["cost"] == 1.5, a
+    assert a["screen"].splitlines()[-3:] == ["Do you want to proceed?", "  1. Yes", "  2. No"], a["screen"]
+    assert len(a["screen"].splitlines()) == 18, a["screen"]
+    # Started 2h ago at 30%, now 50: 10 an hour, so 100 in 5h, past the reset in 3h.
+    assert got["claude"]["five_hour"]["runs_out"] is None, got["claude"]
+    # From 10 two hours ago to 50 now is 20 an hour: full in 2.5h, before the reset.
+    (usage / "claude-history.jsonl").write_text(json.dumps({"at": NOW - 2 * 3600, "five": 10, "week": 41}))
+    got = run(home, "--detail")
+    assert got["claude"]["five_hour"]["runs_out"] == NOW + int(50 / 20 * 3600), got["claude"]
+    # The week rose one point in two hours: 58 more takes far longer than its hour.
+    assert got["claude"]["week"]["runs_out"] is None, got["claude"]
+    # A reading only minutes old says nothing about the pace.
+    (usage / "claude-history.jsonl").write_text(json.dumps({"at": NOW - 300, "five": 10, "week": 41}))
+    assert run(home, "--detail")["claude"]["five_hour"]["runs_out"] is None
+
     listening.close()
     broken.close()
     sleeper.kill()
