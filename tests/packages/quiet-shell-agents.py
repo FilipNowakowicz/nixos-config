@@ -1,5 +1,7 @@
 """Check agents.py against made-up Claude status-line records and Codex logs."""
 
+import base64
+import datetime
 import json
 import os
 import pathlib
@@ -26,8 +28,8 @@ with tempfile.TemporaryDirectory() as tmp:
 
     # Nothing recorded yet: every limit is null and nothing is running.
     empty = run(home)
-    assert empty["claude"] == {"five_hour": None, "week": None, "seen": None}, empty
-    assert empty["codex"] == {"five_hour": None, "week": None, "seen": None}, empty
+    assert empty["claude"] == {"five_hour": None, "week": None, "seen": None, "paid": None}, empty
+    assert empty["codex"] == {"five_hour": None, "week": None, "seen": None, "paid": None}, empty
     assert empty["sessions"] == [], empty
 
     usage = home / ".local/state/agent-usage"
@@ -66,6 +68,16 @@ with tempfile.TemporaryDirectory() as tmp:
     record("no-pid", NOW - 60, cwd="/home/u/old")
     (usage / "claude-sessions/broken.json").write_text("{not json")
 
+    # Claude Code's own registry says the long-quiet session is busy after all; an
+    # entry for a pid that is gone, or a broken one, changes nothing.
+    registry = home / ".claude/sessions"
+    registry.mkdir(parents=True)
+    (registry / f"{sleeper.pid}.json").write_text(json.dumps(
+        {"pid": sleeper.pid, "procStart": started(sleeper.pid), "status": "busy", "name": "notes-7"}))
+    (registry / f"{finished.pid}.json").write_text(json.dumps(
+        {"pid": finished.pid, "procStart": "1", "status": "busy", "name": "gone"}))
+    (registry / "junk.json").write_text("[]")
+
     # A Codex log from two days ago, with a cut-off last line after the limits.
     day = home / ".codex/sessions/2027/01/13"
     day.mkdir(parents=True)
@@ -75,21 +87,42 @@ with tempfile.TemporaryDirectory() as tmp:
         json.dumps({"type": "event_msg", "payload": {"rate_limits": {
             "primary": {"used_percent": 19.0, "window_minutes": 300, "resets_at": NOW - 100},
             "secondary": {"used_percent": 12.0, "window_minutes": 10080, "resets_at": NOW + 86400},
+            "plan_type": "plus",
         }}}),
         '{"type": "event_msg", "payl',
     ]))
     touch(log, NOW - 2 * 86400)
 
     got = run(home)
+    # The log says plus and nothing newer disagrees.
+    assert got["codex"]["paid"] is True, got["codex"]
+    assert got["claude"]["paid"] is None, got["claude"]
     assert got["claude"]["five_hour"] == {"used": 0, "resets": None}, got["claude"]
     assert got["claude"]["week"] == {"used": 42, "resets": NOW + 3600}, got["claude"]
     assert got["codex"]["five_hour"] == {"used": 0, "resets": None}, got["codex"]
     assert got["codex"]["week"] == {"used": 12, "resets": NOW + 86400}, got["codex"]
     # Newest first; only running Claude sessions, and not the old Codex log.
-    assert [(s["id"], s["state"], s["project"]) for s in got["sessions"]] == [
-        ("a", "working", "nix"),
-        ("b", "idle", "notes"),
+    assert [(s["id"], s["state"], s["project"], s["name"]) for s in got["sessions"]] == [
+        ("a", "working", "nix", ""),
+        ("b", "working", "notes", "notes-7"),
     ], got["sessions"]
     sleeper.kill()
+
+    # A sign-in token refreshed after that session says the subscription ended.
+    def signed(plan, refreshed):
+        claims = {"https://api.openai.com/auth": {"chatgpt_plan_type": plan}}
+        body = base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip("=")
+        stamp = datetime.datetime.fromtimestamp(refreshed, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.123456789Z")
+        (home / ".codex/auth.json").write_text(json.dumps({
+            "auth_mode": "chatgpt", "last_refresh": stamp, "tokens": {"access_token": f"h.{body}.sig"}}))
+
+    signed("free", NOW - 86400)
+    assert run(home)["codex"]["paid"] is False
+    # An older token loses to the newer session log.
+    signed("free", NOW - 3 * 86400)
+    assert run(home)["codex"]["paid"] is True
+    # Signed in with an API key instead: no plan to go by, so the log decides.
+    (home / ".codex/auth.json").write_text(json.dumps({"auth_mode": "apikey"}))
+    assert run(home)["codex"]["paid"] is True
 
 print("quiet-shell agents.py: ok")
