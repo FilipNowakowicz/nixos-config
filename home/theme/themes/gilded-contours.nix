@@ -5,13 +5,8 @@
   displayName = "Gilded Contours";
   enabled = true;
 
-  # Neovim colorscheme. gruvbox-material is the only loaded scheme; per-theme we
-  # drive vim.o.background and the gruvbox contrast variant from here.
-  colorscheme = {
-    name = "gruvbox-material";
-    background = "dark";
-    contrast = "hard"; # deep navy base
-  };
+  # Dark or light: GTK, Firefox and Neovim follow it.
+  appearance = "dark";
 
   colors = {
     bg = "071126";

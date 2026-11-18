@@ -5,13 +5,8 @@
   displayName = "Lunar Peaks";
   enabled = true;
 
-  # Neovim colorscheme. gruvbox-material is the only loaded scheme; per-theme we
-  # drive vim.o.background and the gruvbox contrast variant from here.
-  colorscheme = {
-    name = "gruvbox-material";
-    background = "dark";
-    contrast = "hard"; # icy near-black base
-  };
+  # Dark or light: GTK, Firefox and Neovim follow it.
+  appearance = "dark";
 
   colors = {
     bg = "0b0d0e";

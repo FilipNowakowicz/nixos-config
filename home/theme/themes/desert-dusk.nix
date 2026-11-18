@@ -5,13 +5,8 @@
   displayName = "Desert Dusk";
   enabled = true;
 
-  # Neovim colorscheme. gruvbox-material is the only loaded scheme; this warm
-  # palette is its most natural fit.
-  colorscheme = {
-    name = "gruvbox-material";
-    background = "dark";
-    contrast = "medium";
-  };
+  # Dark or light: GTK, Firefox and Neovim follow it.
+  appearance = "dark";
 
   colors = {
     bg = "1c1a18"; # dark background

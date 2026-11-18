@@ -41,11 +41,20 @@ let
     in
     lib.throwIf (problems != [ ]) "theme ${themeName}: ${what} ${lib.concatStringsSep "; " problems}";
 
+  appearances = [
+    "dark"
+    "light"
+  ];
+
   validate =
     themeName: theme:
-    checkSlots themeName "colors" colorSlots (theme.colors or { }) (
-      checkSlots themeName "ansiColors" ansiSlots (theme.ansiColors or { }) theme
-    );
+    lib.throwIfNot (lib.elem (theme.appearance or "dark") appearances)
+      "theme ${themeName}: appearance must be one of ${lib.concatStringsSep ", " appearances}"
+      (
+        checkSlots themeName "colors" colorSlots (theme.colors or { }) (
+          checkSlots themeName "ansiColors" ansiSlots (theme.ansiColors or { }) theme
+        )
+      );
 
   # Load and validate each theme
   allThemes = lib.mapAttrs' (
@@ -55,7 +64,15 @@ let
       themeName = lib.removeSuffix ".nix" name;
       theme = validate themeName (import themePath);
     in
-    lib.nameValuePair themeName (theme // { name = themeName; })
+    lib.nameValuePair themeName (
+      {
+        appearance = "dark";
+      }
+      // theme
+      // {
+        name = themeName;
+      }
+    )
   ) (lib.filterAttrs (n: v: v == "regular" && lib.hasSuffix ".nix" n) themeFiles);
 
   # Filter: only enabled themes with existing wallpapers
@@ -124,7 +141,15 @@ let
       source = "wallpaper";
       target = "${config.home.homeDirectory}/.local/share/wallpapers/current.png";
     }
+    {
+      source = "nvim-palette.lua";
+      target = nvimPaletteFile;
+    }
   ];
+
+  # Neovim's own config directory is a store path, so its palette link lives
+  # beside the theme assets instead; the neovim module reads it from here.
+  nvimPaletteFile = "${config.xdg.configHome}/themes/nvim-palette.lua";
 
   mkThemeLinkCommands =
     themeDirExpr:
@@ -144,6 +169,31 @@ let
         }
   '';
 
+  # A small crop of each wallpaper for the shell's theme picker, at twice the
+  # size the picker draws it. Built once per wallpaper, not at switch time.
+  mkThumbnail =
+    themeName: theme:
+    pkgs.runCommandLocal "theme-thumbnail-${themeName}.jpg"
+      { nativeBuildInputs = [ pkgs.imagemagick ]; }
+      ''
+        magick ${theme.wallpaper} -strip -alpha off -resize '208x117^' \
+          -gravity center -extent 208x117 -quality 88 "$out"
+      '';
+
+  # What the picker shows for every theme: its name, a wallpaper thumbnail and
+  # the colours it paints the shell with. Identical in every theme's JSON.
+  pickerEntries = lib.mapAttrsToList (themeName: theme: {
+    name = themeName;
+    title = theme.displayName or themeName;
+    inherit (theme.colors)
+      bg
+      surface
+      accent
+      text
+      ;
+    thumbnail = "${mkThumbnail themeName theme}";
+  }) validThemes;
+
   # "rrggbb" -> "rgba(r,g,b,alpha)", for options that take no hex alpha.
   rgba =
     hex: alpha:
@@ -151,6 +201,58 @@ let
       channel = i: toString (lib.fromHexString (builtins.substring i 2 hex));
     in
     "rgba(${channel 0},${channel 2},${channel 4},${alpha})";
+
+  # Blend two "rrggbb" colours: 0 gives `from`, 1 gives `to`.
+  mix =
+    from: to: t:
+    let
+      channels =
+        hex:
+        map (i: lib.fromHexString (builtins.substring i 2 hex)) [
+          0
+          2
+          4
+        ];
+      byte =
+        n:
+        let
+          s = lib.toLower (lib.toHexString n);
+        in
+        if builtins.stringLength s < 2 then "0${s}" else s;
+    in
+    lib.concatStrings (
+      lib.zipListsWith (a: b: byte (builtins.floor (a + (b - a) * t + 0.5))) (channels from) (channels to)
+    );
+
+  # A base16 scheme from the theme's palette, for Neovim (mini.base16). The
+  # greys run from bg toward text, so the same rule serves dark and light
+  # themes; the hues come from the bright ANSI slots, which read better as
+  # text than the normal ones. Functions take the theme's accent, so each
+  # theme's signature colour is the most frequent one in code.
+  base16 =
+    theme:
+    let
+      c = theme.colors;
+      a = theme.ansiColors;
+    in
+    {
+      base00 = c.bg; # editor background
+      base01 = mix c.bg c.surface 0.6; # status line, cursor line, float bg
+      base02 = mix c.bg c.text 0.18; # selection
+      base03 = mix c.bg c.text 0.42; # comments, line numbers
+      base04 = mix c.bg c.text 0.62; # dark foreground: status text
+      base05 = c.text; # foreground
+      base06 = mix c.text a.color15 0.5;
+      base07 = a.color15;
+      base08 = a.color9; # variables, tags, deleted diff
+      base09 = mix a.color9 a.color11 0.5; # constants, numbers
+      base0A = a.color11; # types, search
+      base0B = a.color10; # strings, added diff
+      base0C = a.color14; # escapes, regex
+      base0D = c.accent; # functions
+      base0E = a.color13; # keywords
+      base0F = mix a.color1 a.color3 0.5; # deprecated, embedded
+    };
 
   # Helper to generate theme config text
   mkThemeConfig = themeName: theme: {
@@ -257,11 +359,22 @@ let
       set recolor-keephue true
     '';
 
+    # Neovim loads this at start and again on SIGUSR1 from theme-switch.
+    "themes/${themeName}/nvim-palette.lua".text = ''
+      return ${
+        lib.generators.toLua { } {
+          name = themeName;
+          background = theme.appearance;
+          palette = lib.mapAttrs (_: hex: "#${hex}") (base16 theme);
+        }
+      }
+    '';
+
     # Quiet shell colors, plus the theme list for its picker
     "themes/${themeName}/quiet-colors.json".text = builtins.toJSON {
       name = themeName;
       inherit (theme.colors) bg text accent;
-      themes = builtins.attrNames validThemes;
+      themes = pickerEntries;
     };
 
     # Wallpaper symlink
@@ -325,24 +438,27 @@ in
         tracks.
       '';
     };
-    _activeThemeColors = lib.mkOption {
-      type = lib.types.attrs;
+    _activeThemeAppearance = lib.mkOption {
+      type = lib.types.enum appearances;
       internal = true;
-      description = "Color palette of the active theme, exposed for other modules to consume (e.g. generated configs).";
+      readOnly = true;
+      description = "Whether the build-time default theme is dark or light.";
     };
-    _activeThemeColorscheme = lib.mkOption {
-      type = lib.types.attrs;
+    _nvimPaletteFile = lib.mkOption {
+      type = lib.types.str;
       internal = true;
+      readOnly = true;
       description = ''
-        Neovim colorscheme selection of the active theme (attrs with `name` and
-        `background`), exposed for the neovim module to consume.
+        Live link to the running theme's Neovim palette, a Lua file returning
+        `{ name, background, palette = { base00 … base0F } }`. The neovim
+        module reads it at start and on SIGUSR1.
       '';
     };
   };
 
   config = {
-    themes._activeThemeColors = activeTheme.colors;
-    themes._activeThemeColorscheme = activeTheme.colorscheme;
+    themes._activeThemeAppearance = activeTheme.appearance;
+    themes._nvimPaletteFile = nvimPaletteFile;
     home.packages = [ themeSwitch ];
     xdg.configFile = themeConfigs // {
       "themes/links.sh".text = themeLinksSnippet;

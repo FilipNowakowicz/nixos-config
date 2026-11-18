@@ -39,7 +39,7 @@ DESKTOP
 export QUIET_TIMEZONE=Europe/Warsaw QUIET_FAKE_STATE="$run/state.json" QUIET_COLORS="$run/colors.json" QUIET_POWER_SUPPLY="$run/power"
 [[ -f $QUIET_COLORS ]] || cat >"$QUIET_COLORS" <<'JSON'
 {"name":"gilded-contours","bg":"071126","accent":"d3ad7a","text":"f0d5a2",
- "themes":["acid-statue","cold-concrete","desert-dusk","gilded-contours","lunar-peaks","mono-mesh","nighthawks","obsidian-ridge"]}
+ "themes":[{"name":"acid-statue","bg":"1e2330","surface":"2e3a4a","accent":"7ea63f","text":"c8d4c0"},"cold-concrete","desert-dusk",{"name":"gilded-contours","title":"Gilded Contours","bg":"071126","surface":"0d1830","accent":"d3ad7a","text":"f0d5a2"},"lunar-peaks","mono-mesh","nighthawks","obsidian-ridge"]}
 JSON
 # Keybindings call quiet-shell-ipc, which sits next to the built shell.
 [[ ${QUIET_COMMAND:-} != */* ]] || PATH="$(dirname "$QUIET_COMMAND"):$PATH"
