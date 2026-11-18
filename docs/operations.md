@@ -228,18 +228,17 @@ The first pass checks a narrow set of registry-backed facts:
 
 ## Automated Homeserver Deploy
 
-`Deploy homeserver-gcp` (`.github/workflows/deploy-homeserver.yml`) remains
-**disabled in GitHub** pending review, credential provisioning and a successful
-manual run. Do not enable it just because the static checks pass.
+`Deploy homeserver-gcp` (`.github/workflows/deploy-homeserver.yml`) has been
+enabled since 2026-11-09. Relevant pushes to `main` and `workflow_dispatch`
+(confirmation `homeserver-gcp`, from `main` only) use the same fail-closed path:
 
-Once enabled, relevant pushes to `main` and `workflow_dispatch` (confirmation
-`homeserver-gcp`, from `main` only) use the same fail-closed path:
-
-1. Require this exact main commit to be a merged PR whose head passed the
-   `nix.yml` PR workflow and its `merge-gate` job. Missing API evidence or a
-   direct push fails the run. A superseded commit (main moved on) skips the
-   rest with a notice and ends green, since the newer push deploys it too.
-   Recheck after the build and again before activation.
+1. A separate `gate` job requires this exact main commit to be a merged PR
+   whose head passed the `nix.yml` PR workflow and its `merge-gate` job.
+   Missing API evidence or a direct push fails the run. A superseded commit
+   (main moved on) skips the rest with a notice and ends green, since the newer
+   push deploys it too. The build rechecks after building, and the deploy job
+   again before activation. Because the gate is its own job, a commit that will
+   never deploy cannot cancel another commit's build.
 2. Join the builder tailnet as `tag:ci-builder` using existing builder secrets:
    `BUILDER_CI_GCP_KEY`, `BUILDER_CI_SSH_KEY`, `TS_OAUTH_CLIENT_ID` and
    `TS_OAUTH_SECRET`. Run evaluation, light checks, the homeserver smoke test
@@ -259,8 +258,10 @@ Once enabled, relevant pushes to `main` and `workflow_dispatch` (confirmation
    Neither the runner nor the homeserver compiles deployment outputs.
 5. Compare `/run/current-system` with the built system first. An unchanged
    closure exits without activation, including unrelated `home/**` or `lib/**`
-   changes. Deploys are serialized with `cancel-in-progress: false`, so a new
-   push never cancels an activating job.
+   changes. Concurrency is per job: a newer push cancels an older run's build
+   (group `deploy-homeserver-gcp-build`; the cancelled run shows grey), while
+   activations are serialized in `deploy-homeserver-gcp-activate` with
+   `cancel-in-progress: false`, so a new push never interrupts a switch.
 6. For a changed closure, deploy-rs retains `magicRollback`, `autoRollback` and
    its confirmation timeout from `flake/deploy.nix`. Then verify the exact
    activated path, registry drift using inventory read from the activated host,
@@ -277,13 +278,16 @@ for `tag:ci`; the SSH key's public half is authorized for the deploy user in
 before the first workflow run. Never print key material.
 The builder job uses only the existing builder secrets listed above.
 
-After review, an owner must enable the workflow to dispatch it manually on
-`main`, confirm `homeserver-gcp`, and inspect the builder/export/import,
-activation, rollback confirmation and service checks. Exercise the unchanged
-closure path with a second dispatch. Only leave automatic deployment enabled
-after those live checks succeed; disable it again if they fail. Static tests
-cannot establish credential validity, tailnet connectivity, artifact size/time,
-or actual rollback and service behavior.
+A real failure (not a superseded skip or a cancelled build) runs the `notify`
+job, which posts to the private ntfy topic from the repository secret
+`NTFY_TOPIC_URL` (the same `topic_url` as `home/users/user/secrets/ntfy.yaml`).
+`main` shows it as a desktop notification that links to the run. Without the
+secret, the job stays quiet.
+
+Static tests cannot establish credential validity, tailnet connectivity,
+artifact size/time, or actual rollback and service behavior. After changing
+this path, dispatch it manually on `main` and inspect the run; disable the
+workflow if the live checks fail.
 
 The self-hosted `github-runner-homeserver-deploy.service` remains a recovery
 path only. No routine workflow job targets it. Its registration credential is
