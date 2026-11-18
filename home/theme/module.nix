@@ -145,6 +145,14 @@ let
       source = "nvim-palette.lua";
       target = nvimPaletteFile;
     }
+    {
+      source = "btop.theme";
+      target = "${config.xdg.configHome}/btop/themes/desktop.theme";
+    }
+    {
+      source = "yazi-theme.toml";
+      target = "${config.xdg.configHome}/yazi/theme.toml";
+    }
   ];
 
   # Neovim's own config directory is a store path, so its palette link lives
@@ -377,6 +385,111 @@ let
       set recolor-keephue true
     '';
 
+    # yazi's own theme already uses the 16 terminal colours, which kitty
+    # repaints live; this puts the theme's accent where it uses blue: the mode
+    # badge, the active tab, the working directory and popup borders. yazi
+    # reads it when it starts.
+    "themes/${themeName}/yazi-theme.toml".source =
+      let
+        c = theme.colors;
+        accent = "#${c.accent}";
+        border.border.fg = accent;
+      in
+      (pkgs.formats.toml { }).generate "yazi-theme-${themeName}.toml" {
+        mgr.cwd.fg = accent;
+        tabs = {
+          active = {
+            fg = "#${c.bg}";
+            bg = accent;
+            bold = true;
+          };
+          inactive = {
+            fg = accent;
+            bg = "#${c.surface}";
+          };
+        };
+        mode = {
+          normal_main = {
+            fg = "#${c.bg}";
+            bg = accent;
+            bold = true;
+          };
+          normal_alt = {
+            fg = accent;
+            bg = "#${c.surface}";
+          };
+        };
+        which = border;
+        confirm = border // {
+          title.fg = accent;
+        };
+        spot = border // {
+          title.fg = accent;
+        };
+        pick = border;
+        input = border;
+        cmp = border;
+        tasks = border;
+        help = border;
+      };
+
+    # btop reads this through color_theme = "desktop" and again on SIGUSR2 from
+    # theme-switch. Quiet boxes and meters in the theme's own greys, with every
+    # gradient climbing through the accent; temperatures end in the ANSI red.
+    "themes/${themeName}/btop.theme".text =
+      let
+        c = theme.colors;
+        faint = mix c.bg c.text 0.22;
+        dim = mix c.bg c.text 0.4;
+        soft = mix c.bg c.text 0.65;
+        low = mix c.bg c.accent 0.45;
+        entries = {
+          main_bg = c.bg;
+          main_fg = c.text;
+          title = c.text;
+          hi_fg = c.accent;
+          selected_bg = c.surface;
+          selected_fg = c.text;
+          inactive_fg = dim;
+          graph_text = soft;
+          meter_bg = c.surface;
+          proc_misc = c.accent;
+          cpu_box = faint;
+          mem_box = faint;
+          net_box = faint;
+          proc_box = faint;
+          div_line = c.surface;
+          temp_start = low;
+          temp_mid = c.accent;
+          temp_end = theme.ansiColors.color9;
+          cpu_start = low;
+          cpu_mid = c.accent;
+          cpu_end = c.text;
+          free_start = c.surface;
+          free_mid = low;
+          free_end = c.accent;
+          cached_start = c.surface;
+          cached_mid = dim;
+          cached_end = soft;
+          available_start = c.surface;
+          available_mid = low;
+          available_end = c.accent;
+          used_start = low;
+          used_mid = c.accent;
+          used_end = c.text;
+          download_start = c.surface;
+          download_mid = low;
+          download_end = c.accent;
+          upload_start = c.surface;
+          upload_mid = dim;
+          upload_end = c.text;
+          process_start = low;
+          process_mid = c.accent;
+          process_end = c.text;
+        };
+      in
+      lib.concatLines (lib.mapAttrsToList (key: hex: ''theme[${key}]="#${hex}"'') entries);
+
     # Neovim loads this at start and again on SIGUSR1 from theme-switch.
     "themes/${themeName}/nvim-palette.lua".text = ''
       return ${
@@ -473,6 +586,17 @@ in
   config = {
     themes._nvimPaletteFile = nvimPaletteFile;
     home.packages = [ themeSwitch ];
+
+    # btop takes its colours from the running theme (linked above) over the
+    # terminal's own, translucent background. Home Manager owns btop.conf, so
+    # settings changed from btop's menu are not kept.
+    programs.btop = {
+      enable = true;
+      settings = {
+        color_theme = "desktop";
+        theme_background = false;
+      };
+    };
     xdg.configFile = themeConfigs // {
       "themes/links.sh".text = themeLinksSnippet;
     };

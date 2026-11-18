@@ -69,7 +69,7 @@
         hostname = {
           ssh_only = true;
           format = "\\[[$hostname]($style)\\] ";
-          style = "fg:#d79921 bold";
+          style = "yellow bold";
           trim_at = ".";
         };
         directory = {
@@ -81,12 +81,12 @@
         nix_shell = {
           format = "[\\($symbol\\)]($style) ";
           symbol = "nix";
-          style = "fg:#83a598";
+          style = "blue";
         };
         python = {
           format = "[\\($symbol\\)]($style) ";
           symbol = "venv";
-          style = "fg:#DAA520";
+          style = "yellow";
           # A project containing Python files or a .venv is not the same as an
           # activated virtual environment. Only show this module when
           # VIRTUAL_ENV is present (the module's default detect_env_vars).
@@ -105,6 +105,24 @@
     fzf = {
       enable = true;
       enableZshIntegration = true;
+      # Only the terminal's 16 colours, so fzf follows the desktop theme live
+      # (kitty repaints on a switch). Its default scheme is fixed 256-colour
+      # greys, dark even on a light theme. The current line is marked by the
+      # pointer and bold text, not a background that one theme would hide.
+      defaultOptions = [ "--color=16" ];
+      colors = {
+        "bg+" = "-1";
+        "fg+" = "-1:bold";
+        hl = "3";
+        "hl+" = "3:bold";
+        pointer = "3";
+        marker = "2";
+        prompt = "4";
+        info = "8";
+        border = "8";
+        spinner = "3";
+        header = "4";
+      };
     };
 
     # ── Zoxide ─────────────────────────────────────────────────────────────────

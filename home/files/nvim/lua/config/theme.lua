@@ -36,6 +36,19 @@ function M.apply()
   end
   vim.o.background = theme.background or "dark"
   base16.setup({ palette = theme.palette, use_cterm = true })
+  -- The editor, gutter and empty lines take kitty's own background (the same
+  -- colour, base00, but translucent like every other terminal), not a painted
+  -- one: mini.base16 gives the number column base01, a band detached from the
+  -- text, and a painted Normal hides kitty's background opacity.
+  for _, group in ipairs({
+    "Normal", "NormalNC", "SignColumn", "LineNr", "LineNrAbove", "LineNrBelow",
+    "CursorLineNr", "FoldColumn", "EndOfBuffer",
+    "GitSignsAdd", "GitSignsChange", "GitSignsDelete",
+  }) do
+    local hl = vim.api.nvim_get_hl(0, { name = group, link = false })
+    hl.bg, hl.ctermbg = nil, nil
+    vim.api.nvim_set_hl(0, group, hl)
+  end
   -- Other plugins (lualine's auto theme) re-read highlights on ColorScheme.
   vim.g.colors_name = "desktop-" .. (theme.name or "theme")
   vim.api.nvim_exec_autocmds("ColorScheme", { pattern = vim.g.colors_name, modeline = false })
