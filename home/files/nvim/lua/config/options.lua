@@ -18,6 +18,32 @@ vim.opt.smartcase = true
 vim.opt.scrolloff = 8
 vim.opt.signcolumn = "yes"
 vim.opt.undofile = true
+
+-- Neovim's default SwapExists handler (augroup nvim.swapfile) picks "Edit
+-- anyway" whenever another live Nvim owns the swapfile. Two writable copies of
+-- one file then save over each other, and the second also overwrites the
+-- shared undofile, so the lost text can't be undone back. Open it read-only
+-- instead while the owner runs; a dead owner still gets the recover prompt.
+pcall(vim.api.nvim_del_augroup_by_name, "nvim.swapfile")
+vim.api.nvim_create_autocmd("SwapExists", {
+  group = vim.api.nvim_create_augroup("config.swapfile", { clear = true }),
+  desc = "Open read-only when another running Nvim is editing the file",
+  callback = function()
+    local info = vim.fn.swapinfo(vim.v.swapname)
+    local alive = not info.error and info.pid > 0 and vim.uv.kill(info.pid, 0) == 0
+    if not alive then
+      vim.v.swapchoice = "" -- Show the prompt, which offers recovery.
+      return
+    end
+    vim.v.swapchoice = "o"
+    vim.schedule(function()
+      vim.notify(
+        ("Already open in Nvim process %d: opened read-only"):format(info.pid),
+        vim.log.levels.WARN
+      )
+    end)
+  end,
+})
 vim.opt.splitright = true
 vim.opt.splitbelow = true
 vim.opt.updatetime = 250
