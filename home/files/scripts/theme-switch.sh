@@ -130,6 +130,8 @@ ps -eo pid=,comm= |
 
 # Neovim repaints from the relinked palette on SIGUSR1 (nvim/lua/config/theme.lua).
 pkill -USR1 -u "$(id -u)" -x nvim 2>/dev/null || true
+# btop re-reads its config, and with it the relinked theme, on SIGUSR2.
+pkill -USR2 -u "$(id -u)" -x btop 2>/dev/null || true
 
 notify-send "Theme changed" "Switched to: $THEME" || true
 echo "✓ Theme switched to $THEME"
