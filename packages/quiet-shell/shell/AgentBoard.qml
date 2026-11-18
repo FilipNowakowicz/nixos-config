@@ -346,7 +346,8 @@ Item {
                         text: !column.s ? "" : column.s.screen
                             || (column.s.terminal ? "" : "Its terminal was opened before kitty listened on a socket; reopen it to see and drive it here.")
                         textFormat: Text.PlainText
-                        wrapMode: Text.NoWrap
+                        // The screen keeps its own lines; the note about an old terminal wraps.
+                        wrapMode: column.s && column.s.screen ? Text.NoWrap : Text.Wrap
                         elide: Text.ElideNone
                         font.family: "JetBrainsMono Nerd Font"
                         font.pixelSize: 10
