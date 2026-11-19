@@ -111,7 +111,7 @@ workspace=""
 resolve_checkout() {
   toplevel=$(git rev-parse --show-toplevel 2>/dev/null) || die "not inside a Git checkout"
   local base hash
-  base=$(basename "$toplevel" | tr -c 'A-Za-z0-9_.-\n' '-')
+  base=$(basename "$toplevel" | tr -c 'A-Za-z0-9_.\n-' '-')
   hash=$(printf '%s' "$toplevel" | sha256sum | cut -c1-8)
   workspace="work/$base-$hash"
 }
@@ -226,7 +226,7 @@ rm -rf ~/jobs/"$name"
 systemd-run --user --quiet --collect --unit "worker-job-$name" \
   --working-directory "$HOME/$workspace" \
   -p RuntimeMaxSec="$max_runtime" -p KillMode=control-group -p TimeoutStopSec=30s \
-  worker-job "$name" "$command"
+  "$(command -v worker-job)" "$name" "$command"
 ' "$name" "$workspace" "$max_runtime" "$command"
 
   echo "on-worker: started job $name (max runtime $max_runtime)" >&2
