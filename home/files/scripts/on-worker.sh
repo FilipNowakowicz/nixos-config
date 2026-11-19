@@ -1,3 +1,4 @@
+# shellcheck shell=bash disable=SC2016,SC2029
 # on-worker: run long CPU-heavy jobs from any Git checkout on the on-demand
 # gcp-worker VM (hosts/gcp-worker). Installed by home/profiles/gcp-worker.nix,
 # which sets WORKER_HOST, WORKER_VM and NOTIFY_URL_FILE above this text.
@@ -126,7 +127,7 @@ sync_checkout() {
   local includes=("$@")
   remote "mkdir -p '$workspace'"
   (
-    cd "$toplevel"
+    cd "$toplevel" || exit
     git ls-files -z --cached --others --exclude-standard |
       rsync -a --from0 --files-from=- --ignore-missing-args \
         -e "ssh ${ssh_opts[*]}" ./ "$target:$workspace/"

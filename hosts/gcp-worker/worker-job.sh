@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Runs one on-worker job: worker-job <name> <command string>.
 # The command runs through a login shell so it sees the system PATH and
 # environment, writes to ~/jobs/<name>/log, and leaves its exit status in
