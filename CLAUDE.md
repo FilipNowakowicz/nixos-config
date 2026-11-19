@@ -83,6 +83,10 @@ shared profiles changed, build all affected hosts.
 - **Shared workflow skills** — repo-local skills live under `.agents/skills/`.
   Codex auto-discovers them directly, and Claude discovers the same tree through
   the `.claude/skills -> ../.agents/skills` symlink.
+- **Personal skills** — skills that apply in any repository live under
+  `home/files/agents/skills/`; `home/profiles/agent-skills.nix` links each one
+  into `~/.claude/skills/` and `~/.codex/skills/`. Project-specific skills stay
+  in their own repository.
 - **Edit/Bash guards** — `.claude/hooks/guard-edits.sh` and
   `.claude/hooks/guard-bash.sh` (PreToolUse, wired in `.claude/settings.json`)
   are the safety net for bypass-permissions mode. The edit guard _denies_ direct
