@@ -76,12 +76,14 @@ hardware — see [Support Boundary](#support-boundary).
 flowchart LR
   main("main<br/>workstation / impermanent root")
   builder("gcp-builder<br/>on-demand builds")
+  worker("gcp-worker<br/>on-demand batch jobs")
   homeserver("homeserver-gcp<br/>AdGuard / LGTM")
   tailnet(("Tailscale"))
   b2("Backblaze B2<br/>restic backups")
   snapshots("GCP snapshots<br/>fast rollback")
 
   main --> builder
+  main --> worker
   main --> tailnet
   homeserver --> tailnet
   main --> b2
@@ -93,7 +95,7 @@ flowchart LR
   classDef storage fill:#2a261b,stroke:#d2ae63,color:#fff7df
   classDef network fill:#102f35,stroke:#58d0c9,color:#f0ffff,stroke-width:2px
   class main,homeserver primary
-  class builder secondary
+  class builder,worker secondary
   class b2,snapshots storage
   class tailnet network
 ```
@@ -103,6 +105,7 @@ flowchart LR
 | `main`           | Primary workstation | Secure Boot, LUKS, impermanent root, Hyprland, USBGuard, Restic/B2, anonymous specialisation |
 | `homeserver-gcp` | Cloud homeserver    | AdGuard, Nginx, Grafana/Loki/Prometheus, restore canary, Tailscale ingress                   |
 | `gcp-builder`    | Remote builder      | Normally off, started for heavy builds, self-powers-off when idle, deploy-rs managed         |
+| `gcp-worker`     | Batch worker        | Normally off, runs long CPU jobs from any repo via `on-worker`, self-powers-off when idle    |
 | `user@wsl`       | Portable HM profile | Home Manager profile for Windows/WSL environments                                            |
 
 Host lifecycle status is owned by `lib/hosts.nix`; this table documents that
@@ -289,12 +292,13 @@ header, and add the host's sops recipient and secrets. See
 
 ## Deployment
 
-| Host             | Command                                  | Notes                                                                |
-| ---------------- | ---------------------------------------- | -------------------------------------------------------------------- |
-| `main`           | `nh os switch --hostname main .`         | Active impermanent workstation rebuild.                              |
-| `homeserver-gcp` | `deploy '.#homeserver-gcp'`              | Active GCP homeserver; see `scripts/deploy-gcp.sh` for provisioning. |
-| `gcp-builder`    | `deploy '.#gcp-builder'`                 | On-demand remote builder; start the VM first. See its `CLAUDE.md`.   |
-| `user@wsl`       | `home-manager switch --flake .#user@wsl` | Portable Home Manager for WSL.                                       |
+| Host             | Command                                  | Notes                                                                 |
+| ---------------- | ---------------------------------------- | --------------------------------------------------------------------- |
+| `main`           | `nh os switch --hostname main .`         | Active impermanent workstation rebuild.                               |
+| `homeserver-gcp` | `deploy '.#homeserver-gcp'`              | Active GCP homeserver; see `scripts/deploy-gcp.sh` for provisioning.  |
+| `gcp-builder`    | `deploy '.#gcp-builder'`                 | On-demand remote builder; start the VM first. See its `CLAUDE.md`.    |
+| `gcp-worker`     | `deploy '.#gcp-worker'`                  | On-demand batch worker; `on-worker start` first. See its `CLAUDE.md`. |
+| `user@wsl`       | `home-manager switch --flake .#user@wsl` | Portable Home Manager for WSL.                                        |
 
 Agents and other non-interactive sessions switch `main` with
 `sudo nixos-switch-main [--remote]`. `scripts/deploy-gcp.sh` is for

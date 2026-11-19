@@ -5,6 +5,7 @@
     ../../profiles/agent-skills.nix
     ../../profiles/agent-usage.nix
     ../../profiles/calendar.nix
+    ../../profiles/gcp-worker.nix
     ../../profiles/ntfy-notifications.nix
     ../../profiles/phone.nix
     ../../profiles/python-development.nix

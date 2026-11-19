@@ -1,15 +1,7 @@
 {
   "acls": [
-    {
-      "action": "accept",
-      "dst": ["tag:server:53"],
-      "src": ["tag:builder"]
-    },
-    {
-      "action": "accept",
-      "dst": ["tag:server:22"],
-      "src": ["tag:ci"]
-    },
+    { "action": "accept", "dst": ["tag:server:53"], "src": ["tag:builder"] },
+    { "action": "accept", "dst": ["tag:server:22"], "src": ["tag:ci"] },
     {
       "action": "accept",
       "dst": ["tag:builder:22"],
@@ -18,26 +10,59 @@
     {
       "action": "accept",
       "dst": [
+        "tag:workstation:1716",
+        "tag:workstation:1739",
+        "tag:workstation:1740",
+        "tag:workstation:1741",
+        "tag:workstation:1742",
+        "tag:workstation:1743",
+        "tag:workstation:1744",
+        "tag:workstation:1745",
+        "tag:workstation:1746",
+        "tag:workstation:1747",
+        "tag:workstation:1748",
+        "tag:workstation:1749",
+        "tag:workstation:1750",
+        "tag:workstation:1751",
+        "tag:workstation:1752",
+        "tag:workstation:1753",
+        "tag:workstation:1754",
+        "tag:workstation:1755",
+        "tag:workstation:1756",
+        "tag:workstation:1757",
+        "tag:workstation:1758",
+        "tag:workstation:1759",
+        "tag:workstation:1760",
+        "tag:workstation:1761",
+        "tag:workstation:1762",
+        "tag:workstation:1763",
+        "tag:workstation:1764"
+      ],
+      "src": ["tag:phone"]
+    },
+    { "action": "accept", "dst": ["tag:server:53"], "src": ["tag:worker"] },
+    {
+      "action": "accept",
+      "dst": [
         "tag:builder:22",
         "tag:server:22",
         "tag:server:53",
         "tag:server:443",
         "tag:server:3001",
+        "tag:worker:22",
         "tag:workstation:22"
       ],
       "src": ["tag:workstation"]
     },
-    {
-      "action": "accept",
-      "dst": ["*:*"],
-      "src": ["autogroup:admin"]
-    }
+    { "action": "accept", "dst": ["*:*"], "src": ["autogroup:admin"] }
   ],
   "tagOwners": {
     "tag:builder": ["autogroup:admin"],
     "tag:ci": ["autogroup:admin"],
     "tag:ci-builder": ["autogroup:admin"],
+    "tag:phone": ["autogroup:admin"],
     "tag:server": ["autogroup:admin"],
+    "tag:worker": ["autogroup:admin"],
     "tag:workstation": ["autogroup:admin"]
   }
 }

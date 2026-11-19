@@ -10,7 +10,8 @@ For deeper context see [`docs/architecture.md`](docs/architecture.md),
 [`docs/security.md`](docs/security.md). Host-local runbooks live
 under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
 [`hosts/homeserver-gcp/CLAUDE.md`](hosts/homeserver-gcp/CLAUDE.md),
-[`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md).
+[`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md),
+[`hosts/gcp-worker/CLAUDE.md`](hosts/gcp-worker/CLAUDE.md).
 
 ---
 
@@ -41,6 +42,11 @@ under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
   Nix remote builder, not a service host — `scripts/validate.sh` runs on it
   automatically, `rebuild --remote` builds `main` on it, and it self-powers-off
   when idle. Use `bash scripts/on-builder.sh <command>` for other heavy commands.
+- **`gcp-worker`:** `deploy '.#gcp-worker'` after `on-worker start`. An on-demand
+  batch VM for long CPU-heavy jobs from any repo (`on-worker run -- CMD`), not a
+  builder. Jobs run as the unprivileged `jobs` user. It and `gcp-builder` do not
+  fit the project CPU quota at the same time. See
+  [`hosts/gcp-worker/CLAUDE.md`](hosts/gcp-worker/CLAUDE.md).
 - **`user@wsl`:** `home-manager switch --flake .#user@wsl`.
 
 Module topology, persistence model, and the agent-maintenance sudo allowlist
@@ -156,8 +162,9 @@ See [`docs/security.md`](docs/security.md) for the full secrets/exposure model.
 ## Security Preferences
 
 - **Broad passwordless sudo is for deploy/dev exceptions only.** Current broad
-  exceptions are `hosts/homeserver-gcp` and `hosts/gcp-builder`;
-  treat SSH access to those targets as root-equivalent. `gcp-builder`
+  exceptions are `hosts/homeserver-gcp`, `hosts/gcp-builder` and
+  `hosts/gcp-worker` (for `user`; its `jobs` account has no sudo);
+  treat SSH access as `user` to those targets as root-equivalent. `gcp-builder`
   additionally grants its trusted Nix user effective root via remote builds, so
   keep it tailnet-only and key-only.
 - **`main` keeps `wheelNeedsPassword = true`** and uses a narrow

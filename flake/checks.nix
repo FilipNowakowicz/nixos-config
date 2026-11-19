@@ -402,9 +402,9 @@ let
     }
   ];
 
-  gcpBuilderAccessInvariants = invariants.deployTargetBaseAccessAssertions ++ [
-    invariants.gcpBuilderSshTailscaleOnly
-    invariants.gcpBuilderUsersAreKeyOnly
+  onDemandAccessInvariants = invariants.deployTargetBaseAccessAssertions ++ [
+    invariants.onDemandSshTailscaleOnly
+    invariants.onDemandUsersAreKeyOnly
   ];
 
   # Lint the Prometheus alert rules with promtool. Renders the exact same
@@ -768,7 +768,8 @@ let
     main = mainAccessInvariants ++ mainExperienceInvariants ++ mainBackupInvariants;
     "homeserver-gcp" =
       homeserverAccessInvariants ++ homeserverBackupInvariants ++ homeserverAlertDeliveryInvariants;
-    "gcp-builder" = gcpBuilderAccessInvariants;
+    "gcp-builder" = onDemandAccessInvariants;
+    "gcp-worker" = onDemandAccessInvariants ++ [ invariants.workerJobsUserUnprivileged ];
   };
 
   baselineInvariantsFor =
