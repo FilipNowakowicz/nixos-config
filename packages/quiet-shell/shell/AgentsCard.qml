@@ -8,8 +8,8 @@ import Quickshell.Io
 // and how many of its sessions are working. A tool whose subscription has ended is
 // left out, even while its last limits are still on record. scripts/agents.py reads
 // what the tools leave behind; it is asked only while the card is on screen.
-// A tool's name unfolds its sessions, each of which can be jumped to or replied to,
-// and a Claude session set to carry on by itself once a usage limit resets.
+// A tool's name unfolds its sessions, each of which can be jumped to, and a Claude
+// session set to carry on by itself once a usage limit resets.
 Item {
     id: root
     implicitHeight: body.implicitHeight + 24
@@ -21,8 +21,6 @@ Item {
     property real now: Date.now() / 1000
     // The tool whose sessions are unfolded, if any.
     property string open: ""
-    // Reply lines open right now.
-    property int typing: 0
 
     // The kitty window first (the right tab inside kitty), then the desktop window
     // that kitty process owns, once the overview is out of the way.
@@ -38,19 +36,6 @@ Item {
         if (owner)
             Dockable.revealAfterClose(owner);
     }
-    // Sent through stdin, so kitty types the text exactly and reads no escapes in it.
-    // A bracketed paste keeps the agent from taking it for keystrokes, and the Enter
-    // after it submits.
-    function reply(session, text) {
-        const t = session.terminal;
-        if (!t)
-            return;
-        Quickshell.execDetached(["sh", "-c",
-            'printf %s "$3" | kitty @ --to "unix:$1" send-text --match "id:$2" --bracketed-paste auto --stdin'
-            + ' && sleep 0.1 && kitty @ --to "unix:$1" send-key --match "id:$2" enter',
-            "sh", t.socket, String(t.window), text]);
-        soon.restart();
-    }
     // The switch is a file named for the session's process, which scripts/resume.py
     // looks for and removes once that process is gone.
     function setResume(session, on) {
@@ -62,8 +47,8 @@ Item {
             "sh", session.key, on ? "on" : "off"]);
         soon.restart();
     }
-    // A reply usually sets a session working; show that without waiting the full interval.
-    Timer { id: soon; interval: 1500; onTriggered: if (!probe.running && root.typing === 0) probe.running = true }
+    // Show the switch's file without waiting the full interval.
+    Timer { id: soon; interval: 1500; onTriggered: if (!probe.running) probe.running = true }
 
     function has(tool) { return !!tool && tool.paid !== false && (tool.five_hour !== null || tool.week !== null); }
     function sessionsOf(tool) {
@@ -102,8 +87,7 @@ Item {
         running: true
         repeat: true
         triggeredOnStart: true
-        // New output rebuilds the session rows, which would wipe a reply being typed.
-        onTriggered: { root.now = Date.now() / 1000; if (!probe.running && root.typing === 0) probe.running = true; }
+        onTriggered: { root.now = Date.now() / 1000; if (!probe.running) probe.running = true; }
     }
 
     Glass { anchors.fill: parent; radius: 22 }
@@ -207,10 +191,7 @@ Item {
                         session: modelData
                         onJump: root.jump(modelData)
                         back: modelData.limited ? root.until(modelData.limited) : ""
-                        onReply: text => root.reply(modelData, text)
                         onSetResume: on => root.setResume(modelData, on)
-                        onReplyingChanged: root.typing += replying ? 1 : -1
-                        Component.onDestruction: if (replying) root.typing -= 1
                     }
                 }
             }

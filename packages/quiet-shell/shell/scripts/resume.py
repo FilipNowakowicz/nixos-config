@@ -8,7 +8,7 @@ the last turn in its transcript is the record Claude Code writes in place of a
 reply when a limit is hit, the time that record names has passed, Claude Code's
 registry says the session is idle, and nothing is typed on its prompt. A long
 conversation is compacted first. Text goes in through the kitty window the
-session runs in, as the card's reply line sends it, so it reads as if typed.
+session runs in, as a paste followed by Enter, so it reads as if typed.
 
 This is a plain script rather than an agent: anything driven by the same
 account would be stopped by the same limit.

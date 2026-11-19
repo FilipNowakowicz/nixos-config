@@ -2,10 +2,8 @@ import QtQuick
 import QtQuick.Layouts
 
 // One running agent session in the overview: what it is and whether it is working.
-// A click jumps to its terminal; the reply button opens a line whose Return types
-// the text into that terminal and presses Enter, as if typed there. Both need the
-// kitty window it runs in, found through kitty's remote-control socket; a session
-// in a terminal started before that existed offers neither.
+// A click jumps to its terminal, found through kitty's remote-control socket; a
+// session in a terminal started before that existed cannot be jumped to.
 // A Claude session also has a switch to carry on by itself after a usage limit:
 // scripts/resume.py types into it once the limit resets.
 ColumnLayout {
@@ -13,7 +11,7 @@ ColumnLayout {
     required property var session
     readonly property bool reachable: !!session.terminal
     readonly property bool working: session.state === "working"
-    property bool replying: false
+    // What a click on the switch just did, said for a moment in place of the state.
     property string sent: ""
     // How long until the limit that stopped it resets, as the card words it.
     property string back: ""
@@ -22,7 +20,6 @@ ColumnLayout {
     property var pending: null
     readonly property bool resumes: pending !== null ? pending : !!session.resume
     signal jump
-    signal reply(string text)
     signal setResume(bool on)
 
     spacing: 4
@@ -95,69 +92,7 @@ ColumnLayout {
             }
             Icon { anchors.centerIn: parent; name: "timer"; size: 13; color: root.resumes ? Theme.onText : Theme.dim }
         }
-        Press {
-            visible: root.reachable
-            implicitWidth: 24
-            implicitHeight: 24
-            radius: 12
-            checkable: true
-            toggled: root.replying
-            name: "Reply to " + (root.session.name || root.session.project)
-            onClicked: {
-                root.replying = !root.replying;
-                if (root.replying)
-                    input.forceActiveFocus();
-            }
-            Icon { anchors.centerIn: parent; name: "reply"; size: 13; color: root.replying ? Theme.text : Theme.dim }
-        }
     }
 
-    Item {
-        visible: root.replying
-        Layout.fillWidth: true
-        implicitHeight: 34
-        Rectangle {
-            anchors.fill: parent
-            radius: 10
-            color: Theme.fill
-            border.width: input.activeFocus ? 1 : 0
-            border.color: Theme.accent
-        }
-        TextInput {
-            id: input
-            anchors.fill: parent
-            anchors.leftMargin: 11
-            anchors.rightMargin: 11
-            verticalAlignment: TextInput.AlignVCenter
-            color: Theme.text
-            selectionColor: Theme.accent
-            font.family: Theme.font
-            font.pixelSize: 12
-            clip: true
-            Accessible.role: Accessible.EditableText
-            Accessible.name: "Reply to " + (root.session.name || root.session.project)
-            Keys.onReturnPressed: {
-                if (text.trim() === "")
-                    return;
-                root.reply(text);
-                text = "";
-                root.replying = false;
-                root.sent = "sent";
-                sentTimer.restart();
-            }
-            Keys.onEscapePressed: event => {
-                // Escape clears the line, then folds it away; after that it closes the overview.
-                if (text !== "") text = "";
-                else root.replying = false;
-            }
-            Label {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: input.text === ""
-                text: "Type, then Return to send"
-                font.pixelSize: 12
-                color: Theme.faint
-            }
-        }
-    }
     Timer { id: sentTimer; interval: 2500; onTriggered: root.sent = "" }
 }
