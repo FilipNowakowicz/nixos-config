@@ -901,8 +901,8 @@ rec {
       } cfg;
   };
 
-  gcpBuilderSshTailscaleOnly = {
-    name = "gcp-builder SSH stays Tailscale-only";
+  onDemandSshTailscaleOnly = {
+    name = "on-demand GCE host SSH stays Tailscale-only";
     check =
       cfg:
       let
@@ -919,8 +919,8 @@ rec {
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
 
-  gcpBuilderUsersAreKeyOnly = {
-    name = "gcp-builder users stay key-only";
+  onDemandUsersAreKeyOnly = {
+    name = "on-demand GCE host users stay key-only";
     check =
       cfg:
       let
@@ -940,6 +940,32 @@ rec {
       mkResult (
         offenders == [ ]
       ) "password material configured for login user(s): ${formatList offenders}";
+  };
+
+  # gcp-worker runs arbitrary project code as `jobs`; keep that account off
+  # every root-equivalent path (wheel/sudo, Nix daemon trust).
+  workerJobsUserUnprivileged = {
+    name = "gcp-worker jobs user stays unprivileged";
+    check =
+      cfg:
+      let
+        jobs = cfg.users.users.jobs or null;
+        trusted = cfg.nix.settings.trusted-users or [ ];
+        violations = lib.filter (msg: msg != "") (
+          if jobs == null then
+            [ "users.users.jobs must exist" ]
+          else
+            [
+              (lib.optionalString (builtins.elem "wheel" (jobs.extraGroups or [ ])) "jobs must not be in wheel")
+              (lib.optionalString (builtins.elem "jobs" trusted) "jobs must not be a trusted Nix user")
+              (lib.optionalString (builtins.elem "@users" trusted) "trusted-users must not include @users")
+              (lib.optionalString (
+                !(jobs.linger or false)
+              ) "jobs must linger so detached jobs outlive their SSH session")
+            ]
+        );
+      in
+      mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
 
   checkNoGlobalTCPPorts =

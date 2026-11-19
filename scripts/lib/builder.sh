@@ -152,6 +152,11 @@ start_builder() {
   echo "remote builder: starting $builder_name ..." >&2
   if find_builder_zone; then
     if ! output=$("${gcloud_cmd[@]}" compute instances start "$builder_name" --zone "$builder_zone" --quiet 2>&1); then
+      if [[ $output == *CPUS_ALL_REGIONS* ]]; then
+        # The project-wide CPU cap fits either this VM or a running gcp-worker.
+        echo "remote builder: no CPU quota free (is gcp-worker running a job? see on-worker status)" >&2
+        return 1
+      fi
       if [[ $output != *ZONE_RESOURCE_POOL_EXHAUSTED* ]]; then
         echo "remote builder: could not start the VM (check gcloud project and login)" >&2
         return 1

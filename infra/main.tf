@@ -2,6 +2,33 @@ locals {
   name = "homeserver-gcp"
 
   snapshot_storage_locations = length(var.snapshot_storage_locations) > 0 ? var.snapshot_storage_locations : [var.region]
+
+  # First-boot script for a fresh Debian image: installs the metadata key into a
+  # temporary sudo-capable `bootstrap` account so nixos-anywhere can install.
+  # Shared by every NixOS VM provisioned here (homeserver-gcp, gcp-worker).
+  bootstrap_startup_script = <<-EOT
+    #!/bin/bash
+    set -euo pipefail
+
+    BOOTSTRAP_KEY="$(curl -fsS -H 'Metadata-Flavor: Google' \
+      http://metadata.google.internal/computeMetadata/v1/instance/attributes/bootstrap-ssh-public-key)"
+
+    if ! id -u bootstrap >/dev/null 2>&1; then
+      useradd --create-home --shell /bin/bash bootstrap
+    fi
+
+    install -d -m 700 -o bootstrap -g bootstrap /home/bootstrap/.ssh
+    printf '%s\n' "$BOOTSTRAP_KEY" > /home/bootstrap/.ssh/authorized_keys
+    chown bootstrap:bootstrap /home/bootstrap/.ssh/authorized_keys
+    chmod 600 /home/bootstrap/.ssh/authorized_keys
+
+    # Temporary broad sudo for nixos-anywhere. scripts/deploy-gcp.sh removes
+    # the metadata that recreates this account after a successful install.
+    printf 'bootstrap ALL=(ALL) NOPASSWD:ALL\n' >/etc/sudoers.d/90-bootstrap
+    chmod 440 /etc/sudoers.d/90-bootstrap
+
+    systemctl reload ssh || systemctl reload sshd || true
+  EOT
 }
 
 # ── Firewall ─────────────────────────────────────────────────────────────────
@@ -147,29 +174,7 @@ resource "google_compute_instance" "homeserver_gcp" {
     # Enable GCE serial console login for emergency recovery.
     serial-port-enable = "TRUE"
 
-    startup-script = <<-EOT
-      #!/bin/bash
-      set -euo pipefail
-
-      BOOTSTRAP_KEY="$(curl -fsS -H 'Metadata-Flavor: Google' \
-        http://metadata.google.internal/computeMetadata/v1/instance/attributes/bootstrap-ssh-public-key)"
-
-      if ! id -u bootstrap >/dev/null 2>&1; then
-        useradd --create-home --shell /bin/bash bootstrap
-      fi
-
-      install -d -m 700 -o bootstrap -g bootstrap /home/bootstrap/.ssh
-      printf '%s\n' "$BOOTSTRAP_KEY" > /home/bootstrap/.ssh/authorized_keys
-      chown bootstrap:bootstrap /home/bootstrap/.ssh/authorized_keys
-      chmod 600 /home/bootstrap/.ssh/authorized_keys
-
-      # Temporary broad sudo for nixos-anywhere. scripts/deploy-gcp.sh removes
-      # the metadata that recreates this account after a successful install.
-      printf 'bootstrap ALL=(ALL) NOPASSWD:ALL\n' >/etc/sudoers.d/90-bootstrap
-      chmod 440 /etc/sudoers.d/90-bootstrap
-
-      systemctl reload ssh || systemctl reload sshd || true
-    EOT
+    startup-script = local.bootstrap_startup_script
   }
 
   lifecycle {

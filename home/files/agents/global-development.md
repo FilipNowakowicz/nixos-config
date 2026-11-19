@@ -47,3 +47,19 @@ Python interpreter, environment, dependency, tool, and command management:
 If a native Python wheel fails to load on NixOS, diagnose the missing shared
 library and fix the centralized `nix-ld`/workstation configuration when
 appropriate instead of adding machine-specific linker paths to the project.
+
+## Long CPU-heavy jobs
+
+On `main`, run long CPU-bound work (calibrations, simulations, parameter
+sweeps, large test matrices: anything over a few minutes at high CPU) on the
+on-demand `gcp-worker` VM with `on-worker`, not on the laptop. It has 14 vCPUs.
+Keep short commands and quick tests local, since starting the VM adds about a
+minute.
+
+- `on-worker run -n NAME -- CMD...` syncs the current Git checkout (tracked plus
+  untracked, non-ignored files) and starts CMD detached there. Use `-i PATH`
+  for gitignored inputs. Python projects use `uv run` there as here.
+- `on-worker logs -f NAME` follows a job and exits with its status;
+  `on-worker status` lists jobs; `on-worker pull PATH...` copies results back.
+- A finished job sends an ntfy notification. The VM powers itself off when
+  idle, so never leave a shell open on it to keep it alive.
