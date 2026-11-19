@@ -157,12 +157,19 @@ elif "send-key" in args:
     assert (usage / "resumed" / key).read_text().strip() == "l1"
     assert not pending.exists()
     assert tick() == []
-    # The session moved on and hit a limit again later.
-    transcript({"type": "user", "uuid": "u1"}, limit("l1"), {"type": "user", "uuid": "u2"}, limit("l2"))
+    # The session moved on and hit a limit again later; a background task then
+    # finished while it was stopped, which Claude Code files as a prompt.
+    notice = {"type": "user", "uuid": "n1", "origin": {"kind": "task-notification"}}
+    meta = {"type": "user", "uuid": "n2", "isMeta": True}
+    transcript({"type": "user", "uuid": "u1"}, limit("l1"), {"type": "user", "uuid": "u2"}, limit("l2"), meta, notice)
     # The first Enter is dropped, as Claude Code does when it comes too soon.
     drop.touch()
     assert tick() == [resume.MESSAGE, "<enter>", "<enter>"]
     assert not pending.exists()
+    # A prompt from a person is the session moving on.
+    transcript(limit("l2b"), {"type": "user", "uuid": "u2b", "origin": {"kind": "human"}})
+    assert tick() == []
+    assert (usage / "resume-why" / key).read_text() == "not stopped by a usage limit"
 
     # A long conversation is compacted first.
     context(73)
