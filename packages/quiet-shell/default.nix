@@ -130,6 +130,10 @@ stdenvNoCC.mkDerivation {
         ]
       } \
       --set QUIET_ALARM_SOUND $out/share/quiet-shell/assets/chime.flac
+    # Run by a user timer (home/desktop); it types into kitty like the agents card does.
+    makeWrapper ${python3}/bin/python3 $out/bin/quiet-agent-resume \
+      --add-flags "$out/share/quiet-shell/scripts/resume.py" \
+      --suffix PATH : ${lib.concatStringsSep ":" ([ (lib.makeBinPath [ coreutils ]) ] ++ extraPath)}
     makeWrapper ${quickshell}/bin/qs $out/bin/quiet-shell-ipc \
       --add-flags "ipc -p $out/share/quiet-shell call shell"
     runHook postInstall

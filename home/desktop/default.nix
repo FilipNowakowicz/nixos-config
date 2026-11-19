@@ -140,41 +140,69 @@ in
     '';
   };
 
-  systemd.user.services = {
-    # A unit so it heals by itself when a rebuild severs its Wayland connection.
-    # Holds the tray's registry so it outlives shell restarts; Spotify aborted
-    # whenever the registry vanished with the shell.
-    tray-watcher = {
+  systemd.user = {
+    # Every minute: cheap while nothing is switched on, and a reset is caught
+    # within a minute of when it falls.
+    timers.quiet-agent-resume = {
       Unit = {
-        Description = "Tray icon registry";
-        After = [ "graphical-session.target" ];
+        Description = "Check for Claude sessions to resume after a usage limit";
         PartOf = [ "graphical-session.target" ];
       };
-      Service = {
-        Type = "dbus";
-        BusName = "org.kde.StatusNotifierWatcher";
-        ExecStart = "${quietShell.trayWatcher}/bin/quiet-tray-watcher";
-        Restart = "always";
-        RestartSec = 2;
+      Timer = {
+        OnCalendar = "minutely";
+        AccuracySec = "10s";
       };
       Install.WantedBy = [ "graphical-session.target" ];
     };
-    quiet-shell = {
-      Unit = {
-        Description = "Quiet desktop shell";
-        After = [
-          "graphical-session.target"
-          "tray-watcher.service"
-        ];
-        Wants = [ "tray-watcher.service" ];
-        PartOf = [ "graphical-session.target" ];
+
+    services = {
+      # A unit so it heals by itself when a rebuild severs its Wayland connection.
+      # Holds the tray's registry so it outlives shell restarts; Spotify aborted
+      # whenever the registry vanished with the shell.
+      tray-watcher = {
+        Unit = {
+          Description = "Tray icon registry";
+          After = [ "graphical-session.target" ];
+          PartOf = [ "graphical-session.target" ];
+        };
+        Service = {
+          Type = "dbus";
+          BusName = "org.kde.StatusNotifierWatcher";
+          ExecStart = "${quietShell.trayWatcher}/bin/quiet-tray-watcher";
+          Restart = "always";
+          RestartSec = 2;
+        };
+        Install.WantedBy = [ "graphical-session.target" ];
       };
-      Service = {
-        ExecStart = "${quietShell}/bin/quiet-shell";
-        Restart = "always";
-        RestartSec = 2;
+      # Carries on a Claude session switched on in the overview once the usage
+      # limit that stopped it resets; see packages/quiet-shell/shell/scripts/resume.py.
+      quiet-agent-resume = {
+        Unit = {
+          Description = "Resume Claude sessions after their usage limit resets";
+          After = [ "graphical-session.target" ];
+        };
+        Service = {
+          Type = "oneshot";
+          ExecStart = lib.getExe' quietShell "quiet-agent-resume";
+        };
       };
-      Install.WantedBy = [ "graphical-session.target" ];
+      quiet-shell = {
+        Unit = {
+          Description = "Quiet desktop shell";
+          After = [
+            "graphical-session.target"
+            "tray-watcher.service"
+          ];
+          Wants = [ "tray-watcher.service" ];
+          PartOf = [ "graphical-session.target" ];
+        };
+        Service = {
+          ExecStart = "${quietShell}/bin/quiet-shell";
+          Restart = "always";
+          RestartSec = 2;
+        };
+        Install.WantedBy = [ "graphical-session.target" ];
+      };
     };
   };
 }

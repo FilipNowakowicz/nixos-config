@@ -143,6 +143,37 @@ print(json.dumps([{{"tabs": [{{"windows": [
         {"socket": str(runtime / "kitty-4242"), "window": 7, "kitty": 4242, "title": "claude"}] * 2, got["sessions"]
     listening.close()
     broken.close()
+
+    # A usage limit ended a's last turn, and a is switched on to resume; b was
+    # stopped by one too but carried on since. Only the transcript's end counts.
+    projects = home / ".claude/projects"
+
+    def transcript(project, sid, lines):
+        d = projects / project
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{sid}.jsonl").write_text("\n".join(json.dumps(r) for r in lines) + "\n")
+
+    def limit(uuid, resets):
+        return {"type": "assistant", "uuid": uuid, "error": "rate_limit", "isApiErrorMessage": True,
+                "apiErrorParams": {"rate_limit_info": {"resetsAt": resets, "rateLimitType": "five_hour"}}}
+
+    (registry / f"{me}.json").write_text(json.dumps(
+        {"pid": me, "procStart": started(me), "status": "idle", "sessionId": "sess-a"}))
+    (registry / f"{sleeper.pid}.json").write_text(json.dumps(
+        {"pid": sleeper.pid, "procStart": started(sleeper.pid), "status": "idle", "sessionId": "sess-b"}))
+    transcript("-home-u-nix", "sess-a", [
+        {"type": "user", "uuid": "u1"}, limit("l1", NOW + 3600),
+        {"type": "system", "subtype": "turn_duration"}, {"type": "file-history-snapshot"}])
+    transcript("-home-u-notes", "sess-b", [limit("l0", NOW - 600), {"type": "user", "uuid": "u2"}])
+    key = f"{me}-{started(me)}"
+    (usage / "resume").mkdir()
+    (usage / "resume" / key).touch()
+    by = {s["id"]: s for s in run(home)["sessions"]}
+    assert (by["a"]["limited"], by["a"]["resume"], by["a"]["key"]) == (NOW + 3600, True, key), by["a"]
+    assert (by["b"]["limited"], by["b"]["resume"]) == (None, False), by["b"]
+    # Past its reset, a limit still on the transcript's end reads as due now.
+    transcript("-home-u-nix", "sess-a", [{"type": "user", "uuid": "u1"}, limit("l1", NOW - 30)])
+    assert {s["id"]: s for s in run(home)["sessions"]}["a"]["limited"] == 0
     sleeper.kill()
 
     # A sign-in token refreshed after that session says the subscription ended.
