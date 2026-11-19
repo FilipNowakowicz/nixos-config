@@ -40,6 +40,20 @@ def log(*parts):
     print(*parts, flush=True)
 
 
+def note(usage, key, name, why):
+    """Logs why a switched-on session is left alone, once each time the reason
+    changes, so a quiet night can be told apart from one the watcher missed."""
+    seen = usage / "resume-why" / key
+    try:
+        if seen.read_text() == why:
+            return
+    except OSError:
+        pass
+    seen.parent.mkdir(parents=True, exist_ok=True)
+    seen.write_text(why)
+    log(f"{name}: {why}")
+
+
 def kitty(terminal, *args, text=None):
     return subprocess.run(
         ["kitty", "@", "--to", f"unix:{terminal['socket']}", *args, "--match", f"id:{terminal['window']}"],
@@ -162,25 +176,32 @@ def run(home, state_home, runtime, now, clock=time.time, pause=time.sleep):
             # The session's process is gone; its switch goes with it.
             armed.unlink(missing_ok=True)
             done.unlink(missing_ok=True)
+            (usage / "resume-why" / armed.name).unlink(missing_ok=True)
             continue
         pid = int(pid)
         session = live.get(pid) or {}
-        if session.get("status") != "idle":
-            continue
+        name = session.get("name") or armed.name
         path = agents.transcript(home / ".claude/projects", session.get("sessionId"))
         limit = agents.stopped(path)
-        if not limit or now < limit["resets"] + MARGIN:
+        if not limit:
+            note(usage, armed.name, name, "not stopped by a usage limit")
             continue
         try:
             if done.read_text().strip() == limit["uuid"]:
                 continue
         except OSError:
             pass
+        if now < limit["resets"] + MARGIN:
+            at = time.strftime("%H:%M", time.localtime(limit["resets"]))
+            note(usage, armed.name, name, f"waiting for the limit to reset at {at}")
+            continue
+        if session.get("status") != "idle":
+            note(usage, armed.name, name, f"limit reset, but the session is {session.get('status') or 'not registered'}")
+            continue
         if windows is None:
             windows = agents.kitty_windows(runtime)
         chain = set(agents.ancestors(pid))
         terminal = next((w["terminal"] for w in windows if w["pids"] & chain), None)
-        name = session.get("name") or armed.name
         if terminal is None:
             log(f"{name}: no kitty window to type into")
             continue

@@ -183,12 +183,21 @@ def records(path):
     return found
 
 
+def automatic(record):
+    """A prompt Claude Code wrote itself rather than one a person sent."""
+    origin = record.get("origin")
+    kind = origin.get("kind") if isinstance(origin, dict) else None
+    return record.get("type") == "user" and bool(record.get("isMeta") or kind not in (None, "human"))
+
+
 def stopped(path):
     """The usage limit that ended a session's last turn, if one did: the record
-    Claude Code writes in place of a reply, its id, and when the limit resets. Any
-    later message, from either side, means the session has moved on since."""
+    Claude Code writes in place of a reply, its id, and when the limit resets. A
+    later reply, or a later prompt from a person, means the session has moved on
+    since. Notices Claude Code files on its own, such as a background task
+    finishing, arrive as prompts too but go unanswered while the limit lasts."""
     for r in reversed(records(path)):
-        if r.get("isSidechain") or r.get("type") not in ("user", "assistant"):
+        if r.get("isSidechain") or r.get("type") not in ("user", "assistant") or automatic(r):
             continue
         if r.get("type") != "assistant" or r.get("error") != "rate_limit":
             return None
