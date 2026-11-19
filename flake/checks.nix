@@ -869,7 +869,9 @@ let
               "workstation->server:3001"
               "workstation->server:443"
               "workstation->server:53"
+              "workstation->worker:22"
               "workstation->workstation:22"
+              "worker->server:53"
             ]
           );
         in
