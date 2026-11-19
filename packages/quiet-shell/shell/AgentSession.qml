@@ -18,7 +18,9 @@ ColumnLayout {
     // How long until the limit that stopped it resets, as the card words it.
     property string back: ""
     readonly property bool limited: session.limited !== null && session.limited !== undefined
-    readonly property bool resumes: !!session.resume
+    // A click shows at once; the next poll rebuilds the row from the switch's file.
+    property var pending: null
+    readonly property bool resumes: pending !== null ? pending : !!session.resume
     signal jump
     signal reply(string text)
     signal setResume(bool on)
@@ -79,10 +81,19 @@ ColumnLayout {
             radius: 12
             checkable: true
             toggled: root.resumes
+            // Lit while on, as a chosen option is elsewhere in the shell.
+            rest: root.resumes ? Theme.on : "transparent"
+            hover: root.resumes ? Theme.on : Theme.fillHover
             name: (root.resumes ? "Stop resuming " : "Resume after the usage limit: ")
                 + (root.session.name || root.session.project)
-            onClicked: root.setResume(!root.resumes)
-            Icon { anchors.centerIn: parent; name: "timer"; size: 13; color: root.resumes ? Theme.text : Theme.dim }
+            onClicked: {
+                const on = !root.resumes;
+                root.pending = on;
+                root.setResume(on);
+                root.sent = on ? "resumes after the limit" : "won't resume";
+                sentTimer.restart();
+            }
+            Icon { anchors.centerIn: parent; name: "timer"; size: 13; color: root.resumes ? Theme.onText : Theme.dim }
         }
         Press {
             visible: root.reachable
