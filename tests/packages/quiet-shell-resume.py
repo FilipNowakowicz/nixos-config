@@ -32,6 +32,10 @@ assert resume.prompt_empty(screen(" "))
 assert resume.prompt_empty(screen("\x1b[2mTry \"fix the tests\"\x1b[22m"))
 assert resume.prompt_empty(screen("\x1b[38;2;90;90;90msuggestion\x1b[0m"))
 assert not resume.prompt_empty(screen("\x1b[39mhalf a thought"))
+# Claude Code sometimes draws its marker in the terminal's own colour.
+plain = f"{RULE}\n\x1b[m❯\xa0\n{RULE}\n  status\n"
+assert resume.prompt_empty(plain)
+assert not resume.prompt_empty(plain.replace("❯\xa0", "❯\xa0half a thought"))
 assert not resume.prompt_empty(screen("\x1b[38;5;8mhint \x1b[0mtyped"))
 # A permission question or any other screen has no input box to judge.
 assert not resume.prompt_empty("Do you want to proceed?\n❯ 1. Yes\n  2. No\n")
@@ -50,6 +54,8 @@ with tempfile.TemporaryDirectory() as tmp:
     log = home / ".claude/projects/-home-u-nix/sess.jsonl"
     sent = root / "sent.jsonl"
     shown = root / "screen.txt"
+    pending = root / "pending.txt"
+    drop = root / "drop"
 
     # A kitty whose window 7 runs this test, and so the session it stands for.
     fake = root / "bin/kitty"
@@ -60,18 +66,31 @@ if "ls" in args:
     print(json.dumps([{{"tabs": [{{"windows": [
         {{"id": 7, "pid": {os.getppid()}, "title": "claude", "foreground_processes": [{{"pid": {os.getpid()}}}]}}]}}]}}]))
 elif "get-text" in args:
-    print(open({str(shown)!r}).read(), end="")
+    import os
+    shown = open({str(shown)!r}).read()
+    if os.path.exists({str(pending)!r}):
+        shown = shown.replace("❯\\xa0 ", "❯\\xa0\\x1b[39m" + open({str(pending)!r}).read())
+    print(shown, end="")
 elif "send-text" in args:
     text = sys.stdin.read()
     with open({str(sent)!r}, "a") as f:
         f.write(json.dumps(text) + "\\n")
+    # The paste shows on the prompt until Enter takes it.
+    with open({str(pending)!r}, "w") as f:
+        f.write(text)
     # Claude compacts when asked to, unless this test says it hangs.
     if text == "/compact" and not __import__("os").path.exists({str(root / "hang")!r}):
         with open({str(log)!r}, "a") as f:
             f.write(json.dumps({{"type": "system", "subtype": "compact_boundary"}}) + "\\n")
 elif "send-key" in args:
+    import os
     with open({str(sent)!r}, "a") as f:
         f.write(json.dumps("<enter>") + "\\n")
+    # Claude Code drops an Enter now and then; this test says when.
+    if os.path.exists({str(drop)!r}):
+        os.unlink({str(drop)!r})
+    elif os.path.exists({str(pending)!r}):
+        os.unlink({str(pending)!r})
 """)
     fake.chmod(0o755)
     os.environ["PATH"] = f"{root / 'bin'}:{os.environ.get('PATH', '')}"
@@ -136,10 +155,14 @@ elif "send-key" in args:
     # Due: carries on, once per limit.
     assert tick() == [resume.MESSAGE, "<enter>"]
     assert (usage / "resumed" / key).read_text().strip() == "l1"
+    assert not pending.exists()
     assert tick() == []
     # The session moved on and hit a limit again later.
     transcript({"type": "user", "uuid": "u1"}, limit("l1"), {"type": "user", "uuid": "u2"}, limit("l2"))
-    assert tick() == [resume.MESSAGE, "<enter>"]
+    # The first Enter is dropped, as Claude Code does when it comes too soon.
+    drop.touch()
+    assert tick() == [resume.MESSAGE, "<enter>", "<enter>"]
+    assert not pending.exists()
 
     # A long conversation is compacted first.
     context(73)

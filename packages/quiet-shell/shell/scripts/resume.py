@@ -89,16 +89,30 @@ def prompt_empty(screen):
     box = lines[top + 1:bottom]
     if not box or not SGR.sub("", box[0]).lstrip().startswith("❯"):
         return False
-    return all(typed(line) == "" for line in box)
+    # The marker is not always drawn in its own colour, so it never counts.
+    first = typed(box[0])
+    first = first[1:].strip() if first.startswith("❯") else first
+    return first == "" and all(typed(line) == "" for line in box[1:])
 
 
-def send(terminal, text):
-    """Type text into the session's terminal as a paste, then press Enter."""
+def send(terminal, text, pause=time.sleep):
+    """Type text into the session's terminal as a paste, then press Enter. Claude
+    Code drops an Enter that comes before it has taken the paste in, so wait for
+    the text to show on the prompt first, and press again if it is still there."""
     pasted = kitty(terminal, "send-text", "--bracketed-paste", "auto", "--stdin", text=text)
     if pasted.returncode != 0:
         return False
-    time.sleep(0.1)
-    return kitty(terminal, "send-key", "enter").returncode == 0
+    for _ in range(15):
+        if not prompt_empty(screen(terminal)):
+            break
+        pause(0.2)
+    for _ in range(3):
+        if kitty(terminal, "send-key", "enter").returncode != 0:
+            return False
+        pause(0.5)
+        if prompt_empty(screen(terminal)):
+            return True
+    return False
 
 
 def screen(terminal):
@@ -179,7 +193,7 @@ def run(home, state_home, runtime, now, clock=time.time, pause=time.sleep):
         context = context_of(usage, pid, started)
         if context is not None and context >= COMPACT_AT:
             log(f"{name}: {KINDS.get(limit['kind'], 'usage')} limit reset; compacting at {round(context)}% context")
-            if not send(terminal, "/compact"):
+            if not send(terminal, "/compact", pause):
                 log(f"{name}: could not type into its terminal")
                 continue
             if not wait_compacted(path, limit["uuid"], clock() + COMPACT_WAIT, clock, pause):
@@ -196,7 +210,7 @@ def run(home, state_home, runtime, now, clock=time.time, pause=time.sleep):
                 log(f"{name}: did not come back after compacting; leaving it be")
                 continue
         log(f"{name}: {KINDS.get(limit['kind'], 'usage')} limit reset; resuming")
-        if not send(terminal, MESSAGE):
+        if not send(terminal, MESSAGE, pause):
             log(f"{name}: could not type into its terminal")
 
 
