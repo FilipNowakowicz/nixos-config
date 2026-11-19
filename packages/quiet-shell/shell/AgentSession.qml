@@ -6,6 +6,8 @@ import QtQuick.Layouts
 // the text into that terminal and presses Enter, as if typed there. Both need the
 // kitty window it runs in, found through kitty's remote-control socket; a session
 // in a terminal started before that existed offers neither.
+// A Claude session also has a switch to carry on by itself after a usage limit:
+// scripts/resume.py types into it once the limit resets.
 ColumnLayout {
     id: root
     required property var session
@@ -13,8 +15,13 @@ ColumnLayout {
     readonly property bool working: session.state === "working"
     property bool replying: false
     property string sent: ""
+    // How long until the limit that stopped it resets, as the card words it.
+    property string back: ""
+    readonly property bool limited: session.limited !== null && session.limited !== undefined
+    readonly property bool resumes: !!session.resume
     signal jump
     signal reply(string text)
+    signal setResume(bool on)
 
     spacing: 4
 
@@ -55,6 +62,8 @@ ColumnLayout {
                 }
                 Label {
                     text: root.sent !== "" ? root.sent
+                        : root.limited ? (root.resumes ? "resumes " : "limit · back ")
+                                         + (root.back !== "" ? "in " + root.back : "now")
                         : [root.session.context !== null ? "ctx " + Math.round(root.session.context) + "%" : "",
                            root.working ? "working" : "idle"].filter(s => s).join(" · ")
                     font.pixelSize: 10
@@ -62,6 +71,18 @@ ColumnLayout {
                     color: Theme.faint
                 }
             }
+        }
+        Press {
+            visible: root.reachable && root.session.tool === "claude" && !!root.session.key
+            implicitWidth: 24
+            implicitHeight: 24
+            radius: 12
+            checkable: true
+            toggled: root.resumes
+            name: (root.resumes ? "Stop resuming " : "Resume after the usage limit: ")
+                + (root.session.name || root.session.project)
+            onClicked: root.setResume(!root.resumes)
+            Icon { anchors.centerIn: parent; name: "timer"; size: 13; color: root.resumes ? Theme.text : Theme.dim }
         }
         Press {
             visible: root.reachable

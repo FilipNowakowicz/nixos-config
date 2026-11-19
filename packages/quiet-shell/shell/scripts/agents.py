@@ -4,6 +4,8 @@
 Claude's limits and sessions come from what its status line records under
 $XDG_STATE_HOME/agent-usage (see home/files/agents/claude-statusline.sh), and
 whether a session is busy from Claude Code's own registry in ~/.claude/sessions.
+Whether a usage limit stopped a session comes from the end of its transcript, and
+whether to resume it then (see resume.py) from a file the card leaves per process.
 Codex records its limits, and the plan they belong to, in its own session logs.
 Anything missing reports null or an empty list, so the card can say there is
 nothing to show.
@@ -161,7 +163,49 @@ def registry(root):
     return found
 
 
-def claude(base, sessions_dir, now):
+def transcript(projects, session_id):
+    """A session's transcript, under whichever project directory Claude Code chose."""
+    if not isinstance(session_id, str) or not re.fullmatch(r"[A-Za-z0-9-]+", session_id):
+        return None
+    return next(iter(sorted(projects.glob(f"*/{session_id}.jsonl"))), None)
+
+
+def records(path):
+    """The transcript's last records, oldest first; a line that does not parse is skipped."""
+    found = []
+    for line in tail(path) if path else []:
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(r, dict):
+            found.append(r)
+    return found
+
+
+def stopped(path):
+    """The usage limit that ended a session's last turn, if one did: the record
+    Claude Code writes in place of a reply, its id, and when the limit resets. Any
+    later message, from either side, means the session has moved on since."""
+    for r in reversed(records(path)):
+        if r.get("isSidechain") or r.get("type") not in ("user", "assistant"):
+            continue
+        if r.get("type") != "assistant" or r.get("error") != "rate_limit":
+            return None
+        info = (r.get("apiErrorParams") or {}).get("rate_limit_info") or r.get("quotaLimits") or {}
+        resets = info.get("resetsAt")
+        if not isinstance(resets, (int, float)) or not r.get("uuid"):
+            return None
+        return {"uuid": r["uuid"], "resets": int(resets), "kind": info.get("rateLimitType") or ""}
+    return None
+
+
+def process_key(pid, started):
+    """Names one run of a process; the card's resume switch is a file by this name."""
+    return f"{pid}-{started}"
+
+
+def claude(base, sessions_dir, now, projects=None):
     usage = load(base / "claude.json") or {}
     limits = usage.get("rate_limits") or {}
     five = limits.get("five_hour") or {}
@@ -182,6 +226,8 @@ def claude(base, sessions_dir, now):
     for s, at, path in newest.values():
         cwd = s.get("cwd") or ""
         known = live.get(s["pid"]) or {}
+        key = process_key(s["pid"], s["started"])
+        limit = stopped(transcript(projects, known.get("sessionId"))) if projects else None
         sessions.append({
             "tool": "claude",
             "id": s.get("id") or path.stem,
@@ -193,6 +239,11 @@ def claude(base, sessions_dir, now):
             "state": {"busy": "working", "idle": "idle"}.get(known.get("status")) or state(now, at),
             "name": known.get("name") or "",
             "pid": s["pid"],
+            # When a usage limit stopped it, the time that limit resets; and
+            # whether resume.py types into it then.
+            "limited": limit["resets"] if limit and limit["resets"] > now else (0 if limit else None),
+            "key": key,
+            "resume": (base / "resume" / key).exists(),
         })
     return {
         "five_hour": window(five.get("used_percentage"), five.get("resets_at"), now),
@@ -320,7 +371,8 @@ def main():
     home = pathlib.Path(os.environ.get("HOME", "/nonexistent"))
     state_home = pathlib.Path(os.environ.get("XDG_STATE_HOME") or home / ".local/state")
     codex_home = pathlib.Path(os.environ.get("CODEX_HOME") or home / ".codex")
-    claude_limits, claude_sessions = claude(state_home / "agent-usage", home / ".claude/sessions", now)
+    claude_limits, claude_sessions = claude(
+        state_home / "agent-usage", home / ".claude/sessions", now, home / ".claude/projects")
     codex_limits, codex_sessions = codex(codex_home / "sessions", codex_home / "auth.json", now)
     sessions = sorted(claude_sessions + codex_sessions, key=lambda s: -s["at"])[:6]
     runtime = pathlib.Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")

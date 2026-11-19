@@ -20,6 +20,7 @@ pkgs.runCommand "quiet-shell-status-tests"
       ${../../packages/quiet-shell/shell/scripts/buds.py} \
       ${../../packages/quiet-shell/shell/scripts/agenda.py}
     python3 ${./quiet-shell-agents.py} ${../../packages/quiet-shell/shell/scripts/agents.py}
+    python3 ${./quiet-shell-resume.py} ${../../packages/quiet-shell/shell/scripts}/resume.py
     python3 ${./quiet-shell-phone.py} ${../../packages/quiet-shell/shell/scripts/phone.py}
     python3 ${./quiet-shell-screenshot.py} ${../../packages/quiet-shell/shell/scripts/screenshot.py}
     touch $out

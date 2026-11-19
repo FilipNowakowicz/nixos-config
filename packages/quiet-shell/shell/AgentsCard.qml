@@ -8,7 +8,8 @@ import Quickshell.Io
 // and how many of its sessions are working. A tool whose subscription has ended is
 // left out, even while its last limits are still on record. scripts/agents.py reads
 // what the tools leave behind; it is asked only while the card is on screen.
-// A tool's name unfolds its sessions, each of which can be jumped to or replied to.
+// A tool's name unfolds its sessions, each of which can be jumped to or replied to,
+// and a Claude session set to carry on by itself once a usage limit resets.
 Item {
     id: root
     implicitHeight: body.implicitHeight + 24
@@ -48,6 +49,17 @@ Item {
             'printf %s "$3" | kitty @ --to "unix:$1" send-text --match "id:$2" --bracketed-paste auto --stdin'
             + ' && sleep 0.1 && kitty @ --to "unix:$1" send-key --match "id:$2" enter',
             "sh", t.socket, String(t.window), text]);
+        soon.restart();
+    }
+    // The switch is a file named for the session's process, which scripts/resume.py
+    // looks for and removes once that process is gone.
+    function setResume(session, on) {
+        if (!session.key)
+            return;
+        Quickshell.execDetached(["sh", "-c",
+            'dir="${XDG_STATE_HOME:-$HOME/.local/state}/agent-usage/resume"; '
+            + 'if [ "$2" = on ]; then mkdir -p "$dir" && : >"$dir/$1"; else rm -f "$dir/$1"; fi',
+            "sh", session.key, on ? "on" : "off"]);
         soon.restart();
     }
     // A reply usually sets a session working; show that without waiting the full interval.
@@ -194,7 +206,9 @@ Item {
                         Layout.fillWidth: true
                         session: modelData
                         onJump: root.jump(modelData)
+                        back: modelData.limited ? root.until(modelData.limited) : ""
                         onReply: text => root.reply(modelData, text)
+                        onSetResume: on => root.setResume(modelData, on)
                         onReplyingChanged: root.typing += replying ? 1 : -1
                         Component.onDestruction: if (replying) root.typing -= 1
                     }
