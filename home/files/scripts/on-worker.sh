@@ -29,6 +29,7 @@ usage: on-worker <command> [args]
 CMD runs in a login shell from the checkout root, e.g.
   on-worker run -n calib -- uv run python scripts/calibrate.py --workers 14
 Files synced: everything Git tracks plus untracked files that are not ignored.
+Symlinks that point outside the checkout are copied as their targets.
 EOF
 }
 
@@ -128,11 +129,16 @@ sync_checkout() {
   remote "mkdir -p '$workspace'"
   (
     cd "$toplevel" || exit
+    # A symlink pointing outside the checkout (a worktree's link to the main
+    # checkout's data cache, say) would dangle on the worker, so copy what it
+    # points to instead. -r makes a linked directory arrive with its contents;
+    # git lists files only, so nothing else recurses. Links inside the
+    # checkout stay links.
     git ls-files -z --cached --others --exclude-standard |
-      rsync -a --from0 --files-from=- --ignore-missing-args \
+      rsync -a -r --copy-unsafe-links --from0 --files-from=- --ignore-missing-args \
         -e "ssh ${ssh_opts[*]}" ./ "$target:$workspace/"
     if ((${#includes[@]} > 0)); then
-      rsync -a --relative -e "ssh ${ssh_opts[*]}" -- "${includes[@]}" "$target:$workspace/"
+      rsync -a --relative --copy-unsafe-links -e "ssh ${ssh_opts[*]}" -- "${includes[@]}" "$target:$workspace/"
     fi
   )
 }
@@ -224,6 +230,8 @@ if systemctl --user is-active -q "worker-job-$name" 2>/dev/null; then
   exit 1
 fi
 rm -rf ~/jobs/"$name"
+# Created here, not only by worker-job, so a --wait that starts at once finds it.
+mkdir -p ~/jobs/"$name"
 systemd-run --user --quiet --collect --unit "worker-job-$name" \
   --working-directory "$HOME/$workspace" \
   -p RuntimeMaxSec="$max_runtime" -p KillMode=control-group -p TimeoutStopSec=30s \

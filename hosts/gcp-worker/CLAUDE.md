@@ -37,7 +37,9 @@ on-worker run -w -- make test   # wait in the foreground
 
 - The checkout's tracked files plus untracked, non-ignored files are synced to
   `~jobs/work/<repo>-<hash>`, which persists between runs (`.venv`, caches).
-  Add gitignored inputs with `-i PATH`. Sync never deletes remote files.
+  Add gitignored inputs with `-i PATH`. Symlinks that point outside the
+  checkout are copied as their targets, since they would dangle on the worker.
+  Sync never deletes remote files.
 - Jobs are `systemd-run --user` units named `worker-job-<name>`, bounded by
   `--max-runtime` (default 24h). Logs, command and exit status live in
   `~jobs/jobs/<name>/`.
