@@ -23,7 +23,9 @@ a command or make it succeed without changing anything.
    the repo's real `hyprland.lua`.
 
 3. The nested window gets no frames from a headless parent, so add an output Hyprland
-   renders itself, and always give `grim` a timeout:
+   renders itself, and always give `grim` a timeout. `q.sh` uses the nested instance's
+   short private runtime, which the guard lets `hyprctl` reach (agent-desktop #219).
+   If the guard still refuses, fix the guard; never call `hyprctl` by absolute path:
 
    ```sh
    q.sh RUNDIR hyprctl output create headless
