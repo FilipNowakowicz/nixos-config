@@ -16,7 +16,7 @@ usage: on-worker <command> [args]
       -i, --include PATH       also sync PATH (repeatable; e.g. gitignored data)
       -t, --max-runtime DUR    stop the job after DUR (systemd time, default 24h)
       -w, --wait               follow the log and exit with the job's status
-  status                     List jobs and their state
+  status                     List jobs and their state (does not boot a powered-off VM)
   logs [-f] [NAME]           Show a job's log (default: the newest job)
   wait [NAME]                Follow a job until it ends; exit with its status
   stop NAME                  Stop a running job
@@ -76,6 +76,28 @@ resolve_gcloud() {
 
 reachable() {
   ssh "${ssh_opts[@]}" -o ConnectTimeout=5 "$target" true 2>/dev/null
+}
+
+# Prints the VM's GCE status (RUNNING, TERMINATED, ...), or nothing.
+vm_status() {
+  resolve_gcloud
+  "${gcloud_cmd[@]}" compute instances list --filter="name=$WORKER_VM" \
+    --format='value(status)' 2>/dev/null || true
+}
+
+# True when the VM is powered off. Jobs keep it up, so off means none is
+# running, and status/stop can answer without booting it.
+vm_is_off() {
+  reachable && return 1
+  case $(vm_status) in
+  TERMINATED | STOPPED | SUSPENDED) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+off_notice() {
+  echo "on-worker: $WORKER_VM is powered off, so no job is running." >&2
+  echo "  Past jobs' logs and results stay on its disk: 'on-worker logs NAME' or 'on-worker pull PATH' boots it." >&2
 }
 
 start_vm() {
@@ -229,6 +251,11 @@ if systemctl --user is-active -q "worker-job-$name" 2>/dev/null; then
   echo "on-worker: job $name is already running" >&2
   exit 1
 fi
+others=$(systemctl --user list-units --state=active --no-legend --plain "worker-job-*" 2>/dev/null |
+  sed -n "s/^worker-job-\(.*\)\.service.*/\1/p" | tr "\n" " ")
+if [[ -n $others ]]; then
+  echo "on-worker: also running: $others(they share the $(nproc) vCPUs; size worker counts accordingly)" >&2
+fi
 rm -rf ~/jobs/"$name"
 # Created here, not only by worker-job, so a --wait that starts at once finds it.
 mkdir -p ~/jobs/"$name"
@@ -294,6 +321,10 @@ shift
 case $sub in
 run) cmd_run "$@" ;;
 status)
+  if vm_is_off; then
+    off_notice
+    exit 0
+  fi
   start_vm
   remote_script "$status_script"
   ;;
@@ -308,6 +339,10 @@ wait)
   ;;
 stop)
   [[ -n ${1:-} ]] || die "stop needs a job name"
+  if vm_is_off; then
+    off_notice
+    exit 0
+  fi
   start_vm
   remote "systemctl --user stop 'worker-job-$1'"
   ;;
