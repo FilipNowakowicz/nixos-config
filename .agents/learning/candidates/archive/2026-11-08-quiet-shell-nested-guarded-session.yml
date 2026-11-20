@@ -2,7 +2,7 @@ schema: learning-candidate/v1
 id: 2026-11-08-quiet-shell-nested-guarded-session
 date: 2026-11-08
 expires: 2027-05-08
-status: open
+status: promoted
 route: implement-fix
 best_form: test
 evidence: [tests/quiet-shell/README.md:18 create --guard-host, tests/quiet-shell/README.md step 3 q.sh hyprctl, tests/quiet-shell/nested.sh QUIET_REAL_CONFIG writes $HOME/.config/hypr/colors.lua, agent-desktop src/agent_desktop/worker.py GUARDED_COMMANDS shim output "hyprctl is blocked in a guarded session"]
