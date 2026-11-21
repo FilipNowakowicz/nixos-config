@@ -1,5 +1,6 @@
-"""Check resume.py against a made-up Claude session and a fake kitty that records
-what is typed into it, and stands in for Claude when asked to compact."""
+"""Check resume.py against a made-up Claude session, real captures of its
+prompt, and a fake kitty that records what is typed into it, and stands in for
+Claude when asked to compact."""
 
 import importlib.util
 import json
@@ -11,6 +12,7 @@ import sys
 import tempfile
 
 script = pathlib.Path(sys.argv[1])
+screens = pathlib.Path(sys.argv[2])
 sys.path.insert(0, str(script.parent))
 spec = importlib.util.spec_from_file_location("resume", script)
 resume = importlib.util.module_from_spec(spec)
@@ -41,6 +43,12 @@ assert not resume.prompt_empty(screen("\x1b[38;5;8mhint \x1b[0mtyped"))
 named = f"{RULE} trading batch 2 ─\n\x1b[m❯\xa0\n{RULE}\n  status\n"
 assert resume.prompt_empty(named)
 assert not resume.prompt_empty(named.replace("❯\xa0", "❯\xa0half a thought"))
+# The same judgements on the bottom of real Claude Code screens, taken with
+# `kitty @ get-text --ansi`. Refresh these when Claude Code redraws its prompt.
+for name in ("named", "unnamed"):
+    real = (screens / f"{name}.ansi").read_text()
+    assert resume.prompt_empty(real), name
+    assert not resume.prompt_empty(real.replace("❯\xa0", "❯\xa0half a thought", 1)), name
 # A permission question or any other screen has no input box to judge.
 assert not resume.prompt_empty("Do you want to proceed?\n❯ 1. Yes\n  2. No\n")
 
