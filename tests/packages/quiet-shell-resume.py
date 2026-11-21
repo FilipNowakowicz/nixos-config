@@ -37,6 +37,10 @@ plain = f"{RULE}\n\x1b[m❯\xa0\n{RULE}\n  status\n"
 assert resume.prompt_empty(plain)
 assert not resume.prompt_empty(plain.replace("❯\xa0", "❯\xa0half a thought"))
 assert not resume.prompt_empty(screen("\x1b[38;5;8mhint \x1b[0mtyped"))
+# A named session carries its name in the top rule, as `claude -n` draws it.
+named = f"{RULE} trading batch 2 ─\n\x1b[m❯\xa0\n{RULE}\n  status\n"
+assert resume.prompt_empty(named)
+assert not resume.prompt_empty(named.replace("❯\xa0", "❯\xa0half a thought"))
 # A permission question or any other screen has no input box to judge.
 assert not resume.prompt_empty("Do you want to proceed?\n❯ 1. Yes\n  2. No\n")
 

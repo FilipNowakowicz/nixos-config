@@ -32,7 +32,9 @@ MARGIN = 60
 COMPACT_WAIT = 15 * 60
 
 KINDS = {"five_hour": "5-hour", "seven_day": "weekly"}
-RULE = re.compile(r"^─{8,}$")
+# A horizontal rule. Claude Code writes a named session's name into the top one
+# ("──── name ─"), so a rule may carry one label of text between its runs.
+RULE = re.compile(r"^(?=.*─{8})─+(?: \S(?:.*\S)? ─+)?$")
 SGR = re.compile(r"(\x1b\[[0-9;:]*m)")
 
 
