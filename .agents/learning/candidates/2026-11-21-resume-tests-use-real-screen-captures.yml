@@ -1,0 +1,14 @@
+schema: learning-candidate/v1
+id: 2026-11-21-resume-tests-use-real-screen-captures
+date: 2026-11-21
+expires: 2027-02-21
+status: open
+route: implement-fix
+best_form: test
+evidence: [pr-#568, packages/quiet-shell/shell/scripts/resume.py RULE, journal quiet-agent-resume 2026-11-21 00:11-12:26 "something is on the prompt"]
+observation: resume.py screen-scrapes Claude Code's TUI; its tests used hand-built screens, so a named session (name drawn in the top rule) silently blocked resuming for 12h with green tests
+proposed_upgrade: add redacted `kitty @ get-text --ansi` captures of real Claude Code screens (named, unnamed, permission menu, busy) as fixtures for prompt_empty tests; refresh when Claude Code's UI changes
+agent: claude
+type: repo-fix
+dedupe_key: quiet-shell:resume-prompt-detection-fixtures
+targets: [tests/packages/quiet-shell-resume.py]
