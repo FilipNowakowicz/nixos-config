@@ -208,8 +208,7 @@ def power_profile():
     return out.strip() if out else None
 
 
-def battery():
-    root = pathlib.Path(os.environ.get("QUIET_POWER_SUPPLY", "/sys/class/power_supply"))
+def battery(root):
     for path in sorted(root.glob("BAT*")):
         try:
             return {
@@ -217,6 +216,23 @@ def battery():
                 "charging": (path / "status").read_text().strip() in ("Charging", "Full"),
             }
         except (OSError, ValueError):
+            continue
+    return None
+
+
+def mouse_battery(root):
+    for path in sorted(root.glob("hidpp_battery_*")):
+        try:
+            fields = dict(line.split("=", 1) for line in (path / "uevent").read_text().splitlines())
+            name = "".join(fields.get("POWER_SUPPLY_MODEL_NAME", "").lower().split())
+            if name.removeprefix("logitech") not in ("x2superstrike", "prox2superstrike"):
+                continue
+            if fields.get("POWER_SUPPLY_ONLINE") != "1":
+                continue
+            level = int(fields["POWER_SUPPLY_CAPACITY"])
+            if 0 <= level <= 100:
+                return level
+        except (OSError, KeyError, ValueError):
             continue
     return None
 
@@ -249,6 +265,7 @@ if sys.argv[1:] == ["countries"]:
     sys.exit()
 
 zone, offset = timezone()
+power_supply = pathlib.Path(os.environ.get("QUIET_POWER_SUPPLY", "/sys/class/power_supply"))
 print(json.dumps({
     "wifi": wifi(),
     "bluetooth": bluetooth(),
@@ -258,7 +275,8 @@ print(json.dumps({
     "devices": audio_devices(),
     "brightness": brightness(),
     "profile": power_profile(),
-    "battery": battery(),
+    "battery": battery(power_supply),
+    "mouseBattery": mouse_battery(power_supply),
     "night": night(),
     "timezone": zone,
     # The shell itself can't see a new zone (Sys.clock), so it is told the offset.

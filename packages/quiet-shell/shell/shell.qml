@@ -103,7 +103,7 @@ ShellRoot {
 
     // Fresh state while someone is looking closely; pinned capsules alone only show
     // the clock, battery and connections, which a slower refresh keeps current.
-    Binding { target: Sys; property: "live"; value: Ui.blocking || Ui.topRevealed || Ui.panel !== "" }
+    Binding { target: Sys; property: "live"; value: Ui.blocking || Ui.topRevealed || Ui.trayOpen || Ui.panel !== "" }
     Binding { target: Sys; property: "glance"; value: Ui.pinned }
 
     // Both ends of SUPER+Tab arrive here in order. As separate processes, a quick tap's
