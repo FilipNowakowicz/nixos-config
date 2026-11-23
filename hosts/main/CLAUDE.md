@@ -249,3 +249,27 @@ In the anonymous specialisation all three mechanisms are removed and
   commands. When restarting such a helper by hand: `pkill -f
 <name>` self-matches the shell running the command (its argv contains
   the token) — kill by PID instead.
+
+### Capturing a boot or resume DNS failure
+
+Run `network-doctor main` at the first opportunity after a normal cold boot or
+after resuming on a different network. Capture the first observation before
+reconnecting either VPN. Keep the output local because it contains network
+addresses and device names. For example, in a shell on main:
+
+```sh
+(
+  umask 077
+  dir="${XDG_STATE_HOME:-$HOME/.local/state}/network-doctor"
+  mkdir -p "$dir"
+  network-doctor main >"$dir/main-$(date -u +%Y%m%dT%H%M%SZ).log" 2>&1
+)
+```
+
+Compare boot ID, uptime and physical link with the baseline. If a lookup
+fails, inspect the route to AdGuard first. If it selects tailscale0, compare
+the UDP and TCP answers. A direct answer with a failed system lookup points
+toward resolver selection or the local proxy. If both direct queries time out,
+the route lookup alone cannot distinguish a peer, ACL, firewall or listener
+failure. The public lookup reports which link answered. A successful lookup
+through Mullvad can coexist with an unreachable AdGuard server.

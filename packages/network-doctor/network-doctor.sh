@@ -20,7 +20,7 @@ probe() {
 
 read -r uptime_seconds _ </proc/uptime
 printf 'mode=%s time=%s boot_id=%s uptime_seconds=%s\n' \
-  "$1" "$(date -u +%FT%TZ)" "$(< /proc/sys/kernel/random/boot_id)" "$uptime_seconds"
+  "$1" "$(date -u +%FT%TZ)" "$(</proc/sys/kernel/random/boot_id)" "$uptime_seconds"
 
 if [[ $1 == main ]]; then
   probe 'NetworkManager links' nmcli -t -f DEVICE,TYPE,STATE device status
