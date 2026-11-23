@@ -155,7 +155,6 @@ in
           ReadWritePaths = [
             "/var/cache/nginx"
             "/var/log/nginx"
-            "/var/lib/nginx/certs"
           ];
         };
       };

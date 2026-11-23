@@ -101,13 +101,13 @@ in
               Type = "oneshot";
               RemainAfterExit = true;
               ExecStart = pkgs.writeShellScript "gen-smoke-cert" ''
-                mkdir -p /var/lib/nginx/certs
+                mkdir -p /var/lib/nginx-certs
                 ${pkgs.openssl}/bin/openssl req -x509 -newkey rsa:2048 \
-                  -keyout /var/lib/nginx/certs/homeserver-gcp.key \
-                  -out /var/lib/nginx/certs/homeserver-gcp.crt \
+                  -keyout /var/lib/nginx-certs/homeserver-gcp.key \
+                  -out /var/lib/nginx-certs/homeserver-gcp.crt \
                   -days 1 -nodes -subj '/CN=${testFqdn}'
-                chmod 640 /var/lib/nginx/certs/homeserver-gcp.key
-                chown root:nginx /var/lib/nginx/certs/homeserver-gcp.key
+                chmod 640 /var/lib/nginx-certs/homeserver-gcp.key
+                chown root:nginx /var/lib/nginx-certs/homeserver-gcp.key
               '';
             };
           };
