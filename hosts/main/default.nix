@@ -73,6 +73,7 @@ let
 in
 {
   imports = [
+    ../../packages/network-doctor
     inputs.disko.nixosModules.disko
     inputs.lanzaboote.nixosModules.lanzaboote
     inputs.nix-index-database.nixosModules.default
