@@ -8,6 +8,8 @@ let
   pkgs = nixpkgs.legacyPackages.${system};
   invariants = import ../../lib/invariants.nix { inherit lib pkgs; };
 
+  runnerChecks = import ../../hosts/homeserver-gcp/github-runner-checks.nix { inherit lib; };
+
   # The real host registry, so the AdGuard DNS-grant invariant is validated
   # against live data in merge-gate: a newly-added tagged host that forgets its
   # :53 grant fails this test, not a silent DNS outage on the new host.
@@ -922,35 +924,46 @@ let
       expected = "expected exactly 1 agent maintenance allowlist rule, got 2";
     };
 
-    testHomeserverDeployRunnerConfigPasses = {
+    testRunnerSelfSwitchPolicy = {
       expr =
-        (invariants.homeserverDeployRunnerRegistrationGcRunbookMatchesConfig.check {
-          systemd.services.github-runner-homeserver-deploy = {
-            serviceConfig.StateDirectory = "github-runner/homeserver-deploy";
-            restartIfChanged = false;
-          };
-        }).passed;
-      expected = true;
+        map
+          (
+            runner:
+            (runnerChecks.selfSwitch.check {
+              systemd.services.github-runner-homeserver-deploy = runner;
+            }).passed
+          )
+          [
+            { restartIfChanged = false; }
+            { restartIfChanged = true; }
+            { }
+          ];
+      expected = [
+        true
+        false
+        false
+      ];
     };
 
-    testHomeserverDeployRunnerConfigRejectsRestartIfChanged = {
+    testRunnerRunbookTracksStateDirectory = {
       expr =
-        (invariants.homeserverDeployRunnerRegistrationGcRunbookMatchesConfig.check {
-          systemd.services.github-runner-homeserver-deploy = {
-            serviceConfig.StateDirectory = "github-runner/homeserver-deploy";
-            restartIfChanged = true;
-          };
-        }).message;
-      expected = "systemd.services.github-runner-homeserver-deploy.restartIfChanged must be false (the self-deploy runner is SIGKILLed mid switch-to-configuration otherwise, half-applying activation with exit 130)";
-    };
-
-    testHomeserverDeployRunnerConfigRejectsDefaultRestartIfChanged = {
-      expr =
-        (invariants.homeserverDeployRunnerRegistrationGcRunbookMatchesConfig.check {
-          systemd.services.github-runner-homeserver-deploy.serviceConfig.StateDirectory =
-            "github-runner/homeserver-deploy";
-        }).message;
-      expected = "systemd.services.github-runner-homeserver-deploy.restartIfChanged must be false (the self-deploy runner is SIGKILLed mid switch-to-configuration otherwise, half-applying activation with exit 130)";
+        map
+          (
+            stateDir:
+            (runnerChecks.runbook.check {
+              systemd.services.github-runner-homeserver-deploy.serviceConfig.StateDirectory = stateDir;
+            }).passed
+          )
+          [
+            "github-runner/homeserver-deploy"
+            "other/directory"
+            [ ]
+          ];
+      expected = [
+        true
+        false
+        false
+      ];
     };
   };
 in
