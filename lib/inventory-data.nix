@@ -11,10 +11,10 @@ let
   invariants = import ./invariants.nix { inherit lib pkgs; };
 
   defaultHealthAssertionsFor =
-    name: _cfg:
+    name: evaluated:
     let
       commonAssertions = [
-        invariants.hasStateVersion
+        (invariants.stateVersionExplicitlySet evaluated.options)
         invariants.sshHostsEnforceHardenedFail2ban
         invariants.observabilityStaysMinimal
         invariants.obsClientUsesCanonicalUsername

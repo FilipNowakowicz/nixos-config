@@ -413,6 +413,38 @@ let
       expected = true;
     };
 
+    testStateVersionUsesEvaluatedVariant = {
+      expr =
+        let
+          evaluated = priority: {
+            options.system.stateVersion.highestPrio = priority;
+            config.system.stateVersion = "26.05";
+          };
+          # Exercise host selection with two systems that resolve to the same value.
+          checks =
+            (import ../../flake/checks.nix {
+              inherit lib pkgs nixpkgs;
+              inputs = { };
+              hostRegistry.main = { };
+              allNixosConfigs.main = evaluated (lib.mkDefault null).priority;
+              ciNixosConfigs.main-ci = evaluated (lib.mkOptionDefault null).priority;
+              invariants = invariants // {
+                mkInvariantCheck =
+                  _: assertions: cfg:
+                  (runAssertionFrom assertions "system.stateVersion is set explicitly" cfg).passed;
+              };
+            }).invariantChecks;
+        in
+        [
+          checks.invariants-main
+          checks.invariants-main-ci
+        ];
+      expected = [
+        true
+        false
+      ];
+    };
+
     testBoolCheckPasses = {
       expr = (lib.elemAt sampleResults 0).passed;
       expected = true;

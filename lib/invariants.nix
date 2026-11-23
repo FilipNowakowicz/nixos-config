@@ -468,9 +468,20 @@ rec {
         if violations == [ ] then "fail2ban is hardened" else lib.concatStringsSep "; " violations;
     };
 
-  hasStateVersion = {
-    name = "has stateVersion";
-    check = cfg: require (cfg.system.stateVersion != null) "system.stateVersion must be set";
+  # NixOS supplies a non-null release even when no module sets this option.
+  stateVersionExplicitlySet = options: {
+    name = "system.stateVersion is set explicitly";
+    check =
+      _:
+      let
+        explicit = options.system.stateVersion.highestPrio < (lib.mkOptionDefault { }).priority;
+      in
+      mkResult explicit (
+        if explicit then
+          "system.stateVersion has an explicit definition"
+        else
+          "system.stateVersion falls back to the nixpkgs default; set it in the host config"
+      );
   };
 
   # A host that joins the tailnet headlessly via an auth key runs `tailscale up`

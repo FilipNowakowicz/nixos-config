@@ -272,19 +272,6 @@ let
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
 
-  # `cfg.system.stateVersion != null` can never fail (the option defaults to the
-  # nixpkgs release with only a warning), so inspect the option's priority
-  # instead: it must have been set by the host, not left at the module default.
-  stateVersionExplicitlySet = hostName: {
-    name = "system.stateVersion is set explicitly";
-    check =
-      _:
-      mkResult (
-        allNixosConfigs.${hostName}.options.system.stateVersion.highestPrio < (lib.mkOptionDefault { })
-        .priority
-      ) "system.stateVersion falls back to the nixpkgs default; set it in the host config";
-  };
-
   # An impermanent host that loses /var/lib/tailscale re-registers a new node
   # identity on every boot (new IP, orphaned device, ACL tags lost).
   tailscaleStateIsPersisted = {
@@ -772,17 +759,16 @@ let
     "gcp-worker" = onDemandAccessInvariants ++ [ invariants.workerJobsUserUnprivileged ];
   };
 
-  baselineInvariantsFor =
-    hostName:
-    commonSystemInvariants
-    ++ [ (stateVersionExplicitlySet hostName) ]
-    ++ registryAssertionsFor hostName
-    ++ (hostInvariantOverlays.${hostName} or [ ]);
-
-  # Invariant list shared by the full `main` closure and the `main-ci`
-  # closure CI actually builds, so a `profiles.ci`-gated change to a
-  # security option cannot slip past either variant.
-  mainInvariants = baselineInvariantsFor "main";
+  # Registry policy follows the host identity. Both option metadata and values
+  # must come from the particular system under evaluation (including main-ci).
+  hostInvariantCheck =
+    checkName: hostName: evaluated:
+    invariants.mkInvariantCheck checkName (
+      commonSystemInvariants
+      ++ [ (invariants.stateVersionExplicitlySet evaluated.options) ]
+      ++ registryAssertionsFor hostName
+      ++ (hostInvariantOverlays.${hostName} or [ ])
+    ) evaluated.config;
 
   # Hosts needing a pre-baked SSH host key for nixos-anywhere/deploy-rs
   # bootstrap: deploy-rs targets (`deploy` present) that are sops-enabled
@@ -798,8 +784,7 @@ let
   generatedInvariantChecks = lib.mapAttrs' (
     hostName: _:
     lib.nameValuePair "invariants-${hostName}" (
-      invariants.mkInvariantCheck hostName (baselineInvariantsFor hostName)
-        allNixosConfigs.${hostName}.config
+      hostInvariantCheck hostName hostName allNixosConfigs.${hostName}
     )
   ) hostRegistry;
 
@@ -890,9 +875,7 @@ in
     # CI ships `main-ci` (profiles.ci = true; skipHeavyPackages = true), not
     # the full `main` closure; pin the same invariants to it so the gated
     # build is what gets validated.
-    invariants-main-ci =
-      invariants.mkInvariantCheck "main-ci" mainInvariants
-        ciNixosConfigs.main-ci.config;
+    invariants-main-ci = hostInvariantCheck "main-ci" "main" ciNixosConfigs.main-ci;
 
     # The installer ISO is not a registry host but exposes SSH on TCP/22 to
     # whatever network it boots on: it must stay key-only.
