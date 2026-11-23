@@ -326,6 +326,9 @@ in
     # ── Systemd Failure Notifications ────────────────────────────────────────
     systemd-failure-notify = {
       enable = true;
+      # A system unit has no display, so without this a failure only reaches
+      # the journal.
+      webhookUrlFile = config.sops.secrets.failure_webhook_url.path;
       services = [
         # "prometheus"
         "btrbk-local"
@@ -595,6 +598,8 @@ in
         mode = "0440";
       };
       initrd_ssh_host_ed25519_key = { };
+      # The private ntfy topic that homeserver alerts and failures also use.
+      failure_webhook_url = { };
     };
   };
 
