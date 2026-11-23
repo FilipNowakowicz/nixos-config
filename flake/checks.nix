@@ -308,10 +308,10 @@ let
     check =
       cfg:
       let
-        tcp = cfg.networking.firewall.allowedTCPPorts or [ ];
+        tcp = invariants.firewallPorts "TCP" cfg.networking.firewall;
         # mDNS (avahi) and the WireGuard port tailscaled listens on are the only
         # sanctioned global UDP ports.
-        udp = lib.subtractLists [ 5353 41641 ] (cfg.networking.firewall.allowedUDPPorts or [ ]);
+        udp = lib.subtractLists [ 5353 41641 ] (invariants.firewallPorts "UDP" cfg.networking.firewall);
       in
       mkResult (tcp == [ ] && udp == [ ])
         "unexpected globally open ports (open them per-interface): tcp=${builtins.toJSON tcp} udp=${builtins.toJSON udp}";

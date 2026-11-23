@@ -342,15 +342,10 @@ rec {
         lib.concatStringsSep "; " violations
     );
 
-  interfaceAllowedTCPPorts =
-    cfg: interface:
-    let
-      interfaces = cfg.networking.firewall.interfaces or { };
-    in
-    if builtins.hasAttr interface interfaces then
-      interfaces.${interface}.allowedTCPPorts or [ ]
-    else
-      [ ];
+  firewallPorts =
+    protocol: rules:
+    (rules."allowed${protocol}Ports" or [ ])
+    ++ lib.concatMap (r: lib.range r.from r.to) (rules."allowed${protocol}PortRanges" or [ ]);
 
   interfaceTCPExposureViolations =
     {
@@ -359,19 +354,19 @@ rec {
     }:
     cfg:
     let
-      globalPorts = cfg.networking.firewall.allowedTCPPorts or [ ];
+      globalPorts = firewallPorts "TCP" cfg.networking.firewall;
       interfaces = cfg.networking.firewall.interfaces or { };
-      targetPorts = interfaceAllowedTCPPorts cfg interface;
+      targetPorts = firewallPorts "TCP" (interfaces.${interface} or { });
       globallyOpen = lib.filter (port: builtins.elem port globalPorts) ports;
       missingOnTarget = lib.filter (port: !(builtins.elem port targetPorts)) ports;
       exposedElsewhere = lib.filterAttrs (
         name: value:
-        name != interface && lib.any (port: builtins.elem port (value.allowedTCPPorts or [ ])) ports
+        name != interface && lib.any (port: builtins.elem port (firewallPorts "TCP" value)) ports
       ) interfaces;
       elsewhereMessages = lib.mapAttrsToList (
         name: value:
         let
-          offending = lib.filter (port: builtins.elem port (value.allowedTCPPorts or [ ])) ports;
+          offending = lib.filter (port: builtins.elem port (firewallPorts "TCP" value)) ports;
         in
         "${name} (${formatIntList offending})"
       ) exposedElsewhere;
@@ -400,11 +395,9 @@ rec {
       acceptFrom = hostMeta.tailscale.acceptFrom or { };
       acceptFromPorts = uniqueSorted (builtins.concatLists (builtins.attrValues acceptFrom));
       tsInterface = cfg.networking.firewall.interfaces.tailscale0 or { };
-      firewallPorts = uniqueSorted (
-        (tsInterface.allowedTCPPorts or [ ]) ++ (tsInterface.allowedUDPPorts or [ ])
-      );
-      missingFromFirewall = lib.filter (p: !(builtins.elem p firewallPorts)) acceptFromPorts;
-      missingFromAcceptFrom = lib.filter (p: !(builtins.elem p acceptFromPorts)) firewallPorts;
+      openedPorts = uniqueSorted ((firewallPorts "TCP" tsInterface) ++ (firewallPorts "UDP" tsInterface));
+      missingFromFirewall = lib.filter (p: !(builtins.elem p openedPorts)) acceptFromPorts;
+      missingFromAcceptFrom = lib.filter (p: !(builtins.elem p acceptFromPorts)) openedPorts;
       violations = lib.filter (msg: msg != "") [
         (lib.optionalString (missingFromFirewall != [ ])
           "tailscale.acceptFrom admits port(s) not opened on tailscale0: ${formatIntList missingFromFirewall}"
@@ -971,7 +964,7 @@ rec {
   checkNoGlobalTCPPorts =
     ports: cfg:
     let
-      globalPorts = cfg.networking.firewall.allowedTCPPorts or [ ];
+      globalPorts = firewallPorts "TCP" cfg.networking.firewall;
       globallyOpen = lib.filter (port: builtins.elem port globalPorts) ports;
     in
     {
