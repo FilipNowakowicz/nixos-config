@@ -22,6 +22,7 @@ let
 in
 {
   imports = [
+    ../../packages/network-doctor
     inputs.disko.nixosModules.disko
     ./disko.nix
     ../../modules/nixos/profiles/gce-server.nix

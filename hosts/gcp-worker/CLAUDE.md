@@ -77,3 +77,24 @@ Ongoing updates: start it (`on-worker start`), then `deploy '.#gcp-worker'`.
   entry for `gcp-worker.<tailnet>` on `main`.
 - **No console password.** Recover a wedged worker by reprovisioning.
 - **Not spot.** A reclaim would kill hours-long jobs.
+
+### Checking package-index readiness
+
+On the next ordinary worker start, run `network-doctor worker` as `jobs` as
+soon as SSH is ready. From main, with the diagnostic installed on the worker:
+
+```sh
+(
+  umask 077
+  dir="${XDG_STATE_HOME:-$HOME/.local/state}/network-doctor"
+  mkdir -p "$dir"
+  on-worker start &&
+    ssh -o BatchMode=yes jobs@gcp-worker.tail90fc7a.ts.net network-doctor worker \
+      >"$dir/worker-$(date -u +%Y%m%dT%H%M%SZ).log" 2>&1
+)
+```
+
+Use uptime to distinguish a fresh start from a VM that was already running.
+Compare direct AdGuard responses, the normal system lookup, and the HTTP
+status for the PyPI index. If one fails, repeat the diagnostic after recovery
+and keep both timestamped observations.
