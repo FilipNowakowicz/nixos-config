@@ -847,6 +847,49 @@ let
       expected = "ports must not be exposed on non-tailscale0 interfaces: eth0 (22)";
     };
 
+    testRestrictedTcpPortsRespectInclusiveRanges = {
+      expr =
+        let
+          range = from: to: { inherit from to; };
+          check =
+            extra:
+            (invariants.checkTCPPortsRestrictedToInterface
+              {
+                interface = "tailscale0";
+                ports = [ 22 ];
+              }
+              {
+                networking.firewall = lib.recursiveUpdate {
+                  interfaces.tailscale0.allowedTCPPortRanges = [ (range 20 22) ];
+                } extra;
+              }
+            ).passed;
+        in
+        map check [
+          { interfaces.eth0.allowedTCPPortRanges = [ (range 23 24) ]; }
+          { interfaces.eth0.allowedTCPPortRanges = [ (range 22 24) ]; }
+          { allowedTCPPortRanges = [ (range 20 25) ]; }
+        ];
+      expected = [
+        true
+        false
+        false
+      ];
+    };
+
+    testUdpRangesContributeToTailnetParity = {
+      expr =
+        (invariants.tailscale0FirewallPortsMatchAcceptFrom { tailscale.acceptFrom.workstation = [ 53 ]; } {
+          networking.firewall.interfaces.tailscale0.allowedUDPPortRanges = [
+            {
+              from = 53;
+              to = 54;
+            }
+          ];
+        }).message;
+      expected = "tailscale0 opens port(s) not admitted by tailscale.acceptFrom: 54";
+    };
+
     testMainSudoAllowlistPasses = {
       expr = (checkMainSudoExtraRules mainSudoExtraRulesGood).passed;
       expected = true;
