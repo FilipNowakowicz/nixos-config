@@ -100,12 +100,12 @@ flowchart LR
   class tailnet network
 ```
 
-| Host             | Role                | Highlights                                                                                   |
-| :--------------- | :------------------ | :------------------------------------------------------------------------------------------- |
-| `main`           | Primary workstation | Secure Boot, LUKS, impermanent root, Hyprland, USBGuard, Restic/B2 |
-| `homeserver-gcp` | Cloud homeserver    | AdGuard, Nginx, Grafana/Loki/Prometheus, restore canary, Tailscale ingress                   |
-| `gcp-builder`    | Remote builder      | Normally off, started for heavy builds, self-powers-off when idle, deploy-rs managed         |
-| `gcp-worker`     | Batch worker        | Normally off, runs long CPU jobs from any repo via `on-worker`, self-powers-off when idle    |
+| Host             | Role                | Highlights                                                                                |
+| :--------------- | :------------------ | :---------------------------------------------------------------------------------------- |
+| `main`           | Primary workstation | Secure Boot, LUKS, impermanent root, Hyprland, USBGuard, Restic/B2                        |
+| `homeserver-gcp` | Cloud homeserver    | AdGuard, Nginx, Grafana/Loki/Prometheus, restore canary, Tailscale ingress                |
+| `gcp-builder`    | Remote builder      | Normally off, started for heavy builds, self-powers-off when idle, deploy-rs managed      |
+| `gcp-worker`     | Batch worker        | Normally off, runs long CPU jobs from any repo via `on-worker`, self-powers-off when idle |
 
 Host lifecycle status is owned by `lib/hosts.nix`; this table documents that
 registry. `installer` is a utility ISO outside the host registry.
