@@ -11,15 +11,24 @@ let
   # The failed unit name is passed as $1 from the template unit's ExecStart
   # (the %i instance specifier). systemd does not export $SYSTEMD_UNIT to
   # ExecStart, so the instance must be passed explicitly.
+  #
+  # systemd-cat is given the command to run. Without one it execs `cat` from
+  # $PATH, and this raw template unit inherits only the service manager's
+  # PATH, which has no coreutils. That made the first log line fail and
+  # `set -e` exit before the webhook on every host. Journal logging is also
+  # best-effort so it can never block the off-host notification.
   notifyScript = pkgs.writeShellScript "systemd-failure-notify" ''
     set -euo pipefail
+    log() {
+      ${pkgs.systemd}/bin/systemd-cat -t systemd-failure-notify -p warning \
+        ${pkgs.coreutils}/bin/printf '%s\n' "$1" || printf '%s\n' "$1" >&2
+    }
     SERVICE_NAME="''${1%.*}"
     TIMESTAMP=$(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')
     HOSTNAME="${config.networking.hostName}"
     MESSAGE="[$TIMESTAMP] Service $SERVICE_NAME failed unexpectedly on $HOSTNAME"
 
-    # Log to journal
-    echo "$MESSAGE" | ${pkgs.systemd}/bin/systemd-cat -t systemd-failure-notify -p warning
+    log "$MESSAGE"
 
     # Post to an off-host webhook when configured. The URL is supplied through
     # systemd credentials so secrets stay out of the Nix store and process args.
@@ -36,8 +45,7 @@ let
           --retry-delay 2 \
           --data-binary "$MESSAGE" \
           "$WEBHOOK_URL" >/dev/null; then
-          echo "[$TIMESTAMP] Failed to post failure notification for $SERVICE_NAME to webhook" \
-            | ${pkgs.systemd}/bin/systemd-cat -t systemd-failure-notify -p warning
+          log "[$TIMESTAMP] Failed to post failure notification for $SERVICE_NAME to webhook"
         fi
       fi
     fi

@@ -20,7 +20,10 @@ in
       obs =
         { ... }:
         {
-          imports = [ ../../modules/nixos/profiles/observability ];
+          imports = [
+            ../../modules/nixos/profiles/observability
+            ../../modules/nixos/services/systemd-failure-notify.nix
+          ];
 
           profiles.observability = {
             enable = true;
@@ -28,6 +31,42 @@ in
             collectors.logs.enable = true;
             collectors.metrics.enable = true;
             alerts.enable = true;
+          };
+
+          # Test 4: a failed unit reaches the journal and the webhook.
+          services.systemd-failure-notify = {
+            enable = true;
+            webhookUrlFile = pkgs.writeText "notify-webhook-url" "http://127.0.0.1:18080/";
+            services = [ "always-fails" ];
+          };
+          systemd.services = {
+            always-fails = {
+              description = "Unit that fails on demand";
+              serviceConfig = {
+                Type = "oneshot";
+                ExecStart = "${pkgs.coreutils}/bin/false";
+              };
+            };
+            stub-webhook = {
+              description = "Stub webhook that records POST bodies";
+              wantedBy = [ "multi-user.target" ];
+              script = ''
+                              mkdir -p /tmp/webhook
+                              ${pkgs.python3}/bin/python3 - <<'EOF'
+                import http.server
+
+                class Handler(http.server.BaseHTTPRequestHandler):
+                    def do_POST(self):
+                        body = self.rfile.read(int(self.headers["Content-Length"]))
+                        with open("/tmp/webhook/body", "ab") as f:
+                            f.write(body + b"\n")
+                        self.send_response(200)
+                        self.end_headers()
+
+                http.server.HTTPServer(("127.0.0.1", 18080), Handler).serve_forever()
+                EOF
+              '';
+            };
           };
 
           environment.systemPackages = [
@@ -139,6 +178,29 @@ in
       obs.wait_until_succeeds(
           "curl -fsS http://127.0.0.1:9090/api/v1/alertmanagers | grep -q '127.0.0.1:9093'",
           timeout=30,
+      )
+
+      # ── Test 4: Failure notification ───────────────────────────────────────
+      # The template unit runs with only the service manager's PATH, so this
+      # proves the script needs nothing from it.
+      obs.wait_for_unit("stub-webhook.service")
+      obs.wait_until_succeeds("curl -s -o /dev/null http://127.0.0.1:18080/", timeout=30)
+      obs.fail("systemctl start always-fails.service")
+      obs.wait_until_succeeds(
+          "grep -q 'Service always-fails failed unexpectedly on obs' /tmp/webhook/body",
+          timeout=60,
+      )
+      obs.wait_until_succeeds(
+          "systemctl show -p ExecMainExitTimestampMonotonic --value notify-failure@always-fails.service"
+          " | grep -qv '^0$'",
+          timeout=30,
+      )
+      obs.succeed(
+          "systemctl show -p Result --value notify-failure@always-fails.service | grep -qx success"
+      )
+      obs.succeed(
+          "journalctl -t systemd-failure-notify --no-pager"
+          " | grep -q 'Service always-fails failed unexpectedly on obs'"
       )
     '';
   }
