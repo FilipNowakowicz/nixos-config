@@ -5,6 +5,8 @@ not observed backup health. No cloud or backup account, decrypted secret, live
 filesystem, or deployed system was inspected. Nothing was deleted or changed in
 backup configuration. The active fleet is defined in [the host registry](../lib/hosts.nix).
 
+For disk-loss traces and evidence from the running hosts, see the [November recovery audit](recovery-audit.md).
+
 ## Shared policy and recovery dependencies
 
 [The backup profile](../modules/nixos/profiles/backup.nix) schedules restic daily,
@@ -108,7 +110,7 @@ cache, compares content, restores the Grafana SQLite copy, and requires
 January/April/July/October 1 at 05:30, persistent with up to one hour of random delay. It
 restores Grafana and staged AdGuard into scratch space and starts their binaries
 in isolated network namespaces, checking Grafana health, AdGuard web access and
-DNS. [Manual quarterly recovery instructions and past results](restore-drill.md)
+DNS. [Manual quarterly recovery instructions](restore-drill.md)
 are separate evidence; recorded historical success does not establish current
 health. [Backup validation](backup-validation.md) explains metrics and stale
 alerts. None of these checks is a whole-VM restore.
@@ -203,11 +205,8 @@ These are review questions, not instructions to delete data or change policy.
   records intentionally mention it. The repo cannot establish whether residual
   files, B2 snapshots containing it, or GCE disk images still exist; retention
   or deletion of those is a separate human decision.
-- The older AdGuard restore instructions in `restore-drill.md` still use
-  `/var/lib/private/AdGuardHome`, while the current backup selects
-  `/var/lib/restic-staging/adguardhome`. Older snapshots may contain the former;
-  inspect the selected snapshot's paths before a future restore. This inventory
-  does not rewrite historical records or execute recovery commands.
+- AdGuard snapshots span at least two directory layouts. The [manual drill](restore-drill.md)
+  selects a snapshot ID and checks its paths before recovery.
 - The two Firefox locations and other selected workstation paths may be
   alternatives or absent on a given install. No live path-existence audit was
   performed; source declarations alone cannot certify them missing.

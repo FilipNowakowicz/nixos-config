@@ -13,8 +13,8 @@ let
   inherit (config.lib.profiles.observability) mkPromScript;
 
   # Canonical definition (and the rationale for --group-by host) lives in
-  # lib/backup-policy.nix; flake/checks.nix's homeserver-gcp invariant reads
-  # the same file so the two can't drift out of sync.
+  # lib/backup-policy.nix. The homeserver check pins its own expected values
+  # so an accidental reduction in retention fails evaluation.
   pruneOptsByClass = import ../../../lib/backup-policy.nix;
 
   timestampMetric = file: metric: help: {

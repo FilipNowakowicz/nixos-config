@@ -24,7 +24,9 @@ whole thing with config invariants and a periodic human drill.
 ## Layers
 
 The pattern is composable: a host opts into as many layers as its risk class
-warrants. `main` runs layers 1–4 and 6; `homeserver-gcp` runs all six.
+warrants. `main` configures retention, backup and check metrics, and their age
+alerts (layers 1–3 and 5). The restore canary and quarterly service drill
+(layers 4 and 6) are configured on `homeserver-gcp`.
 
 ### 1. Retention by class (registry-driven)
 
@@ -38,8 +40,8 @@ timer. There are two classes:
 | `standard` | 7 daily, 4 weekly, 3 monthly            |
 
 `backup.name` selects which `services.restic.backups.<name>` job receives the
-policy (default `local`). The module only sets retention and scheduling; the host
-owns the paths, secrets, and backend. A host with no `backup.class` gets no
+policy (default `local`). The shared profile also wires the three host-scoped secret files, weekly check
+and success metrics. The host selects inputs, exclusions and preparation steps. A host with no `backup.class` gets no
 backup module at all — the registry is the single switch.
 
 ### 2. Backup freshness metric
@@ -99,10 +101,10 @@ that fire on **age**, not on a failed run:
 | `ResticCheckStale`         | last integrity check older than 8d          |
 | `ResticRestoreCanaryStale` | no successful restore canary for >50h       |
 
-Alerting on staleness rather than on individual job failures means a job that
-silently stops scheduling — the failure mode a per-run alert misses entirely — is
-still caught, and a single transient failure that the next run recovers from does
-not page. The alert rules are linted in CI against the exact data the
+These comparisons require a timestamp series. A job that silently stops
+scheduling can alert while its last timestamp is still exported. A reboot
+that removes the textfile, or a drill that has never emitted a stamp, leaves
+the comparison without a sample. The alert rules are linted in CI against the exact data the
 observability module deploys (`observability-alerts-lint` in `flake/checks.nix`),
 so a typo in a metric name fails the light lane instead of shipping a
 never-firing rule.
@@ -140,9 +142,9 @@ Backup invariants are host-config assertions and live in `flake/checks.nix`
 `invariantChecks`), distinct from the `lib/*` eval tests in `flake/dev.nix`:
 
 - **`mainBackupPathsArePersisted`** — every `services.restic.backups.local.path`
-  must be persisted (or on a persistent filesystem). A backed-up path that is not
-  persisted would be wiped on the next impermanence rollback and then back up an
-  empty directory — silent data loss this assertion makes impossible.
+  must match a persistence binding or fall under a configured persistent root.
+  A nested volatile mount can shadow that ancestor. Effective mount resolution
+  and a rollback-boot test remain gaps in the [recovery audit](recovery-audit.md).
 - **`mainBtrbkPolicyMatchesLocalSnapshotIntent`** — pins the local btrbk snapshot
   scope and retention so same-disk rollback coverage cannot drift.
 - **`homeserverGcpB2BackupUsesCriticalPolicy`** — asserts the B2 job carries the

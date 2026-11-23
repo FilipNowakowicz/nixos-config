@@ -1,9 +1,5 @@
-# Canonical Restic prune policy per backup class, shared by
-# modules/nixos/profiles/backup.nix (defines the systemd units) and
-# flake/checks.nix (asserts homeserver-gcp's B2 backup matches the "critical"
-# class). Keeping one definition means the two can't drift the way they did
-# when --group-by host was added to fix live data but the duplicated literal
-# in the invariant check was missed.
+# Restic prune policy consumed by modules/nixos/profiles/backup.nix.
+# flake/checks.nix independently pins the homeserver critical retention.
 #
 # forget's default --group-by is "host,paths": snapshots are only compared
 # against the keep-* policy within snapshots that share the *exact* same

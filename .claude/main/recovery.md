@@ -97,40 +97,40 @@ btrfs subvolume create /mnt/@root-blank
 
 ### Disaster recovery (new machine / disk loss)
 
-Prerequisites (from your external password manager):
+Use a separate recovery environment. Retrieve the personal age identity from
+independent escrow and clone the configuration, or retrieve the repository
+locator, repository password and backend credentials independently. Test access
+before provisioning the replacement. See [key escrow](../../docs/key-escrow.md)
+and the [workstation recovery audit](../../docs/recovery-audit.md).
 
-- Age key, OR restic password + B2 application key
+1. In a private Bash shell with sops and Restic, load the repository,
+   password and backend credentials using the [drill prerequisites](../../docs/restore-drill.md#prerequisites),
+   substituting `hosts/main/secrets/secrets.yaml` for the homeserver file.
+   Use the escrowed identity on this machine. Provide private scratch storage
+   large enough for the selected restore.
+2. Select a specific workstation recovery point. Restore initially into scratch:
 
-**Restore via B2**:
-
-```bash
-# Recover the repo URL from sops if you still have the age key + repo checkout:
-export RESTIC_REPOSITORY="$(sops --decrypt --extract '["restic_repository"]' \
-  hosts/main/secrets/secrets.yaml)"
-# Otherwise paste the literal `b2:<bucket>:/main` from your password manager.
-export RESTIC_PASSWORD="<from password manager>"
-export B2_ACCOUNT_ID="<key id>"
-export B2_ACCOUNT_KEY="<key>"
-# Browse available snapshots
-restic snapshots
-# Restore SSH host key so sops works on first boot
-restic restore latest --include /etc/ssh --target /mnt/persist
-# Restore home and other critical paths
-restic restore latest --target /
-```
-
-**Fresh install flow**:
-
-1. Boot the installer ISO.
-2. `nixos-anywhere --flake .#main <target>` — partitions with disko and installs.
-3. Before first boot, inject the SSH host key into `/persist` so sops can decrypt on activation:
    ```bash
-   mount -t btrfs -o subvol=/@persist /dev/mapper/cryptroot /mnt/persist
-   mkdir -p /mnt/persist/etc/ssh
-   # Restore from B2 as above, or copy from backup media
+   restic snapshots --host main
+   read -rp 'Workstation snapshot ID: ' SNAP
+   restic ls "$SNAP" /etc/ssh
+   restic restore "$SNAP" --target "$TARGET/data" --include /etc/ssh
+   test -s "$TARGET/data/etc/ssh/ssh_host_ed25519_key"
    ```
-4. First boot: sops decrypts using the restored SSH host key; services start normally.
-5. Verify: `sudo systemctl start restic-check-local.service`
+
+3. Before installing, identify the replacement disk and reconcile its
+   identifier with `hardware.diskById` in the host registry. Plan the LUKS
+   passphrase, Secure Boot signing keys and enrollment. Provision with the
+   restored host identity available in the target's `@persist/etc/ssh`
+   for activation and first boot. Verify target mounts from the installer.
+4. Restore the selected home and system paths from the same snapshot into
+   scratch. Copy home contents to the replacement's mounted `@home` and
+   persisted files to their declared destinations under `@persist`. Preserve
+   owners and modes. Files copied only to an ephemeral root can disappear at
+   the next rollback boot.
+5. Boot and check sops-dependent services, then reboot and check persistence.
+   Open restored projects and applications offline. Record the snapshot ID,
+   latest recovered work and time to usability before enabling application sync.
 
 ### LUKS passphrase
 
