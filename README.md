@@ -313,7 +313,7 @@ Expected to work from a clean clone, with no hardware or secrets:
 
 ```bash
 bash scripts/validate.sh flake-eval   # fast evaluation gate (nix flake check --no-build)
-bash scripts/validate.sh docs         # Markdown links and static self-tests
+bash scripts/validate.sh docs         # Formatting, Markdown links, self-tests
 bash scripts/validate.sh light        # every flake check except pre-commit
 bash scripts/doctor.sh                # clean-clone documentation/eval/format bundle
 nix fmt -- --fail-on-change           # treefmt-nix formatting check
