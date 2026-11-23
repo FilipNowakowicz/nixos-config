@@ -77,7 +77,6 @@ in
     inputs.disko.nixosModules.disko
     inputs.lanzaboote.nixosModules.lanzaboote
     inputs.nix-index-database.nixosModules.default
-    ./anonymous.nix
     ./backups.nix
     ./disko.nix
     ./gaming.nix
@@ -97,10 +96,6 @@ in
 
   # ── Hardware ────────────────────────────────────────────────────────────────
   networking.hostName = "main";
-
-  # Anonymous/security-lab boot entry (hosts/main/anonymous.nix). Off while
-  # unused to keep the boot menu and closure lean; flip to true to restore.
-  profiles.anonymousSpecialisation.enable = false;
 
   hardware = {
     bluetooth = {

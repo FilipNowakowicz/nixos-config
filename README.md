@@ -102,7 +102,7 @@ flowchart LR
 
 | Host             | Role                | Highlights                                                                                   |
 | :--------------- | :------------------ | :------------------------------------------------------------------------------------------- |
-| `main`           | Primary workstation | Secure Boot, LUKS, impermanent root, Hyprland, USBGuard, Restic/B2, anonymous specialisation |
+| `main`           | Primary workstation | Secure Boot, LUKS, impermanent root, Hyprland, USBGuard, Restic/B2 |
 | `homeserver-gcp` | Cloud homeserver    | AdGuard, Nginx, Grafana/Loki/Prometheus, restore canary, Tailscale ingress                   |
 | `gcp-builder`    | Remote builder      | Normally off, started for heavy builds, self-powers-off when idle, deploy-rs managed         |
 | `gcp-worker`     | Batch worker        | Normally off, runs long CPU jobs from any repo via `on-worker`, self-powers-off when idle    |
@@ -259,8 +259,7 @@ homeModules = {
 
 Two dev shells are provided: `default` (deploy-rs, nixos-anywhere, sops, nixd,
 and the pre-commit toolchain) and `security` (network/web/password/analysis
-tooling; `proxychains <tool>` routes through Tor in the anonymous
-specialisation).
+tooling).
 
 ---
 

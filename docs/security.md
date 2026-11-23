@@ -469,95 +469,9 @@ strict reverse-path filtering rejects as spoofed. `networking.firewall.checkReve
 is set to `"loose"` for the main interface to allow the legitimate tunneled
 return traffic.
 
-In the anonymous specialisation Tailscale is fully disabled, so all three
-mechanisms are removed and `checkReversePath` is forced back to `"strict"`.
+## Whonix KVM
 
-## Anonymous Specialisation
-
-`main` has a boot-selectable `anonymous` specialisation for pentest and
-Tor-browsing work. It appears as a separate bootloader entry
-(`nixos-anonymous-...`); select it from the bootloader menu on boot.
-
-**Design model — what this is and is not.** The specialisation is an _amnesic,
-hardened launchpad_, not an anonymous OS. The host is pseudonymous at best:
-treat its job as (a) a kill-switched, telemetry-free, randomised-identity base
-and (b) a stable place to run the Whonix VMs. The three roles are deliberately
-separated:
-
-- **Active pentest scanning → Mullvad.** Mullvad is the origin-hiding layer:
-  it hides your home IP from the target with full protocol support (SYN/UDP/raw
-  scans, full speed). This is the conventional pentest egress.
-- **Origin-sensitive OSINT/recon → Tor** via `proxychains`/`torsocks` (TCP
-  `connect()` only — see below).
-- **Anonymous browsing → Tor Browser inside Whonix-Workstation.** This is the
-  only genuinely anonymous surface here, because the Workstation VM has no route
-  to the internet except through the Gateway's Tor (fail-closed by topology, not
-  by config). Do not use the host browser for anonymity — it exits via Mullvad,
-  not Tor, and (outside the amnesic spec) carries your real logins.
-
-**Changes from normal boot:**
-
-| Area          | Normal                    | Anonymous                                                                             |
-| :------------ | :------------------------ | :------------------------------------------------------------------------------------ |
-| `/home/user`  | persistent `@home`        | tmpfs — amnesic, HM repopulates dotfiles from the store each boot                     |
-| machine-id    | stable (persisted)        | fresh transient value each boot                                                       |
-| Hostname      | `main`                    | `nixos` (domain cleared)                                                              |
-| Wi-Fi MAC     | stable                    | random per connection                                                                 |
-| Ethernet MAC  | stable                    | random per link                                                                       |
-| Bluetooth     | enabled                   | disabled                                                                              |
-| SSH           | enabled (tailscale0 only) | disabled                                                                              |
-| Tailscale     | enabled                   | disabled                                                                              |
-| Observability | Alloy metrics collectors  | all disabled                                                                          |
-| Backups       | Restic + btrbk timers     | all disabled                                                                          |
-| AppArmor      | disabled                  | enabled                                                                               |
-| Mullvad       | running, manual connect   | running, auto-connect + explicit connect, lockdown always on                          |
-| Tor           | not running               | SOCKS5 client on `127.0.0.1:9050`                                                     |
-| proxychains   | no system config          | `strict_chain` → Tor `127.0.0.1:9050`, `proxy_dns` on                                 |
-| Kernel        | default                   | `dmesg_restrict=1`, `kptr_restrict=2`, `perf_event_paranoid=3`, `yama.ptrace_scope=1` |
-
-**Amnesic home.** `/home/user` is a tmpfs in this spec, so every anonymous boot
-starts with no logins, cookies, shell history, or scan artifacts. Home Manager
-repopulates declarative dotfiles from the Nix store on boot, so the _configured_
-environment survives while session _data_ does not. The real `@home` is not
-wiped — it is shadowed by the tmpfs while this spec is booted, and reappears on
-a normal boot.
-
-The anonymous specialisation also overrides the normal persistence directory
-list down to the minimum required system state. Persistent Tailscale identity,
-saved Wi-Fi/VPN profiles, Bluetooth pairings, fingerprint enrollment, Mullvad
-account/device state, logs, and libvirt state are not bind-mounted into the
-anonymous boot.
-
-Anything you want to keep from an anonymous session (loot, notes)
-must be copied off-host before reboot; there is no persistent scratch directory
-by default.
-
-**Traffic model in anonymous mode:**
-
-- All clearnet traffic exits through Mullvad with kill-switch on; nothing
-  escapes if Mullvad disconnects. The spec sets `mullvad auto-connect` _and_
-  issues an explicit `mullvad connect` on boot, so the first anonymous boot has
-  connectivity rather than sitting locked-down-but-disconnected.
-- `proxychains <tool>` routes the tool's TCP through Tor (Mullvad → Tor exit).
-  `proxy_dns` is on, so DNS also resolves through Tor. `strict_chain` means it
-  fails closed — if Tor is still starting, connections fail rather than leaking
-  direct.
-- **SOCKS carries TCP `connect()` only.** `nmap -sS` (SYN), UDP scans, ICMP/ping
-  sweeps, and `masscan` bypass the proxy entirely — they do **not** go through
-  Tor. Only use `proxychains` for TCP tools (`nmap -sT -Pn`, `curl`, recon HTTP
-  tools). For active scanning, exit via Mullvad instead; do not assume
-  `proxychains` torifies a raw scanner.
-- Whonix VMs route through the host network stack and therefore also through
-  Mullvad; their internal Tor traffic exits through Mullvad's tunnel.
-
-**Security shell and Tor.** `nix develop#security` provides network recon,
-web, password, and packet-analysis tools. In the anonymous specialisation,
-`proxychains <tool>` chains TCP through Tor; for hardened fail-closed behaviour
-on TCP tools, `torsocks <tool>` is an alternative. In the normal boot,
-`proxychains` fails loudly because no Tor daemon is running — this is
-intentional; tools should not silently run direct while appearing to be proxied.
-
-**Whonix KVM.** Whonix-Gateway and Whonix-Workstation are installed as
+Whonix-Gateway and Whonix-Workstation are installed as
 persistent KVM/libvirt VMs. Images live in `/var/lib/libvirt/images/`
 (bind-mounted from `/persist/var/lib/libvirt/` for impermanence survival).
 `Whonix-External` and `Whonix-Internal` libvirt networks autostart. Start

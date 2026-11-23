@@ -209,52 +209,6 @@ rec {
         "environment.persistence root(s) missing matching disko mountpoint: ${formatList missingRoots}"
     );
 
-  checkAnonymousSpecialisationPersistence =
-    cfg:
-    let
-      anonymousCfg = cfg.specialisation.anonymous.configuration or null;
-      persistence =
-        if anonymousCfg == null then { } else anonymousCfg.environment.persistence."/persist" or { };
-      allowedDirectories = [
-        "/var/lib/nixos"
-        "/var/lib/systemd/backlight"
-        "/var/lib/systemd/rfkill"
-      ];
-      allowedFiles = [
-        "/etc/ssh/ssh_host_ed25519_key"
-        "/etc/ssh/ssh_host_ed25519_key.pub"
-      ];
-      normalize = entry: key: if builtins.isAttrs entry then entry.${key} else entry;
-      directories = map (d: normalize d "directory") (persistence.directories or [ ]);
-      files = map (f: normalize f "file") (persistence.files or [ ]);
-      unexpectedDirectories = lib.filter (dir: !(builtins.elem dir allowedDirectories)) directories;
-      unexpectedFiles = lib.filter (file: !(builtins.elem file allowedFiles)) files;
-      missingDirectoryForces = lib.filter (dir: !(builtins.elem dir directories)) allowedDirectories;
-      missingFileForces = lib.filter (file: !(builtins.elem file files)) allowedFiles;
-      violations = lib.filter (msg: msg != "") [
-        (lib.optionalString (
-          unexpectedDirectories != [ ]
-        ) "anonymous specialisation persists unexpected dir(s): ${formatList unexpectedDirectories}")
-        (lib.optionalString (
-          unexpectedFiles != [ ]
-        ) "anonymous specialisation persists unexpected file(s): ${formatList unexpectedFiles}")
-        (lib.optionalString (missingDirectoryForces != [ ])
-          "anonymous specialisation lost expected minimal dir allowlist item(s): ${formatList missingDirectoryForces}"
-        )
-        (lib.optionalString (missingFileForces != [ ])
-          "anonymous specialisation lost expected minimal file allowlist item(s): ${formatList missingFileForces}"
-        )
-      ];
-    in
-    mkResult (anonymousCfg == null || violations == [ ]) (
-      if anonymousCfg == null then
-        "no anonymous specialisation configured"
-      else if violations == [ ] then
-        "anonymous specialisation persistence stays on the minimal allowlist"
-      else
-        lib.concatStringsSep "; " violations
-    );
-
   checkMullvadTailscaleCoexistence =
     cfg:
     let

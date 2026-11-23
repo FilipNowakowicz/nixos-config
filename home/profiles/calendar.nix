@@ -89,8 +89,7 @@ in
     services.vdirsyncer = {
       Unit = {
         After = [ "sops-nix.service" ];
-        # The anonymous boot has no age key, so nothing decrypts there. Stopping on
-        # that keeps it from contacting any feed, including the public ones.
+        # Wait for the private feed credential before syncing any feeds.
         ConditionPathExists = secretPath (lib.head privateFeeds);
       };
       Service.ExecStartPre = [

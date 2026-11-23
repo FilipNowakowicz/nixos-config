@@ -276,10 +276,6 @@ let
     mainNoGloballyOpenPorts
     invariants.mainUsbguardIsDenyDefault
     {
-      name = "anonymous specialisation persistence stays minimal";
-      check = invariants.checkAnonymousSpecialisationPersistence;
-    }
-    {
       name = "Mullvad and Tailscale coexistence assumptions hold";
       check = invariants.checkMullvadTailscaleCoexistence;
     }

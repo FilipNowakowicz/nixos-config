@@ -81,9 +81,7 @@ Access to an encrypted source disk requires its unlock credentials.
 roots under `/old_roots/<timestamp>`, pruning entries older than 30 days on boot. The blank root used for boot
 rollback is a reset baseline, not a copy of personal data. Neither mechanism
 protects against source-disk loss. No automated restore test of these snapshots
-is declared in these modules. Anonymous specialisations disable the
-workstation backup/check and btrbk services; those sessions do not provide the
-normal host's backup schedule (see [anonymous configuration](../hosts/main/anonymous.nix)).
+is declared in these modules.
 
 ## `homeserver-gcp`
 
