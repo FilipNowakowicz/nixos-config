@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-11-23-markdown-table-edit-needs-treefmt
+date: 2026-11-23
+expires: 2027-02-23
+status: promoted
+route: implement-fix
+best_form: ci-gate
+evidence: [pr-#576-lint-treefmt-README.md, pr-#577-lint-treefmt-README.md]
+observation: Removing a row from a README markdown table changes prettier's column widths; both PRs reported documentation checks and Nix formatting passing, but the lint job's treefmt --fail-on-change failed on README.md, blocking merge-gate. Parallel PRs reflowing the same table then conflict.
+proposed_upgrade: Run the lint job's `nix fmt -- --fail-on-change` inside `validate.sh docs`, so the documented docs check catches Markdown reflow before push.
+agent: claude
+type: workflow-gotcha
+dedupe_key: lint:markdown-table-reflow-treefmt
+triggers: [README.md, docs/*.md, markdown-table-edit]
+targets: [scripts/validate.sh]
+review_note: Promoted 2026-11-23 into `scripts/validate.sh docs` at the user's request; an executable gate beats a skill reminder.

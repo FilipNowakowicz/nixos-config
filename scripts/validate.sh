@@ -73,7 +73,7 @@ usage() {
 Usage: $0 <command>
 
 Commands:
-  docs               Check Markdown links and run the static self-tests
+  docs               Check formatting and Markdown links; run the static self-tests
   flake-eval         Run flake evaluation only (no builds)
   light              Build every flake check except pre-commit
   host <name>        Build one host closure: main-ci, main, homeserver-gcp, gcp-builder, gcp-worker, installer
@@ -166,6 +166,9 @@ build_package() {
 
 case "$command" in
 docs)
+  # The CI lint job's whole-tree formatter gate. Markdown edits need it too:
+  # removing a table row makes prettier re-pad every row (PRs #576, #577).
+  nix fmt -- --fail-on-change
   bash .agents/learning/promotions/promotions-scan-without-git.sh
   bash .agents/learning/promotions/hyprland-start-runs-oneshots-only.sh
   bash .agents/learning/promotions/no-legacy-hyprctl-dispatch.sh
