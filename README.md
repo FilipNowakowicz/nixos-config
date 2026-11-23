@@ -291,12 +291,12 @@ header, and add the host's sops recipient and secrets. See
 
 ## Deployment
 
-| Host             | Command                                  | Notes                                                                 |
-| ---------------- | ---------------------------------------- | --------------------------------------------------------------------- |
-| `main`           | `nh os switch --hostname main .`         | Active impermanent workstation rebuild.                               |
-| `homeserver-gcp` | `deploy '.#homeserver-gcp'`              | Active GCP homeserver; see `scripts/deploy-gcp.sh` for provisioning.  |
-| `gcp-builder`    | `deploy '.#gcp-builder'`                 | On-demand remote builder; start the VM first. See its `CLAUDE.md`.    |
-| `gcp-worker`     | `deploy '.#gcp-worker'`                  | On-demand batch worker; `on-worker start` first. See its `CLAUDE.md`. |
+| Host             | Command                          | Notes                                                                 |
+| ---------------- | -------------------------------- | --------------------------------------------------------------------- |
+| `main`           | `nh os switch --hostname main .` | Active impermanent workstation rebuild.                               |
+| `homeserver-gcp` | `deploy '.#homeserver-gcp'`      | Active GCP homeserver; see `scripts/deploy-gcp.sh` for provisioning.  |
+| `gcp-builder`    | `deploy '.#gcp-builder'`         | On-demand remote builder; start the VM first. See its `CLAUDE.md`.    |
+| `gcp-worker`     | `deploy '.#gcp-worker'`          | On-demand batch worker; `on-worker start` first. See its `CLAUDE.md`. |
 
 Agents and other non-interactive sessions switch `main` with
 `sudo nixos-switch-main [--remote]`. `scripts/deploy-gcp.sh` is for
