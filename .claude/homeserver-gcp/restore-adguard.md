@@ -9,30 +9,49 @@ root-owned staging copy at `/var/lib/restic-staging/adguardhome` created by
 
 ## Steps
 
+On the homeserver in a root Bash shell with Restic and rsync available, restore
+and validate the chosen snapshot before taking DNS down. Keep the old state
+until the restored service passes its checks.
+
 ```bash
-# 1. Stop the service
-systemctl stop adguardhome
-
-# 2. Source B2 credentials and pick a snapshot
-set -a; source /run/secrets/b2_credentials; set +a
-restic --repository-file=/run/secrets/restic_repository \
-       --password-file=/run/secrets/restic_password \
-       snapshots --path /var/lib/restic-staging/adguardhome
-
-# 3. Restore to a temp path
+set -eu
+umask 077
+set -a
+source /run/secrets/b2_credentials
+set +a
+export RESTIC_REPOSITORY_FILE=/run/secrets/restic_repository
+export RESTIC_PASSWORD_FILE=/run/secrets/restic_password
+restic snapshots --host homeserver-gcp
+read -rp 'Snapshot ID to recover: ' snap
+restic ls "$snap" /var/lib
+source_path=/var/lib/restic-staging/adguardhome
+# For an older snapshot, use the actual source_path listed above.
 workdir=$(mktemp -d /var/lib/restic-restore.XXXXXX)
-restic --repository-file=/run/secrets/restic_repository \
-       --password-file=/run/secrets/restic_password \
-       restore latest --target "$workdir" \
-       --include /var/lib/restic-staging/adguardhome
-
-# 4. Rsync into the live path — trailing slash is required; do NOT replace the symlink
-rsync -a --delete "$workdir/var/lib/restic-staging/adguardhome/" /var/lib/AdGuardHome/
-rm -rf "$workdir"
-
-# 5. Start the service — DynamicUser chowns the tree automatically, no manual chown needed
-systemctl start adguardhome
+restic restore "$snap" --target "$workdir" --include "$source_path"
+state="$workdir$source_path"
+test -s "$state/AdGuardHome.yaml"
+test -d "$state/data"
 ```
+
+For cutover on an initialized host, verify the live destination, stop the service,
+and keep a rollback copy in the private work directory. Check available space
+for both copies first. If the copy or startup fails, recover the saved tree
+with the service stopped before retrying.
+
+```bash
+live=/var/lib/AdGuardHome
+test "$(readlink -f "$live")" = /var/lib/private/AdGuardHome
+test -d "$live/data"
+systemctl stop adguardhome
+cp -a "$live/." "$workdir/pre-restore"
+rsync -a --delete "$state/" "$live/"
+systemctl start adguardhome
+systemctl is-active --quiet adguardhome
+```
+
+Verify a known DNS policy from a client and check the web UI. Remove the private
+work directory after accepting the result. The trailing slashes copy contents
+and preserve the systemd-managed symlink.
 
 ## Notes
 
@@ -41,5 +60,3 @@ systemctl start adguardhome
 - **DNS failure fallback** — while the service is down, tailnet clients lose DNS.
   In Tailscale admin → DNS, temporarily remove the nameserver override to fall
   back to the default resolver before starting the restore.
-- To restore a specific snapshot instead of `latest`, replace `latest` with the
-  snapshot ID from `restic snapshots`.
