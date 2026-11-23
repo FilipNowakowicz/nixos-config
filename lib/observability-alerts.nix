@@ -21,7 +21,38 @@
 #   LynisScanStale    — no successful audit in 26 h (daily + 2 h buffer)
 #   BlackboxProbeFailed — blackbox HTTP probe failing for 5 min
 #   TLSCertificateExpiresSoon — HTTPS certificate expires within 7 d
+#   BackupEvidenceMissing — a host is reporting but has no success timestamp
+#                           for a backup job it is expected to run, for 1 h
+let
+  # The *Stale rules above compare the age of an existing series, so they
+  # cannot fire for a job that never succeeded or whose textfile was removed.
+  # List each reporting host's expected success timestamps here; a host must
+  # be scraped by this Prometheus to be listed.
+  expectedBackupEvidence = {
+    "homeserver-gcp" = [
+      "restic_last_backup_timestamp_seconds"
+      "restic_last_check_timestamp_seconds"
+      "restic_last_restore_test_timestamp_seconds"
+      "restore_drill_last_success_timestamp_seconds"
+    ];
+  };
+
+  # One series per missing (host, metric), labelled with the metric name.
+  missingEvidenceExpr = builtins.concatStringsSep "\nor\n" (
+    builtins.concatLists (
+      map (
+        host:
+        map (
+          metric:
+          ''label_replace(group by (host) (node_boot_time_seconds{host="${host}"}) unless on (host) group by (host) (${metric}{host="${host}"}), "metric", "${metric}", "", "")''
+        ) expectedBackupEvidence.${host}
+      ) (builtins.attrNames expectedBackupEvidence)
+    )
+  );
+in
 {
+  inherit expectedBackupEvidence;
+
   rules = {
     groups = [
       {
@@ -66,6 +97,16 @@
             annotations = {
               summary = "Restic integrity check stale on {{ $labels.instance }}";
               description = "Last check {{ $value | printf \"%.1f\" }}d ago (threshold: 8d).";
+            };
+          }
+          {
+            alert = "BackupEvidenceMissing";
+            expr = missingEvidenceExpr;
+            for = "1h";
+            labels.severity = "warning";
+            annotations = {
+              summary = "No {{ $labels.metric }} on {{ $labels.host }}";
+              description = "{{ $labels.host }} is reporting metrics but has no {{ $labels.metric }} series, so the matching stale alert cannot fire. The job has never succeeded or its textfile was removed.";
             };
           }
           {

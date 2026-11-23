@@ -355,7 +355,68 @@ let
     "HeartbeatPingStale"
     "BlackboxProbeFailed"
     "TLSCertificateExpiresSoon"
+    "BackupEvidenceMissing"
   ];
+
+  # promtool unit tests for BackupEvidenceMissing: a reporting host missing
+  # one expected timestamp alerts after the hold, the others stay quiet, and
+  # a host that is not reporting at all (e.g. powered off) never alerts.
+  missingEvidenceTests =
+    let
+      host = "homeserver-gcp";
+      expected = alertData.expectedBackupEvidence.${host};
+      missing = lib.last expected;
+      series = name: {
+        series = ''${name}{host="${host}",instance="127.0.0.1:9100",job="node"}'';
+        values = "1x150";
+      };
+    in
+    (pkgs.formats.yaml { }).generate "missing-evidence-tests.yaml" {
+      rule_files = [ "rules.yaml" ];
+      evaluation_interval = "1m";
+      tests = [
+        {
+          interval = "1m";
+          input_series = map series ([ "node_boot_time_seconds" ] ++ lib.init expected);
+          alert_rule_test = [
+            {
+              eval_time = "30m";
+              alertname = "BackupEvidenceMissing";
+              exp_alerts = [ ];
+            }
+            {
+              eval_time = "90m";
+              alertname = "BackupEvidenceMissing";
+              exp_alerts = [
+                {
+                  exp_labels = {
+                    severity = "warning";
+                    inherit host;
+                    metric = missing;
+                  };
+                  exp_annotations = {
+                    summary = "No ${missing} on ${host}";
+                    description = "${host} is reporting metrics but has no ${missing} series, so the matching stale alert cannot fire. The job has never succeeded or its textfile was removed.";
+                  };
+                }
+              ];
+            }
+          ];
+        }
+        {
+          interval = "1m";
+          input_series = [ ];
+          alert_rule_test = [
+            {
+              eval_time = "90m";
+              alertname = "BackupEvidenceMissing";
+              exp_alerts = [ ];
+            }
+          ];
+        }
+      ];
+    };
+
   observabilityAlertsLint =
     pkgs.runCommand "observability-alerts-lint" { nativeBuildInputs = [ pkgs.prometheus.cli ]; }
       ''
@@ -365,6 +426,9 @@ let
         for alert in ${lib.escapeShellArgs requiredAlerts}; do
           grep -q "alert: $alert\$" ${rulesYaml} || { echo "missing required alert: $alert" >&2; exit 1; }
         done
+        cp ${rulesYaml} rules.yaml
+        cp ${missingEvidenceTests} tests.yaml
+        promtool test rules tests.yaml
         touch $out
       '';
 
