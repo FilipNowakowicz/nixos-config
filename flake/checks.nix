@@ -533,7 +533,6 @@ let
                 ReadWritePaths = [
                   "/var/cache/nginx"
                   "/var/log/nginx"
-                  "/var/lib/nginx/certs"
                 ];
               };
             }
@@ -555,7 +554,6 @@ let
         readWritePaths = [
           "/var/cache/nginx"
           "/var/log/nginx"
-          "/var/lib/nginx/certs"
         ];
         privateTmp = true;
         protectSystem = "strict";

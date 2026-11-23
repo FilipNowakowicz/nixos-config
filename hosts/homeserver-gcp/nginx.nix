@@ -2,7 +2,7 @@
 let
   cfg = config.profiles.homeserverGcpNginx;
   gen = import ../../lib/generators.nix { inherit lib; };
-  certDir = "/var/lib/nginx/certs";
+  certDir = "/var/lib/nginx-certs";
   homepageDir = "/var/lib/homepage/public";
   homepageEventsTarget = "http://127.0.0.1:9273/";
   proxy = gen.nginx.proxyLocation;

@@ -29,8 +29,8 @@ in
           --key-file /var/lib/tailscale/certs/homeserver-gcp.key \
           ${tailnetFQDN}
         # /var/lib/tailscale is root:root 700; copy certs to a path nginx can read
-        install -m 644 /var/lib/tailscale/certs/homeserver-gcp.crt /var/lib/nginx/certs/homeserver-gcp.crt
-        install -m 640 -g nginx /var/lib/tailscale/certs/homeserver-gcp.key /var/lib/nginx/certs/homeserver-gcp.key
+        install -m 644 /var/lib/tailscale/certs/homeserver-gcp.crt /var/lib/nginx-certs/homeserver-gcp.crt
+        install -m 640 -g nginx /var/lib/tailscale/certs/homeserver-gcp.key /var/lib/nginx-certs/homeserver-gcp.key
         if ${pkgs.systemd}/bin/systemctl is-active --quiet nginx.service; then
           ${pkgs.systemd}/bin/systemctl --no-block reload nginx.service
         fi
@@ -48,7 +48,13 @@ in
 
     tmpfiles.rules = [
       "d /var/lib/tailscale/certs 0750 root root -"
-      "d /var/lib/nginx/certs 0750 root nginx -"
+      # Kept outside /var/lib/nginx: nixpkgs declares that as nginx's
+      # StateDirectory (mode 0700), so systemd re-owns everything under it to
+      # nginx on start. This root service has no CAP_DAC_OVERRIDE, so it could
+      # then no longer write the copy, and nginx's Requires= would fail.
+      "d /var/lib/nginx-certs 0750 root nginx -"
+      # Remove the copy left at the old location (applied at boot).
+      "R /var/lib/nginx/certs - - - -"
     ];
   };
 
@@ -56,7 +62,7 @@ in
     ProtectHome = false;
     ReadWritePaths = [
       "/var/lib/tailscale"
-      "/var/lib/nginx/certs"
+      "/var/lib/nginx-certs"
     ];
     RestrictAddressFamilies = [ "AF_UNIX" ];
     # The cert script chgrps the private key to the nginx group

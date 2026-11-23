@@ -105,7 +105,8 @@ Null values are rejected in `extraConfig`; use `relaxBase` instead of assigning
 
 ### Nginx
 
-Nginx needs to bind low ports and write cache, log, and certificate files.
+Nginx needs to bind low ports and write cache and log files. It only reads its
+certificates from `/var/lib/nginx-certs`, so that path is not listed.
 
 ```nix
 services.hardened.nginx.extraConfig = {
@@ -114,23 +115,24 @@ services.hardened.nginx.extraConfig = {
   ReadWritePaths = [
     "/var/cache/nginx"
     "/var/log/nginx"
-    "/var/lib/nginx/certs"
   ];
 };
 ```
 
 ### Tailscale Certificate Helper
 
-The homeserver's `tailscale-cert` service writes certificates to Tailscale and
-Nginx state directories. It only needs Unix sockets, plus `CAP_CHOWN` to assign
-the private key to the Nginx group with `install -g nginx`.
+The homeserver's `tailscale-cert` service writes certificates to the Tailscale
+state directory and copies them to `/var/lib/nginx-certs`, which stays outside
+nginx's systemd `StateDirectory` (`/var/lib/nginx`, mode 0700). It only needs
+Unix sockets, plus `CAP_CHOWN` to assign the private key to the Nginx group
+with `install -g nginx`.
 
 ```nix
 services.hardened.tailscale-cert.extraConfig = {
   ProtectHome = false;
   ReadWritePaths = [
     "/var/lib/tailscale"
-    "/var/lib/nginx/certs"
+    "/var/lib/nginx-certs"
   ];
   RestrictAddressFamilies = [ "AF_UNIX" ];
   CapabilityBoundingSet = [ "CAP_CHOWN" ];
