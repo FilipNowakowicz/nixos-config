@@ -114,7 +114,6 @@
           nixpkgs
           lib
           hostRegistry
-          mkPkgs
           overlays
           ;
         inherit (inputs)
@@ -127,7 +126,6 @@
         allNixosConfigs
         ciNixosConfigs
         deployCheckNixosConfigs
-        homeConfigurations
         ;
 
       deployOutputs = import ./flake/deploy.nix {
@@ -204,9 +202,6 @@
         legacyPackages.${defaultSystem} = {
           ciTests = ciTestsFor defaultSystem;
         };
-
-        # ── Home Manager Configurations ─────────────────────────────────────
-        inherit homeConfigurations;
 
         # ── Reusable pure-function libraries ────────────────────────────────
         # Identifier-free helper libraries that evaluate with stock

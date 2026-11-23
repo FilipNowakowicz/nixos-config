@@ -106,7 +106,6 @@ flowchart LR
 | `homeserver-gcp` | Cloud homeserver    | AdGuard, Nginx, Grafana/Loki/Prometheus, restore canary, Tailscale ingress                   |
 | `gcp-builder`    | Remote builder      | Normally off, started for heavy builds, self-powers-off when idle, deploy-rs managed         |
 | `gcp-worker`     | Batch worker        | Normally off, runs long CPU jobs from any repo via `on-worker`, self-powers-off when idle    |
-| `user@wsl`       | Portable HM profile | Home Manager profile for Windows/WSL environments                                            |
 
 Host lifecycle status is owned by `lib/hosts.nix`; this table documents that
 registry. `installer` is a utility ISO outside the host registry.
@@ -292,13 +291,12 @@ header, and add the host's sops recipient and secrets. See
 
 ## Deployment
 
-| Host             | Command                                  | Notes                                                                 |
-| ---------------- | ---------------------------------------- | --------------------------------------------------------------------- |
-| `main`           | `nh os switch --hostname main .`         | Active impermanent workstation rebuild.                               |
-| `homeserver-gcp` | `deploy '.#homeserver-gcp'`              | Active GCP homeserver; see `scripts/deploy-gcp.sh` for provisioning.  |
-| `gcp-builder`    | `deploy '.#gcp-builder'`                 | On-demand remote builder; start the VM first. See its `CLAUDE.md`.    |
-| `gcp-worker`     | `deploy '.#gcp-worker'`                  | On-demand batch worker; `on-worker start` first. See its `CLAUDE.md`. |
-| `user@wsl`       | `home-manager switch --flake .#user@wsl` | Portable Home Manager for WSL.                                        |
+| Host             | Command                          | Notes                                                                 |
+| ---------------- | -------------------------------- | --------------------------------------------------------------------- |
+| `main`           | `nh os switch --hostname main .` | Active impermanent workstation rebuild.                               |
+| `homeserver-gcp` | `deploy '.#homeserver-gcp'`      | Active GCP homeserver; see `scripts/deploy-gcp.sh` for provisioning.  |
+| `gcp-builder`    | `deploy '.#gcp-builder'`         | On-demand remote builder; start the VM first. See its `CLAUDE.md`.    |
+| `gcp-worker`     | `deploy '.#gcp-worker'`          | On-demand batch worker; `on-worker start` first. See its `CLAUDE.md`. |
 
 Agents and other non-interactive sessions switch `main` with
 `sudo nixos-switch-main [--remote]`. `scripts/deploy-gcp.sh` is for

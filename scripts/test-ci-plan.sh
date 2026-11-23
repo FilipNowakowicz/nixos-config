@@ -84,15 +84,6 @@ assert_contains "$package_output" "run_packages=true"
 assert_contains "$package_output" "hosts=false"
 assert_contains "$package_output" "tests=false"
 
-wsl_output="$(run_plan $'home/users/user/wsl.nix')"
-assert_contains "$wsl_output" "docs_only=false"
-assert_contains "$wsl_output" "run_eval=true"
-assert_contains "$wsl_output" "run_lint=true"
-assert_contains "$wsl_output" "run_light=true"
-assert_contains "$wsl_output" "run_packages=false"
-assert_contains "$wsl_output" "hosts=false"
-assert_contains "$wsl_output" "tests=false"
-
 unknown_home_output="$(run_plan $'home/files/misc/unclassified.txt')"
 assert_contains "$unknown_home_output" "run_packages=true"
 assert_contains "$unknown_home_output" '{"name":"main-ci"}'

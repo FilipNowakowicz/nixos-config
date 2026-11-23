@@ -47,7 +47,6 @@ under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
   builder. Jobs run as the unprivileged `jobs` user. It and `gcp-builder` do not
   fit the project CPU quota at the same time. See
   [`hosts/gcp-worker/CLAUDE.md`](hosts/gcp-worker/CLAUDE.md).
-- **`user@wsl`:** `home-manager switch --flake .#user@wsl`.
 
 Module topology, persistence model, and the agent-maintenance sudo allowlist
 are documented per host under `hosts/*/CLAUDE.md`. The host registry

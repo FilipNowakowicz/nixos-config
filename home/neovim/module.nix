@@ -54,7 +54,7 @@ let
   };
 
   # With the theme module, Neovim paints itself from the running theme's
-  # palette (home/theme); without it (WSL), it keeps gruvbox-material.
+  # palette (home/theme); without it, it keeps gruvbox-material.
   themePalette = config.themes._nvimPaletteFile or null;
 
   generatedConfig = {
