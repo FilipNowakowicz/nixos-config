@@ -843,44 +843,6 @@ rec {
 
   deployTargetAccessAssertions = deployTargetBaseAccessAssertions ++ deployTargetSopsAssertions;
 
-  homeserverDeployRunnerRegistrationGcRunbookMatchesConfig = {
-    name = "homeserver deploy runner config matches operational contract";
-    check =
-      cfg:
-      let
-        runner = cfg.systemd.services.github-runner-homeserver-deploy or { };
-        stateDirs = lib.toList (runner.serviceConfig.StateDirectory or [ ]);
-        stateDir = if stateDirs == [ ] then "" else lib.head stateDirs;
-        expectedPath = "/var/lib/${stateDir}";
-        runbook = lib.fileContents ../hosts/homeserver-gcp/CLAUDE.md;
-        # The deploy workflow runs *inside* this runner unit, so if a config
-        # change restarts the unit while its own switch-to-configuration is
-        # mid-activation, the runner (and the deploy job it hosts) is SIGKILLed:
-        # the job dies with exit 130 and the activation half-applies.
-        # restartIfChanged = false leaves the running runner untouched across a
-        # switch (see hosts/homeserver-gcp/github-runner.nix).
-        runnerRestartsOnSwitch = (runner.restartIfChanged or true) != false;
-        violations = lib.filter (msg: msg != "") [
-          (lib.optionalString (
-            stateDir == ""
-          ) "systemd.services.github-runner-homeserver-deploy.serviceConfig.StateDirectory must be set")
-          (lib.optionalString (!lib.hasInfix expectedPath runbook)
-            "hosts/homeserver-gcp/CLAUDE.md must document the registration-GC remediation path ${expectedPath}"
-          )
-          (lib.optionalString (!lib.hasInfix "github-runner-homeserver-deploy.service" runbook)
-            "hosts/homeserver-gcp/CLAUDE.md must reference github-runner-homeserver-deploy.service in the registration-GC remediation"
-          )
-          (lib.optionalString runnerRestartsOnSwitch "systemd.services.github-runner-homeserver-deploy.restartIfChanged must be false (the self-deploy runner is SIGKILLed mid switch-to-configuration otherwise, half-applying activation with exit 130)")
-        ];
-      in
-      mkResult (violations == [ ]) (
-        if violations == [ ] then
-          "deploy runner survives self-switch and the registration-GC runbook matches config"
-        else
-          lib.concatStringsSep "; " violations
-      );
-  };
-
   homeserverSshAndHttpsTailscaleOnly = {
     name = "SSH and HTTPS stay Tailscale-only";
     check =

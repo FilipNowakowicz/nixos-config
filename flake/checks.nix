@@ -55,58 +55,7 @@ let
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
 
-  mainPythonDevelopmentIsCentralized = {
-    name = "main Python development is centralized and agent-consistent";
-    check =
-      cfg:
-      let
-        hm = cfg.home-manager.users.user;
-        homeFiles = hm.home.file;
-        packageNames = map lib.getName hm.home.packages;
-        agentTargets = [
-          ".claude/CLAUDE.md"
-          ".codex/AGENTS.md"
-          ".gemini/GEMINI.md"
-        ];
-        missingAgentTargets = lib.filter (target: !(builtins.hasAttr target homeFiles)) agentTargets;
-        agentSources = map (target: toString homeFiles.${target}.source) agentTargets;
-        oneAgentSource = lib.length (lib.unique agentSources) == 1;
-        policy = builtins.readFile ../home/files/agents/global-development.md;
-        violations = lib.filter (msg: msg != "") [
-          (lib.optionalString (!(lib.elem "uv" packageNames)) "Home Manager must install uv")
-          (lib.optionalString (
-            missingAgentTargets != [ ]
-          ) "missing global agent instruction target(s): ${lib.concatStringsSep ", " missingAgentTargets}")
-          (lib.optionalString (
-            missingAgentTargets == [ ] && !oneAgentSource
-          ) "Claude, Codex, and Gemini global instructions must share one source")
-          (lib.optionalString (
-            !(builtins.hasAttr "/home/user/.config/uv/uv.toml" homeFiles)
-          ) "Home Manager must render the user-level uv configuration")
-          (lib.optionalString (
-            !(builtins.hasAttr "/home/user/.config/uv/.python-version" homeFiles)
-          ) "Home Manager must render the global uv Python pin")
-          (lib.optionalString (
-            !(lib.hasInfix ''python-preference = "only-managed"'' (
-              builtins.readFile ../home/profiles/python-development.nix
-            ))
-          ) "uv must use only managed Python interpreters")
-          (lib.optionalString (
-            !(lib.hasInfix "uv sync" policy && lib.hasInfix "uv run" policy)
-          ) "global agent policy must direct Python work through uv sync and uv run")
-          (lib.optionalString (
-            !(lib.hasInfix "Do not add `flake.nix`" policy)
-          ) "global agent policy must keep Nix-only dependency files out of portable Python repos")
-          (lib.optionalString (
-            !(lib.hasInfix "~/.local/share/worktrees/<repo>/<name>" policy)
-          ) "global agent policy must place worktrees under ~/.local/share/worktrees/<repo>/<name>")
-          (lib.optionalString (
-            !(hm.home.activation ? claudeNoAttribution)
-          ) "Home Manager must disable Claude Code commit/PR attribution")
-        ];
-      in
-      mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
-  };
+  checkPythonFiles = import ../home/profiles/python-development-check.nix { inherit lib pkgs; };
 
   mainBackupPathsArePersisted = {
     name = "main backup paths are persisted or on a persistent fs";
@@ -352,7 +301,6 @@ let
   mainExperienceInvariants = [
     invariants.mainBluetoothDriverHasBootTrigger
     mainInteractiveShellUsesNixIndexAndComma
-    mainPythonDevelopmentIsCentralized
     invariants.obsClientUsesCanonicalUsername
   ];
 
@@ -363,9 +311,12 @@ let
     mainBtrbkPolicyMatchesLocalSnapshotIntent
   ];
 
+  runnerChecks = import ../hosts/homeserver-gcp/github-runner-checks.nix { inherit lib; };
+
   homeserverAccessInvariants = invariants.deployTargetAccessAssertions ++ [
     invariants.homeserverSshAndHttpsTailscaleOnly
-    invariants.homeserverDeployRunnerRegistrationGcRunbookMatchesConfig
+    runnerChecks.selfSwitch
+    runnerChecks.runbook
   ];
 
   homeserverBackupInvariants = [
@@ -917,6 +868,9 @@ in
           system = pkgs.stdenv.hostPlatform.system;
           modules = [ ../hosts/installer/default.nix ];
         }).config;
+
+    python-development-main = checkPythonFiles allNixosConfigs.main.config.home-manager.users.user;
+    python-development-main-ci = checkPythonFiles ciNixosConfigs.main-ci.config.home-manager.users.user;
 
     observability-alerts-lint = observabilityAlertsLint;
     observability-stack-fixture = observabilityStackFixture;
