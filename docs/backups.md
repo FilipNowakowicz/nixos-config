@@ -146,8 +146,7 @@ it. The registry explicitly treats it as disposable:
   GCP access are recovery dependencies, not a backup.
 
 The installer and CI configurations are generated/test outputs, not additional
-persistent backed-up hosts. The WSL Home Manager output has no backup job of its
-own declared here; its surrounding Windows/WSL backup policy is outside this repo.
+persistent backed-up hosts.
 
 ## Key escrow (cross-host recovery)
 

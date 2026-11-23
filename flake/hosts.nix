@@ -6,14 +6,9 @@
   sops-nix,
   lib,
   hostRegistry,
-  mkPkgs,
   overlays,
 }:
 let
-  pkgs = mkPkgs {
-    system = "x86_64-linux";
-  };
-
   homeManagerRoleModules = {
     desktop = ../home/users/user/home.nix;
     server = ../home/users/user/server.nix;
@@ -108,22 +103,4 @@ let
 in
 {
   inherit allNixosConfigs ciNixosConfigs deployCheckNixosConfigs;
-
-  homeConfigurations = {
-    "user@wsl" = home-manager.lib.homeManagerConfiguration {
-      inherit pkgs;
-      extraSpecialArgs = {
-        inherit inputs;
-      };
-      modules = [
-        ../home/users/user/wsl.nix
-        {
-          fleet = {
-            hostName = "wsl";
-            skipHeavyPackages = false;
-          };
-        }
-      ];
-    };
-  };
 }

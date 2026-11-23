@@ -27,7 +27,6 @@ module_machine_hosts='^modules/nixos/profiles/impermanence-base\.nix'
 home_all_hosts='^home/(profiles/base\.nix|users/user/common\.nix)'
 home_desktop_hosts='^home/(desktop/|neovim/|profiles/desktop\.nix|profiles/workflow-packs/|users/user/home\.nix|theme/|files/(nvim/|firefox|hypr|kitty|scripts/theme-switch\.sh))'
 home_server_hosts='^home/users/user/server\.nix'
-home_wsl='^home/users/user/wsl\.nix'
 # Everything the booted desktop tests load: the shell, the Lua config, the
 # generated theme files they both read, and the module that wires them up.
 quiet_shell_change='^(packages/quiet-shell/|tests/quiet-shell/|home/desktop/|home/files/hypr/|home/theme/)'
@@ -108,7 +107,7 @@ if [[ -n $changed_files ]]; then
 
     if
       [[ $path =~ ^home/ ]] &&
-        ! grep -qE "${home_all_hosts}|${home_desktop_hosts}|${home_server_hosts}|${home_wsl}" <<<"$path"
+        ! grep -qE "${home_all_hosts}|${home_desktop_hosts}|${home_server_hosts}" <<<"$path"
     then
       unknown_home_changed=true
     fi
