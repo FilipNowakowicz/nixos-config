@@ -28,8 +28,8 @@
         "invariantPassed": 13,
         "invariantResults": [
           {
-            "message": "system.stateVersion must be set",
-            "name": "has stateVersion",
+            "message": "system.stateVersion has an explicit definition",
+            "name": "system.stateVersion is set explicitly",
             "passed": true
           },
           {
