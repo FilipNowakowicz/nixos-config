@@ -173,10 +173,6 @@ note is just to apply the gate up front rather than discover it via a red gate.
 
 Runbook: [`.claude/main/recovery.md`](../../.claude/main/recovery.md)
 
-## Anonymous Specialisation
-
-Runbook: [`.claude/main/anonymous.md`](../../.claude/main/anonymous.md)
-
 ## Whonix KVM
 
 Runbook: [`.claude/main/whonix.md`](../../.claude/main/whonix.md)
@@ -210,9 +206,6 @@ suppress_prefixlength 0` rule (at whatever pref Mullvad chooses) finds these
 Both `tailscaled.postStart` and `mullvad-daemon.postStart` also run the bypass
 script so routing is re-asserted whenever either daemon restarts.
 
-In the anonymous specialisation all three mechanisms are removed and
-`checkReversePath` is forced back to `"strict"`.
-
 ## Gotchas
 
 - **disko changes are destructive** unless you are only changing metadata for a future reinstall.
@@ -220,7 +213,6 @@ In the anonymous specialisation all three mechanisms are removed and
 - **OpenSSH uses only the persisted Ed25519 host key**; do not reintroduce volatile RSA host key generation.
 - **Mullvad and Tailscale coexistence is fragile**; the three bypass mechanisms in `default.nix` are load-bearing — do not remove the nftables table, the bypass service, or the loose reverse-path setting without understanding all three.
 - **Old roots are not normal backups**; they are local forensic rollback artifacts retained for 30 days.
-- **Anonymous specialisation is a boot target, not a runtime switch**; booting it fresh is the correct path — attempting to reach it via `nixos-specialise` mid-session does not teardown running services correctly.
 - **Whonix VMs require Gateway before Workstation**; starting Workstation without a running Gateway leaves it without a Tor route.
 - **Under the Lua config (Hyprland 0.57+), `hyprctl keyword` is gone and
   `hyprctl dispatch` takes an `hl.dsp` expression**, e.g.

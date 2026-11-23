@@ -134,20 +134,6 @@ let
     disko.devices.disk.main.content.subvolumes."/@persist".mountpoint = "/persist";
   };
 
-  anonymousConfig = {
-    specialisation.anonymous.configuration.environment.persistence."/persist" = {
-      directories = [
-        "/var/lib/nixos"
-        "/var/lib/systemd/backlight"
-        "/var/lib/systemd/rfkill"
-      ];
-      files = [
-        "/etc/ssh/ssh_host_ed25519_key"
-        "/etc/ssh/ssh_host_ed25519_key.pub"
-      ];
-    };
-  };
-
   mullvadTailscaleConfig = {
     networking = {
       firewall.checkReversePath = "loose";
@@ -720,28 +706,6 @@ let
           }
         )).message;
       expected = "environment.persistence root(s) missing matching disko mountpoint: /persist";
-    };
-
-    testAnonymousSpecialisationPersistencePasses = {
-      expr = (invariants.checkAnonymousSpecialisationPersistence anonymousConfig).passed;
-      expected = true;
-    };
-
-    testAnonymousSpecialisationPersistenceRejectsExtraPersistedDirectory = {
-      expr =
-        (invariants.checkAnonymousSpecialisationPersistence (
-          anonymousConfig
-          // {
-            specialisation.anonymous.configuration.environment.persistence."/persist" =
-              anonymousConfig.specialisation.anonymous.configuration.environment.persistence."/persist"
-              // {
-                directories =
-                  anonymousConfig.specialisation.anonymous.configuration.environment.persistence."/persist".directories
-                  ++ [ "/var/lib/tailscale" ];
-              };
-          }
-        )).message;
-      expected = "anonymous specialisation persists unexpected dir(s): /var/lib/tailscale";
     };
 
     testMullvadTailscaleCoexistencePasses = {
