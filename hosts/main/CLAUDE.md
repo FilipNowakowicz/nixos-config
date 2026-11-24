@@ -61,6 +61,8 @@ Operational state:
 - `/var/lib/nixos` — UID/GID stability across rebuilds
 - Crash dumps are stored in the journal by `profiles/security.nix`, not
   persisted as flat files under `/var/lib/systemd/coredump`.
+- `/var/lib/systemd/pstore` — kernel panic dumps `systemd-pstore` moves out of
+  EFI pstore on the next boot; without it they vanish with the root rollback
 - `/var/lib/systemd/timers` — `Persistent=true` timer catchup (e.g. `restic-check-local`)
 - `/var/lib/systemd/credential.secret` — systemd-creds host key; libvirt's
   secrets key is encrypted with it. `credential-host-secret.service` creates it in

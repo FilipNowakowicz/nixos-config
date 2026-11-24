@@ -225,7 +225,14 @@ in
 
     # IOMMU protection — blocks Thunderbolt/PCIe DMA attacks
     kernelParams = [
-      "intel_iommu=on"
+      # igfx_off leaves only the integrated GPU untranslated. While i915 takes
+      # over the firmware framebuffer the iGPU still scans out memory that has
+      # no IOMMU mapping; the resulting DMAR faults can reach i915's pipe-fault
+      # IRQ handler before its planes exist, and handle_plane_fault NULL-derefs
+      # into a boot panic (6.18.64, 2026-11-24). The iGPU is soldered on, not a
+      # DMA attack surface; Thunderbolt/PCIe devices and the dGPU stay behind
+      # the IOMMU. Drop igfx_off once upstream i915 tolerates the fault.
+      "intel_iommu=on,igfx_off"
       "iommu=force"
       "mem_sleep_default=deep"
       # This Yoga 9 15IMH5 exposes DYTC v4, which ideapad_laptop gates behind an
