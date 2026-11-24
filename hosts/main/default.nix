@@ -178,6 +178,12 @@ in
     };
   };
 
+  # uv's standalone Python builds (and other non-Nix OpenSSL binaries) read the
+  # OpenSSL default CA file /etc/ssl/cert.pem, which NixOS doesn't create, so TLS
+  # verification failed in uv-run scripts. Point it at the system bundle.
+  environment.etc."ssl/cert.pem".source =
+    config.environment.etc."ssl/certs/ca-certificates.crt".source;
+
   environment.systemPackages = with pkgs; [
     efibootmgr
     nixGc14d
