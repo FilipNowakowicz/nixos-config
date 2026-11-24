@@ -1,4 +1,5 @@
 {
+  config,
   inputs,
   pkgs,
   ...
@@ -74,6 +75,10 @@ in
   programs.nix-ld.enable = true;
 
   environment = {
+    # uv's standalone Python builds read OpenSSL's default CA file, which NixOS
+    # doesn't create; point it at the system bundle so TLS verification works.
+    etc."ssl/cert.pem".source = config.environment.etc."ssl/certs/ca-certificates.crt".source;
+
     systemPackages = [
       workerJob
     ]
