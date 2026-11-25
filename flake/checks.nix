@@ -874,19 +874,21 @@ let
         allNixosConfigs.server-example = miniFleetExample.nixosConfigurations.server-example.extendModules {
           modules = [
             {
-              services.openssh = {
-                enable = true;
-                openFirewall = false;
+              services = {
+                openssh = {
+                  enable = true;
+                  openFirewall = false;
+                };
+                tailscale.enable = true;
+                restic.backups.local = {
+                  repository = "/srv/backup";
+                  paths = [ "/var/lib/demo-app" ];
+                  passwordFile = "/run/secrets/restic-password";
+                  timerConfig.OnCalendar = "daily";
+                  initialize = true;
+                };
               };
-              services.tailscale.enable = true;
               networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 22 ];
-              services.restic.backups.local = {
-                repository = "/srv/backup";
-                paths = [ "/var/lib/demo-app" ];
-                passwordFile = "/run/secrets/restic-password";
-                timerConfig.OnCalendar = "daily";
-                initialize = true;
-              };
             }
           ];
         };
