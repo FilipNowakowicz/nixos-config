@@ -13,8 +13,10 @@ the host-local provisioning runbook.
 
 ## What it is / isn't
 
-- **Is:** a headless `n2-standard-4` (nested virtualization enabled) that builds
-  Nix closures and runs the KVM-backed nixos test suite offloaded from `main`.
+- **Is:** a headless `n2-custom-14-32768` (14 vCPU, 32 GB, nested
+  virtualization enabled) that builds Nix closures and runs the KVM-backed
+  nixos test suite offloaded from `main`. It also runs `on-worker` batch jobs
+  (see [Batch jobs](#batch-jobs)).
 - **Isn't:** a service host. No AdGuard/LGTM/nginx, no backups, no
   Home Manager, no sops. Losing it costs nothing but provisioning time.
 
@@ -38,11 +40,46 @@ the host-local provisioning runbook.
   authenticated, with the builder's project active
   (`gcloud config set project <id>`).
 
+## Batch jobs
+
+Since #592 this VM also runs `on-worker` jobs (long CPU-heavy work from any
+repository), so builds and jobs share it instead of taking turns under the
+project's 16-vCPU `CPUS_ALL_REGIONS` cap (14 here plus 1 for the homeserver).
+The role is `profiles.batchJobs` in `modules/nixos/profiles/batch-jobs`.
+
+```bash
+cd ~/code/some-repo
+on-worker run -n calib -- uv run python scripts/calibrate.py --workers 14
+on-worker status            # every job, newest first
+on-worker logs -f calib     # follow; exits with the job's status
+on-worker pull results/     # copy outputs back into this checkout
+on-worker run -w -- make test   # wait in the foreground
+```
+
+- Jobs run as `jobs`, which has no sudo and no Nix daemon trust (the
+  `on-worker jobs user stays unprivileged` invariant). `user` here is
+  root-equivalent, and the `ci-builder` runners reach it, so treat job
+  workspaces as readable by this repo's CI.
+- **Sharing the CPUs.** `nix-daemon` runs at `CPUWeight=20` against the jobs
+  user's slice at 100. While both are busy, builds get about a sixth of the
+  CPUs; when either is idle, the other gets the whole VM. A deploy during a
+  long job is slower, not blocked.
+- The checkout's tracked files plus untracked, non-ignored files are synced to
+  `~jobs/work/<repo>-<hash>`, which persists between runs (`.venv`, caches).
+  Add gitignored inputs with `-i PATH`. Symlinks that point outside the
+  checkout are copied as their targets. Sync never deletes remote files.
+- Jobs are `systemd-run --user` units named `worker-job-<name>`, bounded by
+  `--max-runtime` (default 24h). Logs, command and exit status live in
+  `~jobs/jobs/<name>/`. A finished job posts to the private ntfy topic.
+- `on-worker down` refuses while a job or a Nix build runs (`-f` overrides).
+- `network-doctor worker`, run as `jobs`, checks DNS and the PyPI index.
+
 ## Idle auto-shutdown
 
 `builder-idle-shutdown.timer` (in `default.nix`) checks every 5 min and powers
 the box off after 20 min with no established port-22 connection (no session, no
-in-flight distributed build). The stamp lives in `/run`, so a fresh boot gets a
+in-flight distributed build), no running boot prebuild and no running
+`worker-job-*` unit. The stamp lives in `/run`, so a fresh boot gets a
 full grace window before the first check.
 
 ## Zone moves

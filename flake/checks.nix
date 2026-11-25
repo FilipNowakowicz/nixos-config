@@ -1044,7 +1044,7 @@ let
     main = mainAccessInvariants ++ mainExperienceInvariants ++ mainBackupInvariants;
     "homeserver-gcp" =
       homeserverAccessInvariants ++ homeserverBackupInvariants ++ homeserverAlertDeliveryInvariants;
-    "gcp-builder" = onDemandAccessInvariants;
+    "gcp-builder" = onDemandAccessInvariants ++ [ invariants.workerJobsUserUnprivileged ];
     "gcp-worker" = onDemandAccessInvariants ++ [ invariants.workerJobsUserUnprivileged ];
   };
 
