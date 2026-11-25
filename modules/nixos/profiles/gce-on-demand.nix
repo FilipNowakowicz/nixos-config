@@ -1,4 +1,4 @@
-# What the on-demand GCE hosts (gcp-builder, gcp-worker) share on top of
+# What on-demand GCE hosts (today only gcp-builder) share on top of
 # gce-server.nix: they join the tailnet on first boot with an auth key placed at
 # provisioning time, and power themselves off once nothing has used them for a
 # while. `main` starts them with gcloud when it needs them.

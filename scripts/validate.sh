@@ -76,7 +76,7 @@ Commands:
   docs               Check formatting and Markdown links; run the static self-tests
   flake-eval         Run flake evaluation only (no builds)
   light              Build every flake check except pre-commit
-  host <name>        Build one host closure: main-ci, main, homeserver-gcp, gcp-builder, gcp-worker, installer
+  host <name>        Build one host closure: main-ci, main, homeserver-gcp, gcp-builder, installer
   hosts              Build all host system closures used in CI
   package <name>     Build one package output used in CI, or package all
   profile-test <name>
@@ -118,9 +118,6 @@ build_host() {
     ;;
   gcp-builder)
     build_attrs ".#nixosConfigurations.gcp-builder.config.system.build.toplevel"
-    ;;
-  gcp-worker)
-    build_attrs ".#nixosConfigurations.gcp-worker.config.system.build.toplevel"
     ;;
   installer)
     build_attrs ".#packages.${system}.installer-iso"
@@ -222,7 +219,6 @@ hosts)
     ".#nixosConfigurations.main-ci.config.system.build.toplevel" \
     ".#nixosConfigurations.homeserver-gcp.config.system.build.toplevel" \
     ".#nixosConfigurations.gcp-builder.config.system.build.toplevel" \
-    ".#nixosConfigurations.gcp-worker.config.system.build.toplevel" \
     ".#packages.${system}.installer-iso"
   ;;
 

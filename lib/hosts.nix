@@ -79,8 +79,6 @@ let
           # global nameserver, so without DNS it cannot resolve cache.nixos.org
           # and every offloaded closure build stalls on cache lookups.
           builder = [ 53 ];
-          # gcp-worker likewise: jobs resolve PyPI and other package indexes.
-          worker = [ 53 ];
           # External CI runners use a pre-approved tag and only need SSH for
           # the homeserver's CI maintenance/deployment surface.
           ci = [ 22 ];
@@ -90,7 +88,9 @@ let
     };
 
     # On-demand GCP Nix remote builder. Normally powered off; `main` starts it
-    # transparently for heavy builds and it shuts itself down when idle. No
+    # transparently for heavy builds and it shuts itself down when idle. It
+    # also runs `on-worker` batch jobs as the unprivileged `jobs` user, which
+    # resolve PyPI through the homeserver's `builder` DNS grant above. No
     # backup (disposable), no homeManager (headless build box). n2 family +
     # nested virtualization so it can run the KVM-backed nixos test suite.
     gcp-builder = {
@@ -105,22 +105,6 @@ let
           # can also reach the homeserver.
           ci-builder = [ 22 ];
         };
-      };
-      deploy.sshUser = "user";
-      sops = false;
-    };
-
-    # On-demand GCP batch worker for long CPU-heavy jobs from any repository,
-    # driven from `main` by `on-worker` (home/profiles/gcp-worker.nix). Normally
-    # powered off; stays up while a job runs and powers off when idle. Jobs run
-    # as the unprivileged `jobs` user. Disposable: no backup, no homeManager.
-    gcp-worker = {
-      system = "x86_64-linux";
-      status = "active";
-      tailnetFQDN = "gcp-worker.${tailnetDomain}";
-      tailscale = {
-        tag = "worker";
-        acceptFrom.workstation = [ 22 ];
       };
       deploy.sshUser = "user";
       sops = false;

@@ -88,12 +88,13 @@ files would lose precisely the private inputs in this sample.
   be SERVFAIL. A known local rewrite or filter decision would demonstrate
   recovered policy. The corrected manual AdGuard path and cutover were exercised locally with a staged marker, a symlinked destination and an intact rollback copy. GCE disk snapshots provide another rollback route whose
   creation, IAM and recovery into a replacement VM were not exercised.
-- **Workers and other copies.** The inventory predates the current worker
-  description. Its job workspace survives ordinary power-off. It has no
-  declared backup, so pull irreplaceable outputs into a protected location
-  before treating the worker as disposable. The builder can be reprovisioned.
-  No evidence was collected about independent copies in other accounts.
-  [Worker runbook](../hosts/gcp-worker/CLAUDE.md)
+- **Batch-job outputs and other copies.** `on-worker` jobs run on
+  `gcp-builder`, whose job workspaces survive ordinary power-off but have no
+  declared backup. Pull irreplaceable outputs into a protected location before
+  treating the builder as disposable; otherwise it can be reprovisioned. The
+  retired `gcp-worker` was archived to the laptop before removal (#594). No
+  evidence was collected about independent copies in other accounts.
+  [Builder runbook](../hosts/gcp-builder/CLAUDE.md#batch-jobs)
 
 ## Which failures can the checks catch?
 

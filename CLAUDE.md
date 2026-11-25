@@ -10,8 +10,7 @@ For deeper context see [`docs/architecture.md`](docs/architecture.md),
 [`docs/security.md`](docs/security.md). Host-local runbooks live
 under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
 [`hosts/homeserver-gcp/CLAUDE.md`](hosts/homeserver-gcp/CLAUDE.md),
-[`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md),
-[`hosts/gcp-worker/CLAUDE.md`](hosts/gcp-worker/CLAUDE.md).
+[`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md).
 
 ---
 
@@ -44,9 +43,8 @@ under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
   when idle. Use `bash scripts/on-builder.sh <command>` for other heavy commands.
 - **`on-worker` jobs** (long CPU-heavy work from any repo, `on-worker run -- CMD`)
   run on `gcp-builder` too, as its unprivileged `jobs` user, with builds at a
-  lower CPU weight (#592). The old `gcp-worker` VM is retired and stays stopped
-  until its host is removed; see
-  [`hosts/gcp-worker/CLAUDE.md`](hosts/gcp-worker/CLAUDE.md).
+  lower CPU weight (#592); see the Batch jobs section of
+  [`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md#batch-jobs).
 
 Module topology, persistence model, and the agent-maintenance sudo allowlist
 are documented per host under `hosts/*/CLAUDE.md`. The host registry
@@ -161,8 +159,8 @@ See [`docs/security.md`](docs/security.md) for the full secrets/exposure model.
 ## Security Preferences
 
 - **Broad passwordless sudo is for deploy/dev exceptions only.** Current broad
-  exceptions are `hosts/homeserver-gcp`, `hosts/gcp-builder` and
-  `hosts/gcp-worker` (for `user`; its `jobs` account has no sudo);
+  exceptions are `hosts/homeserver-gcp` and `hosts/gcp-builder` (for `user`;
+  the builder's `jobs` account has no sudo);
   treat SSH access as `user` to those targets as root-equivalent. `gcp-builder`
   additionally grants its trusted Nix user effective root via remote builds, so
   keep it tailnet-only and key-only.
