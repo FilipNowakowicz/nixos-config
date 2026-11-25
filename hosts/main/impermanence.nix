@@ -15,7 +15,7 @@
   # btrfs snapshot at the filesystem top-level) on every boot. Anything not
   # bind-mounted from /persist below — or living on /nix, /home, /persist —
   # is erased on reboot. The previous @root is moved to /old_roots/<ts> at
-  # the btrfs top level and kept for 30 days for forensic recovery; mount
+  # the btrfs top level and kept for 7 days for forensic recovery; mount
   # `-o subvol=/ /dev/mapper/cryptroot` somewhere to browse.
   #
   # Adding a new persistent path:

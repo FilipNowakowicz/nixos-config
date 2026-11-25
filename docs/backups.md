@@ -83,7 +83,7 @@ rollback layer with no independent disk copy and no repository password.
 Access to an encrypted source disk requires its unlock credentials.
 
 [Impermanence](../hosts/main/impermanence.nix) also retains previous ephemeral
-roots under `/old_roots/<timestamp>`, pruning entries older than 30 days on boot. The blank root used for boot
+roots under `/old_roots/<timestamp>`, pruning entries older than 7 days on boot. The blank root used for boot
 rollback is a reset baseline, not a copy of personal data. Neither mechanism
 protects against source-disk loss. No automated restore test of these snapshots
 is declared in these modules.
