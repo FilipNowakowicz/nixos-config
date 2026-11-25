@@ -1,7 +1,7 @@
 # shellcheck shell=bash disable=SC2016,SC2029
 # on-worker: run long CPU-heavy jobs from any Git checkout on the on-demand
 # gcp-builder VM, which runs them as its `jobs` user next to its builds
-# (modules/nixos/profiles/batch-jobs). Installed by home/profiles/gcp-worker.nix,
+# (modules/nixos/profiles/batch-jobs). Installed by home/profiles/on-worker.nix,
 # which sets WORKER_HOST, WORKER_VM and NOTIFY_URL_FILE above this text.
 #
 # Each checkout gets a persistent workspace on the worker, so .venv and caches
@@ -112,9 +112,9 @@ start_vm() {
   echo "on-worker: starting $WORKER_VM ..." >&2
   until output=$("${gcloud_cmd[@]}" compute instances start "$WORKER_VM" --zone "$zone" --quiet 2>&1); do
     if [[ $output == *CPUS_ALL_REGIONS* ]] && (($(date +%s) < deadline)); then
-      # The project CPU cap is shared with the homeserver and, until it is
-      # removed, the retired gcp-worker VM; either way, wait for it to free up.
-      echo "on-worker: no CPU quota free yet (is the retired gcp-worker VM running?); retrying in 60s" >&2
+      # The 16-vCPU project cap holds this VM and the homeserver; anything else
+      # running (a leftover builder zone-move probe) can take it for a while.
+      echo "on-worker: no CPU quota free yet (another VM holds it: gcloud compute instances list); retrying in 60s" >&2
       sleep 60
       continue
     fi

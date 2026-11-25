@@ -1045,7 +1045,6 @@ let
     "homeserver-gcp" =
       homeserverAccessInvariants ++ homeserverBackupInvariants ++ homeserverAlertDeliveryInvariants;
     "gcp-builder" = onDemandAccessInvariants ++ [ invariants.workerJobsUserUnprivileged ];
-    "gcp-worker" = onDemandAccessInvariants ++ [ invariants.workerJobsUserUnprivileged ];
   };
 
   # Registry policy follows the host identity. Both option metadata and values
@@ -1143,9 +1142,7 @@ let
               "workstation->server:3001"
               "workstation->server:443"
               "workstation->server:53"
-              "workstation->worker:22"
               "workstation->workstation:22"
-              "worker->server:53"
             ]
           );
         in

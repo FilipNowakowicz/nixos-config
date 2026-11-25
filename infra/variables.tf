@@ -77,21 +77,3 @@ variable "bootstrap_ssh_public_key" {
   sensitive   = true
   description = "Public SSH key installed for temporary root bootstrap access"
 }
-
-variable "worker_machine_type" {
-  description = "Machine type for the on-demand gcp-worker batch VM. It counts against the project-wide CPUS_ALL_REGIONS cap (16) while running: 14 vCPU plus the homeserver leaves no room for gcp-builder, so the two do not run at once until that quota is raised (then c2d-highcpu-16)"
-  type        = string
-  default     = "n2-custom-14-14336"
-}
-
-variable "worker_zone" {
-  description = "Zone for gcp-worker"
-  type        = string
-  default     = "europe-west2-c"
-}
-
-variable "worker_disk_size_gb" {
-  description = "gcp-worker boot disk size; holds the Nix store, job workspaces, uv caches and results"
-  type        = number
-  default     = 50
-}

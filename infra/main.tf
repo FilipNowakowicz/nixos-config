@@ -5,7 +5,7 @@ locals {
 
   # First-boot script for a fresh Debian image: installs the metadata key into a
   # temporary sudo-capable `bootstrap` account so nixos-anywhere can install.
-  # Shared by every NixOS VM provisioned here (homeserver-gcp, gcp-worker).
+  # Shared by every NixOS VM provisioned here (homeserver-gcp).
   bootstrap_startup_script = <<-EOT
     #!/bin/bash
     set -euo pipefail

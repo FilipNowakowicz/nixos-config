@@ -120,7 +120,6 @@ flowchart LR
 | `main`           | Primary workstation  | Secure Boot, LUKS, impermanent root, Hyprland, USBGuard, Restic/B2                     |
 | `homeserver-gcp` | Cloud homeserver     | AdGuard, Nginx, Grafana/Loki/Prometheus, restore canary, Tailscale ingress             |
 | `gcp-builder`    | Builder + batch jobs | Normally off, started for heavy builds and `on-worker` jobs, self-powers-off when idle |
-| `gcp-worker`     | Retired              | Stopped; jobs moved to `gcp-builder` (#592), removed in a follow-up                    |
 
 Host lifecycle status is owned by `lib/hosts.nix`; this table documents that
 registry. `installer` is a utility ISO outside the host registry.
@@ -293,7 +292,6 @@ header, and add the host's sops recipient and secrets. See
 | `main`           | `nh os switch --hostname main .` | Active impermanent workstation rebuild.                              |
 | `homeserver-gcp` | `deploy '.#homeserver-gcp'`      | Active GCP homeserver; see `scripts/deploy-gcp.sh` for provisioning. |
 | `gcp-builder`    | `deploy '.#gcp-builder'`         | On-demand remote builder; start the VM first. See its `CLAUDE.md`.   |
-| `gcp-worker`     | none                             | Retired (#592); see its `CLAUDE.md`.                                 |
 
 Agents and other non-interactive sessions switch `main` with
 `sudo nixos-switch-main [--remote]`. `scripts/deploy-gcp.sh` is for

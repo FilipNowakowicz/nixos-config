@@ -142,9 +142,9 @@ resume_builder_move() {
 }
 
 # Start the VM in its zone, leaving gcloud's output in start_output. The
-# project-wide CPU cap fits either this VM or a running gcp-worker, which powers
-# itself off once its jobs finish, so a quota refusal is retried for up to
-# BUILDER_QUOTA_WAIT seconds. The default 0 suits validate.sh, which builds
+# project-wide 16-vCPU cap holds this VM (14) and the homeserver (1); another VM
+# (a leftover zone-move probe, or something started by hand) can still take it,
+# so a quota refusal is retried for up to BUILDER_QUOTA_WAIT seconds. The default 0 suits validate.sh, which builds
 # locally instead; on-builder.sh and rebuild-remote.sh wait.
 start_output=""
 start_builder_instance() {
@@ -152,7 +152,7 @@ start_builder_instance() {
   until start_output=$("${gcloud_cmd[@]}" compute instances start "$builder_name" \
     --zone "$builder_zone" --quiet 2>&1); do
     [[ $start_output == *CPUS_ALL_REGIONS* ]] && (($(date +%s) < deadline)) || return 1
-    echo "remote builder: no CPU quota free yet (is the retired gcp-worker VM running?); retrying in 60s" >&2
+    echo "remote builder: no CPU quota free yet (another VM holds it: gcloud compute instances list); retrying in 60s" >&2
     sleep 60
   done
 }
@@ -171,7 +171,7 @@ start_builder() {
   if find_builder_zone; then
     if ! start_builder_instance; then
       if [[ $start_output == *CPUS_ALL_REGIONS* ]]; then
-        echo "remote builder: no CPU quota free (is the retired gcp-worker VM running?)" >&2
+        echo "remote builder: no CPU quota free (another VM holds it: gcloud compute instances list)" >&2
         return 1
       fi
       if [[ $start_output != *ZONE_RESOURCE_POOL_EXHAUSTED* ]]; then

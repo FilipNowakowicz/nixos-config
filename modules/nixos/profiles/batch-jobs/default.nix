@@ -1,6 +1,6 @@
 # The `on-worker` batch-job role: an unprivileged `jobs` account that runs
 # long CPU-heavy jobs from any repository, started from `main` by `on-worker`
-# (home/profiles/gcp-worker.nix). Enabled on gcp-builder, which also builds,
+# (home/profiles/on-worker.nix). Enabled on gcp-builder, which also builds,
 # so builds and jobs share one VM instead of competing for the project's CPU
 # quota (#592).
 #
