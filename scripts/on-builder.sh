@@ -23,7 +23,8 @@ fi
 if [[ ${BUILDER_READY:-0} == 1 ]]; then
   resolve_builder_fqdn
 else
-  start_builder
+  # Waiting beats failing here: there is no local fallback.
+  BUILDER_QUOTA_WAIT=${BUILDER_QUOTA_WAIT:-1800} start_builder
 fi
 
 mapfile -t ssh_opts < <(builder_ssh_opts)

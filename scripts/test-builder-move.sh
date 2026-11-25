@@ -15,6 +15,14 @@ full() { [[ " ${FULL:-} " == *" $zone "* ]]; }
 case "$2 $3" in
   "instances describe") [[ $4 == gcp-builder && $zone == "$(cat "$CLOUD.vm" 2>/dev/null)" ]] ;;
   "instances start")
+    if [[ -s $CLOUD.quota ]]; then
+      left=$(cat "$CLOUD.quota")
+      ((left > 0)) && {
+        printf '%s' $((left - 1)) >"$CLOUD.quota"
+        echo "Quota 'CPUS_ALL_REGIONS' exceeded. Limit: 16.0 globally."
+        exit 1
+      }
+    fi
     if full; then
       echo ZONE_RESOURCE_POOL_EXHAUSTED
       exit 1
@@ -101,6 +109,20 @@ if START_RC=1 run_start; then
   exit 1
 fi
 [[ $(cat "$CLOUD.vm") == europe-west2-a && ! -e $CLOUD.snap ]]
+
+# A CPU quota refusal is retried while BUILDER_QUOTA_WAIT allows, never moved.
+reset_cloud europe-west2-a
+printf 2 >"$CLOUD.quota"
+BUILDER_QUOTA_WAIT=1800 run_start europe-west2-a
+[[ $(grep -c 'instances start' "$CLOUD.log") == 3 && ! -e $CLOUD.snap ]]
+# Without a wait it fails at once, still without a move.
+reset_cloud europe-west2-a
+printf 2 >"$CLOUD.quota"
+if run_start; then
+  echo 'succeeded while the CPU quota was taken' >&2
+  exit 1
+fi
+[[ $(grep -c 'instances start' "$CLOUD.log") == 1 && ! -e $CLOUD.snap ]]
 
 # The snapshot stays if the new VM never answers.
 reset_cloud europe-west2-a

@@ -19,6 +19,8 @@ Status: **active**.
 - **CPU quota:** the project-wide `CPUS_ALL_REGIONS` cap is 16. The worker (14)
   and `gcp-builder` (8) cannot run at once. `on-worker` waits up to 30 minutes
   for the builder to power off (`ON_WORKER_QUOTA_WAIT`, seconds), and
+  `on-builder.sh`, `rebuild-remote.sh` and the homeserver deploy likewise wait
+  up to 30 minutes for the worker (`BUILDER_QUOTA_WAIT`, seconds), while
   `validate.sh` builds locally with a warning while a job holds the quota. API
   quota requests for 32 and 24 were auto-denied on 2026-11-19; once a console
   request is granted, set `worker_machine_type = "c2d-highcpu-16"` in
