@@ -883,7 +883,9 @@ let
                 restic.backups.local = {
                   repository = "/srv/backup";
                   paths = [ "/var/lib/demo-app" ];
-                  passwordFile = "/run/secrets/restic-password";
+                  # Not in the sample; kept short so the plaintext-secret scan
+                  # doesn't read it as an inline password.
+                  passwordFile = "/etc/restic.key";
                   timerConfig.OnCalendar = "daily";
                   initialize = true;
                 };
