@@ -840,6 +840,96 @@ let
     ) "profiles-base-standalone-fixture: ${builtins.toJSON evaluated}";
     pkgs.writeText "profiles-base-standalone-fixture.json" (builtins.toJSON evaluated);
 
+  # The mini-fleet example flake, its `outputs` evaluated with `nixos-fleet`
+  # bound to this checkout and the other inputs to the root pins.
+  miniFleetFlake = import ../examples/mini-fleet/flake.nix;
+  miniFleetExample = miniFleetFlake.outputs {
+    inherit (inputs) nixpkgs home-manager;
+    nixos-fleet = self;
+  };
+
+  # docs/samples/inventory.sample.json: lib/inventory-data.nix over the
+  # mini-fleet server and a synthetic registry entry. The sample shows the
+  # inventory schema on a fake host instead of tracking the personal
+  # homeserver, so it changes only when the generator, the invariants or the
+  # example change. The closure path embeds the nixpkgs revision, so it is
+  # replaced to keep weekly lock updates from touching the sample.
+  inventorySample =
+    let
+      inventory = import ../lib/inventory-data.nix {
+        inherit lib pkgs;
+        hostRegistry.server-example = {
+          system = "x86_64-linux";
+          status = "active";
+          deploy.sshUser = "deploy";
+          tailnetFQDN = "server-example.example.ts.net";
+          tailscale = {
+            tag = "server";
+            acceptFrom.workstation = [ 22 ];
+          };
+          backup.class = "standard";
+        };
+        # The example server plus what that registry entry promises: SSH and
+        # Tailscale for deploys, a tailnet-only SSH port and a Restic job.
+        allNixosConfigs.server-example = miniFleetExample.nixosConfigurations.server-example.extendModules {
+          modules = [
+            {
+              services.openssh = {
+                enable = true;
+                openFirewall = false;
+              };
+              services.tailscale.enable = true;
+              networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 22 ];
+              services.restic.backups.local = {
+                repository = "/srv/backup";
+                paths = [ "/var/lib/demo-app" ];
+                passwordFile = "/run/secrets/restic-password";
+                timerConfig.OnCalendar = "daily";
+                initialize = true;
+              };
+            }
+          ];
+        };
+      };
+      normalizeHost =
+        host:
+        host
+        // {
+          closurePath = "/nix/store/00000000000000000000000000000000-nixos-system-server-example";
+          closureSizeBytes = null;
+        };
+    in
+    pkgs.runCommand "inventory.sample.json"
+      {
+        nativeBuildInputs = [ pkgs.jq ];
+        sample = builtins.toJSON (inventory.data // { hosts = map normalizeHost inventory.data.hosts; });
+        passAsFile = [ "sample" ];
+      }
+      ''
+        jq -S . "$samplePath" > "$out"
+      '';
+
+  # The committed samples must equal what the generators produce, compared
+  # as JSON so formatting is irrelevant. Regenerate with the commands in
+  # docs/public-adoption.md#sample-artifacts.
+  docsSamples =
+    pkgs.runCommand "docs-samples"
+      {
+        nativeBuildInputs = [ pkgs.jq ];
+        acl = self.packages.${pkgs.stdenv.hostPlatform.system}.tailscale-acl;
+      }
+      ''
+        compare() {
+          if ! diff -u <(jq -S . "$2") <(jq -S . "$3"); then
+            echo "docs/samples/$1 differs from the generator; regenerate it (docs/public-adoption.md#sample-artifacts)" >&2
+            exit 1
+          fi
+        }
+        compare inventory.sample.json ${../docs/samples/inventory.sample.json} ${inventorySample}
+        compare tailscale-acl.sample.json ${../docs/samples/tailscale-acl.sample.json} "$acl"
+        touch "$out"
+      '';
+
   # Evaluates the `examples/mini-fleet` flake's own `outputs` function, with
   # its `nixos-fleet` input bound to this checkout and the other inputs to the
   # root pins. CI therefore checks the configurations the example actually
@@ -847,11 +937,8 @@ let
   # README and comments describe.
   miniFleetExampleFixture =
     let
-      exampleFlake = import ../examples/mini-fleet/flake.nix;
-      example = exampleFlake.outputs {
-        inherit (inputs) nixpkgs home-manager;
-        nixos-fleet = self;
-      };
+      exampleFlake = miniFleetFlake;
+      example = miniFleetExample;
       workstation = example.nixosConfigurations.workstation-example.config;
       server = example.nixosConfigurations.server-example.config;
       demoHome = workstation.home-manager.users.demo;
@@ -1065,6 +1152,9 @@ let
   ];
 in
 {
+  # Generated docs samples, exposed as `legacyPackages.<system>.samples.*`.
+  samples.inventory = inventorySample;
+
   invariantChecks = {
     invariants-registry-security =
       invariants.mkInvariantCheck "registry-security" registrySecurityInvariants
@@ -1111,6 +1201,7 @@ in
     public-modules-standalone = publicModulesStandalone;
     profiles-base-standalone-fixture = profilesBaseStandaloneFixture;
     mini-fleet-example-fixture = miniFleetExampleFixture;
+    docs-samples = docsSamples;
   }
   // generatedInvariantChecks
   // generatedSopsBootstrapChecks;

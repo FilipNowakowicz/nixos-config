@@ -160,6 +160,7 @@
       inherit (checkOutputs)
         ciTestsFor
         invariantChecks
+        samples
         ;
     in
     flake-parts.lib.mkFlake { inherit inputs; } {
@@ -202,6 +203,8 @@
         # both outputs, which defeats path-gating and can trip VM-test eval.
         legacyPackages.${defaultSystem} = {
           ciTests = ciTestsFor defaultSystem;
+          # `nix build .#samples.inventory` regenerates docs/samples/inventory.sample.json.
+          inherit samples;
         };
 
         # ── Reusable pure-function libraries ────────────────────────────────

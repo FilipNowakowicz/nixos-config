@@ -28,9 +28,10 @@ The reusable surface is largely shipped. Tracks 1–4 below are done unless note
   `lib/acl.nix` (the Tailscale ACL generator behind `nix run .#tailscale-acl`)
   was promoted the same way — `flake.lib.acl`, covered by the existing `lib-acl`
   boundary test and documented alongside the other two helpers.
-- **Track 2 (clean clone):** `nix run .#doctor` exists (golden-tested via
-  `lib-doctor`), alongside `inventory-json` / `tailscale-acl` apps and committed
-  sanitized samples under `docs/samples/`.
+- **Track 2 (clean clone):** `nix run .#doctor` exists (`lib-doctor` checks
+  it still explains the five promised failure modes), alongside
+  `inventory-json` / `tailscale-acl` apps and committed samples under
+  `docs/samples/`, which `docs-samples` compares with their generators.
 - **Track 3 (example fleet):** [`examples/mini-fleet`](../examples/mini-fleet)
   exists (workstation + server hosts) importing only flake outputs, with the
   `mini-fleet-example-fixture`, which evaluates the example's own outputs.
@@ -150,56 +151,46 @@ High-signal artifacts make the repo easier to link:
 
 ## Sample Artifacts
 
-Two generated, sanitized samples are committed under `docs/samples/` so
-visitors can see the shape of this fleet's generated outputs without cloning
-and building:
+Two generated samples are committed under `docs/samples/` so visitors can see
+the shape of the generated outputs without cloning and building:
 
-- [`docs/samples/inventory.sample.json`](samples/inventory.sample.json) — one
-  full host entry from `nix run .#inventory-json`, including the `drift` and
-  `health` sub-objects.
+- [`docs/samples/inventory.sample.json`](samples/inventory.sample.json) — the
+  inventory schema for one synthetic host, including the `drift` and `health`
+  sub-objects.
 - [`docs/samples/tailscale-acl.sample.json`](samples/tailscale-acl.sample.json) —
-  the complete `nix run .#tailscale-acl` output.
+  the complete `nix run .#tailscale-acl` output for this fleet.
 
-### Why sanitize, and how it stays reproducible
+The `docs-samples` check (`bash scripts/validate.sh light`) compares both
+files with their generators as JSON, so a stale sample fails CI.
+
+### How each sample is generated
 
 `apps.tailscale-acl` only ever emits `tagOwners` and tag-to-tag `acls` (see
-[`docs/tailscale-acl.md`](tailscale-acl.md)) — no hostnames, keys, or per-node
-identifiers — so its sample is committed verbatim from `nix run .#tailscale-acl`.
+[`docs/tailscale-acl.md`](tailscale-acl.md)), with no hostnames, keys, or
+per-node identifiers, so its sample is the real fleet output, verbatim. It
+changes when a host's Tailscale tag or `acceptFrom` changes, which is the
+point of committing it.
 
-`apps.inventory-json` does carry fleet-private values: real Nix store hash
-prefixes in `closurePath` and this fleet's real Tailscale tailnet suffix in
-`drift.tailnetFQDN` (see [`docs/host-registry.md`](host-registry.md)). Those are
-the only two value shapes in the export that are private; everything else
-(`name`, `system`, `services`, `health`, port lists, …) is already either public
-fleet structure or copied from `lib/host-registry.nix`'s own `example.ts.net`
-convention.
+`apps.inventory-json` describes the real hosts, including store paths, the
+real tailnet suffix, backup paths and the current nixpkgs revision. A sample
+taken from it changed with almost every host edit. The committed sample
+instead runs the same generator, `lib/inventory-data.nix`, over the
+[`examples/mini-fleet`](../examples/mini-fleet) server with a synthetic
+registry entry (`server-example.example.ts.net`, an SSH-over-Tailscale deploy
+and one Restic job). Its closure path is a fixed placeholder, so flake lock
+updates do not touch it. It changes when the inventory schema, the
+invariants, or the example change.
 
-The sample is regenerated with a value-pattern substitution, not a hand edit,
-so it stays reproducible against any clone regardless of that clone's real
-identifiers:
+Regenerate after such a change:
 
 ```bash
-nix run .#inventory-json | jq -S '
-  .hosts |= [.[] | select(.name == "homeserver-gcp")]
-  | .hosts |= map(
-      .closurePath |= sub("/nix/store/[a-z0-9]{32}-";
-                          "/nix/store/00000000000000000000000000000000-")
-      | .drift.tailnetFQDN |= sub("\\.tail[0-9a-f]+\\.ts\\.net$"; ".example.ts.net")
-    )
-' > docs/samples/inventory.sample.json
-
+cp "$(nix build --no-link --print-out-paths .#samples.inventory)" docs/samples/inventory.sample.json
 nix run .#tailscale-acl | jq -S . > docs/samples/tailscale-acl.sample.json
-
 nix fmt  # treefmt reformats the generated JSON to the repo's canonical style
 ```
 
-The `jq` filter matches store-hash and tailnet-suffix _patterns_, not this
-fleet's specific values, so running it again — here or against a fork with
-different real identifiers — produces the same sanitized shape. The trailing
-`nix fmt` keeps the committed JSON identical to what `nix fmt -- --fail-on-change`
-expects in CI. Both commands are checked by `lib-scan-plaintext-secrets`
-(`bash scripts/validate.sh light`), which scans every tracked file for
-credential-shaped strings.
+Both files are also covered by `lib-scan-plaintext-secrets`, which scans every
+tracked file for credential-shaped strings.
 
 ## Extraction Candidate Survey (#127)
 

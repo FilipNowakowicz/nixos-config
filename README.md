@@ -69,13 +69,14 @@ of the host directories:
    truth.
 
 Want to see what the registry pattern produces before adopting it? Two
-generated, sanitized samples are committed and reproducible from a clean clone:
+generated samples are committed, and CI checks that they match their
+generators:
 [`docs/samples/inventory.sample.json`](docs/samples/inventory.sample.json)
-(`nix run .#inventory-json`) and
+(the `nix run .#inventory-json` schema for a synthetic host) and
 [`docs/samples/tailscale-acl.sample.json`](docs/samples/tailscale-acl.sample.json)
-(`nix run .#tailscale-acl`) — see
-[`docs/public-adoption.md`](docs/public-adoption.md#sample-artifacts) for the
-exact regeneration command.
+(`nix run .#tailscale-acl`). See
+[`docs/public-adoption.md`](docs/public-adoption.md#sample-artifacts) for how
+to regenerate them.
 
 Treat `hosts/` as reference implementation: disk layouts, hardware configs,
 hostnames, secrets, and deploy targets are intentionally personal. Issues and

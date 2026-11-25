@@ -5,9 +5,10 @@ set -euo pipefail
 # this repo. It runs the same clean-clone checks `merge-gate` relies on, but
 # explains each section in plain terms so a public reader can tell a real
 # problem from noise — without needing private fleet context, secrets, or
-# hardware. Keep section names and their explanations stable: a golden check
-# (`tests/lib/doctor.nix`) asserts this banner contract so it can't drift
-# silently. If you rename or add a section here, update that fixture too.
+# hardware. `tests/lib/doctor.nix` checks that the sections still explain the
+# five failure modes the README promises (missing Nix, unsupported platform,
+# broken doc links, evaluation errors, dirty formatting); section names and
+# order are free to change.
 
 repo_root="$(
   git rev-parse --show-toplevel 2>/dev/null || pwd
@@ -94,7 +95,8 @@ flake/checks.nix or the named test under tests/ to see what it asserts."
     "Builds the inventory-data package (the generator that produces the
 sanitized inventory JSON). A failure here means the generator itself
 (lib/hosts.nix or the inventory-json app) is broken — not that the committed
-docs/samples/inventory.sample.json has drifted from live output."
+docs/samples/inventory.sample.json is stale; the light suite's docs-samples
+check compares the committed samples with their generators."
   run bash scripts/validate.sh package inventory-data
 fi
 
