@@ -1,31 +1,26 @@
 {
   "hosts": [
     {
-      "backupClass": "critical",
-      "closurePath": "/nix/store/00000000000000000000000000000000-nixos-system-homeserver-gcp-26.11.20261103.1d06008",
+      "backupClass": "standard",
+      "closurePath": "/nix/store/00000000000000000000000000000000-nixos-system-server-example",
       "closureSizeBytes": null,
-      "deployUser": "user",
+      "deployUser": "deploy",
       "deployable": true,
       "drift": {
-        "expectedExtraTCPPorts": [80, 22000],
+        "expectedExtraTCPPorts": [],
         "strictTCPPortSet": true,
         "systemdUnits": [
           "sshd.service",
           "tailscaled.service",
-          "nginx.service",
-          "adguardhome.service",
-          "grafana.service",
-          "loki.service",
-          "prometheus.service",
-          "alertmanager.service"
+          "prometheus.service"
         ],
-        "tailnetFQDN": "homeserver-gcp.example.ts.net",
+        "tailnetFQDN": "server-example.example.ts.net",
         "tailscaleTag": "server",
-        "tcpPorts": [22, 53, 443, 3001]
+        "tcpPorts": [22]
       },
       "health": {
         "invariantFailed": 0,
-        "invariantPassed": 13,
+        "invariantPassed": 9,
         "invariantResults": [
           {
             "message": "system.stateVersion has an explicit definition",
@@ -38,33 +33,13 @@
             "passed": true
           },
           {
+            "message": "Removed observability services enabled: . See docs/observability-stack.md#decision-minimal-personal-server-stack; revisiting requires a new reason.",
+            "name": "registry hosts keep the minimal observability stack",
+            "passed": true
+          },
+          {
             "message": "profiles.observability.ingestAuth.username must be 'telemetry', got 'telemetry'",
             "name": "observability client uses canonical ingest username",
-            "passed": true
-          },
-          {
-            "message": "security.sudo.wheelNeedsPassword must be false (deploy-rs needs passwordless sudo; access is SSH-key-only over Tailscale)",
-            "name": "passwordless sudo enabled",
-            "passed": true
-          },
-          {
-            "message": "networking.firewall.enable must be true",
-            "name": "firewall enabled",
-            "passed": true
-          },
-          {
-            "message": "sops.age.sshKeyPaths must contain at least one SSH host key path",
-            "name": "sops uses SSH host key for decryption",
-            "passed": true
-          },
-          {
-            "message": "ports are not globally open",
-            "name": "SSH and HTTPS are not globally open",
-            "passed": true
-          },
-          {
-            "message": "ports are restricted to tailscale0",
-            "name": "SSH and HTTPS stay Tailscale-only",
             "passed": true
           },
           {
@@ -95,49 +70,45 @@
         ],
         "invariantStatus": "pass"
       },
-      "homeManagerRole": "server",
+      "homeManagerRole": null,
       "impermanence": false,
-      "name": "homeserver-gcp",
+      "name": "server-example",
       "openTCPPorts": [],
-      "openUDPPorts": [41641],
+      "openUDPPorts": [],
       "resticBackups": [
         {
           "initialize": true,
-          "name": "b2",
-          "paths": [
-            "/var/lib/grafana",
-            "/var/lib/restic-backup-canary",
-            "/var/lib/restic-staging/adguardhome"
-          ],
-          "repository": null,
+          "name": "local",
+          "paths": ["/var/lib/demo-app"],
+          "repository": "/srv/backup",
           "timer": "daily"
         }
       ],
       "services": {
-        "adguard": true,
+        "adguard": false,
+        "alertmanager": false,
         "fail2ban": true,
         "firewall": true,
-        "grafana": true,
+        "grafana": false,
         "hyprland": false,
         "lanzaboote": false,
-        "loki": true,
-        "prometheus": true,
-        "nginx": true,
-        "observabilityClient": false,
+        "loki": false,
+        "nginx": false,
+        "observabilityClient": true,
         "observabilityStack": true,
         "openssh": true,
+        "prometheus": true,
         "restic": true,
         "syncthing": false,
         "tailscale": true,
-        "alertmanager": true,
         "usbguard": false
       },
-      "stateVersion": "24.11",
+      "stateVersion": "26.05",
       "status": "active",
       "system": "x86_64-linux",
-      "tailscaleTCPPorts": [22, 53, 443, 3001],
+      "tailscaleTCPPorts": [22],
       "tailscaleTracked": true,
-      "tailscaleUDPPorts": [53],
+      "tailscaleUDPPorts": [],
       "topology": {
         "acceptedRoutes": [],
         "aclTags": ["tag:server"],
@@ -147,14 +118,7 @@
           "usesHost": null
         }
       },
-      "trackedServices": [
-        "adguard",
-        "nginx",
-        "grafana",
-        "loki",
-        "prometheus",
-        "alertmanager"
-      ]
+      "trackedServices": []
     }
   ],
   "inventoryContract": {
