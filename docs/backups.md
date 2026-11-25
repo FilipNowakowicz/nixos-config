@@ -53,12 +53,15 @@ Its complete configured path list is:
   `ssh/ssh_host_ed25519_key.pub`, `NetworkManager/system-connections`, and
   `mullvad-vpn`.
 - Under `/var/lib`: `tailscale`, `bluetooth`, `fprint`, `tudor`, `sbctl`,
-  `usbguard`, and `libvirt` (including VM definitions and disk images).
+  and `usbguard`.
 
 Exclusions: gcloud `access_tokens.db`, `credentials.db`, `logs`, and
-`legacy_credentials`; libvirt `images/*.iso`, `images/*.snap`, and
-`qemu/{save,dump,ram,snapshot}`. These are deliberate exclusions, not additional
-backup destinations.
+`legacy_credentials`. These are deliberate exclusions, not additional backup
+destinations.
+
+VM images are deliberately not backed up. Whonix (`/var/lib/libvirt`) and the
+user-session Kali VM (`~/.local/share/kali-vm`) are near-default images that
+can be re-downloaded, so they persist locally only.
 
 **Verification:** `restic-check-local` runs weekly, persistent, with up to two
 hours of random delay, and checks repository structure plus a 1 GiB data sample.

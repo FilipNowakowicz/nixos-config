@@ -439,9 +439,9 @@ Backblaze B2 off-site backups.
 persistent identities needed after a full reinstall: Codex and Claude state,
 Wi-Fi profiles, Mullvad account/device state, Tailscale node identity,
 Bluetooth pairings, fingerprint enrollment state, USBGuard rules, Secure Boot
-PKI, machine-id, SSH host identity, and libvirt/Whonix VM state. Large or
-volatile libvirt artifacts such as ISOs, snapshots, save/dump images, and RAM
-state are excluded.
+PKI, machine-id, and SSH host identity. VM images (Whonix in
+`/var/lib/libvirt`, Kali in `~/.local/share/kali-vm`) are re-downloadable and
+persist locally only; they are not backed up.
 
 ## Mullvad and Tailscale Coexistence
 
@@ -479,9 +479,9 @@ Gateway before Workstation; updates run inside the VMs as `sysmaint` using
 `upgrade-nonroot` (the `user-sysmaint-split` feature blocks `sudo` from the
 normal `user` account).
 
-The main B2 restic backup includes `/var/lib/libvirt` so the configured VMs can
-survive disk loss; installer ISOs, transient snapshots, and runtime
-save/dump/RAM artifacts are excluded from that backup.
+The VMs are not in the B2 restic backup. They are near-default images that can
+be re-downloaded, so `/var/lib/libvirt` persists locally only; after disk loss,
+reinstall Whonix from upstream.
 
 Whonix is kept **persistent** on purpose — it is the configured, updated
 anonymity appliance, not throwaway. That means Tor Browser state accumulates
