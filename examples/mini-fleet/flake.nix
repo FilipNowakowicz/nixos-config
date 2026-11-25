@@ -70,15 +70,11 @@
               ];
             }
             {
-              # Layer 2: ship telemetry to a remote observability stack — no
-              # local Grafana/Loki/Prometheus on this host. `observability-client`
-              # configures the *option surface* defined by `observability-stack`
-              # (the two are documented together in docs/observability-stack.md),
-              # so both modules are imported even though only the client is enabled.
-              imports = [
-                nixos-fleet.nixosModules.observability-stack
-                nixos-fleet.nixosModules.observability-client
-              ];
+              # Layer 2: ship telemetry to a remote observability stack. The
+              # client brings in the stack module it configures and turns on
+              # only the collectors: a local Prometheus that remote-writes
+              # metrics and Alloy for logs. Grafana and Loki stay off.
+              imports = [ nixos-fleet.nixosModules.observability-client ];
             }
           ];
         };

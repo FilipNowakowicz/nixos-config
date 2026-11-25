@@ -840,71 +840,82 @@ let
     ) "profiles-base-standalone-fixture: ${builtins.toJSON evaluated}";
     pkgs.writeText "profiles-base-standalone-fixture.json" (builtins.toJSON evaluated);
 
-  # Evaluates both `examples/mini-fleet` hosts against nixpkgs only — the same
-  # `nixosModules.*` paths the example's own `flake.nix` imports as public
-  # flake outputs, never `hosts/`. Mirrors the `servicesHardenedExampleFixture`
-  # / `observability-*-fixture` pattern: prove the copyable example evaluates
-  # standalone so it cannot silently rot when a layered module changes.
+  # Evaluates the `examples/mini-fleet` flake's own `outputs` function, with
+  # its `nixos-fleet` input bound to this checkout and the other inputs to the
+  # root pins. CI therefore checks the configurations the example actually
+  # defines, not a copy of its module list, and asserts the behaviour its
+  # README and comments describe.
   miniFleetExampleFixture =
     let
-      workstation = lib.nixosSystem {
-        system = pkgs.stdenv.hostPlatform.system;
-        modules = [
-          ../examples/mini-fleet/hosts/workstation-example
-          ../modules/nixos/profiles/desktop.nix
-          ../modules/nixos/profiles/security.nix
-          inputs.home-manager.nixosModules.home-manager
-          {
-            home-manager = {
-              useGlobalPkgs = true;
-              useUserPackages = true;
-              users.demo = {
-                home.stateVersion = "26.05";
-                imports = [ ../home/profiles/base.nix ];
-              };
-            };
-          }
-        ];
+      exampleFlake = import ../examples/mini-fleet/flake.nix;
+      example = exampleFlake.outputs {
+        inherit (inputs) nixpkgs home-manager;
+        nixos-fleet = self;
       };
-      workstationToplevel = builtins.tryEval (
-        builtins.deepSeq workstation.config.system.build.toplevel.drvPath true
-      );
-      server = lib.nixosSystem {
-        system = pkgs.stdenv.hostPlatform.system;
-        modules = [
-          ../examples/mini-fleet/hosts/server-example
-          ../modules/nixos/services/hardened.nix
-          ../modules/nixos/profiles/security.nix
-          ../modules/nixos/profiles/observability
-          ../modules/nixos/profiles/observability-client.nix
-        ];
-      };
-      serverToplevel = builtins.tryEval (
-        builtins.deepSeq server.config.system.build.toplevel.drvPath true
-      );
+      workstation = example.nixosConfigurations.workstation-example.config;
+      server = example.nixosConfigurations.server-example.config;
+      demoHome = workstation.home-manager.users.demo;
       evaluated = {
-        workstationHostName = workstation.config.networking.hostName;
-        workstationHasDesktop = workstation.config.programs.hyprland.enable;
-        workstationFirewallEnabled = workstation.config.networking.firewall.enable;
-        workstationHomeHasBasePackages = workstation.config.home-manager.users.demo.home.packages != [ ];
-        workstationToplevelBuildable = workstationToplevel.success;
-        serverToplevelBuildable = serverToplevel.success;
-        serverHostName = server.config.networking.hostName;
-        serverServiceCapabilityBoundingSet =
-          server.config.systemd.services.demo-app.serviceConfig.CapabilityBoundingSet;
-        serverMetricsURL = (builtins.head server.config.services.prometheus.remoteWrite).url;
+        upstreamURL = exampleFlake.inputs.nixos-fleet.url;
+        hostNames = map (c: c.networking.hostName) [
+          workstation
+          server
+        ];
+        workstation = {
+          desktop = workstation.programs.hyprland.enable;
+          # Set by profiles-security, not NixOS defaults.
+          security = workstation.services.fail2ban.enable && workstation.networking.nftables.enable;
+          # homeModules.profiles-base installs the core CLI set.
+          homeHasRipgrep = builtins.any (p: (p.pname or "") == "ripgrep") demoHome.home.packages;
+        };
+        server = {
+          security = server.services.fail2ban.enable && server.networking.nftables.enable;
+          demoAppCapabilities = server.systemd.services.demo-app.serviceConfig.CapabilityBoundingSet;
+          demoAppPrivateTmp = server.systemd.services.demo-app.serviceConfig.PrivateTmp;
+          # Shipping only: local Prometheus remote-writes, Alloy ships logs,
+          # and neither Grafana nor Loki runs here.
+          prometheus = server.services.prometheus.enable;
+          metricsURL = (builtins.head server.services.prometheus.remoteWrite).url;
+          alloy = server.services.alloy.enable;
+          grafana = server.services.grafana.enable;
+          loki = server.services.loki.enable;
+        };
       };
+      expected = {
+        upstreamURL = "github:FilipNowakowicz/nixos-config";
+        hostNames = [
+          "workstation-example"
+          "server-example"
+        ];
+        workstation = {
+          desktop = true;
+          security = true;
+          homeHasRipgrep = true;
+        };
+        server = {
+          security = true;
+          demoAppCapabilities = "";
+          demoAppPrivateTmp = true;
+          prometheus = true;
+          metricsURL = "https://observability.example.ts.net/ingest/metrics";
+          alloy = true;
+          grafana = false;
+          loki = false;
+        };
+      };
+      # Forcing the toplevels runs every NixOS assertion on both hosts; the
+      # Home Manager activation proves the layered user config evaluates.
+      derivations = map builtins.unsafeDiscardStringContext [
+        workstation.system.build.toplevel.drvPath
+        server.system.build.toplevel.drvPath
+        demoHome.home.activationPackage.drvPath
+      ];
     in
-    if !workstationToplevel.success then
-      throw "mini-fleet example fixture: workstation system.build.toplevel failed to evaluate (e.g. failing NixOS assertions)"
-    else if !serverToplevel.success then
-      throw "mini-fleet example fixture: server system.build.toplevel failed to evaluate (e.g. failing NixOS assertions)"
-    else if evaluated.serverMetricsURL != "https://observability.example.ts.net/ingest/metrics" then
-      throw "mini-fleet example fixture: unexpected server metrics URL ${evaluated.serverMetricsURL}"
-    else if evaluated.serverServiceCapabilityBoundingSet != "" then
-      throw "mini-fleet example fixture: demo-app must drop all capabilities"
-    else
-      pkgs.writeText "mini-fleet-example-fixture.json" (builtins.toJSON evaluated);
+    assert lib.assertMsg (evaluated == expected)
+      "mini-fleet-example-fixture: expected ${builtins.toJSON expected}, got ${builtins.toJSON evaluated}";
+    pkgs.writeText "mini-fleet-example-fixture.json" (
+      builtins.toJSON (evaluated // { inherit derivations; })
+    );
 
   mkSopsBootstrapCheck =
     hostName: secretsDir:

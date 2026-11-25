@@ -32,8 +32,9 @@
   };
 
   # ── Remote observability client ─────────────────────────────────────────
-  # No local Grafana/Loki/Prometheus — this host only ships telemetry to a
-  # remote stack (layered in at the flake level via `observability-client`).
+  # No local Grafana or Loki: a local Prometheus scrapes this host and
+  # remote-writes the metrics, and Alloy ships the logs (layered in at the
+  # flake level via `observability-client`).
   # The endpoint below is an `.example.` placeholder, never a live tailnet host.
   profiles.observability-client = {
     enable = true;
