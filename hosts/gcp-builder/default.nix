@@ -10,6 +10,7 @@
     ./disko.nix
     ../../modules/nixos/profiles/gce-server.nix
     ../../modules/nixos/profiles/gce-on-demand.nix
+    ../../modules/nixos/profiles/batch-jobs
   ];
 
   system = {
@@ -18,7 +19,9 @@
 
   # gce-server.nix grants broad passwordless sudo and trusts `user` for remote
   # builds, so SSH/build access here is root-equivalent. This is a disposable,
-  # on-demand build box, not a service host.
+  # on-demand build box, not a service host. It also runs `on-worker` batch
+  # jobs as the unprivileged `jobs` user (profiles.batchJobs), so builds and
+  # jobs share one VM instead of competing for the project CPU quota (#592).
 
   networking = {
     hostName = "gcp-builder";
@@ -46,20 +49,25 @@
     };
   };
 
-  profiles.gceOnDemand = {
-    enable = true;
-    name = "builder";
-    tag = "builder";
-    # A boot prebuild has no SSH connection. Its systemd start timeout bounds
-    # this inhibition to three hours (plus termination grace).
-    busyCheck = ''
-      case "$(${pkgs.systemd}/bin/systemctl show builder-prebuild.service --property=ActiveState --value)" in
-        activating|active|deactivating)
-          mark_active
-          exit 0
-          ;;
-      esac
-    '';
+  profiles = {
+    # Its busy check (a running job keeps the VM up) merges with the one below.
+    batchJobs.enable = true;
+
+    gceOnDemand = {
+      enable = true;
+      name = "builder";
+      tag = "builder";
+      # A boot prebuild has no SSH connection. Its systemd start timeout bounds
+      # this inhibition to three hours (plus termination grace).
+      busyCheck = ''
+        case "$(${pkgs.systemd}/bin/systemctl show builder-prebuild.service --property=ActiveState --value)" in
+          activating|active|deactivating)
+            mark_active
+            exit 0
+            ;;
+        esac
+      '';
+    };
   };
 
   # Key-only login. No sops on this host, so no console/recovery password is

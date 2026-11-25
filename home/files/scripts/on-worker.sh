@@ -1,6 +1,7 @@
 # shellcheck shell=bash disable=SC2016,SC2029
 # on-worker: run long CPU-heavy jobs from any Git checkout on the on-demand
-# gcp-worker VM (hosts/gcp-worker). Installed by home/profiles/gcp-worker.nix,
+# gcp-builder VM, which runs them as its `jobs` user next to its builds
+# (modules/nixos/profiles/batch-jobs). Installed by home/profiles/gcp-worker.nix,
 # which sets WORKER_HOST, WORKER_VM and NOTIFY_URL_FILE above this text.
 #
 # Each checkout gets a persistent workspace on the worker, so .venv and caches
@@ -111,9 +112,9 @@ start_vm() {
   echo "on-worker: starting $WORKER_VM ..." >&2
   until output=$("${gcloud_cmd[@]}" compute instances start "$WORKER_VM" --zone "$zone" --quiet 2>&1); do
     if [[ $output == *CPUS_ALL_REGIONS* ]] && (($(date +%s) < deadline)); then
-      # The project CPU cap fits either the worker or gcp-builder, which
-      # powers itself off after 20 idle minutes.
-      echo "on-worker: no CPU quota free yet (gcp-builder is probably running); retrying in 60s" >&2
+      # The project CPU cap is shared with the homeserver and, until it is
+      # removed, the retired gcp-worker VM; either way, wait for it to free up.
+      echo "on-worker: no CPU quota free yet (is the retired gcp-worker VM running?); retrying in 60s" >&2
       sleep 60
       continue
     fi
@@ -304,6 +305,10 @@ cmd_down() {
   if reachable && ((! force)); then
     if remote 'systemctl --user list-units --state=active --no-legend "worker-job-*" | grep -q .'; then
       die "a job is still running (on-worker status); use down -f to power off anyway"
+    fi
+    # The VM also builds for main and CI; build users own running builds.
+    if remote 'ps -eo user= | grep -q "^nixbld"'; then
+      die "a Nix build is running on $WORKER_VM; use down -f to power off anyway"
     fi
   fi
   resolve_gcloud

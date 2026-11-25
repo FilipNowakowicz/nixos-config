@@ -42,10 +42,10 @@ under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
   Nix remote builder, not a service host — `scripts/validate.sh` runs on it
   automatically, `rebuild --remote` builds `main` on it, and it self-powers-off
   when idle. Use `bash scripts/on-builder.sh <command>` for other heavy commands.
-- **`gcp-worker`:** `deploy '.#gcp-worker'` after `on-worker start`. An on-demand
-  batch VM for long CPU-heavy jobs from any repo (`on-worker run -- CMD`), not a
-  builder. Jobs run as the unprivileged `jobs` user. It and `gcp-builder` do not
-  fit the project CPU quota at the same time. See
+- **`on-worker` jobs** (long CPU-heavy work from any repo, `on-worker run -- CMD`)
+  run on `gcp-builder` too, as its unprivileged `jobs` user, with builds at a
+  lower CPU weight (#592). The old `gcp-worker` VM is retired and stays stopped
+  until its host is removed; see
   [`hosts/gcp-worker/CLAUDE.md`](hosts/gcp-worker/CLAUDE.md).
 
 Module topology, persistence model, and the agent-maintenance sudo allowlist

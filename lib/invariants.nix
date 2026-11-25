@@ -862,10 +862,10 @@ rec {
       ) "password material configured for login user(s): ${formatList offenders}";
   };
 
-  # gcp-worker runs arbitrary project code as `jobs`; keep that account off
+  # on-worker hosts run arbitrary project code as `jobs`; keep that account off
   # every root-equivalent path (wheel/sudo, Nix daemon trust).
   workerJobsUserUnprivileged = {
-    name = "gcp-worker jobs user stays unprivileged";
+    name = "on-worker jobs user stays unprivileged";
     check =
       cfg:
       let

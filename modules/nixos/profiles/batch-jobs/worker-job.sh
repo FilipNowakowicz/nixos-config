@@ -15,7 +15,7 @@ date +%s >"$dir/started"
 notify() {
   local url_file="$HOME/.config/worker/notify-url"
   [[ -r $url_file ]] || return 0
-  curl -fsS -m 10 -H "Title: gcp-worker: $name" -d "$1" "$(<"$url_file")" >/dev/null 2>&1 || true
+  curl -fsS -m 10 -H "Title: on-worker: $name" -d "$1" "$(<"$url_file")" >/dev/null 2>&1 || true
 }
 
 # systemd stops the unit with SIGTERM to the whole cgroup (on-worker stop, or

@@ -52,7 +52,8 @@ appropriate instead of adding machine-specific linker paths to the project.
 
 On `main`, run long CPU-bound work (calibrations, simulations, parameter
 sweeps, large test matrices: anything over a few minutes at high CPU) on the
-on-demand `gcp-worker` VM with `on-worker`, not on the laptop. It has 14 vCPUs.
+on-demand `gcp-builder` VM with `on-worker`, not on the laptop. It has 14 vCPUs,
+shared with Nix builds for the fleet, which run at a lower CPU priority.
 Keep short commands and quick tests local, since starting the VM adds about a
 minute.
 

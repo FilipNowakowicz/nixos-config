@@ -1,5 +1,6 @@
 # `on-worker`: run long CPU-heavy jobs from any Git checkout on the on-demand
-# gcp-worker VM instead of this laptop. See hosts/gcp-worker/CLAUDE.md.
+# gcp-builder VM instead of this laptop; it runs jobs as the unprivileged
+# `jobs` user next to its builds (#592). See hosts/gcp-builder/CLAUDE.md.
 {
   config,
   lib,
@@ -30,8 +31,8 @@ let
       rsync
     ];
     text = ''
-      WORKER_HOST=${lib.escapeShellArg hostRegistry.gcp-worker.tailnetFQDN}
-      WORKER_VM=gcp-worker
+      WORKER_HOST=${lib.escapeShellArg hostRegistry.gcp-builder.tailnetFQDN}
+      WORKER_VM=gcp-builder
       NOTIFY_URL_FILE=${lib.escapeShellArg notifyUrlFile}
     ''
     + builtins.readFile ../files/scripts/on-worker.sh;

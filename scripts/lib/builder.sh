@@ -6,13 +6,15 @@ builder_name="gcp-builder"
 # Set BUILDER_ZONE to skip the lookup; start_builder otherwise finds the VM.
 builder_zone="${BUILDER_ZONE:-}"
 builder_zones=(europe-west2-a europe-west2-b europe-west2-c)
-builder_machine_type="n2-standard-8"
+# 14 vCPU leaves 1 of the 16-vCPU CPUS_ALL_REGIONS cap for the homeserver; it
+# also runs on-worker jobs (#592). 32 GB, as the n2-standard-8 it replaced had.
+builder_machine_type="n2-custom-14-32768"
 builder_probe="gcp-builder-probe"
 # Doubles as a lock: snapshot names are unique, so only one move can begin.
 builder_snapshot="gcp-builder-move"
 builder_fqdn="${BUILDER_FQDN:-}"
 builder_key="${BUILDER_SSH_KEY:-/run/secrets/gcp_builder_build_key}" # root-owned on main; daemon reads it
-builder_maxjobs="${BUILDER_MAXJOBS:-8}"
+builder_maxjobs="${BUILDER_MAXJOBS:-14}"
 builder_features="kvm,nixos-test,big-parallel,benchmark"
 gcloud_cmd=()
 
@@ -150,7 +152,7 @@ start_builder_instance() {
   until start_output=$("${gcloud_cmd[@]}" compute instances start "$builder_name" \
     --zone "$builder_zone" --quiet 2>&1); do
     [[ $start_output == *CPUS_ALL_REGIONS* ]] && (($(date +%s) < deadline)) || return 1
-    echo "remote builder: no CPU quota free yet (gcp-worker is probably running); retrying in 60s" >&2
+    echo "remote builder: no CPU quota free yet (is the retired gcp-worker VM running?); retrying in 60s" >&2
     sleep 60
   done
 }
@@ -169,7 +171,7 @@ start_builder() {
   if find_builder_zone; then
     if ! start_builder_instance; then
       if [[ $start_output == *CPUS_ALL_REGIONS* ]]; then
-        echo "remote builder: no CPU quota free (is gcp-worker running a job? see on-worker status)" >&2
+        echo "remote builder: no CPU quota free (is the retired gcp-worker VM running?)" >&2
         return 1
       fi
       if [[ $start_output != *ZONE_RESOURCE_POOL_EXHAUSTED* ]]; then
