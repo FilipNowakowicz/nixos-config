@@ -33,7 +33,7 @@ The reusable surface is largely shipped. Tracks 1–4 below are done unless note
   sanitized samples under `docs/samples/`.
 - **Track 3 (example fleet):** [`examples/mini-fleet`](../examples/mini-fleet)
   exists (workstation + server hosts) importing only flake outputs, with the
-  `lib-mini-fleet-flake` static check and `mini-fleet-example-fixture`.
+  `mini-fleet-example-fixture`, which evaluates the example's own outputs.
 - **Track 4 (artifacts) + README:** the front page leads with the reusable-module
   table, a "what to copy first" section, and `nix run .#doctor`.
 

@@ -62,9 +62,10 @@ from its canonical source (e.g. `lib/hosts.nix`, flake outputs) rather than
 hardcoding it, so a new entry is covered automatically instead of silently
 rotting the check open.
 
-See `tests/lib/doctor.nix` (section/keyword/order assertions plus a
-host-denylist derived from `lib/hosts.nix`) and `tests/lib/mini-fleet-flake.nix`
-(derives the expected output list from `flake.nix`) for worked examples.
+See `tests/lib/doctor.nix` (a host denylist derived from `lib/hosts.nix`) for a
+worked example. Prefer evaluating the real Nix value over grepping its source
+when one exists: `mini-fleet-example-fixture` evaluates the example flake's
+outputs instead of searching it for attribute names.
 
 ## Operational gotchas
 

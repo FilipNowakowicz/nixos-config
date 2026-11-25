@@ -23,7 +23,7 @@ not a public contract.
 | Host                  | Shape            | Layers (public `nixosModules.*` / `homeModules.*`)                                         |
 | --------------------- | ---------------- | ------------------------------------------------------------------------------------------ |
 | `workstation-example` | workstation-like | `profiles-desktop`, `profiles-security`, plus `homeModules.profiles-base` via Home Manager |
-| `server-example`      | server-like      | `services-hardened`, `profiles-security`, `observability-stack` + `observability-client`   |
+| `server-example`      | server-like      | `services-hardened`, `profiles-security`, `observability-client`                           |
 
 The split mirrors the real fleet's shape: a desktop machine layers a UI
 profile and a Home Manager user config on top of a shared security baseline; a
@@ -52,11 +52,21 @@ The whole tree is covered by the `lib-scan-plaintext-secrets` check (see
 
 ## Proving it doesn't rot
 
-`flake/checks.nix` evaluates both hosts directly against `nixpkgs` (no
-`hosts/` import — see the `services-hardened-example-fixture` /
-`observability-*-fixture` checks for the established pattern this reuses), so
-a breaking change to any of the layered modules fails CI here before it could
-ever reach a real host.
+`mini-fleet-example-fixture` in `flake/checks.nix` calls this flake's own
+`outputs` function, with `nixos-fleet` bound to the repository checkout and the
+other inputs to the root flake's pins. It evaluates both system toplevels and
+the demo user's Home Manager activation, and asserts what this page and the
+host comments describe:
+
+- the workstation runs the Hyprland desktop and the security baseline
+  (fail2ban, nftables), and its Home Manager user gets the base CLI set;
+- the server confines `demo-app` with no capabilities and a private `/tmp`;
+- the server ships telemetry only: a local Prometheus remote-writes to the
+  placeholder endpoint and Alloy ships logs, while Grafana and Loki stay off;
+- `inputs.nixos-fleet.url` still points at this repository.
+
+A breaking change to any layered module therefore fails CI here before it
+could reach a real host. `bash scripts/validate.sh light` runs it.
 
 ## Adapting the pattern for real use
 
