@@ -78,7 +78,7 @@ in
             btrfs subvolume delete "$1"
           }
 
-          for i in $(find ${oldRootsPath}/ -maxdepth 1 -mtime +30 2>/dev/null || true); do
+          for i in $(find ${oldRootsPath}/ -maxdepth 1 -mtime +7 2>/dev/null || true); do
             delete_subvolume_recursively "$i"
           done
 
