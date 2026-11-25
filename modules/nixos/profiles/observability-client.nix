@@ -4,6 +4,11 @@ let
   endpointURL = path: "${cfg.remoteEndpoint.scheme}://${cfg.remoteEndpoint.host}${path}";
 in
 {
+  # The client configures the `profiles.observability` collectors; importing
+  # the stack module here keeps `nixosModules.observability-client` usable on
+  # its own. The module system deduplicates the path import.
+  imports = [ ./observability ];
+
   options.profiles.observability-client = {
     enable = lib.mkEnableOption "remote observability client (metrics, logs)";
 

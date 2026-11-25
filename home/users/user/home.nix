@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  self,
   ...
 }:
 let
@@ -42,8 +43,8 @@ in
     ./common.nix
     ./codex.nix
     ./secrets.nix
-    ../../profiles/desktop.nix
-    ../../profiles/workflow-packs
+    self.homeModules.profiles-desktop
+    self.homeModules.profiles-workflow-packs
     ../../desktop
   ];
 

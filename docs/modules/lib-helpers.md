@@ -86,7 +86,9 @@ gen.toAlloyHCL [
   {
     type = "loki.write";
     label = "default";
-    body.endpoint.url = "http://loki:3100/loki/api/v1/push";
+    body.endpoint = gen.nestedBlock {
+      url = "http://loki:3100/loki/api/v1/push";
+    };
   }
 ]
 ```
@@ -111,10 +113,12 @@ let
   acl = nixos-fleet.lib.acl;
 in
 builtins.toJSON (acl.mkAcl {
-  laptop.tailscale.tag = "workstation";
-  server.tailscale = {
-    tag = "server";
-    acceptFrom.workstation = [ 22 443 ];
+  hostRegistry = {
+    laptop.tailscale.tag = "workstation";
+    server.tailscale = {
+      tag = "server";
+      acceptFrom.workstation = [ 22 443 ];
+    };
   };
 })
 ```

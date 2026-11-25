@@ -14,7 +14,7 @@ the tailnet through firewall rules, not Tailscale SSH.
 
 The reusable boundary is small:
 
-- `lib/acl.nix` exposes `mkAcl hostRegistry`.
+- `lib/acl.nix` exposes `mkAcl { hostRegistry; externalTags ? [ ]; }`.
 - `packages.tailscale-acl` renders the policy to a JSON file.
 - `apps.tailscale-acl` prints that JSON to stdout.
 - `scripts/check-tailscale-acl-drift.sh` (wired into the

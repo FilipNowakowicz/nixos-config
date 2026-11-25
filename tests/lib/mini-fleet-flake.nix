@@ -22,7 +22,7 @@ pkgs.runCommand "mini-fleet-flake-static"
   }
   ''
     example="$src/examples/mini-fleet/flake.nix"
-    root_flake="$src/flake.nix"
+    root_flake="$src/flake/public-modules.nix"
 
     # 1. The example must reference the correct upstream repo URL.
     grep -qF 'github:FilipNowakowicz/nixos-config' "$example" \
@@ -51,7 +51,7 @@ pkgs.runCommand "mini-fleet-flake-static"
       attr="''${name##*.}"
       kind="''${name%%.*}"
       grep -qF "$attr" "$root_flake" \
-        || { echo "flake.nix: public $kind output '$attr' used by mini-fleet example is missing from root flake" >&2; exit 1; }
+        || { echo "flake/public-modules.nix: public $kind output '$attr' used by mini-fleet example is missing from root flake" >&2; exit 1; }
     done
 
     touch "$out"

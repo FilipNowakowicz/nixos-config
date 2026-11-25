@@ -9,7 +9,7 @@ cloud homeserver, and an on-demand remote builder.
 This is not a generic starter template. It is working, multi-host personal
 infrastructure, published to a quality bar that documents the patterns, checks,
 and operational boundaries needed to keep real machines reproducible over time.
-The reusable building blocks are exposed through stable flake outputs; the host
+The reusable building blocks are exposed as flake outputs; the host
 assemblies stay personal and hardware-bound. For the fleet topology in one
 glance, jump to the [System At A Glance](#system-at-a-glance) diagram; for what
 to take from this repo, start at [Reusable Outputs](#reusable-outputs) and
@@ -25,32 +25,48 @@ error) so you can tell a real problem from noise before going further.
 
 ## Reusable Outputs
 
-| Output                              | What it gives you                                                                            |
-| :---------------------------------- | :------------------------------------------------------------------------------------------- |
-| `nixosModules.services-hardened`    | Systemd sandboxing DSL with forced baselines, explicit relaxations, and tests.               |
-| `nixosModules.observability-stack`  | Grafana, Prometheus, Loki, blackbox probes, dashboards, and alerts as Nix.                   |
-| `nixosModules.observability-client` | Client-side collectors and authenticated remote shipping into the observability stack.       |
-| `homeModules.runtime-theme`         | Runtime theme switching for Quiet Shell, Kitty, Hyprland, GTK, and Neovim.                   |
-| `lib/hosts.nix` + `lib/acl.nix`     | Host registry and generated Tailscale ACLs from one fleet source of truth.                   |
-| `checks` + `tests`                  | Public invariants for hardening, persistence, backups, registry drift, and module contracts. |
+The fleet is split into modules first for its own maintenance: each module
+imports what it depends on, and the personal hosts import them by their
+exported names. Publishing them is the second benefit. Every export evaluates
+on its own (`public-modules-standalone`), but only the supported tier carries
+a compatibility promise.
 
-The public adoption plan tracks what is reusable today, what still needs
-examples, and what should remain personal reference infrastructure:
+**Supported.** Documented usage and behavioural fixtures; breaking changes are
+called out in the PR that makes them.
+
+| Output                                        | What it gives you                                                                      | Docs                                                                  |
+| :-------------------------------------------- | :------------------------------------------------------------------------------------- | :-------------------------------------------------------------------- |
+| `nixosModules.services-hardened`              | Systemd sandboxing DSL with forced baselines, explicit relaxations, and tests.         | [services-hardened](docs/modules/services-hardened.md)                |
+| `nixosModules.observability-stack`            | Grafana, Prometheus, Loki, blackbox probes, dashboards, and alerts as Nix.             | [observability-stack](docs/observability-stack.md)                    |
+| `nixosModules.observability-client`           | Collectors and authenticated remote shipping into the stack; imports the stack itself. | [observability-stack](docs/observability-stack.md#remote-client-mode) |
+| `nixosModules.profiles-security`              | Firewall, SSH, fail2ban, kernel sysctl and coredump baseline with evaluation guards.   | [profiles-security](docs/modules/profiles-security.md)                |
+| `lib.acl`, `lib.dashboards`, `lib.generators` | Tailscale ACLs from a host registry, Grafana dashboards and service configs as Nix.    | [lib-helpers](docs/modules/lib-helpers.md)                            |
+
+**Personal presets.** The maintainer's own setup, exported so it stays
+importable and can be read or copied, but free to change without notice:
+`nixosModules.profiles-base`, `nixosModules.profiles-desktop`, and
+`homeModules.profiles-base`, `profiles-desktop`, `profiles-workflow-packs`,
+`neovim` and `runtime-theme` ([theme docs](docs/theme.md#public-module-homemodulesruntime-theme)).
+
+The [`examples/mini-fleet`](examples/mini-fleet) flake shows the supported
+modules and a preset layered on two fake hosts. The public adoption plan
+records the history and the remaining distribution work:
 [`docs/public-adoption.md`](docs/public-adoption.md).
 
 ## What To Copy First
 
-If you are borrowing from this repo, start with the reusable outputs instead of
-the host directories:
+If you are borrowing from this repo, start with the supported outputs instead
+of the host directories:
 
 1. `nixosModules.services-hardened` if you want a tested systemd hardening
    baseline for existing NixOS services.
 2. `nixosModules.observability-stack` and `observability-client` if you want a
    declarative single-node monitoring stack with remote collectors.
-3. `homeModules.runtime-theme` if your desktop stack is Hyprland, Quiet Shell,
-   Kitty, and Hyprlock.
-4. `lib/hosts.nix` and `lib/acl.nix` as a pattern for keeping deploy metadata,
-   inventory, and Tailscale policy in one source of truth.
+3. `nixosModules.profiles-security` for a host baseline that fails evaluation
+   when SSH loses its fail2ban protection.
+4. `lib.acl` with a host registry shaped like `lib/hosts.nix`, as a pattern for
+   keeping deploy metadata, inventory, and Tailscale policy in one source of
+   truth.
 
 Want to see what the registry pattern produces before adopting it? Two
 generated, sanitized samples are committed and reproducible from a clean clone:
@@ -236,26 +252,9 @@ project repositories. A project only needs portable Python metadata such as
 `pyproject.toml`, `uv.lock`, and optionally `.python-version`; run commands with
 `uv sync` and `uv run <command>`.
 
-Modules exposed for reuse:
-
-```nix
-nixosModules = {
-  services-hardened       = ./modules/nixos/services/hardened.nix;
-  observability-stack     = ./modules/nixos/profiles/observability;
-  observability-client    = ./modules/nixos/profiles/observability-client.nix;
-  profiles-base           = ./modules/nixos/profiles/base.nix;
-  profiles-desktop        = ./modules/nixos/profiles/desktop.nix;
-  profiles-security       = ./modules/nixos/profiles/security.nix;
-};
-
-homeModules = {
-  neovim                  = ./home/neovim/module.nix;
-  runtime-theme           = ./home/theme/module.nix;
-  profiles-base           = ./home/profiles/base.nix;
-  profiles-desktop        = ./home/profiles/desktop.nix;
-  profiles-workflow-packs = ./home/profiles/workflow-packs;
-};
-```
+The `nixosModules` and `homeModules` outputs are listed once, as paths, in
+[`flake/public-modules.nix`](flake/public-modules.nix); see
+[Reusable Outputs](#reusable-outputs) for which are supported.
 
 Two dev shells are provided: `default` (deploy-rs, nixos-anywhere, sops, nixd,
 and the pre-commit toolchain) and `security` (network/web/password/analysis

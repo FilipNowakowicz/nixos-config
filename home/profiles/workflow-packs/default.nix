@@ -1,6 +1,8 @@
 { lib, ... }:
 {
   imports = [
+    # The packs read `fleet.skipHeavyPackages`.
+    ../fleet.nix
     ./browsing.nix
     ./coding.nix
     ./latex.nix

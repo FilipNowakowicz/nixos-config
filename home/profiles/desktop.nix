@@ -10,6 +10,10 @@ let
   themedRuntime = import ./desktop-runtime.nix { inherit pkgs; };
 in
 {
+  # Declares the `fleet.*` options read above, so the module works when
+  # imported on its own (`homeModules.profiles-desktop`).
+  imports = [ ./fleet.nix ];
+
   home.packages =
     themedRuntime
     ++ (

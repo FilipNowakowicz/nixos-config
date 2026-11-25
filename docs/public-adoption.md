@@ -42,6 +42,28 @@ green from a clean clone" maintenance, not new extraction engineering.
 
 ---
 
+## Support Tiers (2026-11-25, #579)
+
+Modularisation exists first to keep the fleet maintainable; publishing is the
+second benefit. So every export is a self-contained module that the personal
+hosts import by its exported name (`self.nixosModules.*`,
+`self.homeModules.*`), and `public-modules-standalone` evaluates each one with
+nothing else imported. Only part of that surface carries a promise to
+outside users:
+
+| Tier            | Outputs                                                                                                                                                 | Promise                                                                                                           |
+| :-------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------- |
+| Supported       | `nixosModules.services-hardened`, `observability-stack`, `observability-client`, `profiles-security`; `lib.acl`, `lib.dashboards`, `lib.generators`     | One documented invocation, behavioural fixtures through the exported name, breaking changes called out in the PR. |
+| Personal preset | `nixosModules.profiles-base`, `profiles-desktop`; `homeModules.profiles-base`, `profiles-desktop`, `profiles-workflow-packs`, `neovim`, `runtime-theme` | Evaluates on its own; behaviour follows the maintainer's setup and may change without notice.                     |
+
+The list itself lives in [`flake/public-modules.nix`](../flake/public-modules.nix).
+Exports are paths, so importing a module both by name and through another
+module that depends on it does not declare its options twice. No export was
+removed when the tiers were introduced: narrowing the promise first keeps any
+unobserved consumer working.
+
+---
+
 ## Positioning
 
 The strongest public story is not "my dotfiles". It is:
@@ -74,11 +96,13 @@ but it should not be marketed as reusable.
 
 Priority components:
 
+Supported components (see [Support Tiers](#support-tiers-2026-11-25-579)):
+
 1. `nixosModules.services-hardened`
 2. `nixosModules.observability-stack`
 3. `nixosModules.observability-client`
-4. `homeModules.runtime-theme`
-5. host-registry helpers and generated Tailscale ACLs
+4. `nixosModules.profiles-security`
+5. `lib.acl`, `lib.dashboards` and `lib.generators`
 
 Each should have examples that can be copied into a separate flake without
 importing `hosts/`.

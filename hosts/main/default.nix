@@ -4,6 +4,7 @@
   lib,
   pkgs,
   hostRegistry,
+  self,
   ...
 }:
 let
@@ -84,10 +85,12 @@ in
     ./hardware-configuration.nix
     ./networking.nix
     ./nix-remote-build.nix
-    ../../modules/nixos/profiles/base.nix
-    ../../modules/nixos/profiles/desktop.nix
-    ../../modules/nixos/profiles/observability-client.nix
-    ../../modules/nixos/profiles/security.nix
+    # Public modules by their exported names, so this host exercises the
+    # same interface outside consumers import (flake/public-modules.nix).
+    self.nixosModules.profiles-base
+    self.nixosModules.profiles-desktop
+    self.nixosModules.observability-client
+    self.nixosModules.profiles-security
     ../../modules/nixos/profiles/sops-base.nix
     ../../modules/nixos/profiles/user.nix
     ../../modules/nixos/hardware/nvidia-prime.nix

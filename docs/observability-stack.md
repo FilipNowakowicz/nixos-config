@@ -6,7 +6,9 @@ already import the profile do not need a migration.
 
 ## Importing from your own flake
 
-Add this flake as an input and import the module(s) you need:
+Add this flake as an input and import the module(s) you need. The client
+imports the stack module it configures, so a shipping-only host needs just
+`observability-client`; importing both is also fine.
 
 ```nix
 # flake.nix
@@ -82,7 +84,6 @@ backend are explicit options.
 ```nix
 {
   imports = [
-    inputs.nixos-fleet.nixosModules.observability-stack
     inputs.nixos-fleet.nixosModules.observability-client
   ];
 
