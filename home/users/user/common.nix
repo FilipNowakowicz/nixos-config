@@ -1,13 +1,14 @@
 {
   config,
   lib,
+  self,
   ...
 }:
 {
   imports = [
     ../../profiles/fleet.nix
-    ../../profiles/base.nix
-    ../../neovim/module.nix
+    self.homeModules.profiles-base
+    self.homeModules.neovim
   ];
 
   home = {

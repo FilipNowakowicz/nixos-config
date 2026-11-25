@@ -413,6 +413,7 @@ let
             (import ../../flake/checks.nix {
               inherit lib pkgs nixpkgs;
               inputs = { };
+              self = { };
               hostRegistry.main = { };
               allNixosConfigs.main = evaluated (lib.mkDefault null).priority;
               ciNixosConfigs.main-ci = evaluated (lib.mkOptionDefault null).priority;

@@ -81,7 +81,9 @@ let
         })
         {
           home-manager.extraSpecialArgs = {
-            inherit hostRegistry;
+            # `self` lets the user modules import public `homeModules.*` by
+            # their exported names.
+            inherit hostRegistry self;
           }
           // homeManagerExtraArgs;
         }

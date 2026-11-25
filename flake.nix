@@ -153,6 +153,7 @@
           allNixosConfigs
           ciNixosConfigs
           invariants
+          self
           ;
       };
 
@@ -216,22 +217,9 @@
         };
 
         # ── Modules ─────────────────────────────────────────────────────────
-        nixosModules = {
-          observability-stack = import ./modules/nixos/profiles/observability;
-          observability-client = import ./modules/nixos/profiles/observability-client.nix;
-          services-hardened = import ./modules/nixos/services/hardened.nix;
-          profiles-base = import ./modules/nixos/profiles/base.nix;
-          profiles-desktop = import ./modules/nixos/profiles/desktop.nix;
-          profiles-security = import ./modules/nixos/profiles/security.nix;
-        };
-
-        homeModules = {
-          neovim = import ./home/neovim/module.nix;
-          profiles-base = import ./home/profiles/base.nix;
-          profiles-desktop = import ./home/profiles/desktop.nix;
-          profiles-workflow-packs = import ./home/profiles/workflow-packs;
-          runtime-theme = import ./home/theme/module.nix;
-        };
+        # One list for both namespaces; see flake/public-modules.nix for the
+        # self-containment rule and the support tiers.
+        inherit (import ./flake/public-modules.nix) nixosModules homeModules;
       };
     };
 }
