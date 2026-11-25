@@ -8,7 +8,7 @@ CDPATH='' cd -- "$(git rev-parse --show-toplevel)"
 # shellcheck source=scripts/lib/builder.sh disable=SC1091
 source scripts/lib/builder.sh
 
-start_builder
+BUILDER_QUOTA_WAIT=${BUILDER_QUOTA_WAIT:-1800} start_builder
 
 exec nh os switch --hostname "$(hostname)" . "$@" -- \
   --max-jobs 0 \

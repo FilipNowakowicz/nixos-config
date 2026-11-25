@@ -139,10 +139,26 @@ resume_builder_move() {
   place_builder "$target"
 }
 
+# Start the VM in its zone, leaving gcloud's output in start_output. The
+# project-wide CPU cap fits either this VM or a running gcp-worker, which powers
+# itself off once its jobs finish, so a quota refusal is retried for up to
+# BUILDER_QUOTA_WAIT seconds. The default 0 suits validate.sh, which builds
+# locally instead; on-builder.sh and rebuild-remote.sh wait.
+start_output=""
+start_builder_instance() {
+  local deadline=$(($(date +%s) + ${BUILDER_QUOTA_WAIT:-0}))
+  until start_output=$("${gcloud_cmd[@]}" compute instances start "$builder_name" \
+    --zone "$builder_zone" --quiet 2>&1); do
+    [[ $start_output == *CPUS_ALL_REGIONS* ]] && (($(date +%s) < deadline)) || return 1
+    echo "remote builder: no CPU quota free yet (gcp-worker is probably running); retrying in 60s" >&2
+    sleep 60
+  done
+}
+
 # Start the VM (a no-op if it is running) and wait until it accepts SSH. If its
 # zone has no capacity, move it to one that does.
 start_builder() {
-  local opts ready=0 moved=0 output
+  local opts ready=0 moved=0
   mapfile -t opts < <(builder_ssh_opts)
   resolve_gcloud_cmd || {
     echo "remote builder: gcloud is not available" >&2
@@ -151,13 +167,12 @@ start_builder() {
   resolve_builder_fqdn
   echo "remote builder: starting $builder_name ..." >&2
   if find_builder_zone; then
-    if ! output=$("${gcloud_cmd[@]}" compute instances start "$builder_name" --zone "$builder_zone" --quiet 2>&1); then
-      if [[ $output == *CPUS_ALL_REGIONS* ]]; then
-        # The project-wide CPU cap fits either this VM or a running gcp-worker.
+    if ! start_builder_instance; then
+      if [[ $start_output == *CPUS_ALL_REGIONS* ]]; then
         echo "remote builder: no CPU quota free (is gcp-worker running a job? see on-worker status)" >&2
         return 1
       fi
-      if [[ $output != *ZONE_RESOURCE_POOL_EXHAUSTED* ]]; then
+      if [[ $start_output != *ZONE_RESOURCE_POOL_EXHAUSTED* ]]; then
         echo "remote builder: could not start the VM (check gcloud project and login)" >&2
         return 1
       fi
