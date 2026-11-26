@@ -8,6 +8,10 @@ Singleton {
     id: root
     property var items: []
     property var banner: null
+    // A card's entry arrives through a Repeater's modelData, which is a copy, not
+    // the object in `items`. So entries are matched by this key, never identity.
+    property int lastKey: 0
+    function same(a, b) { return !!a && !!b && a.key === b.key; }
 
     function clear() {
         const previous = items;
@@ -19,16 +23,17 @@ Singleton {
             if (n.source) n.source.dismiss();
     }
     function remove(entry) {
-        items = items.filter(i => i !== entry);
-        if (banner === entry)
+        const original = items.find(i => same(i, entry));
+        items = items.filter(i => !same(i, entry));
+        if (same(banner, entry))
             banner = null;
-        if (entry.source) entry.source.dismiss();
+        if (original && original.source) original.source.dismiss();
     }
 
     // The app decides what happens next, so the notification has done its job.
     function invoke(entry, action) {
-        items = items.filter(i => i !== entry);
-        if (banner === entry)
+        items = items.filter(i => !same(i, entry));
+        if (same(banner, entry))
             banner = null;
         action.invoke();
     }
@@ -64,7 +69,7 @@ Singleton {
     // For the shell's own messages. An urgent one still shows during Focus.
     // `actions` are buttons, each { text, invoke }; `app` names the sender.
     function post(title, body, urgent, image, actions, app) {
-        const entry = { source: null, system: true, app: app || "System", title, body, at: new Date(), image: image || "", actions: actions || [] };
+        const entry = { key: ++lastKey, source: null, system: true, app: app || "System", title, body, at: new Date(), image: image || "", actions: actions || [] };
         items = [entry].concat(items);
         if (urgent || !Sys.focusMode) {
             banner = entry;
@@ -79,14 +84,14 @@ Singleton {
         imageSupported: true
         onNotification: n => {
             n.tracked = true;
-            const entry = { source: n, app: n.appName, icon: n.appIcon, title: n.summary, body: n.body, at: new Date() };
+            const entry = { key: ++root.lastKey, source: n, app: n.appName, icon: n.appIcon, title: n.summary, body: n.body, at: new Date() };
             // Apps can close their own notifications. Quickshell destroys the
             // object after this signal; retain the history without a dead QObject
             // whose dismiss()/actions would throw when the card is used later.
             n.closed.connect(() => {
                 const saved = Object.assign({}, entry, { source: null });
-                root.items = root.items.map(i => i === entry ? saved : i);
-                if (root.banner === entry)
+                root.items = root.items.map(i => root.same(i, entry) ? saved : i);
+                if (root.same(root.banner, entry))
                     root.banner = saved;
             });
             root.items = [entry].concat(root.items);
