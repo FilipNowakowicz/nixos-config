@@ -88,6 +88,40 @@ rollback is a reset baseline, not a copy of personal data. Neither mechanism
 protects against source-disk loss. No automated restore test of these snapshots
 is declared in these modules.
 
+### Phone over KDE Connect (user job `phone-backup`)
+
+Source: [phone backup profile](../home/profiles/phone-backup.nix) (#597).
+
+A Home Manager user timer backs up the Galaxy S24's shared storage
+(`/storage/emulated/0`, about 20 GB) to its own restic repository,
+`b2:filipnowakowicz-backup:phone`. It runs as `user` because KDE Connect
+mounts the phone with sshfs under `$XDG_RUNTIME_DIR`, where root can't read.
+The timer fires hourly. A run does nothing unless the phone is reachable
+and charging, and no backup has succeeded in the last 20 hours. It mounts the
+phone through KDE Connect's sftp plugin and only reads from it.
+
+- **Scope:** all of shared storage, excluding `.thumbnails`, Android
+  `.trashed-*` files, `Android/data` and `Android/obb`. Since Android 11
+  those two folders and app private data aren't readable by other programs.
+  WhatsApp's own Google Drive backup and the phone's cloud backup cover them.
+- **Retention:** `standard`, as a mirror. A photo deleted from the phone ages
+  out with its last snapshot.
+- **Change detection:** `--ignore-inode --ignore-ctime`, because sshfs assigns
+  new inodes and ctimes on every mount. Without them restic would re-read
+  everything on each run.
+- **Alerting:** `phone-backup-stale-check` runs daily and publishes to the
+  private ntfy topic when no backup has succeeded for 7 days. It also alerts
+  7 days after installation if no backup has ever succeeded.
+- **Secrets:** `home/users/user/secrets/phone-backup.yaml`, encrypted to the
+  personal age key only: repository, restic password, and a B2 application key
+  restricted to the `phone/` prefix, so this job can't touch the `main/`
+  repository.
+
+**Restore:** the `phone-restic` wrapper loads the secrets, for example
+`phone-restic snapshots` or
+`phone-restic restore latest --target ~/phone-restore --include '/run/user/1000/*/storage/emulated/0/DCIM'`.
+Snapshot paths include the KDE Connect mount point.
+
 ## `homeserver-gcp`
 
 Source: [homeserver backups](../hosts/homeserver-gcp/backups.nix).
