@@ -1,0 +1,208 @@
+# Back up the phone's shared storage (/storage/emulated/0) to B2 over KDE
+# Connect (#597). It runs as the user, because KDE Connect mounts the phone with
+# sshfs under $XDG_RUNTIME_DIR, where root can't read it.
+#
+# The phone is only sometimes reachable, so an hourly timer tries and skips
+# quietly unless the phone is reachable and charging, or a backup has already
+# succeeded in the last 20 hours. A separate daily check sends an ntfy alert
+# when nothing has succeeded for 7 days, so the job can't go silent.
+#
+# Scope is a mirror, not an archive: the shared `standard` retention applies, so
+# a photo deleted from the phone ages out with its last snapshot. Android hides
+# Android/data, Android/obb and app data from other programs, so those are not
+# reachable here. WhatsApp and the phone's own cloud backup cover them.
+{
+  config,
+  pkgs,
+  ...
+}:
+let
+  # KDE Connect's ID for the paired Galaxy S24 (`kdeconnect-cli -l`).
+  deviceId = "f25cc0f05fce482c9e7b48507c116e17";
+  devicePath = "/modules/kdeconnect/devices/${deviceId}";
+
+  inherit (config.sops) secrets;
+  stateDir = "${config.xdg.stateHome}/phone-backup";
+  pruneOpts = (import ../../lib/backup-policy.nix).standard;
+
+  resticEnv = ''
+    set -a
+    # shellcheck disable=SC1091
+    . ${secrets.phone-backup-b2-credentials.path}
+    set +a
+    export RESTIC_REPOSITORY_FILE=${secrets.phone-backup-repository.path}
+    export RESTIC_PASSWORD_FILE=${secrets.phone-backup-password.path}
+  '';
+
+  backup = pkgs.writeShellApplication {
+    name = "phone-backup";
+    runtimeInputs = with pkgs; [
+      coreutils
+      restic
+      systemd # busctl
+    ];
+    text = ''
+      mkdir -p ${stateDir}
+      last=${stateDir}/last-success
+
+      if [[ -s $last ]] && (($(date +%s) - $(<"$last") < 20 * 3600)); then
+        echo "phone-backup: backed up within the last 20 hours; nothing to do"
+        exit 0
+      fi
+
+      prop() {
+        busctl --user get-property org.kde.kdeconnect "$1" "$2" "$3" 2>/dev/null | cut -d' ' -f2 || true
+      }
+      if [[ $(prop ${devicePath} org.kde.kdeconnect.device isReachable) != true ]]; then
+        echo "phone-backup: phone not reachable; skipping"
+        exit 0
+      fi
+      if [[ $(prop ${devicePath}/battery org.kde.kdeconnect.device.battery isCharging) != true ]]; then
+        echo "phone-backup: phone not charging; skipping"
+        exit 0
+      fi
+
+      sftp=(busctl --user --timeout=90 call org.kde.kdeconnect ${devicePath}/sftp org.kde.kdeconnect.device.sftp)
+      if [[ $("''${sftp[@]}" mountAndWait) != "b true" ]]; then
+        echo "phone-backup: mounting the phone failed: $("''${sftp[@]}" getMountError)" >&2
+        exit 1
+      fi
+      root=$XDG_RUNTIME_DIR/${deviceId}/storage/emulated/0
+      if [[ ! -d $root/DCIM ]]; then
+        echo "phone-backup: $root is not the phone's shared storage" >&2
+        exit 1
+      fi
+
+      ${resticEnv}
+
+      # First run only: init refuses to touch an existing repository, so a
+      # transient failure of `cat config` can't overwrite anything.
+      restic cat config >/dev/null 2>&1 || restic init
+
+      # sshfs gives files new inode numbers and ctimes on every mount, so
+      # restic's default change detection would re-read all 20 GB each run.
+      # Size and mtime are what the phone keeps stable.
+      restic backup "$root" \
+        --host galaxy-s24 \
+        --tag phone \
+        --ignore-inode \
+        --ignore-ctime \
+        --exclude '**/.thumbnails' \
+        --exclude '**/.trashed-*' \
+        --exclude '**/.Trash*' \
+        --exclude "$root/Android/data" \
+        --exclude "$root/Android/obb"
+
+      restic forget --prune ${toString pruneOpts}
+
+      date +%s >"$last"
+    '';
+  };
+
+  staleCheck = pkgs.writeShellApplication {
+    name = "phone-backup-stale-check";
+    runtimeInputs = with pkgs; [
+      coreutils
+      curl
+    ];
+    text = ''
+      mkdir -p ${stateDir}
+      # A first-seen stamp makes "never succeeded" alert too, a week after the
+      # job was installed, instead of staying silent forever.
+      [[ -s ${stateDir}/first-seen ]] || date +%s >${stateDir}/first-seen
+
+      ref=${stateDir}/last-success
+      [[ -s $ref ]] || ref=${stateDir}/first-seen
+      age_days=$((($(date +%s) - $(<"$ref")) / 86400))
+
+      if ((age_days >= 7)); then
+        curl -fsS --retry 3 \
+          -H "Title: Phone backup is stale" \
+          -H "Priority: high" \
+          -d "No successful phone backup for $age_days days. Leave the phone charging on the tailnet, or check: journalctl --user -u phone-backup" \
+          "$(<${secrets.ntfy-topic-url.path})" >/dev/null
+      fi
+    '';
+  };
+
+  sopsFile = ../users/user/secrets/phone-backup.yaml;
+  sopsUnit = {
+    After = [ "sops-nix.service" ];
+    Wants = [ "sops-nix.service" ];
+  };
+in
+{
+  sops.secrets = {
+    phone-backup-repository = {
+      inherit sopsFile;
+      key = "restic_repository";
+    };
+    phone-backup-password = {
+      inherit sopsFile;
+      key = "restic_password";
+    };
+    # B2 application key restricted to the bucket's phone/ prefix.
+    phone-backup-b2-credentials = {
+      inherit sopsFile;
+      key = "b2_credentials";
+    };
+  };
+
+  home.packages = [
+    (pkgs.writeShellApplication {
+      name = "phone-restic";
+      runtimeInputs = [ pkgs.restic ];
+      text = ''
+        ${resticEnv}
+        exec restic "$@"
+      '';
+    })
+  ];
+
+  systemd.user = {
+    services = {
+      phone-backup = {
+        Unit = sopsUnit // {
+          Description = "Back up the phone's shared storage to B2 over KDE Connect";
+        };
+        Service = {
+          Type = "oneshot";
+          ExecStart = "${backup}/bin/phone-backup";
+          Nice = 10;
+          IOSchedulingClass = "idle";
+        };
+      };
+
+      phone-backup-stale-check = {
+        Unit = sopsUnit // {
+          Description = "Alert when the phone backup has not succeeded for 7 days";
+        };
+        Service = {
+          Type = "oneshot";
+          ExecStart = "${staleCheck}/bin/phone-backup-stale-check";
+        };
+      };
+    };
+
+    timers = {
+      phone-backup = {
+        Unit.Description = "Try the phone backup hourly";
+        Timer = {
+          OnCalendar = "hourly";
+          RandomizedDelaySec = "10m";
+          Persistent = true;
+        };
+        Install.WantedBy = [ "timers.target" ];
+      };
+
+      phone-backup-stale-check = {
+        Unit.Description = "Check the phone backup's age daily";
+        Timer = {
+          OnCalendar = "daily";
+          Persistent = true;
+        };
+        Install.WantedBy = [ "timers.target" ];
+      };
+    };
+  };
+}

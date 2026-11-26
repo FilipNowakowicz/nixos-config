@@ -8,6 +8,7 @@
     ../../profiles/on-worker.nix
     ../../profiles/ntfy-notifications.nix
     ../../profiles/phone.nix
+    ../../profiles/phone-backup.nix
     ../../profiles/python-development.nix
   ];
 
