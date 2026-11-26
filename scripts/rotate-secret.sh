@@ -112,7 +112,14 @@ cmd_random() {
   local src
   src=$(mktemp -p "$scratch")
   # alnum-only so the value is safe in env files / URLs; no trailing newline.
-  LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c "$len" >"$src"
+  # Read /dev/urandom in finite chunks: `tr </dev/urandom | head -c` kills tr
+  # with SIGPIPE, which pipefail turns into a silent exit 141 before anything
+  # is written.
+  local value=
+  while ((${#value} < len)); do
+    value+=$(head -c 256 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9')
+  done
+  printf '%s' "${value:0:len}" >"$src"
   printf '\n  generated %s-char random secret\n' "$len" >&2
   rotate_one "$file" "$key" "$src"
   rm -f "$src"
