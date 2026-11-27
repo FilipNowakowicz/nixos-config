@@ -648,7 +648,7 @@ rec {
   };
 
   # Pre-sorted so the check can compare directly without sorting a constant on
-  # every eval. Mirrors hosts/main/default.nix's agentMaintenanceCommands.
+  # every eval. Mirrors hosts/main/agent-maintenance.nix's agentMaintenanceCommands.
   mainExpectedAgentMaintenanceCommands = [
     "/run/current-system/sw/bin/bootctl cleanup"
     "/run/current-system/sw/bin/bootctl status --no-pager"

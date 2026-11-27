@@ -46,7 +46,7 @@ Current pin (from nixpkgs): **DisplayLink 6.2.0-30**, expected file
 
 ## 2. One-time: allow the dock through USBGuard
 
-`hosts/main/default.nix` default-**rejects** all USB. The dock (and usually its
+`hosts/main/usbguard.nix` default-**rejects** all USB. The dock (and usually its
 built-in hub) will be blocked and won't even enumerate until whitelisted.
 
 1. Plug the dock in. Find what was blocked:
@@ -57,7 +57,7 @@ built-in hub) will be blocked and won't even enumerate until whitelisted.
 2. Note the `id <VID:PID>`, `serial`, and interface set for the DisplayLink
    device (Synaptics/DisplayLink VID is commonly `17e9`) **and** any companion
    hub it presents.
-3. Add `allow` rules to `services.usbguard.rules` in `hosts/main/default.nix`,
+3. Add `allow` rules to `services.usbguard.rules` in `hosts/main/usbguard.nix`,
    matching the existing entries' style (pin `id` + `serial` where possible).
    Keep the trailing `reject`. Then `rebuild`.
 

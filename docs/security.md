@@ -344,7 +344,7 @@ Security validation is split by where each rule belongs:
 `main` keeps `security.sudo.wheelNeedsPassword = true`. It also declares a
 narrow `security.sudo.extraRules` allowlist for the primary user so interactive
 agents can perform repeat maintenance without a password prompt. The allowlist
-lives in `agentMaintenanceCommands` in `hosts/main/default.nix`, and its
+lives in `agentMaintenanceCommands` in `hosts/main/agent-maintenance.nix`, and its
 reviewed copy, `mainExpectedAgentMaintenanceCommands` in `lib/invariants.nix`,
 is the authoritative list: widening it means changing both, and the
 `invariants-main` check fails if they differ. It covers starting and checking

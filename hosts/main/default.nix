@@ -23,7 +23,6 @@
     ./hardware-configuration.nix
     ./networking.nix
     ./nix-remote-build.nix
-    ./peripherals.nix
     ./power.nix
     ./services.nix
     ./usbguard.nix
@@ -37,12 +36,16 @@
     ../../modules/nixos/profiles/user.nix
     ../../modules/nixos/hardware/nvidia-prime.nix
     ../../modules/nixos/hardware/displaylink.nix
+    ../../modules/nixos/hardware/synaptics-tudor.nix
+    ../../modules/nixos/hardware/logitech-hidpp.nix
   ];
 
   networking.hostName = "main";
 
   hardware = {
     acpilight.enable = true;
+    logitechHidpp.enable = true;
+    synapticsTudor.enable = true;
     # The Turing GTX 1650 Ti stays awake with GSP enabled despite fine-grained
     # runtime PM. Use the proprietary driver's non-GSP path for idle power-off.
     # gsp.enable controls firmware inclusion; the module parameter selects the
@@ -113,6 +116,13 @@
   systemd.user.services.dbus-broker.serviceConfig = {
     Type = lib.mkForce "notify";
     ExecReload = lib.mkForce "${pkgs.coreutils}/bin/kill -HUP $MAINPID";
+  };
+
+  security.pam.services = lib.mkIf (!config.profiles.ci) {
+    # hyprlock reads the fingerprint itself, so a password works at the same time.
+    # Through PAM it would have to wait for the fingerprint attempt to end.
+    hyprlock.fprintAuth = false;
+    greetd.fprintAuth = true;
   };
 
   sops = {
