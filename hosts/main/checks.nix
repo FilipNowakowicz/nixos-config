@@ -124,10 +124,11 @@ let
       cfg:
       let
         backup = cfg.services.restic.backups.local or { };
+        inherit (cfg.users.users.${cfg.profiles.primaryUser}) home;
         expectedPaths = [
-          "/home/user/.ssh"
-          "/home/user/.gnupg"
-          "/home/user/nix"
+          "${home}/.ssh"
+          "${home}/.gnupg"
+          "${home}/nix"
         ];
         pathCheck = requirePaths (backup.paths or [ ]) expectedPaths;
         violations = lib.filter (msg: msg != "") [
@@ -530,6 +531,7 @@ let
   mainBackupPersistenceCases =
     let
       cfg = nixosConfigurations.main.config;
+      inherit (cfg.users.users.${cfg.profiles.primaryUser}) home;
       passes = c: (mainBackupPathsArePersisted.check c).passed;
       withMount =
         mountPoint:
@@ -553,11 +555,11 @@ let
           expected = true;
         };
         "tmpfs on a backed-up path" = {
-          config = withMount "/home/user/.ssh";
+          config = withMount "${home}/.ssh";
           expected = false;
         };
         "tmpfs between /home and a backed-up path" = {
-          config = withMount "/home/user";
+          config = withMount home;
           expected = false;
         };
         "backup path on the rolled-back root" = {
