@@ -93,6 +93,12 @@ Stable host fields are:
 - `tailscaleTracked`
 - `drift`
 
+A host declares the facts the generator cannot derive through the
+`profiles.drift` NixOS option (`modules/nixos/profiles/drift.nix`):
+`trackedServices` and `drift.expectedExtraTCPPorts`. A host that publishes its
+own `/etc/host-drift-inventory.json`, as `homeserver-gcp` does, reads the same
+option and `lib/drift.nix`, so the two copies cannot disagree.
+
 Repo-local host fields are still exported for this fleet's dashboard and
 homepage, but consumers should treat them as allowed to evolve:
 

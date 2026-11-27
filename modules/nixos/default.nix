@@ -2,6 +2,7 @@
 {
   imports = [
     ./profiles/backup.nix
+    ./profiles/drift.nix
     ./profiles/meta.nix
     ./profiles/nix-trusted-users.nix
     ./profiles/runtime-timezone.nix
