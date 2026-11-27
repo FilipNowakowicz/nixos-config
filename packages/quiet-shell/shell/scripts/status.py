@@ -14,6 +14,8 @@ import subprocess
 import sys
 import zoneinfo
 
+import hidpp
+
 
 def run(*cmd, timeout=3):
     try:
@@ -221,6 +223,12 @@ def battery():
     return None
 
 
+def mouse():
+    cache = pathlib.Path(os.environ.get("XDG_CACHE_HOME") or pathlib.Path.home() / ".cache")
+    return hidpp.mouse(pathlib.Path(os.environ.get("QUIET_HIDRAW", "/sys/class/hidraw")),
+                       pathlib.Path("/dev"), cache / "quiet-shell" / "mouse.json")
+
+
 def timezone():
     """The zone /etc/localtime names, as timedatectl sets it, and its UTC offset now.
 
@@ -259,6 +267,7 @@ print(json.dumps({
     "brightness": brightness(),
     "profile": power_profile(),
     "battery": battery(),
+    "mouse": mouse(),
     "night": night(),
     "timezone": zone,
     # The shell itself can't see a new zone (Sys.clock), so it is told the offset.
