@@ -60,7 +60,7 @@ Singleton {
         : state.brightness === undefined || state.brightness === null ? 0 : state.brightness
     readonly property string profile: state.profile || "balanced"
     readonly property var battery: state.battery || null
-    // { level, awake }: while the mouse sleeps, its last reading.
+    // { name, level, charging, dpi }, the last reading (see scripts/hidpp.py).
     readonly property var mouse: state.mouse ?? null
     // Spotify over MPRIS: its signals arrive at once, where a poll lagged seconds.
     readonly property var player: Mpris.players.values.find(p => p.dbusName === "org.mpris.MediaPlayer2.spotify") || null

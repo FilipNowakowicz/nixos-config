@@ -210,7 +210,8 @@ def power_profile():
     return out.strip() if out else None
 
 
-def battery(root):
+def battery():
+    root = pathlib.Path(os.environ.get("QUIET_POWER_SUPPLY", "/sys/class/power_supply"))
     for path in sorted(root.glob("BAT*")):
         try:
             return {
@@ -222,29 +223,10 @@ def battery(root):
     return None
 
 
-def mouse_battery(root):
-    for path in sorted(root.glob("hidpp_battery_*")):
-        try:
-            fields = dict(line.split("=", 1) for line in (path / "uevent").read_text().splitlines())
-            name = "".join(fields.get("POWER_SUPPLY_MODEL_NAME", "").lower().split())
-            if name.removeprefix("logitech") not in ("x2superstrike", "prox2superstrike"):
-                continue
-            if fields.get("POWER_SUPPLY_ONLINE") != "1":
-                continue
-            level = int(fields["POWER_SUPPLY_CAPACITY"])
-            if 0 <= level <= 100:
-                return level
-        except (OSError, KeyError, ValueError):
-            continue
-    return None
-
-
-def mouse(root, hidraw):
-    # The kernel reports a mouse only when a driver claims its receiver; else ask it.
-    level = mouse_battery(root) or hidpp.mouse_battery(hidraw)
-    present = any(root.glob("hidpp_battery_*")) or any(hidpp.nodes(hidraw))
+def mouse():
     cache = pathlib.Path(os.environ.get("XDG_CACHE_HOME") or pathlib.Path.home() / ".cache")
-    return hidpp.remembered(level, present, cache / "quiet-shell" / "mouse-battery")
+    return hidpp.mouse(pathlib.Path(os.environ.get("QUIET_HIDRAW", "/sys/class/hidraw")),
+                       pathlib.Path("/dev"), cache / "quiet-shell" / "mouse.json")
 
 
 def timezone():
@@ -275,7 +257,6 @@ if sys.argv[1:] == ["countries"]:
     sys.exit()
 
 zone, offset = timezone()
-power_supply = pathlib.Path(os.environ.get("QUIET_POWER_SUPPLY", "/sys/class/power_supply"))
 print(json.dumps({
     "wifi": wifi(),
     "bluetooth": bluetooth(),
@@ -285,8 +266,8 @@ print(json.dumps({
     "devices": audio_devices(),
     "brightness": brightness(),
     "profile": power_profile(),
-    "battery": battery(power_supply),
-    "mouse": mouse(power_supply, pathlib.Path(os.environ.get("QUIET_HIDRAW", "/sys/class/hidraw"))),
+    "battery": battery(),
+    "mouse": mouse(),
     "night": night(),
     "timezone": zone,
     # The shell itself can't see a new zone (Sys.clock), so it is told the offset.

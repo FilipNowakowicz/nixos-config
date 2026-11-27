@@ -1,23 +1,43 @@
-"""Ask a mouse on a Logitech receiver for its battery over HID++ 2.0.
+"""Read a mouse on a Logitech receiver over HID++ 2.0: name, battery, DPI.
 
 No kernel driver claims the LIGHTSPEED receiver (046d:c54d), so its mouse never
 reaches /sys/class/power_supply. A few short requests on the receiver's HID++
-hidraw node, made once per status poll, do the job of a resident Solaar.
+hidraw node, made from the status poll, do the job of a resident Solaar.
 
 A request is [report, device, feature index, function << 4 | software id, params].
 Feature indices differ per device, so each comes from the root feature first.
+
+Every request to an awake mouse is radio traffic it answers on battery, so its
+slot, feature indices and name are found once and cached, and the mouse is read
+at most once a minute. A sleeping mouse is never reached: the receiver answers
+for it that it is not connected, and the last reading stays.
 """
 
+import json
 import os
 import pathlib
 import select
 import time
 
 SHORT, LONG = 0x10, 0x11
-ERRORS = (0x8F, 0xFF)  # HID++ 1.0 and 2.0 error replies
+OLD_ERROR, ERROR = 0x8F, 0xFF  # HID++ 1.0 (from the receiver) and 2.0 error replies
+ERRORS = (OLD_ERROR, ERROR)
+NOT_CONNECTED = 0x08  # the receiver's answer for a slot whose device has no link
 SOFTWARE_ID = 0x0A  # nonzero, so a reply is never mistaken for a notification
 DEVICE_NAME_TYPE, BATTERY_STATUS, UNIFIED_BATTERY = 0x0005, 0x1000, 0x1004
+ADJUSTABLE_DPI, EXTENDED_DPI = 0x2201, 0x2202
 MOUSE = 3  # DeviceNameType's getDeviceType
+EVERY = 60  # seconds between readings
+
+
+class Failed(Exception):
+    """The request was refused, with HID++ error `code`. `asleep` when the receiver
+    refused it for a device with no link (a 2.0 error 8 is "busy" instead)."""
+
+    def __init__(self, code, asleep=False):
+        super().__init__(code)
+        self.code = code
+        self.asleep = asleep
 
 
 def request(device, feature, function, *params):
@@ -25,16 +45,16 @@ def request(device, feature, function, *params):
 
 
 def reply(report, device, feature, function):
-    """The answer's parameters, None if the request failed, or False if `report` is
-    something else, such as a notification."""
+    """The answer's parameters, Failed(code) if the request was refused, or None if
+    `report` is something else, such as a notification."""
     if len(report) < 7 or report[0] not in (SHORT, LONG) or report[1] != device:
-        return False
+        return None
     address = function << 4 | SOFTWARE_ID
     if report[2] == feature and report[3] == address:
         return bytes(report[4:])
     if report[2] in ERRORS and report[3] == feature and report[4] == address:
-        return None
-    return False
+        return Failed(report[5], asleep=report[2] == OLD_ERROR and report[5] == NOT_CONNECTED)
+    return None
 
 
 class Receiver:
@@ -48,33 +68,64 @@ class Receiver:
             if not select.select([self.fd], [], [], left)[0]:
                 break
             answer = reply(os.read(self.fd, 64), device, feature, function)
-            if answer is not False:
+            if isinstance(answer, Failed):
+                raise answer
+            if answer is not None:
                 return answer
         raise TimeoutError
 
     def feature(self, device, feature):
         answer = self.ask(device, 0, 0, feature >> 8, feature & 0xFF)
         # Index 0 is the root feature itself, the answer for "not supported".
-        return answer[0] if answer and answer[0] else None
+        return answer[0] or None
 
 
-def mouse_level(receiver, device):
-    """The battery percentage of the mouse paired at `device`, else None. An empty
-    slot or a sleeping mouse fails on the first request."""
-    kind = receiver.feature(device, DEVICE_NAME_TYPE)
-    if kind is None:
-        return None
-    answer = receiver.ask(device, kind, 2)
-    if not answer or answer[0] != MOUSE:
-        return None
-    if (unified := receiver.feature(device, UNIFIED_BATTERY)) is not None:
-        answer = receiver.ask(device, unified, 1)  # get_status: state of charge first
-    elif (status := receiver.feature(device, BATTERY_STATUS)) is not None:
-        answer = receiver.ask(device, status, 0)  # discharge level first
-    else:
-        return None
-    # A mouse that reports only coarse levels says 0 here.
-    return answer[0] if answer and 0 < answer[0] <= 100 else None
+def discover(receiver):
+    """The mouse's slot, name and the features to read. An empty slot and a
+    sleeping device are both refused as not connected."""
+    for device in range(1, 7):
+        try:
+            kind = receiver.feature(device, DEVICE_NAME_TYPE)
+        except Failed:
+            continue
+        if kind is None or receiver.ask(device, kind, 2)[0] != MOUSE:
+            continue
+        length, name = receiver.ask(device, kind, 0)[0], b""
+        while len(name) < length:
+            chunk = receiver.ask(device, kind, 1, len(name)).rstrip(b"\0")
+            if not chunk:
+                break
+            name += chunk
+        found = {"device": device, "name": name[:length].decode(errors="replace").strip() or "Mouse"}
+        for key, feature in (("unified", UNIFIED_BATTERY), ("battery", BATTERY_STATUS),
+                             ("extendedDpi", EXTENDED_DPI), ("dpi", ADJUSTABLE_DPI)):
+            if (index := receiver.feature(device, feature)) is not None:
+                found[key] = index
+        return found
+    return None
+
+
+def measure(receiver, found):
+    """The battery and DPI now: two requests to the mouse."""
+    device, now = found["device"], {"level": None, "charging": False, "dpi": None}
+    if "unified" in found:
+        # State of charge, level flags, charging (1 on, 2 slowly, 3 full on the
+        # charger, 4 error), external power.
+        answer = receiver.ask(device, found["unified"], 1)
+        now["level"], now["charging"] = answer[0], answer[2] in (1, 2, 3)
+    elif "battery" in found:
+        # Level, next level, status (1 recharging, 2 almost full, 3 full, 4 slowly).
+        answer = receiver.ask(device, found["battery"], 0)
+        now["level"], now["charging"] = answer[0], answer[2] in (1, 2, 3, 4)
+    if "extendedDpi" in found:
+        answer = receiver.ask(device, found["extendedDpi"], 5, 0)  # sensor 0: X, Y, …
+        now["dpi"] = int.from_bytes(answer[1:3], "big") or None
+    elif "dpi" in found:
+        answer = receiver.ask(device, found["dpi"], 2, 0)  # sensor 0: DPI
+        now["dpi"] = int.from_bytes(answer[1:3], "big") or None
+    if not 0 < (now["level"] or 0) <= 100:
+        now["level"] = None  # a mouse that reports only coarse levels says 0
+    return now
 
 
 def nodes(sysfs):
@@ -89,43 +140,66 @@ def nodes(sysfs):
             yield node.name
 
 
-def mouse_battery(sysfs=pathlib.Path("/sys/class/hidraw"), dev=pathlib.Path("/dev"), timeout=1.0):
+def load(cache):
+    try:
+        state = json.loads(cache.read_text())
+        return state if isinstance(state, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save(cache, state):
+    try:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        temporary = cache.with_suffix(".tmp")
+        temporary.write_text(json.dumps(state))
+        temporary.replace(cache)
+    except OSError:
+        pass
+
+
+def shown(state):
+    if state.get("level") is None:
+        return None
+    return {key: state.get(key) for key in ("name", "level", "charging", "dpi")}
+
+
+def opened(path):
+    return os.open(path, os.O_RDWR | os.O_NONBLOCK)
+
+
+def mouse(sysfs, dev, cache, timeout=1.0, clock=time.time, opener=opened):
+    """What the card shows, { name, level, charging, dpi }: the last reading, or
+    None with no receiver plugged in or no reading yet."""
+    names = list(nodes(sysfs))
+    if not names:
+        return None
+    state = load(cache)
+    if clock() - state.get("at", 0) < EVERY:
+        return shown(state)
     deadline = time.monotonic() + timeout
-    for name in nodes(sysfs):
+    for name in names:
         try:
-            fd = os.open(dev / name, os.O_RDWR | os.O_NONBLOCK)
+            fd = opener(dev / name)
         except OSError:
             continue  # no udev grant for this node
         try:
             receiver = Receiver(fd, deadline)
-            for device in range(1, 7):
-                if (level := mouse_level(receiver, device)) is not None:
-                    return level
-        except (OSError, TimeoutError):
-            pass
+            found = state.get("found") or discover(receiver)
+            if found is None:
+                continue
+            try:
+                state.update(measure(receiver, found), found=found, name=found["name"], at=clock())
+            except Failed as refused:
+                if not refused.asleep:
+                    # Not the mouse cached for this slot any more: look again.
+                    state.pop("found", None)
+                    state.pop("at", None)
+                # Asleep: asking again costs the mouse nothing, so no wait either.
+            save(cache, state)
+            return shown(state)
+        except (OSError, TimeoutError, Failed, IndexError):
+            pass  # a slow or odd answer changes nothing: keep the last reading
         finally:
             os.close(fd)
-    return None
-
-
-def remembered(level, present, cache):
-    """What the card shows. A mouse sleeps seconds after it stops moving and then
-    answers nothing, so between readings it shows the last one, marked asleep.
-    With no receiver plugged in there is no mouse to show."""
-    if level is not None:
-        try:
-            if cache.read_text() != str(level):
-                raise ValueError
-        except (OSError, ValueError):
-            try:
-                cache.parent.mkdir(parents=True, exist_ok=True)
-                cache.write_text(str(level))
-            except OSError:
-                pass
-        return {"level": level, "awake": True}
-    if not present:
-        return None
-    try:
-        return {"level": int(cache.read_text()), "awake": False}
-    except (OSError, ValueError):
-        return None
+    return shown(state)
