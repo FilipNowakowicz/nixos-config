@@ -7,8 +7,8 @@ Status: **active** — deployed on GCP and accessible via Tailscale.
 
 ## Services
 
-- **monitoring stack** — Grafana (sub-path `/grafana/`, Tailscale identity via nginx auth proxy), Loki, Prometheus and Alertmanager
-- **Nginx** — reverse proxy, TLS via Tailscale cert
+- **monitoring stack** — Grafana (sub-path `/grafana/`, Tailscale identity via nginx auth proxy; dashboards `overview`, with `main` detail in a collapsed row, and `security-events`), Loki, Prometheus and Alertmanager
+- **Nginx** — reverse proxy, TLS via Tailscale cert; `/` redirects to `/grafana/`
 - **SSH** — in-guest firewall exposure limited to `tailscale0`; Terraform also
   adds a high-priority GCP firewall deny for public TCP/22 on the default VPC.
 - **Tailscale** — auth key from sops secret `tailscale_auth_key`

@@ -3,7 +3,6 @@
     {
       "backupClass": "standard",
       "closurePath": "/nix/store/00000000000000000000000000000000-nixos-system-server-example",
-      "closureSizeBytes": null,
       "deployUser": "deploy",
       "deployable": true,
       "drift": {
@@ -122,14 +121,8 @@
     }
   ],
   "inventoryContract": {
-    "closureSizeBytes": {
-      "description": "Best-effort Nix closure size in bytes for the host system closure. Null means the closure path was not available in the local Nix store when the inventory package was built.",
-      "nullable": true,
-      "stable": true
-    },
     "repoLocalInventoryFields": [
       "closurePath",
-      "closureSizeBytes",
       "health",
       "impermanence",
       "openTCPPorts",

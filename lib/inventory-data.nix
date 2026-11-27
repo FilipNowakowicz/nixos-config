@@ -125,11 +125,6 @@ let
     schemaVersion = 1;
     inventoryContract = {
       inherit (hostRegistryLib.schema) stableInventoryFields repoLocalInventoryFields;
-      closureSizeBytes = {
-        stable = true;
-        nullable = true;
-        description = "Best-effort Nix closure size in bytes for the host system closure. Null means the closure path was not available in the local Nix store when the inventory package was built.";
-      };
     };
     hosts = hostsData;
     repository = repoBaseUrl;
@@ -137,7 +132,4 @@ let
 in
 {
   inherit data;
-  hostSpec = builtins.concatStringsSep "\n" (
-    map (host: "${host.name}\t${host.closurePath}") hostsData
-  );
 }

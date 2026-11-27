@@ -28,6 +28,10 @@ let
       "${datasource.type or "unknown-type"}/${datasource.uid or "unknown-uid"}";
 
   enabledDashboards = lib.filterAttrs (_: dashboard: dashboard.enable) cfg.dashboards;
+  # Row panels have no datasource of their own; check the panels they carry.
+  leafPanels = lib.concatMap (
+    panel: if (panel.type or null) == "row" then leafPanels (panel.panels or [ ]) else [ panel ]
+  );
   panelDatasourceRefs = lib.flatten (
     lib.mapAttrsToList (
       dashboardName: dashboard:
@@ -37,7 +41,7 @@ let
         panelTitle = panel.title or "<untitled>";
         datasource = panel.datasource or null;
         backend = datasourceBackend (panel.datasource or { });
-      }) (dashboard.definition.panels or [ ])
+      }) (leafPanels (dashboard.definition.panels or [ ]))
     ) enabledDashboards
   );
   enabledBackends = {

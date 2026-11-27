@@ -112,17 +112,6 @@ in
       hostAssertions = inventoryHostAssertions;
     };
 
-    drift-inventory-data = import ../packages/inventory-data.nix {
-      inherit
-        lib
-        pkgs
-        hostRegistry
-        allNixosConfigs
-        ;
-      hostAssertions = inventoryHostAssertions;
-      includeClosureSizes = false;
-    };
-
     tailscale-acl = tailscaleAclPackage;
 
     installer-iso =

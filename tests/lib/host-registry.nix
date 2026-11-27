@@ -136,11 +136,6 @@ let
       };
       expected = "a";
     };
-
-    testStableInventoryFieldsExposeClosureSize = {
-      expr = builtins.elem "closureSizeBytes" registry.schema.repoLocalInventoryFields;
-      expected = true;
-    };
   };
 in
 if failures == [ ] then
