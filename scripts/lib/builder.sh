@@ -13,6 +13,7 @@ builder_probe="gcp-builder-probe"
 # Doubles as a lock: snapshot names are unique, so only one move can begin.
 builder_snapshot="gcp-builder-move"
 builder_fqdn="${BUILDER_FQDN:-}"
+builder_user="${BUILDER_USER:-}"
 builder_key="${BUILDER_SSH_KEY:-/run/secrets/gcp_builder_build_key}" # root-owned on main; daemon reads it
 builder_maxjobs="${BUILDER_MAXJOBS:-14}"
 builder_features="kvm,nixos-test,big-parallel,benchmark"
@@ -36,13 +37,18 @@ resolve_gcloud_cmd() {
   fi
 }
 
-# The registry's FQDN, through the deploy-rs output; BUILDER_FQDN overrides it.
+# The registry's FQDN and login (deploy.sshUser), through the deploy-rs output,
+# in one evaluation; BUILDER_FQDN and BUILDER_USER override them.
 resolve_builder_fqdn() {
-  [[ -n $builder_fqdn ]] && return 0
-  builder_fqdn="$(nix eval --raw .#deploy.nodes.gcp-builder.hostname 2>/dev/null || true)"
-  if [[ -z $builder_fqdn ]]; then
-    builder_fqdn="gcp-builder.tail90fc7a.ts.net"
-  fi
+  [[ -n $builder_fqdn && -n $builder_user ]] && return 0
+  local node
+  # Nix, not the shell, interpolates the ${...} below.
+  # shellcheck disable=SC2016
+  node="$(nix eval --raw .#deploy.nodes.gcp-builder --apply 'n: "${n.hostname} ${n.sshUser}"' 2>/dev/null || true)"
+  [[ -n $builder_fqdn ]] || builder_fqdn="${node% *}"
+  [[ -n $builder_user ]] || builder_user="${node##* }"
+  [[ -n $builder_fqdn ]] || builder_fqdn="gcp-builder.tail90fc7a.ts.net"
+  [[ -n $builder_user ]] || builder_user="user"
 }
 
 builder_ssh_opts() {
@@ -189,7 +195,7 @@ start_builder() {
     moved=1
   fi
   for _ in $(seq 1 40); do
-    if ssh "${opts[@]}" "user@$builder_fqdn" true 2>/dev/null; then
+    if ssh "${opts[@]}" "$builder_user@$builder_fqdn" true 2>/dev/null; then
       ready=1
       break
     fi

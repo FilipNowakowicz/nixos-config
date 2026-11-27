@@ -5,6 +5,9 @@
   ...
 }:
 let
+  user = config.profiles.primaryUser;
+  inherit (config.users.users.${user}) home;
+
   # See restic-wait-repo.nix for why both units probe B2 before starting.
   waitForRepo =
     unit:
@@ -18,12 +21,12 @@ let
   # root-owned journal appears beside it, and swap it in only once
   # integrity_check passes. A failure leaves the previous snapshot in place
   # and warns instead of failing the whole workstation backup.
-  ankiLocal = "/home/user/academic/anki-generator/local";
+  ankiLocal = "${home}/academic/anki-generator/local";
   ankiSnapshotDir = "${ankiLocal}/restic-snapshot";
   ankiSnapshot = pkgs.writeShellScript "anki-generator-snapshot" ''
     db=${ankiLocal}/workspace/state.sqlite3
     [ -e "$db" ] || exit 0
-    if ! ${pkgs.util-linux}/bin/setpriv --reuid=user --regid=users --init-groups -- ${pkgs.writeShellScript "anki-generator-snapshot-user" ''
+    if ! ${pkgs.util-linux}/bin/setpriv --reuid=${user} --regid=users --init-groups -- ${pkgs.writeShellScript "anki-generator-snapshot-user" ''
       set -eu
       sqlite=${pkgs.sqlite}/bin/sqlite3
       ${pkgs.coreutils}/bin/install -d -m 0700 ${ankiSnapshotDir}
@@ -70,23 +73,23 @@ in
 
     restic.backups.local = {
       paths = [
-        "/home/user/.ssh"
-        "/home/user/.gnupg"
-        "/home/user/nix"
-        "/home/user/.mozilla/firefox"
-        "/home/user/.config/mozilla/firefox"
-        "/home/user/.config/spotify"
-        "/home/user/.config/discord"
-        "/home/user/.config/gh"
-        "/home/user/.config/gcloud"
-        "/home/user/.local/share/Anki2"
-        "/home/user/.config/chromium"
-        "/home/user/.local/share/kwalletd"
-        "/home/user/.codex"
-        "/home/user/.claude"
-        "/home/user/.claude.json"
-        "/home/user/.local/share/quiet-shell/notes.md" # quick notes (SUPER+SHIFT+N)
-        "/home/user/.config/sops"
+        "${home}/.ssh"
+        "${home}/.gnupg"
+        "${home}/nix"
+        "${home}/.mozilla/firefox"
+        "${home}/.config/mozilla/firefox"
+        "${home}/.config/spotify"
+        "${home}/.config/discord"
+        "${home}/.config/gh"
+        "${home}/.config/gcloud"
+        "${home}/.local/share/Anki2"
+        "${home}/.config/chromium"
+        "${home}/.local/share/kwalletd"
+        "${home}/.codex"
+        "${home}/.claude"
+        "${home}/.claude.json"
+        "${home}/.local/share/quiet-shell/notes.md" # quick notes (SUPER+SHIFT+N)
+        "${home}/.config/sops"
         "/etc/machine-id"
         "/etc/ssh/ssh_host_ed25519_key"
         "/etc/ssh/ssh_host_ed25519_key.pub"
@@ -100,11 +103,11 @@ in
         "/var/lib/usbguard"
         # Project work that exists only on this laptop. Tracked code is on
         # GitHub and linked worktrees are temporary, so neither is listed.
-        "/home/user/trading/secrets" # gitignored credentials
+        "${home}/trading/secrets" # gitignored credentials
         # Research outputs; the downloaded market data beside them is refetchable.
-        "/home/user/trading/data/s004"
-        "/home/user/trading/data/s004-effort"
-        "/home/user/trading/data/astra"
+        "${home}/trading/data/s004"
+        "${home}/trading/data/s004-effort"
+        "${home}/trading/data/astra"
         # anki-generator's card database lives outside Git (its docs/recovery.md).
         # Its workspace minus the live database, which ankiSnapshot copies safely.
         "${ankiLocal}/workspace"
@@ -118,10 +121,10 @@ in
       ];
       exclude = [
         # Token/credential caches — not durable; regenerated on next gcloud auth
-        "/home/user/.config/gcloud/access_tokens.db"
-        "/home/user/.config/gcloud/credentials.db"
-        "/home/user/.config/gcloud/logs"
-        "/home/user/.config/gcloud/legacy_credentials"
+        "${home}/.config/gcloud/access_tokens.db"
+        "${home}/.config/gcloud/credentials.db"
+        "${home}/.config/gcloud/logs"
+        "${home}/.config/gcloud/legacy_credentials"
         # The app's own rotating copies; restic history replaces them.
         "${ankiLocal}/workspace/backups"
         # Never read the live database; the verified snapshot stands in for it.

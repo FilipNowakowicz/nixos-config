@@ -73,12 +73,15 @@ let
             nixPath = [ "nixpkgs=flake:nixpkgs" ];
           };
         }
-        (lib.mkIf (hostMeta ? homeManager) {
-          home-manager.sharedModules = [ inputs.sops-nix.homeManagerModules.sops ];
-          home-manager.users.user = homeManagerFleetConfig // {
-            imports = mkHomeManagerImports hostMetaWithName;
-          };
-        })
+        (
+          { config, ... }:
+          lib.mkIf (hostMeta ? homeManager) {
+            home-manager.sharedModules = [ inputs.sops-nix.homeManagerModules.sops ];
+            home-manager.users.${config.profiles.primaryUser} = homeManagerFleetConfig // {
+              imports = mkHomeManagerImports hostMetaWithName;
+            };
+          }
+        )
         {
           home-manager.extraSpecialArgs = {
             # `self` lets the user modules import public `homeModules.*` by

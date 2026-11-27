@@ -12,7 +12,8 @@ in
   };
 
   # ── User (SSH authorised keys) ──────────────────────────────────────────────
-  users.users.user.openssh.authorizedKeys.keys = import ../../../lib/pubkeys.nix;
+  users.users.${config.profiles.primaryUser}.openssh.authorizedKeys.keys =
+    import ../../../lib/pubkeys.nix;
 
   assertions = [
     {

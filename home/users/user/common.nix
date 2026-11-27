@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  osConfig,
   self,
   ...
 }:
@@ -12,8 +13,9 @@
   ];
 
   home = {
-    username = "user";
-    homeDirectory = "/home/user";
+    # The NixOS side owns the name (profiles.primaryUser); follow it.
+    username = osConfig.profiles.primaryUser;
+    homeDirectory = osConfig.users.users.${config.home.username}.home;
     stateVersion = "24.11";
 
     sessionPath = [

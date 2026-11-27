@@ -12,4 +12,4 @@ BUILDER_QUOTA_WAIT=${BUILDER_QUOTA_WAIT:-1800} start_builder
 
 exec nh os switch --hostname "$(hostname)" . "$@" -- \
   --max-jobs 0 \
-  --builders "ssh-ng://user@$builder_fqdn x86_64-linux $builder_key $builder_maxjobs 2 $builder_features"
+  --builders "ssh-ng://$builder_user@$builder_fqdn x86_64-linux $builder_key $builder_maxjobs 2 $builder_features"

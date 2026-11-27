@@ -18,14 +18,14 @@
 #      cannot be fetched in CI (see the runbook for the one-time prefetch). We
 #      gate the whole driver behind `!profiles.ci` so `main-ci` — the closure
 #      `merge-gate` actually builds — never references the blob. This mirrors the
-#      existing fprintd gating in hosts/main/default.nix.
+#      gating in synaptics-tudor.nix.
 #
 #   2. GPU pinning — Hyprland's aquamarine backend only opens DRM nodes listed in
 #      AQ_DRM_DEVICES, which modules/nixos/hardware/nvidia-prime.nix pins to the
 #      Intel iGPU alone. We append the evdi card so Hyprland can drive the
 #      DisplayLink output (Intel stays primary/render; evdi is an output sink).
 #
-#   3. USBGuard (MANUAL, not done here) — hosts/main/default.nix default-rejects
+#   3. USBGuard (MANUAL, not done here) — hosts/main/usbguard.nix default-rejects
 #      all USB. The dock enumerates as USB and is blocked until you add an allow
 #      rule for its real VID:PID/serial. See .claude/main/displaylink.md.
 #

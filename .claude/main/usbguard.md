@@ -1,7 +1,7 @@
 ## USBGuard: Adding a New USB Device
 
 New sticks, peripherals, or adapters are blocked by default and must be
-explicitly enrolled in `hosts/main/default.nix`.
+explicitly enrolled in `hosts/main/usbguard.nix`.
 
 **Step 1 — identify the device**
 
@@ -34,7 +34,7 @@ For removable storage, always pin the serial and name to prevent a spoofed
 device from inheriting the rule:
 
 ```nix
-# In hosts/main/default.nix, inside services.usbguard.rules:
+# In hosts/main/usbguard.nix, inside services.usbguard.rules:
 allow id 0781:5591 serial "4C530001..." name "Ultra Flair" with-interface equals { 08:06:50 }
 ```
 

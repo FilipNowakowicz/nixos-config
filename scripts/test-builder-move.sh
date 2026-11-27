@@ -55,7 +55,7 @@ printf '#!/usr/bin/env bash\n' >"$test_dir/bin/sleep"
 sed -i "1c#!$(command -v bash)" "$test_dir/bin/"*
 chmod +x "$test_dir/bin/"*
 export PATH="$test_dir/bin:$PATH"
-export BUILDER_FQDN=builder.example SNAP_TIME=2020-01-01T00:00:00Z
+export BUILDER_FQDN=builder.example BUILDER_USER=builduser SNAP_TIME=2020-01-01T00:00:00Z
 unset BUILDER_ZONE
 
 run_start() (

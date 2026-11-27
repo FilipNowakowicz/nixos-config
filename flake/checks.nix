@@ -56,6 +56,7 @@ let
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
   };
 
+  hmUserOf = host: host.config.home-manager.users.${host.config.profiles.primaryUser};
   checkPythonFiles = import ../home/profiles/python-development-check.nix { inherit lib pkgs; };
 
   mainBackupPathsArePersisted = {
@@ -1381,8 +1382,8 @@ in
           modules = [ ../hosts/installer/default.nix ];
         }).config;
 
-    python-development-main = checkPythonFiles allNixosConfigs.main.config.home-manager.users.user;
-    python-development-main-ci = checkPythonFiles ciNixosConfigs.main-ci.config.home-manager.users.user;
+    python-development-main = checkPythonFiles (hmUserOf allNixosConfigs.main);
+    python-development-main-ci = checkPythonFiles (hmUserOf ciNixosConfigs.main-ci);
 
     observability-alerts-lint = observabilityAlertsLint;
     backup-retention-behaviour = backupRetentionBehaviour;

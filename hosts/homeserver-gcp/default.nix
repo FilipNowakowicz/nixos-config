@@ -191,8 +191,8 @@ in
       # default identity path; the matching public key is authorized for `user`
       # in ./github-runner.nix.
       homeserver_selfdeploy_ssh_key = {
-        path = "/home/user/.ssh/id_ed25519";
-        owner = "user";
+        path = "${config.users.users.${config.profiles.primaryUser}.home}/.ssh/id_ed25519";
+        owner = config.profiles.primaryUser;
         mode = "0600";
       };
     };
@@ -206,7 +206,7 @@ in
   services.prometheus.retentionTime = "30d";
   services.prometheus.extraFlags = [ "--web.enable-remote-write-receiver" ];
 
-  users.users.user = {
+  users.users.${config.profiles.primaryUser} = {
     hashedPasswordFile = config.sops.secrets.user_password.path;
     # Private half is only the HOMESERVER_DEPLOY_SSH_KEY GitHub secret, used by
     # the deploy workflow's tag:ci job. Root-equivalent through deploy-rs.

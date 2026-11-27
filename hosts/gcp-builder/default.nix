@@ -1,4 +1,5 @@
 {
+  config,
   inputs,
   pkgs,
   ...
@@ -75,7 +76,7 @@
   # The main build key authorizes root@main's nix-daemon to drive distributed
   # builds as this (trusted) user; these merge with the personal keys from
   # sops-base.
-  users.users.user = {
+  users.users.${config.profiles.primaryUser} = {
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC+J1RPvpFJ6zpeeio5N6xWIcSIdBfgmjOexo27FGLLw github-ci-gcp-builder"
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIESg3U6QT7ur+a/rRDksMKWOrOVS1uHr7u+LfhmgLl9U nix-remote-build-main-to-gcp-builder"

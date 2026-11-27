@@ -22,7 +22,7 @@ cat >"$test_dir/bin/ssh" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
 while [[ ${1:-} == -o || ${1:-} == -i ]]; do shift 2; done
-[[ $1 == user@builder.example ]]
+[[ $1 == builduser@builder.example ]]
 shift
 cd "$TEST_REMOTE_HOME"
 HOME="$TEST_REMOTE_HOME" bash -c "$*"
@@ -34,7 +34,7 @@ set -euo pipefail
 # with a local fake remote; real rsync decides which files actually get copied.
 args=("$@")
 last=$((${#args[@]} - 1))
-[[ ${args[last]} == user@builder.example:* ]]
+[[ ${args[last]} == builduser@builder.example:* ]]
 args[last]="$TEST_REMOTE_HOME/${args[last]#*:}"
 "$REAL_RSYNC" "${args[@]}"
 STUB
@@ -47,7 +47,7 @@ chmod +x "$test_dir/bin/"*
 # Nix sandboxes have no /usr/bin/env; use the Bash supplied by the check.
 sed -i "1c#!$(command -v bash)" "$test_dir/bin/"*
 export PATH="$test_dir/bin:$PATH"
-export BUILDER_FQDN=builder.example
+export BUILDER_FQDN=builder.example BUILDER_USER=builduser
 unset BUILDER_READY ON_BUILDER USE_BUILDER
 cd "$test_dir/repo"
 git init -q
