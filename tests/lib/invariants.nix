@@ -8,6 +8,10 @@ let
   pkgs = nixpkgs.legacyPackages.${system};
   invariants = import ../../lib/invariants.nix { inherit lib pkgs; };
 
+  mainChecks = import ../../hosts/main/checks.nix {
+    inherit lib pkgs invariants;
+    nixosConfigurations = { };
+  };
   runnerChecks = import ../../hosts/homeserver-gcp/github-runner-checks.nix { inherit lib; };
 
   # The real host registry, so the AdGuard DNS-grant invariant is validated
@@ -191,7 +195,7 @@ let
 
   mainSudoAgentMaintenanceRule = {
     users = [ "user" ];
-    commands = map nopasswd invariants.mainExpectedAgentMaintenanceCommands;
+    commands = map nopasswd mainChecks.mainExpectedAgentMaintenanceCommands;
   };
 
   mainSudoBtrbkRule = {
@@ -215,7 +219,7 @@ let
 
   checkMainSudoExtraRules =
     extraRules:
-    invariants.mainAgentMaintenanceSudoAllowlist.check { security.sudo.extraRules = extraRules; };
+    mainChecks.mainAgentMaintenanceSudoAllowlist.check { security.sudo.extraRules = extraRules; };
 
   assertions = invariants.mkRegistryAssertions "homeserver-gcp" hostMeta;
 
@@ -256,7 +260,7 @@ let
   };
   checkBluetoothTimer =
     timer:
-    invariants.mainBluetoothDriverHasBootTrigger.check (
+    mainChecks.mainBluetoothDriverHasBootTrigger.check (
       lib.recursiveUpdate bluetoothBootConfig { systemd.timers.bluetooth-load-btusb = timer; }
     );
 
@@ -335,13 +339,13 @@ let
     };
 
     testBluetoothDriverHasIndependentBootTrigger = {
-      expr = (invariants.mainBluetoothDriverHasBootTrigger.check bluetoothBootConfig).passed;
+      expr = (mainChecks.mainBluetoothDriverHasBootTrigger.check bluetoothBootConfig).passed;
       expected = true;
     };
 
     testBluetoothDriverRejectsOriginalServiceOnlyTrigger = {
       expr =
-        (invariants.mainBluetoothDriverHasBootTrigger.check (
+        (mainChecks.mainBluetoothDriverHasBootTrigger.check (
           bluetoothBootConfig
           // {
             systemd = {
@@ -378,7 +382,7 @@ let
 
     testBluetoothDriverRejectsDisabledLoader = {
       expr =
-        (invariants.mainBluetoothDriverHasBootTrigger.check (
+        (mainChecks.mainBluetoothDriverHasBootTrigger.check (
           lib.recursiveUpdate bluetoothBootConfig { systemd.services.bluetooth-load-btusb.enable = false; }
         )).passed;
       expected = false;
@@ -386,7 +390,7 @@ let
 
     testBluetoothDriverAllowsDeliberatelyDisabledBluetooth = {
       expr =
-        (invariants.mainBluetoothDriverHasBootTrigger.check {
+        (mainChecks.mainBluetoothDriverHasBootTrigger.check {
           hardware.bluetooth.enable = false;
         }).passed;
       expected = true;
@@ -394,7 +398,7 @@ let
 
     testBluetoothDriverAllowsNormalUdevLoading = {
       expr =
-        (invariants.mainBluetoothDriverHasBootTrigger.check {
+        (mainChecks.mainBluetoothDriverHasBootTrigger.check {
           hardware.bluetooth.enable = true;
           boot.blacklistedKernelModules = [ ];
         }).passed;
@@ -710,13 +714,13 @@ let
     };
 
     testMullvadTailscaleCoexistencePasses = {
-      expr = (invariants.checkMullvadTailscaleCoexistence mullvadTailscaleConfig).passed;
+      expr = (mainChecks.mullvadTailscaleCoexistence.check mullvadTailscaleConfig).passed;
       expected = true;
     };
 
     testMullvadTailscaleCoexistenceRejectsMissingMarks = {
       expr =
-        (invariants.checkMullvadTailscaleCoexistence (
+        (mainChecks.mullvadTailscaleCoexistence.check (
           mullvadTailscaleConfig
           // {
             networking = mullvadTailscaleConfig.networking // {
@@ -734,7 +738,7 @@ let
 
     testMullvadTailscaleCoexistenceRejectsOrderingCycle = {
       expr =
-        (invariants.checkMullvadTailscaleCoexistence (
+        (mainChecks.mullvadTailscaleCoexistence.check (
           lib.recursiveUpdate mullvadTailscaleConfig {
             systemd.services.mullvad-daemon.after = [ "tailscaled.service" ];
           }

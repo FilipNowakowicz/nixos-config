@@ -176,6 +176,76 @@ rec {
         "tailnet tag(s) missing AdGuard DNS (port ${toString adguardDnsPort}) grant in ${adguardDnsServerHostName}.tailscale.acceptFrom: ${formatList missing}"
     );
 
+  # Fleet-wide registry policy, checked once by `invariants-registry-security`
+  # rather than per host.
+  registrySecurityAssertions =
+    { hostRegistry, sopsYaml }:
+    [
+      {
+        name = "SOPS recipients match active host registry";
+        check = _: checkSopsRecipientParity hostRegistry sopsYaml;
+      }
+      {
+        name = "deploy targets have tailnet addresses";
+        check = _: checkDeployTargetsHaveTailnetAddresses hostRegistry;
+      }
+      {
+        name = "deploy-rs never connects as root";
+        check =
+          _:
+          let
+            rootTargets = builtins.attrNames (
+              lib.filterAttrs (_: m: (m.deploy.sshUser or null) == "root") hostRegistry
+            );
+          in
+          mkResult (rootTargets == [ ]) "deploy.sshUser must not be root: ${builtins.toJSON rootTargets}";
+      }
+      {
+        # Reviewed tailnet grants (srcTag->dstTag:port). Any widening or removal
+        # of an acceptFrom entry changes the ACL; update this list deliberately.
+        name = "tailnet grants match the reviewed set";
+        check =
+          _:
+          let
+            actual = lib.sort builtins.lessThan (
+              lib.unique (
+                lib.concatLists (
+                  lib.mapAttrsToList (
+                    _: m:
+                    lib.concatLists (
+                      lib.mapAttrsToList (src: ports: map (p: "${src}->${m.tailscale.tag}:${toString p}") ports) (
+                        m.tailscale.acceptFrom or { }
+                      )
+                    )
+                  ) (lib.filterAttrs (_: m: m ? tailscale) hostRegistry)
+                )
+              )
+            );
+            # KDE Connect: link port 1716 plus the 1739-1764 transfer range.
+            phoneKdeConnect = map (p: "phone->workstation:${toString p}") (
+              [ 1716 ] ++ builtins.genList (i: 1739 + i) 26
+            );
+            reviewed = lib.sort builtins.lessThan (
+              phoneKdeConnect
+              ++ [
+                "builder->server:53"
+                "ci->server:22"
+                "ci-builder->builder:22"
+                "workstation->builder:22"
+                "workstation->server:22"
+                "workstation->server:3001"
+                "workstation->server:443"
+                "workstation->server:53"
+                "workstation->workstation:22"
+              ]
+            );
+          in
+          mkResult (
+            actual == reviewed
+          ) "tailnet grants differ from the reviewed set: ${builtins.toJSON actual}";
+      }
+    ];
+
   collectDiskoMountpoints =
     value:
     if builtins.isAttrs value then
@@ -207,93 +277,6 @@ rec {
         "impermanent host persistence roots have matching disko mountpoints"
       else
         "environment.persistence root(s) missing matching disko mountpoint: ${formatList missingRoots}"
-    );
-
-  checkMullvadTailscaleCoexistence =
-    cfg:
-    let
-      mullvadEnabled = cfg.services.mullvad-vpn.enable or false;
-      tailscaleEnabled = cfg.services.tailscale.enable or false;
-      bothEnabled = mullvadEnabled && tailscaleEnabled;
-      nftContent = cfg.networking.nftables.tables."tailscale-mullvad-compat".content or "";
-      bypassService = cfg.systemd.services.tailscale-bypass-routing or null;
-      tailscaledPostStart = cfg.systemd.services.tailscaled.postStart or "";
-      mullvadPostStart = cfg.systemd.services.mullvad-daemon.postStart or "";
-      mullvadLockdown = cfg.systemd.services.mullvad-lockdown or null;
-      requiredUnits = [
-        "tailscaled.service"
-        "mullvad-daemon.service"
-      ];
-      missingAfter =
-        if bypassService == null then
-          requiredUnits
-        else
-          lib.filter (unit: !(builtins.elem unit (bypassService.after or [ ]))) requiredUnits;
-      missingWants =
-        if bypassService == null then
-          requiredUnits
-        else
-          lib.filter (unit: !(builtins.elem unit (bypassService.wants or [ ]))) requiredUnits;
-      violations = lib.filter (msg: msg != "") [
-        (lib.optionalString (
-          bothEnabled && (cfg.networking.firewall.checkReversePath or null) != "loose"
-        ) ''networking.firewall.checkReversePath must be "loose" when Mullvad and Tailscale coexist'')
-        (lib.optionalString (
-          bothEnabled && !lib.hasInfix "priority filter - 1" nftContent
-        ) "tailscale-mullvad-compat nftables chain must run before Mullvad's filter priority")
-        (lib.optionalString (
-          bothEnabled && !lib.hasInfix ''oifname "tailscale0"'' nftContent
-        ) "tailscale-mullvad-compat nftables chain must target tailscale0")
-        (lib.optionalString (
-          bothEnabled && !lib.hasInfix "ct mark set 0x00000f41" nftContent
-        ) "tailscale-mullvad-compat nftables chain must set Mullvad's conntrack bypass mark")
-        (lib.optionalString (
-          bothEnabled && !lib.hasInfix "meta mark set 0x6d6f6c65" nftContent
-        ) "tailscale-mullvad-compat nftables chain must set Mullvad's policy-routing bypass mark")
-        (lib.optionalString (
-          bothEnabled && bypassService == null
-        ) "systemd.services.tailscale-bypass-routing must exist")
-        (lib.optionalString (
-          bothEnabled
-          && bypassService != null
-          && !builtins.elem "multi-user.target" (bypassService.wantedBy or [ ])
-        ) "tailscale-bypass-routing.service must be wanted by multi-user.target")
-        (lib.optionalString (
-          bothEnabled && missingAfter != [ ]
-        ) "tailscale-bypass-routing.service missing after unit(s): ${formatList missingAfter}")
-        (lib.optionalString (
-          bothEnabled && missingWants != [ ]
-        ) "tailscale-bypass-routing.service missing wanted unit(s): ${formatList missingWants}")
-        (lib.optionalString (
-          bothEnabled && tailscaledPostStart == ""
-        ) "systemd.services.tailscaled.postStart must re-assert the bypass route")
-        (lib.optionalString (
-          bothEnabled && mullvadPostStart == ""
-        ) "systemd.services.mullvad-daemon.postStart must re-assert the bypass route")
-        (lib.optionalString (
-          bothEnabled && mullvadLockdown == null
-        ) "systemd.services.mullvad-lockdown must exist")
-        # nixpkgs starts tailscaled after network-online.target, and Mullvad's
-        # packaged unit orders itself before it, so Mullvad-after-tailscaled is
-        # an ordering cycle; systemd broke it at boot by dropping tailscaled.
-        # Rule order is repaired by the bypass script's reconnect instead.
-        (lib.optionalString
-          (
-            bothEnabled
-            && builtins.elem "tailscaled.service" (cfg.systemd.services.mullvad-daemon.after or [ ])
-            && builtins.elem "network-online.target" (cfg.systemd.services.tailscaled.after or [ ])
-          )
-          "mullvad-daemon.service must not start after tailscaled.service (ordering cycle via network-online.target)"
-        )
-      ];
-    in
-    mkResult (!bothEnabled || violations == [ ]) (
-      if !bothEnabled then
-        "Mullvad and Tailscale are not both enabled"
-      else if violations == [ ] then
-        "Mullvad and Tailscale coexistence assumptions hold"
-      else
-        lib.concatStringsSep "; " violations
     );
 
   firewallPorts =
@@ -491,116 +474,6 @@ rec {
       ) "profiles.observability.ingestAuth.username must be 'telemetry', got '${username}'";
   };
 
-  mainSshIsTailnetOnly = {
-    name = "main SSH stays tailnet-only";
-    check =
-      cfg:
-      let
-        violations =
-          interfaceTCPExposureViolations {
-            interface = "tailscale0";
-            ports = [ 22 ];
-          } cfg
-          ++ lib.filter (msg: msg != "") [
-            (lib.optionalString (!cfg.services.openssh.enable) "services.openssh.enable must be true")
-            (lib.optionalString cfg.services.openssh.openFirewall "services.openssh.openFirewall must be false")
-            (lib.optionalString (!cfg.services.tailscale.enable) "services.tailscale.enable must be true")
-            (lib.optionalString (
-              !cfg.services.tailscale.openFirewall
-            ) "services.tailscale.openFirewall must be true")
-          ];
-      in
-      mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
-  };
-
-  mainBluetoothDriverHasBootTrigger = {
-    name = "blacklisted Bluetooth driver has an independent boot timer";
-    check =
-      cfg:
-      let
-        needsLoader =
-          (cfg.hardware.bluetooth.enable or false)
-          && lib.elem "btusb" (cfg.boot.blacklistedKernelModules or [ ]);
-        timer = cfg.systemd.timers.bluetooth-load-btusb or { };
-        loader = cfg.systemd.services.bluetooth-load-btusb or { };
-        delay = timer.timerConfig.OnActiveSec or null;
-        unit = timer.timerConfig.Unit or "bluetooth-load-btusb.service";
-        violations = lib.filter (msg: msg != "") [
-          (lib.optionalString (!(loader.enable or false)) "Bluetooth driver loader must be enabled")
-          (lib.optionalString (!(timer.enable or false)) "Bluetooth driver boot timer must be enabled")
-          (lib.optionalString (
-            !(lib.elem "timers.target" (timer.wantedBy or [ ]))
-          ) "Bluetooth driver timer must start from timers.target, independently of bluetooth.target")
-          (lib.optionalString (
-            delay == null || delay == ""
-          ) "Bluetooth driver timer must have an OnActiveSec trigger")
-          (lib.optionalString (
-            unit != "bluetooth-load-btusb.service"
-          ) "Bluetooth driver timer must activate bluetooth-load-btusb.service")
-        ];
-      in
-      mkResult (!needsLoader || violations == [ ]) (
-        if needsLoader then
-          lib.concatStringsSep "; " violations
-        else
-          "Bluetooth does not need a blacklisted driver loader"
-      );
-  };
-
-  mainUsbguardIsDenyDefault = {
-    name = "main USBGuard stays deny-default";
-    check =
-      cfg:
-      let
-        rules = cfg.services.usbguard.rules or "";
-        ruleLines = lib.filter (l: l != "" && !lib.hasPrefix "#" l) (
-          map lib.trim (lib.splitString "\n" rules)
-        );
-        broadAllows = lib.filter (l: lib.hasPrefix "allow" l && !lib.hasPrefix "allow id " l) ruleLines;
-        violations = lib.filter (msg: msg != "") [
-          (lib.optionalString (!cfg.services.usbguard.enable) "services.usbguard.enable must be true")
-          (lib.optionalString (
-            !lib.hasInfix "allow id " rules
-          ) "services.usbguard.rules must whitelist at least one device")
-          (lib.optionalString (
-            ruleLines == [ ] || lib.last ruleLines != "reject"
-          ) "services.usbguard.rules must end with a default reject rule")
-          (lib.optionalString (
-            broadAllows != [ ]
-          ) "services.usbguard.rules has allow rule(s) not pinned to a device id: ${formatList broadAllows}")
-        ];
-      in
-      mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
-  };
-
-  mainLocalBackupProtectsCriticalPaths = {
-    name = "main local backup covers critical operator data";
-    check =
-      cfg:
-      let
-        backup = cfg.services.restic.backups.local or { };
-        expectedPaths = [
-          "/home/user/.ssh"
-          "/home/user/.gnupg"
-          "/home/user/nix"
-        ];
-        pathCheck = requirePaths (backup.paths or [ ]) expectedPaths;
-        violations = lib.filter (msg: msg != "") [
-          (lib.optionalString (
-            !(lib.hasPrefix "/run/secrets/" (backup.passwordFile or ""))
-          ) "services.restic.backups.local.passwordFile must come from /run/secrets/*")
-          (lib.optionalString (
-            !(backup.initialize or false)
-          ) "services.restic.backups.local.initialize must be true")
-          (lib.optionalString (
-            (backup.timerConfig.OnCalendar or null) != "daily"
-          ) "services.restic.backups.local.timerConfig.OnCalendar must be \"daily\"")
-          (lib.optionalString (!pathCheck.passed) pathCheck.message)
-        ];
-      in
-      mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
-  };
-
   # On a host with both wait-online providers disabled (main),
   # network-online.target never blocks. A Persistent=true timer then fires its
   # missed run the instant the machine resumes, before Wi-Fi/VPN/DNS are back,
@@ -647,138 +520,66 @@ rec {
       );
   };
 
-  # Pre-sorted so the check can compare directly without sorting a constant on
-  # every eval. Mirrors hosts/main/agent-maintenance.nix's agentMaintenanceCommands.
-  mainExpectedAgentMaintenanceCommands = [
-    "/run/current-system/sw/bin/bootctl cleanup"
-    "/run/current-system/sw/bin/bootctl status --no-pager"
-    "/run/current-system/sw/bin/efibootmgr -b [0-9A-F][0-9A-F][0-9A-F][0-9A-F] -B"
-    "/run/current-system/sw/bin/nix-gc-14d"
-    "/run/current-system/sw/bin/nixos-switch-main"
-    "/run/current-system/sw/bin/systemctl start btrbk-local.service"
-    "/run/current-system/sw/bin/systemctl start restic-backups-local.service"
-    "/run/current-system/sw/bin/systemctl start restic-check-local.service"
-    "/run/current-system/sw/bin/systemctl status btrbk-local.service --no-pager"
-    "/run/current-system/sw/bin/systemctl status btrbk-local.timer --no-pager"
-    "/run/current-system/sw/bin/systemctl status restic-backups-local.service --no-pager"
-    "/run/current-system/sw/bin/systemctl status restic-backups-local.timer --no-pager"
-    "/run/current-system/sw/bin/systemctl status restic-check-local.service --no-pager"
-    "/run/current-system/sw/bin/systemctl status restic-check-local.timer --no-pager"
-  ];
-
-  mainAgentMaintenanceSudoAllowlist = {
-    name = "agent maintenance sudo allowlist stays narrow";
+  # `nixpkgs` is the flake input every host must resolve `nixpkgs` to.
+  nixpkgsRegistryPinnedTo = nixpkgs: {
+    name = "nixpkgs registry is pinned to the flake input";
     check =
       cfg:
       let
-        extraRules = cfg.security.sudo.extraRules or [ ];
-
-        commandPath = command: command.command or "";
-        commandOptions = command: command.options or [ ];
-        hasOnlyOptions = options: command: commandOptions command == options;
-        sortedCommandPaths = rule: lib.sort builtins.lessThan (map commandPath (rule.commands or [ ]));
-        hostIsAll = rule: (rule.host or "ALL") == "ALL";
-        runAsIsAll = rule: (rule.runAs or "ALL:ALL") == "ALL:ALL";
-
-        isSetenvAllRule =
-          rule:
-          hostIsAll rule
-          && runAsIsAll rule
-          &&
-            (rule.commands or [ ]) == [
-              {
-                command = "ALL";
-                options = [ "SETENV" ];
-              }
-            ];
-
-        isDefaultRootSetenvRule =
-          rule: isSetenvAllRule rule && (rule.users or [ ]) == [ "root" ] && (rule.groups or [ ]) == [ ];
-
-        isDefaultWheelSetenvRule =
-          rule: isSetenvAllRule rule && (rule.users or [ ]) == [ ] && (rule.groups or [ ]) == [ "wheel" ];
-
-        isAgentMaintenanceRule =
-          rule:
-          hostIsAll rule
-          && runAsIsAll rule
-          && (rule.users or [ ]) == [ "user" ]
-          && (rule.groups or [ ]) == [ ]
-          && sortedCommandPaths rule == mainExpectedAgentMaintenanceCommands
-          && lib.all (hasOnlyOptions [ "NOPASSWD" ]) (rule.commands or [ ]);
-
-        # btrbk's NixOS module grants the btrbk user NOPASSWD btrfs/mkdir/readlink
-        # twice: once via the stable /run/current-system/sw/bin wrapper (used over
-        # ssh) and once via the package's own Nix store path (used locally). Store
-        # paths carry a build-dependent hash, so match those by store-relative
-        # shape (under /nix/store, ending in /bin/<name>) rather than full
-        # equality.
-        btrbkCommandNames = [
-          "btrfs"
-          "mkdir"
-          "readlink"
-        ];
-        btrbkStablePaths = map (name: "/run/current-system/sw/bin/${name}") btrbkCommandNames;
-        isBtrbkStoreCommandPath =
-          path:
-          lib.hasPrefix (builtins.storeDir + "/") path
-          && lib.any (name: lib.hasSuffix "/bin/${name}" path) btrbkCommandNames;
-        classifyBtrbkCommandPath =
-          path:
-          if lib.elem path btrbkStablePaths then
-            "stable:${builtins.baseNameOf path}"
-          else if isBtrbkStoreCommandPath path then
-            "store:${builtins.baseNameOf path}"
-          else
-            "other:${path}";
-        expectedBtrbkCommandClasses = lib.sort builtins.lessThan (
-          map (name: "stable:${name}") btrbkCommandNames ++ map (name: "store:${name}") btrbkCommandNames
-        );
-
-        isBtrbkMaintenanceRule =
-          rule:
-          let
-            commands = rule.commands or [ ];
-          in
-          hostIsAll rule
-          && runAsIsAll rule
-          && (rule.users or [ ]) == [ "btrbk" ]
-          && (rule.groups or [ ]) == [ ]
-          && lib.all (hasOnlyOptions [ "NOPASSWD" ]) commands
-          &&
-            lib.sort builtins.lessThan (map (c: classifyBtrbkCommandPath (commandPath c)) commands)
-            == expectedBtrbkCommandClasses;
-
-        isKnownRule =
-          rule:
-          isDefaultRootSetenvRule rule
-          || isDefaultWheelSetenvRule rule
-          || isAgentMaintenanceRule rule
-          || isBtrbkMaintenanceRule rule;
-
-        rootSetenvRules = lib.filter isDefaultRootSetenvRule extraRules;
-        wheelSetenvRules = lib.filter isDefaultWheelSetenvRule extraRules;
-        agentRules = lib.filter isAgentMaintenanceRule extraRules;
-        btrbkRules = lib.filter isBtrbkMaintenanceRule extraRules;
-        unexpectedRules = lib.filter (rule: !(isKnownRule rule)) extraRules;
-
-        countViolation =
-          label: rules:
-          lib.optionalString (
-            lib.length rules != 1
-          ) "expected exactly 1 ${label}, got ${toString (lib.length rules)}";
-
+        expected = builtins.toString nixpkgs;
+        registry = cfg.nix.registry.nixpkgs or { };
+        actual = builtins.toString (registry.flake or "");
+        actualTarget = builtins.toString (registry.to.path or "");
         violations = lib.filter (msg: msg != "") [
-          (countViolation "default root SETENV rule" rootSetenvRules)
-          (countViolation "default wheel SETENV rule" wheelSetenvRules)
-          (countViolation "agent maintenance allowlist rule" agentRules)
-          (countViolation "btrbk maintenance allowlist rule" btrbkRules)
           (lib.optionalString (
-            unexpectedRules != [ ]
-          ) "main sudo extraRules contains ${toString (lib.length unexpectedRules)} unexpected rule(s)")
+            actual != expected
+          ) "nix.registry.nixpkgs.flake must point at the flake input (${expected}), got ${actual}")
+          (lib.optionalString (
+            actualTarget != expected
+          ) "nix.registry.nixpkgs.to.path must resolve to the flake input (${expected}), got ${actualTarget}")
+          (lib.optionalString (
+            (cfg.nix.nixPath or [ ]) != [ "nixpkgs=flake:nixpkgs" ]
+          ) "nix.nixPath must be [ \"nixpkgs=flake:nixpkgs\" ]")
         ];
       in
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
+  };
+
+  rollbackRootInitrdToolsAvailable = {
+    name = "rollback-root initrd tools are available";
+    check =
+      cfg:
+      let
+        rollbackEnabled = cfg.profiles.impermanence.rollbackRoot.enable or false;
+        initrdBinNames = map lib.getName (cfg.boot.initrd.systemd.initrdBin or [ ]);
+        requiredTools = [
+          "btrfs-progs"
+          "findutils"
+          "gnused"
+        ];
+        missingTools = lib.filter (tool: !(builtins.elem tool initrdBinNames)) requiredTools;
+      in
+      mkResult (
+        !rollbackEnabled || missingTools == [ ]
+      ) "rollback-root.service needs initrdBin package(s): ${lib.concatStringsSep ", " missingTools}";
+  };
+
+  # An impermanent host that loses /var/lib/tailscale re-registers a new node
+  # identity on every boot (new IP, orphaned device, ACL tags lost).
+  tailscaleStateIsPersisted = {
+    name = "impermanent tailscale hosts persist /var/lib/tailscale";
+    check =
+      cfg:
+      let
+        dirs = map (d: if builtins.isAttrs d then d.directory else d) (
+          lib.concatMap (p: p.directories or [ ]) (lib.attrValues (cfg.environment.persistence or { }))
+        );
+      in
+      mkResult (
+        !(cfg.profiles.impermanence.rollbackRoot.enable or false)
+        || !cfg.services.tailscale.enable
+        || builtins.elem "/var/lib/tailscale" dirs
+      ) "/var/lib/tailscale must be persisted on impermanent hosts that run Tailscale";
   };
 
   deployTargetBaseAccessAssertions = [
@@ -807,86 +608,6 @@ rec {
   ];
 
   deployTargetAccessAssertions = deployTargetBaseAccessAssertions ++ deployTargetSopsAssertions;
-
-  homeserverSshAndHttpsTailscaleOnly = {
-    name = "SSH and HTTPS stay Tailscale-only";
-    check =
-      cfg:
-      checkTCPPortsRestrictedToInterface {
-        interface = "tailscale0";
-        ports = [
-          22
-          443
-        ];
-      } cfg;
-  };
-
-  onDemandSshTailscaleOnly = {
-    name = "on-demand GCE host SSH stays Tailscale-only";
-    check =
-      cfg:
-      let
-        violations =
-          lib.filter (msg: msg != "") [
-            (lib.optionalString (!cfg.services.openssh.enable) "services.openssh.enable must be true")
-            (lib.optionalString cfg.services.openssh.openFirewall "services.openssh.openFirewall must be false")
-          ]
-          ++ interfaceTCPExposureViolations {
-            interface = "tailscale0";
-            ports = [ 22 ];
-          } cfg;
-      in
-      mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
-  };
-
-  onDemandUsersAreKeyOnly = {
-    name = "on-demand GCE host users stay key-only";
-    check =
-      cfg:
-      let
-        passwordFields = [
-          "hashedPassword"
-          "hashedPasswordFile"
-          "initialHashedPassword"
-          "initialPassword"
-          "passwordFile"
-        ];
-        hasPassword = user: lib.any (field: (user.${field} or null) != null) passwordFields;
-        loginUsers = lib.filterAttrs (
-          _: user: user.isNormalUser or false || !(user.isSystemUser or false)
-        ) (cfg.users.users or { });
-        offenders = lib.attrNames (lib.filterAttrs (_: hasPassword) loginUsers);
-      in
-      mkResult (
-        offenders == [ ]
-      ) "password material configured for login user(s): ${formatList offenders}";
-  };
-
-  # on-worker hosts run arbitrary project code as `jobs`; keep that account off
-  # every root-equivalent path (wheel/sudo, Nix daemon trust).
-  workerJobsUserUnprivileged = {
-    name = "on-worker jobs user stays unprivileged";
-    check =
-      cfg:
-      let
-        jobs = cfg.users.users.jobs or null;
-        trusted = cfg.nix.settings.trusted-users or [ ];
-        violations = lib.filter (msg: msg != "") (
-          if jobs == null then
-            [ "users.users.jobs must exist" ]
-          else
-            [
-              (lib.optionalString (builtins.elem "wheel" (jobs.extraGroups or [ ])) "jobs must not be in wheel")
-              (lib.optionalString (builtins.elem "jobs" trusted) "jobs must not be a trusted Nix user")
-              (lib.optionalString (builtins.elem "@users" trusted) "trusted-users must not include @users")
-              (lib.optionalString (
-                !(jobs.linger or false)
-              ) "jobs must linger so detached jobs outlive their SSH session")
-            ]
-        );
-      in
-      mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
-  };
 
   checkNoGlobalTCPPorts =
     ports: cfg:
@@ -964,6 +685,34 @@ rec {
       pkgs.runCommand "invariant-check-${hostName}-fail" { } ''
         echo "Invariant check failed for '${hostName}':"
         echo "${errorMsg}"
+        exit 1
+      '';
+
+  mkSopsBootstrapCheck =
+    hostName: secretsDir:
+    let
+      hasKey = builtins.pathExists (secretsDir + "/ssh_host_ed25519_key.enc");
+      hasPub = builtins.pathExists (secretsDir + "/ssh_host_ed25519_key.pub.enc");
+    in
+    if hasKey && hasPub then
+      # An empty or truncated file (a failed `sops -e > out.enc`) exists but is
+      # useless; require non-empty sops-encrypted content. No key material needed.
+      pkgs.runCommand "${hostName}-sops-bootstrap-check" { } ''
+        for f in ${secretsDir + "/ssh_host_ed25519_key.enc"} ${
+          secretsDir + "/ssh_host_ed25519_key.pub.enc"
+        }; do
+          if [ ! -s "$f" ] || ! grep -q 'ENC\[' "$f"; then
+            echo "${hostName} sops bootstrap: empty or non-sops file: $f" >&2
+            exit 1
+          fi
+        done
+        touch $out
+      ''
+    else
+      pkgs.runCommand "${hostName}-sops-bootstrap-check" { } ''
+        echo "${hostName} sops bootstrap incomplete — missing pre-baked host key files:"
+        ${lib.optionalString (!hasKey) ''echo "  hosts/${hostName}/secrets/ssh_host_ed25519_key.enc"''}
+        ${lib.optionalString (!hasPub) ''echo "  hosts/${hostName}/secrets/ssh_host_ed25519_key.pub.enc"''}
         exit 1
       '';
 

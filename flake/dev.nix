@@ -13,6 +13,7 @@
   flakeInputs,
   ciDeployNodes,
   invariantChecks,
+  inventoryHostAssertions,
   self',
 }:
 let
@@ -108,6 +109,7 @@ in
         hostRegistry
         ;
       allNixosConfigs = lib.intersectAttrs hostRegistry ciNixosConfigs;
+      hostAssertions = inventoryHostAssertions;
     };
 
     drift-inventory-data = import ../packages/inventory-data.nix {
@@ -117,6 +119,7 @@ in
         hostRegistry
         ;
       allNixosConfigs = lib.intersectAttrs hostRegistry ciNixosConfigs;
+      hostAssertions = inventoryHostAssertions;
       includeClosureSizes = false;
     };
 

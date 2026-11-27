@@ -140,6 +140,7 @@
       inherit (checkOutputs)
         ciTestsFor
         invariantChecks
+        inventoryHostAssertions
         samples
         ;
     in
@@ -166,6 +167,7 @@
             nixos-anywhere
             ciDeployNodes
             invariantChecks
+            inventoryHostAssertions
             self'
             ;
           flakeInputs = inputs;
