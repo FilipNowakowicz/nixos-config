@@ -72,7 +72,7 @@ in
             thresholds = countThresholds;
             targets = [
               (dash.target {
-                expr = ''count(ALERTS{alertstate="firing"}) or vector(0)'';
+                expr = ''count(ALERTS{alertstate="firing",alertname!="Watchdog"}) or vector(0)'';
                 legendFormat = "firing";
               })
             ];
@@ -194,7 +194,7 @@ in
             noValue = "No alerts firing — all clear";
             targets = [
               (dash.target {
-                expr = ''ALERTS{alertstate="firing"}'';
+                expr = ''ALERTS{alertstate="firing",alertname!="Watchdog"}'';
                 format = "table";
                 instant = true;
               })

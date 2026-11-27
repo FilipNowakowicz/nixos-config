@@ -50,6 +50,7 @@ in
           loki.enable = true;
           alerts.enable = true;
           alertWebhookUrlFile = "/run/smoke-webhook-url";
+          watchdogUrlFile = "/run/smoke-watchdog-url";
           collectors = {
             metrics.enable = true;
             blackbox = {
@@ -60,6 +61,12 @@ in
                   expectedStatusCodes = [ 200 ];
                   skipTLSVerify = true;
                 };
+              };
+              # A local dnsmasq stands in for AdGuard: the probe resolves a
+              # name it serves, which also proves the dns module config loads.
+              dnsProbes.adguard = {
+                target = "127.0.0.1:53";
+                queryName = "probe.smoke.test";
               };
             };
           };
@@ -78,6 +85,9 @@ in
               echo http://127.0.0.1:19093/alerts > /run/smoke-webhook-url
               chown root:alertmanager-webhook /run/smoke-webhook-url
               chmod 0440 /run/smoke-webhook-url
+              echo http://127.0.0.1:19093/watchdog > /run/smoke-watchdog-url
+              chown root:alertmanager-webhook /run/smoke-watchdog-url
+              chmod 0440 /run/smoke-watchdog-url
             '';
             script = ''
               exec ${pkgs.python3}/bin/python3 - <<'PYTHON'
@@ -86,7 +96,7 @@ in
                   def do_POST(self):
                       body = self.rfile.read(int(self.headers['Content-Length']))
                       with open('/tmp/webhook-received', 'ab') as output:
-                          output.write(body)
+                          output.write(self.path.encode() + b' ' + body + b'\n')
                       self.send_response(200)
                       self.end_headers()
               HTTPServer(('127.0.0.1', 19093), Handler).serve_forever()
@@ -141,6 +151,16 @@ in
         };
 
         services = {
+          dnsmasq = {
+            enable = true;
+            resolveLocalQueries = false;
+            settings = {
+              no-resolv = true;
+              listen-address = "127.0.0.1";
+              bind-interfaces = true;
+              address = "/probe.smoke.test/192.0.2.53";
+            };
+          };
           prometheus = {
             retentionTime = "30d";
             globalConfig.evaluation_interval = "1s";
@@ -213,6 +233,7 @@ in
       "server.wait_for_unit(\"prometheus.service\")"
       "server.wait_for_unit(\"alertmanager.service\")"
       "server.wait_for_unit(\"prometheus-blackbox-exporter.service\")"
+      "server.wait_for_unit(\"dnsmasq.service\")"
       "server.wait_for_unit(\"smoke-test-grafana-auth.service\")"
       "server.wait_for_unit(\"nginx.service\")"
       ""
@@ -267,7 +288,7 @@ in
       "import json"
       "import urllib.request"
       ""
-      "for probe in (\"grafana-auth-boundary\",):"
+      "for probe in (\"grafana-auth-boundary\", \"adguard\"):"
       "    with urllib.request.urlopen("
       "        \"http://127.0.0.1:9090/api/v1/query?query=probe_success%7Bprobe%3D%22\""
       "        + probe"
@@ -287,5 +308,19 @@ in
       "server.succeed('curl -fsS http://127.0.0.1:9090/api/v1/rules | jq -e \\'[.data.groups[].rules[].name] | index(\"SystemdUnitFailed\") != null\\'')"
       "server.wait_until_succeeds('curl -fsS http://127.0.0.1:9090/api/v1/alertmanagers | jq -e \\'.data.activeAlertmanagers | any(.url == \"http://127.0.0.1:9093/api/v2/alerts\")\\'', timeout=90)"
       "server.wait_until_succeeds('grep -q SmokeNotification /tmp/webhook-received', timeout=90)"
+      ""
+      "# The stack scrapes its own components (Grafana under its sub-path)."
+      "for job in (\"alertmanager\", \"grafana\", \"loki\", \"exporter-blackbox\"):"
+      "    server.wait_until_succeeds("
+      "      f\"curl -fsS 'http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22{job}%22%7D'\""
+      "      f\" | jq -e '.data.result[0].value[1] == \\\"1\\\"'\","
+      "      timeout=90,"
+      "    )"
+      ""
+      "server.wait_until_succeeds('curl -fsS http://127.0.0.1:9090/api/v1/rules | jq -e \\'[.data.groups[].rules[] | select(.health == \"ok\") | .name] | contains([\"DnsProbeFailed\", \"ScrapeTargetDown\", \"GcpBuilderLeftRunning\", \"Watchdog\"])\\'', timeout=120)"
+      ""
+      "# Watchdog reaches only its own dead-man's-switch receiver."
+      "server.wait_until_succeeds('grep -q \\'^/watchdog .*\"alertname\":\"Watchdog\"\\' /tmp/webhook-received', timeout=150)"
+      "server.fail('grep -q \\'^/alerts .*\"alertname\":\"Watchdog\"\\' /tmp/webhook-received')"
     ];
   }

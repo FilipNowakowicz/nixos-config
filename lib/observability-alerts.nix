@@ -17,16 +17,27 @@
 # gating CVE signal is the scheduled `.github/workflows/cve-scan.yml` run
 # (`scripts/validate.sh cve-reports`), which scans the flake-built closures with
 # real advisories + severity. No live-host vulnix scan or freshness alert exists.
-#   LynisScoreLow     — hardening index < 60 for 0 m
+#   LynisScoreLow     — hardening index < 70 for 0 m (healthy baseline is 77)
 #   LynisScanStale    — no successful audit in 26 h (daily + 2 h buffer)
 #   BlackboxProbeFailed — blackbox HTTP probe failing for 5 min
+#   DnsProbeFailed    — blackbox DNS probe (AdGuard) failing for 5 min
+#   ScrapeTargetDown  — a scrape target (incl. the stack's own components)
+#                       answering no scrape for 5 min
 #   TLSCertificateExpiresSoon — HTTPS certificate expires within 7 d
 #   BackupEvidenceMissing — a host is reporting but has no success timestamp
 #                           for a backup job it is expected to run, for 1 h
+#   GcpBuilderLeftRunning — gcp-builder online in the tailnet for 4 h
+#   Watchdog          — always firing; Alertmanager posts it to an external
+#                       dead-man's-switch, which alerts when the posts stop
 let
   evidence = import ./backup-evidence.nix;
   inherit (evidence) metrics;
   hostRegistry = import ./hosts.nix;
+
+  # Renaming the builder in the registry fails here, not as a silent rule.
+  builderName =
+    assert hostRegistry ? gcp-builder;
+    "gcp-builder";
 
   # The *Stale rules above compare the age of an existing series, so they
   # cannot fire for a job that never succeeded or whose textfile was removed.
@@ -148,13 +159,16 @@ in
             };
           }
           {
+            # The healthy index is 77. 70 flags a real hardening regression,
+            # and a broken audit: without its tool PATH the index under-reports
+            # at ~58, and a report without an index is written as 0.
             alert = "LynisScoreLow";
-            expr = "lynis_hardening_index < 60";
+            expr = "lynis_hardening_index < 70";
             for = "0m";
             labels.severity = "warning";
             annotations = {
               summary = "Lynis hardening score low on {{ $labels.instance }}";
-              description = "Hardening index is {{ $value }} (threshold: 60). Review lynis warnings and suggestions.";
+              description = "Hardening index is {{ $value }} (threshold: 70, healthy baseline 77). Review lynis warnings and suggestions, and the audit's tool PATH.";
             };
           }
           {
@@ -187,14 +201,67 @@ in
               description = "The earliest certificate in the probed TLS chain expires in less than 7 days. Check tailscale-cert.service and nginx reload status.";
             };
           }
+          {
+            # AdGuard is the tailnet-wide resolver. A hung AdGuard or failing
+            # upstreams leave its unit active, so only a real lookup shows it.
+            alert = "DnsProbeFailed";
+            expr = ''probe_success{job=~"dns-.*"} == 0'';
+            for = "5m";
+            labels.severity = "critical";
+            annotations = {
+              summary = "DNS probe failed for {{ $labels.probe }}";
+              description = "Resolving a real external name through {{ $labels.instance }} has failed for more than 5 minutes, so tailnet DNS is likely broken for every client. Check adguardhome.service and its upstreams; the fallback is removing the Tailscale DNS nameserver override.";
+            };
+          }
+          {
+            alert = "ScrapeTargetDown";
+            expr = "up == 0";
+            for = "5m";
+            labels.severity = "warning";
+            annotations = {
+              summary = "Scrape target {{ $labels.job }} down on {{ $labels.host }}";
+              description = "Prometheus has failed to scrape {{ $labels.job }} at {{ $labels.instance }} for more than 5 minutes. The component may be hung even though its unit is still active.";
+            };
+          }
+          {
+            # The source is homeserver-gcp's own tailnet view (tailscale
+            # status), written by hosts/homeserver-gcp/tailnet-presence.nix.
+            # `for` state survives a Prometheus restart (ALERTS_FOR_STATE).
+            alert = "GcpBuilderLeftRunning";
+            expr = ''tailscale_peer_online{peer="${builderName}"} == 1'';
+            for = "4h";
+            labels.severity = "warning";
+            annotations = {
+              summary = "${builderName} has been running for over 4 hours";
+              description = "${builderName} has been online in the tailnet for more than 4 hours. Its idle shutdown may be broken: check builder-idle-shutdown on it, and unless an on-worker job is still running, stop the instance from GCP.";
+            };
+          }
+        ];
+      }
+      {
+        name = "alerting-pipeline";
+        interval = "1m";
+        rules = [
+          {
+            # Always firing. Alertmanager routes it to an external
+            # dead-man's-switch every minute, so a broken evaluator,
+            # Alertmanager or notification path is noticed off-host.
+            alert = "Watchdog";
+            expr = "vector(1)";
+            labels.severity = "none";
+            annotations = {
+              summary = "Alerting pipeline heartbeat";
+              description = "Always firing by design. It proves the Prometheus to Alertmanager to webhook path works; the external check alerts when it stops arriving.";
+            };
+          }
         ];
       }
     ];
   };
 
   # Minimal Alertmanager config — null receiver so the ruler has somewhere to
-  # send alerts without erroring. Wire a real receiver (email, PagerDuty, etc.)
-  # by replacing this in the host config via lib.mkForce or a follow-up module.
+  # send alerts without erroring. modules/nixos/profiles/observability/alerts.nix
+  # swaps in the webhook and watchdog receivers when their URL files are set.
   alertmanager = {
     route = {
       receiver = "null";
@@ -205,6 +272,16 @@ in
       group_wait = "30s";
       group_interval = "5m";
       repeat_interval = "4h";
+    };
+    # Watchdog never reaches the normal receiver. A short repeat keeps the
+    # external check pinged about every minute or two.
+    watchdogRoute = {
+      matchers = [ ''alertname="Watchdog"'' ];
+      receiver = "null";
+      group_wait = "0s";
+      group_interval = "1m";
+      repeat_interval = "1m";
+      continue = false;
     };
     receivers = [ { name = "null"; } ];
   };

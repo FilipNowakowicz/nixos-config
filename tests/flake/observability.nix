@@ -22,7 +22,142 @@ let
     "BlackboxProbeFailed"
     "TLSCertificateExpiresSoon"
     "BackupEvidenceMissing"
+    "DnsProbeFailed"
+    "ScrapeTargetDown"
+    "GcpBuilderLeftRunning"
+    "Watchdog"
   ];
+
+  # Expected alert for `alertname` with `labels`: the rule's own severity and
+  # annotations, with {{ $labels.x }} and {{ $value }} filled in, so a test
+  # pins the firing behaviour without restating every description.
+  rulesByName = lib.listToAttrs (
+    map (rule: lib.nameValuePair rule.alert rule) (
+      lib.concatMap (group: group.rules) alertData.rules.groups
+    )
+  );
+  expectAlert =
+    alertname:
+    {
+      labels,
+      value ? "",
+    }:
+    let
+      rule = rulesByName.${alertname};
+      render = lib.replaceStrings (
+        map (name: "{{ $labels.${name} }}") (builtins.attrNames labels) ++ [ "{{ $value }}" ]
+      ) (builtins.attrValues labels ++ [ value ]);
+    in
+    {
+      exp_labels = labels // {
+        inherit (rule.labels) severity;
+      };
+      exp_annotations = builtins.mapAttrs (_: render) rule.annotations;
+    };
+  alertTest = eval_time: alertname: exp_alerts: { inherit eval_time alertname exp_alerts; };
+
+  # promtool unit tests for the blind-spot rules (#628): each fires after its
+  # hold and stays quiet before it or on healthy input.
+  blindSpotTests =
+    let
+      dnsLabels = {
+        job = "dns-adguard";
+        probe = "adguard";
+        instance = "100.64.0.53:53";
+      };
+      lokiLabels = {
+        job = "loki";
+        instance = "127.0.0.1:3100";
+        host = "homeserver-gcp";
+      };
+      builderLabels = {
+        peer = "gcp-builder";
+        job = "node";
+        instance = "127.0.0.1:9100";
+      };
+      lynisLabels = {
+        job = "node";
+        instance = "127.0.0.1:9100";
+      };
+      series = labels: values: {
+        series = "${labels.__name__ or ""}{${
+          lib.concatStringsSep "," (
+            lib.mapAttrsToList (k: v: ''${k}="${v}"'') (removeAttrs labels [ "__name__" ])
+          )
+        }}";
+        inherit values;
+      };
+    in
+    [
+      {
+        # Failing DNS probe: DnsProbeFailed after 5 m, and the HTTP-oriented
+        # BlackboxProbeFailed never claims the dns- job.
+        interval = "1m";
+        input_series = [ (series (dnsLabels // { __name__ = "probe_success"; }) "0x20") ];
+        alert_rule_test = [
+          (alertTest "4m" "DnsProbeFailed" [ ])
+          (alertTest "6m" "DnsProbeFailed" [ (expectAlert "DnsProbeFailed" { labels = dnsLabels; }) ])
+          (alertTest "6m" "BlackboxProbeFailed" [ ])
+        ];
+      }
+      {
+        interval = "1m";
+        input_series = [ (series (dnsLabels // { __name__ = "probe_success"; }) "1x20") ];
+        alert_rule_test = [ (alertTest "10m" "DnsProbeFailed" [ ]) ];
+      }
+      {
+        # A self-scraped stack component stops answering at 2 m.
+        interval = "1m";
+        input_series = [ (series (lokiLabels // { __name__ = "up"; }) "1 1 0x20") ];
+        alert_rule_test = [
+          (alertTest "6m" "ScrapeTargetDown" [ ])
+          (alertTest "8m" "ScrapeTargetDown" [ (expectAlert "ScrapeTargetDown" { labels = lokiLabels; }) ])
+        ];
+      }
+      {
+        # Builder online continuously: quiet at 3 h 50 m, firing after 4 h.
+        interval = "5m";
+        input_series = [ (series (builderLabels // { __name__ = "tailscale_peer_online"; }) "1x60") ];
+        alert_rule_test = [
+          (alertTest "230m" "GcpBuilderLeftRunning" [ ])
+          (alertTest "250m" "GcpBuilderLeftRunning" [
+            (expectAlert "GcpBuilderLeftRunning" { labels = builderLabels; })
+          ])
+        ];
+      }
+      {
+        # Normal on-demand use: online for an hour, then powered off again.
+        interval = "5m";
+        input_series = [
+          (series (builderLabels // { __name__ = "tailscale_peer_online"; }) "1x12 0x48")
+        ];
+        alert_rule_test = [ (alertTest "250m" "GcpBuilderLeftRunning" [ ]) ];
+      }
+      {
+        # Always firing, with no input at all.
+        interval = "1m";
+        input_series = [ ];
+        alert_rule_test = [
+          (alertTest "1m" "Watchdog" [ (expectAlert "Watchdog" { labels = { }; }) ])
+        ];
+      }
+      {
+        # Healthy baseline 77 stays quiet; a broken audit's 58 fires.
+        interval = "1m";
+        input_series = [
+          (series (lynisLabels // { __name__ = "lynis_hardening_index"; }) "77x5 58x5")
+        ];
+        alert_rule_test = [
+          (alertTest "3m" "LynisScoreLow" [ ])
+          (alertTest "8m" "LynisScoreLow" [
+            (expectAlert "LynisScoreLow" {
+              labels = lynisLabels;
+              value = "58";
+            })
+          ])
+        ];
+      }
+    ];
 
   # promtool unit tests for BackupEvidenceMissing: a reporting host missing
   # one expected timestamp alerts after the hold, the others stay quiet, and
@@ -72,19 +207,22 @@ let
     (pkgs.formats.yaml { }).generate "missing-evidence-tests.yaml" {
       rule_files = [ "rules.yaml" ];
       evaluation_interval = "1m";
-      tests = map hostCase (builtins.attrNames alertData.expectedBackupEvidence) ++ [
-        {
-          interval = "1m";
-          input_series = [ ];
-          alert_rule_test = [
-            {
-              eval_time = "90m";
-              alertname = "BackupEvidenceMissing";
-              exp_alerts = [ ];
-            }
-          ];
-        }
-      ];
+      tests =
+        map hostCase (builtins.attrNames alertData.expectedBackupEvidence)
+        ++ [
+          {
+            interval = "1m";
+            input_series = [ ];
+            alert_rule_test = [
+              {
+                eval_time = "90m";
+                alertname = "BackupEvidenceMissing";
+                exp_alerts = [ ];
+              }
+            ];
+          }
+        ]
+        ++ blindSpotTests;
     };
 
   observabilityAlertsLint =
@@ -122,6 +260,8 @@ let
                 };
                 loki.enable = true;
                 alerts.enable = true;
+                alertWebhookUrlFile = "/run/fixture-webhook-url";
+                watchdogUrlFile = "/run/fixture-watchdog-url";
                 collectors = {
                   metrics.enable = true;
                   logs.enable = true;
@@ -131,17 +271,43 @@ let
           )
         ];
       };
+      amRoute = systemConfig.config.services.prometheus.alertmanager.configuration.route;
       evaluated = {
         grafana = systemConfig.config.services.grafana.enable;
         loki = systemConfig.config.services.loki.enable;
         alertmanager = systemConfig.config.services.prometheus.alertmanager.enable;
         prometheus = systemConfig.config.services.prometheus.enable;
+        # Watchdog goes only to its own receiver; everything else to the webhook.
+        routes = map (route: { inherit (route) receiver matchers; }) amRoute.routes;
+        defaultReceiver = amRoute.receiver;
+        # The alerting host scrapes its own stack components.
+        scrapeJobs = map (scrape: scrape.job_name) systemConfig.config.services.prometheus.scrapeConfigs;
+        grafanaMetricsPath =
+          (lib.findFirst (
+            scrape: scrape.job_name == "grafana"
+          ) { } systemConfig.config.services.prometheus.scrapeConfigs).metrics_path or null;
       };
       expected = {
         grafana = true;
         loki = true;
         alertmanager = true;
         prometheus = true;
+        routes = [
+          {
+            receiver = "watchdog";
+            matchers = [ ''alertname="Watchdog"'' ];
+          }
+        ];
+        defaultReceiver = "webhook";
+        scrapeJobs = [
+          "prometheus"
+          "node"
+          "alertmanager"
+          "grafana"
+          "loki"
+          "alloy"
+        ];
+        grafanaMetricsPath = "/metrics";
       };
     in
     assert lib.assertMsg (

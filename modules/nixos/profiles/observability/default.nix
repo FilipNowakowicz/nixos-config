@@ -31,6 +31,20 @@ in
       example = lib.literalExpression "config.sops.secrets.alertmanager_webhook_url.path";
     };
 
+    watchdogUrlFile = lib.mkOption {
+      type = with lib.types; nullOr path;
+      default = null;
+      description = ''
+        Path to a file containing the URL Alertmanager posts the always-firing
+        Watchdog alert to, about once a minute: an external dead-man's-switch
+        (e.g. a healthchecks.io check) that alerts when the posts stop, so a
+        broken evaluator, Alertmanager or notification path is noticed. Read at
+        send time, so a placeholder value only produces failed sends. When null,
+        Watchdog routes to the null receiver.
+      '';
+      example = lib.literalExpression "config.sops.secrets.alertmanager_watchdog_url.path";
+    };
+
     grafana = {
       enable = lib.mkEnableOption "Grafana";
       adminUser = lib.mkOption {

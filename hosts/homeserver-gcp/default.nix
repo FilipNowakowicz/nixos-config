@@ -39,6 +39,7 @@ in
     ./backups.nix
     ./restore-drill.nix
     ./heartbeat.nix
+    ./tailnet-presence.nix
     ./audits.nix
     ./hardening.nix
     ./github-runner.nix
@@ -98,6 +99,7 @@ in
     observability = {
       enable = true;
       alertWebhookUrlFile = config.sops.secrets.alertmanager_webhook_url.path;
+      watchdogUrlFile = config.sops.secrets.alertmanager_watchdog_url.path;
       grafana = {
         enable = true;
         adminPasswordFile = config.sops.secrets.grafana_admin_password.path;
@@ -127,6 +129,12 @@ in
               url = "https://${tailnetFQDN}/grafana/";
               expectedStatusCodes = [ 200 ];
             };
+          };
+          # A real external name through AdGuard's tailnet address: catches a
+          # hung AdGuard and failing upstreams, not only a failed unit.
+          dnsProbes.adguard = {
+            target = "${hostMeta.tailscale.ip4}:53";
+            queryName = "cloudflare.com";
           };
         };
       };
@@ -179,6 +187,15 @@ in
       grafana_admin_password.owner = "grafana";
       grafana_secret_key.owner = "grafana";
       alertmanager_webhook_url = {
+        mode = "0440";
+        group = "alertmanager-webhook";
+      };
+      # Ping URL of the healthchecks.io check behind the always-firing
+      # Watchdog alert. Alertmanager reads it at send time, so the loopback
+      # placeholder only yields failed sends until the real URL is set with
+      # `bash scripts/rotate-secret.sh set` (see the Alert delivery gotcha in
+      # ./CLAUDE.md).
+      alertmanager_watchdog_url = {
         mode = "0440";
         group = "alertmanager-webhook";
       };
