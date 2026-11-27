@@ -17,7 +17,12 @@ let
   #   checks              — extra flake checks, keyed by their check name
   # A registry host without the file still gets the baseline.
   hostChecksArgs = {
-    inherit lib pkgs invariants;
+    inherit
+      lib
+      pkgs
+      invariants
+      hostRegistry
+      ;
     nixosConfigurations = ciNixosConfigs;
   };
   hostChecksFile = hostName: ../hosts + "/${hostName}/checks.nix";
@@ -75,6 +80,9 @@ let
       commonSystemInvariants
       ++ [ (invariants.stateVersionExplicitlySet evaluated.options) ]
       ++ invariants.mkRegistryAssertions hostName hostRegistry.${hostName}
+      ++ lib.optional (hostRegistry.${hostName} ? deploy) (
+        invariants.deployUserIsPrimaryUser hostRegistry.${hostName}
+      )
       ++ (hostChecks.${hostName}.invariants or [ ])
     ) evaluated.config;
 

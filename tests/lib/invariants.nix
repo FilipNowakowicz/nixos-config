@@ -468,6 +468,18 @@ let
       expected = true;
     };
 
+    testDeployUserIsPrimaryUser = {
+      expr =
+        ((invariants.deployUserIsPrimaryUser hostMeta).check { profiles.primaryUser = "user"; }).passed;
+      expected = true;
+    };
+
+    testDeployUserMismatchFails = {
+      expr =
+        ((invariants.deployUserIsPrimaryUser hostMeta).check { profiles.primaryUser = "admin"; }).passed;
+      expected = false;
+    };
+
     testDeployableHostsRequireOpenSsh = {
       expr = runAssertion "deployable hosts enable OpenSSH" (
         baseConfig

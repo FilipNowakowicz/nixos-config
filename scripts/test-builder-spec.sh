@@ -38,4 +38,17 @@ if NIX_RC=1 spec 2>/dev/null; then
   echo 'builder_spec succeeded without the registry' >&2
   exit 1
 fi
+
+# Without the registry there is no address to fall back to, unless the caller
+# supplies one, as CI does.
+resolve() (
+  # shellcheck source=scripts/lib/builder.sh disable=SC1091
+  source "$script_dir/lib/builder.sh"
+  resolve_builder_fqdn && printf '%s@%s' "$builder_user" "$builder_fqdn"
+)
+if NIX_RC=1 resolve 2>/dev/null; then
+  echo 'resolved an address without the registry' >&2
+  exit 1
+fi
+[[ $(NIX_RC=1 BUILDER_FQDN=100.64.0.1 BUILDER_USER=ci resolve) == ci@100.64.0.1 ]]
 echo 'builder spec tests passed'
