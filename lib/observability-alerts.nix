@@ -24,24 +24,23 @@
 #   BackupEvidenceMissing — a host is reporting but has no success timestamp
 #                           for a backup job it is expected to run, for 1 h
 let
+  evidence = import ./backup-evidence.nix;
+  inherit (evidence) metrics;
+  hostRegistry = import ./hosts.nix;
+
   # The *Stale rules above compare the age of an existing series, so they
   # cannot fire for a job that never succeeded or whose textfile was removed.
-  # List each reporting host's expected success timestamps here; a host must
-  # be scraped by this Prometheus to be listed.
-  expectedBackupEvidence = {
-    "homeserver-gcp" = [
-      "restic_last_backup_timestamp_seconds"
-      "restic_last_check_timestamp_seconds"
-      "restic_last_restore_test_timestamp_seconds"
-      "restore_drill_last_success_timestamp_seconds"
-    ];
-    # The laptop's stamps sit on a persisted path (hosts/main/impermanence.nix),
-    # so a reboot no longer empties this list until the next run.
-    main = [
-      "restic_last_backup_timestamp_seconds"
-      "restic_last_check_timestamp_seconds"
-    ];
-  };
+  # Every active host with a registry `backup` entry reports to this
+  # Prometheus and is expected to have the timestamps that entry declares
+  # (lib/backup-evidence.nix). main's stamps sit on a persisted path
+  # (hosts/main/impermanence.nix), so a reboot does not empty its series.
+  expectedBackupEvidence = builtins.mapAttrs (_: evidence.expectedFor) (
+    builtins.removeAttrs hostRegistry (
+      builtins.filter (
+        name: hostRegistry.${name}.status != "active" || !(hostRegistry.${name} ? backup)
+      ) (builtins.attrNames hostRegistry)
+    )
+  );
 
   # One series per missing (host, metric), labelled with the metric name.
   missingEvidenceExpr = builtins.concatStringsSep "\nor\n" (
@@ -87,7 +86,7 @@ in
           }
           {
             alert = "ResticBackupStale";
-            expr = "(time() - restic_last_backup_timestamp_seconds) / 3600 > 26";
+            expr = "(time() - ${metrics.backup}) / 3600 > 26";
             for = "0m";
             labels.severity = "critical";
             annotations = {
@@ -97,7 +96,7 @@ in
           }
           {
             alert = "ResticCheckStale";
-            expr = "(time() - restic_last_check_timestamp_seconds) / 86400 > 8";
+            expr = "(time() - ${metrics.check}) / 86400 > 8";
             for = "0m";
             labels.severity = "warning";
             annotations = {
@@ -117,7 +116,7 @@ in
           }
           {
             alert = "ResticRestoreCanaryStale";
-            expr = "(time() - restic_last_restore_test_timestamp_seconds) / 3600 > 50";
+            expr = "(time() - ${metrics.restoreTest}) / 3600 > 50";
             for = "30m";
             labels.severity = "warning";
             annotations = {
@@ -130,7 +129,7 @@ in
             # full-service bring-up has been recorded in ~100 days (one quarter
             # plus a generous buffer for a single skipped/failed run).
             alert = "RestoreDrillStale";
-            expr = "(time() - restore_drill_last_success_timestamp_seconds) / 86400 > 100";
+            expr = "(time() - ${metrics.restoreDrill}) / 86400 > 100";
             for = "1h";
             labels.severity = "warning";
             annotations = {

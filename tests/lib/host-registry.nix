@@ -27,9 +27,12 @@ let
       name = "b2";
     };
     hardware.diskById = "/dev/disk/by-id/test-disk";
+    dnsServer = true;
   };
 
   fails = host: !(builtins.tryEval (registry.validateHost "test" host)).success;
+  registryFails =
+    hosts: !(builtins.tryEval (builtins.deepSeq (registry.validateRegistry hosts) true)).success;
 
   failures = lib.runTests {
     testValidHostPassesThrough = {
@@ -92,6 +95,46 @@ let
     testBadBackupClassFails = {
       expr = fails (validHost // { backup.class = "archive"; });
       expected = true;
+    };
+
+    testBadBackupRestoreFlagFails = {
+      expr = fails (
+        validHost
+        // {
+          backup = validHost.backup // {
+            restoreTest = "yes";
+          };
+        }
+      );
+      expected = true;
+    };
+
+    testBadDnsServerFails = {
+      expr = fails (validHost // { dnsServer = "yes"; });
+      expected = true;
+    };
+
+    testRegistryWithoutDnsServerFails = {
+      expr = registryFails { test = builtins.removeAttrs validHost [ "dnsServer" ]; };
+      expected = true;
+    };
+
+    testRegistryWithTwoDnsServersFails = {
+      expr = registryFails {
+        a = validHost;
+        b = validHost;
+      };
+      expected = true;
+    };
+
+    testInactiveDnsServerDoesNotCount = {
+      expr = registry.dnsServerName {
+        a = validHost;
+        b = validHost // {
+          status = "inactive";
+        };
+      };
+      expected = "a";
     };
 
     testStableInventoryFieldsExposeClosureSize = {

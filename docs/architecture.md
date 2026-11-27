@@ -63,6 +63,7 @@ A host's Nix store closure should only contain what is explicitly requested.
 - **Multi-Arch Support:** Every host must define its target `system` (e.g., `x86_64-linux`), ensuring the flake evaluates correctly for heterogeneous fleets.
 - **Lifecycle Status:** Every host in `lib/hosts.nix` must define `status`. `active` means a current runtime target, `inactive` means buildable but not operated, and `legacy-supported` means retained tooling with an explicit maintenance boundary.
 - Network IDs, Tailscale tags, and roles must be defined in the registry, not hardcoded in modules.
+- Shared `lib/` code derives host-specific facts from registry fields instead of naming hosts: `dnsServer` picks the tailnet DNS server for the AdGuard grant invariant, and `backup.restoreTest`/`backup.restoreDrill` decide which backup timestamps `BackupEvidenceMissing` expects (`lib/backup-evidence.nix`).
 - Hosts and infrastructure modules receive this data through the `hostMeta` and `hostRegistry` special args. Avoid duplicating registry-owned values in host modules unless the local value is truly hardware-specific.
 - Generators may intentionally consume only a subset of the registry. For example, `lib/acl.nix` consumes `tailscale` metadata needed for explicit host:port policy (`tag`, `acceptFrom`, and `tailnetFQDN` when present) rather than inferring service exposure from host modules.
 

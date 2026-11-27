@@ -33,7 +33,14 @@ Optional fields:
 | `tailscale`   | `{ tag = string; acceptFrom.<sourceTag> = [ port ... ]; }` | Yes             |
 | `homeManager` | repo role/profile/pack metadata                            | Repo-local      |
 | `backup`      | `{ class = "critical" or "standard"; name = string; }`     | Yes             |
+| `dnsServer`   | bool; exactly one active host sets it                      | Repo-local      |
 | `hardware`    | host-local identifiers such as `diskById`                  | Repo-local      |
+
+`backup` also takes optional `restoreTest` and `restoreDrill` bools, which
+declare that the host stamps restore-canary and restore-drill timestamps
+(`lib/backup-evidence.nix`); `BackupEvidenceMissing` expects them. `dnsServer`
+marks the host whose AdGuard Home is the tailnet DNS nameserver;
+`validateRegistry` rejects a registry with zero or several active ones.
 
 Example:
 

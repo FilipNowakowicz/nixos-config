@@ -17,6 +17,7 @@ let
   # lib/backup-policy.nix. The homeserver check pins its own expected values
   # so an accidental reduction in retention fails evaluation.
   pruneOptsByClass = import ../../../lib/backup-policy.nix;
+  evidence = (import ../../../lib/backup-evidence.nix).metrics;
 
   # Success stamps go to the durable directory. If a reboot erased them, the
   # *Stale alerts would have no series to age and could never fire.
@@ -68,7 +69,7 @@ lib.mkIf (backupClass != null) {
       # the freshness metric unconditionally. ($EXIT_STATUS is only exported to
       # ExecStop/ExecStopPost, never to ExecStartPost, so it cannot gate here.)
       "restic-backups-${backupName}".serviceConfig.ExecStartPost = mkPromScript (
-        timestampMetric "restic_backup.prom" "restic_last_backup_timestamp_seconds"
+        timestampMetric "restic_backup.prom" evidence.backup
           "Unix timestamp of last successful restic backup"
       );
 
@@ -78,7 +79,7 @@ lib.mkIf (backupClass != null) {
           Type = "oneshot";
           ExecStart = "${pkgs.restic}/bin/restic check --repository-file=${secrets.restic_repository.path} --read-data-subset=1G";
           ExecStartPost = mkPromScript (
-            timestampMetric "restic_check.prom" "restic_last_check_timestamp_seconds"
+            timestampMetric "restic_check.prom" evidence.check
               "Unix timestamp of last successful restic integrity check"
           );
           EnvironmentFile = secrets.b2_credentials.path;

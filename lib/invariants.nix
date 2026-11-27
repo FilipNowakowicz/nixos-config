@@ -1,5 +1,7 @@
 { lib, pkgs }:
 let
+  hostRegistryLib = import ./host-registry.nix;
+
   hasResticBackup =
     backupName: cfg:
     builtins.hasAttr backupName cfg.services.restic.backups
@@ -138,23 +140,23 @@ rec {
         "deploy target(s) missing tailnetFQDN or tailscale metadata: ${formatList offenders}"
     );
 
-  # AdGuard on homeserver-gcp (tag:server) is the tailnet-wide global DNS
+  # AdGuard on the registry's `dnsServer` host is the tailnet-wide global DNS
   # nameserver, so any tailnet host whose tag is not admitted to it on port 53
   # has NO working external resolver — name resolution times out silently. This
   # recurred twice (gcp-agent, then gcp-builder, whose offloaded builds stalled
   # on cache.nixos.org). Guard against a third recurrence: every tag declared by
   # an active host in the registry must appear in the DNS server's
-  # tailscale.acceptFrom with port 53, unless explicitly exempted.
-  adguardDnsServerHostName = "homeserver-gcp";
+  # tailscale.acceptFrom with port 53, except the DNS server's own tag: that
+  # host *is* the AdGuard host and resolves locally, so it neither needs nor
+  # grants itself a :53 inbound rule.
   adguardDnsPort = 53;
-  # tag:server is homeserver-gcp's own tag: it *is* the AdGuard host and
-  # resolves locally, so it neither needs nor grants itself a :53 inbound rule.
-  adguardDnsGrantExemptTags = [ "server" ];
 
   checkTailnetTagsHaveAdguardDnsGrant =
     hostRegistry:
     let
-      dnsServer = hostRegistry.${adguardDnsServerHostName} or { };
+      dnsServerName = hostRegistryLib.dnsServerName hostRegistry;
+      dnsServer = hostRegistry.${dnsServerName};
+      adguardDnsGrantExemptTags = [ dnsServer.tailscale.tag ];
       acceptFrom = dnsServer.tailscale.acceptFrom or { };
       tagGranted = tag: builtins.elem adguardDnsPort (acceptFrom.${tag} or [ ]);
       declaredTags = uniqueSorted (
@@ -173,7 +175,7 @@ rec {
       if missing == [ ] then
         "every active tailnet tag is admitted to AdGuard DNS (port ${toString adguardDnsPort}) or explicitly exempt"
       else
-        "tailnet tag(s) missing AdGuard DNS (port ${toString adguardDnsPort}) grant in ${adguardDnsServerHostName}.tailscale.acceptFrom: ${formatList missing}"
+        "tailnet tag(s) missing AdGuard DNS (port ${toString adguardDnsPort}) grant in ${dnsServerName}.tailscale.acceptFrom: ${formatList missing}"
     );
 
   # Fleet-wide registry policy, checked once by `invariants-registry-security`

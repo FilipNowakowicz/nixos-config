@@ -1,11 +1,25 @@
-{ config, pkgs, ... }:
+{
+  config,
+  pkgs,
+  hostMeta,
+  ...
+}:
 let
   canaryDir = "/var/lib/restic-backup-canary";
   canaryFile = "${canaryDir}/homeserver-gcp.txt";
   canaryContent = "restic restore canary: homeserver-gcp";
   inherit (config.lib.profiles.observability) mkPromScript;
+  metric = (import ../../lib/backup-evidence.nix).metrics.restoreTest;
 in
 {
+  # The registry flag is what makes BackupEvidenceMissing expect this stamp.
+  assertions = [
+    {
+      assertion = hostMeta.backup.restoreTest or false;
+      message = "homeserver-gcp runs a restore canary: set backup.restoreTest = true in lib/hosts.nix";
+    }
+  ];
+
   systemd = {
     services = {
       # The backup itself, its metric and the weekly check come from
@@ -53,9 +67,9 @@ in
             ${mkPromScript {
               name = "restic_restore_canary.prom";
               lines = [
-                "# HELP restic_last_restore_test_timestamp_seconds Unix timestamp of last successful restic restore canary"
-                "# TYPE restic_last_restore_test_timestamp_seconds gauge"
-                "restic_last_restore_test_timestamp_seconds $(${pkgs.coreutils}/bin/date +%s)"
+                "# HELP ${metric} Unix timestamp of last successful restic restore canary"
+                "# TYPE ${metric} gauge"
+                "${metric} $(${pkgs.coreutils}/bin/date +%s)"
               ];
             }}
           '';

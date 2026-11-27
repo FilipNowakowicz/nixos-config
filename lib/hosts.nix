@@ -21,6 +21,13 @@
 #   backup      — drives modules/nixos/profiles/backup.nix retention policy
 #     .class    — "critical" (14d/8w/6m/2y) | "standard" (7d/4w/3m); absent = no backup module
 #     .name     — restic backup job name; defaults to "local"
+#     .restoreTest  — host runs a restore canary that stamps its timestamp; defaults to false
+#     .restoreDrill — host runs a full-service restore drill that stamps its timestamp;
+#                     defaults to false
+#                 lib/backup-evidence.nix turns these into the timestamps the
+#                 BackupEvidenceMissing alert expects from each active host
+#   dnsServer   — true on the one active host whose AdGuard Home is the tailnet
+#                 DNS nameserver (exactly one; lib/invariants.nix checks its grants)
 #   sops        — whether this host should have host-secret SOPS coverage; defaults to true
 #   remoteBuilder — presence means other hosts offload Nix builds to this one
 #     .maxJobs           — concurrent remote jobs callers pass in `--builders`
@@ -67,7 +74,13 @@ let
       backup = {
         class = "critical";
         name = "b2";
+        # hosts/homeserver-gcp/backups.nix (daily restore canary) and
+        # restore-drill.nix (quarterly full-service drill).
+        restoreTest = true;
+        restoreDrill = true;
       };
+      # AdGuard Home here is the tailnet-wide global DNS nameserver.
+      dnsServer = true;
       tailscale = {
         tag = "server";
         # A rebuilt host joins with a new address. The tailnet's global DNS
