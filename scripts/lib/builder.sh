@@ -44,7 +44,8 @@ resolve_gcloud_cmd() {
 
 # The registry's FQDN, login (deploy.sshUser) and remoteBuilder spec, read from
 # lib/hosts.nix in one evaluation without evaluating the flake. BUILDER_FQDN,
-# BUILDER_USER and BUILDER_MAXJOBS override them.
+# BUILDER_USER and BUILDER_MAXJOBS override them. CI has no Nix and sets the
+# first two; invariants-gcp-builder keeps the workflows equal to the registry.
 resolve_builder_fqdn() {
   [[ -n $builder_fqdn && -n $builder_user && -n $builder_maxjobs && -n $builder_speed ]] && return 0
   local spec fqdn user system maxjobs speed features
@@ -52,17 +53,21 @@ resolve_builder_fqdn() {
   # shellcheck disable=SC2016
   spec="$(nix eval --raw --file "$builder_registry" gcp-builder --apply 'h: with h.remoteBuilder; "${h.tailnetFQDN} ${h.deploy.sshUser} ${h.system} ${toString maxJobs} ${toString speedFactor} ${builtins.concatStringsSep "," supportedFeatures}"' 2>/dev/null || true)"
   read -r fqdn user system maxjobs speed features <<<"$spec" || true
-  [[ -n $builder_fqdn ]] || builder_fqdn="${fqdn:-gcp-builder.tail90fc7a.ts.net}"
-  [[ -n $builder_user ]] || builder_user="${user:-user}"
+  [[ -n $builder_fqdn ]] || builder_fqdn="$fqdn"
+  [[ -n $builder_user ]] || builder_user="$user"
   [[ -n $builder_system ]] || builder_system="$system"
   [[ -n $builder_maxjobs ]] || builder_maxjobs="$maxjobs"
   [[ -n $builder_speed ]] || builder_speed="$speed"
   [[ -n $builder_features ]] || builder_features="$features"
+  [[ -n $builder_fqdn && -n $builder_user ]] || {
+    echo "remote builder: could not read gcp-builder from $builder_registry (set BUILDER_FQDN and BUILDER_USER)" >&2
+    return 1
+  }
 }
 
 # The --builders entry for nix; fails if the registry could not be read.
 builder_spec() {
-  resolve_builder_fqdn
+  resolve_builder_fqdn || return 1
   [[ -n $builder_system && -n $builder_maxjobs && -n $builder_speed && -n $builder_features ]] || {
     echo "remote builder: could not read gcp-builder.remoteBuilder from $builder_registry" >&2
     return 1
@@ -192,7 +197,7 @@ start_builder() {
     echo "remote builder: gcloud is not available" >&2
     return 1
   }
-  resolve_builder_fqdn
+  resolve_builder_fqdn || return 1
   echo "remote builder: starting $builder_name ..." >&2
   if find_builder_zone; then
     if ! start_builder_instance; then

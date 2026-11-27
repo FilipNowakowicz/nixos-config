@@ -1,9 +1,60 @@
 # Invariants that guard hosts/gcp-builder alone, beside the config they read.
 # flake/checks.nix layers `invariants` on the fleet baseline for
 # `invariants-gcp-builder`.
-{ lib, invariants, ... }:
+{
+  lib,
+  invariants,
+  hostRegistry,
+  ...
+}:
 let
   inherit (invariants) formatList interfaceTCPExposureViolations mkResult;
+
+  builderMeta = hostRegistry.gcp-builder;
+
+  # CI runners (tag:ci-builder) have no tailnet DNS and no Nix, so the
+  # workflows pin the builder's address and login as env values. Every
+  # workflow that reaches the builder must set both, to the registry's values.
+  ciWorkflowsMatchRegistry = {
+    name = "CI workflows address gcp-builder by its registry IP and login";
+    check =
+      _:
+      let
+        expected = {
+          BUILDER_FQDN = builderMeta.tailscale.ip4;
+          BUILDER_USER = builderMeta.deploy.sshUser;
+        };
+        workflows = [
+          "nix.yml"
+          "deploy-homeserver.yml"
+        ];
+        envValues =
+          file: key:
+          lib.concatMap (
+            line:
+            let
+              m = builtins.match "[[:space:]]*${key}:[[:space:]]*([^[:space:]#]+).*" line;
+            in
+            lib.optional (m != null) (builtins.head m)
+          ) (lib.splitString "\n" (builtins.readFile (../../.github/workflows + "/${file}")));
+        violations = lib.concatMap (
+          file:
+          lib.concatMap (
+            key:
+            let
+              values = envValues file key;
+            in
+            if values == [ ] then
+              [ "${file} sets no ${key}" ]
+            else
+              map (v: "${file}: ${key} is ${v}, registry says ${expected.${key}}") (
+                lib.filter (v: v != expected.${key}) values
+              )
+          ) (builtins.attrNames expected)
+        ) workflows;
+      in
+      mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);
+  };
 
   onDemandSshTailscaleOnly = {
     name = "on-demand GCE host SSH stays Tailscale-only";
@@ -77,5 +128,6 @@ in
     onDemandSshTailscaleOnly
     onDemandUsersAreKeyOnly
     workerJobsUserUnprivileged
+    ciWorkflowsMatchRegistry
   ];
 }

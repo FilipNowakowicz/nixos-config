@@ -716,6 +716,18 @@ rec {
         exit 1
       '';
 
+  # deploy-rs logs in as deploy.sshUser, and gce-server makes the primary user
+  # the deploy account (wheel, trusted, key-only), so a rename of either alone
+  # would only fail at deploy time. Kept out of mkRegistryAssertions, which the
+  # public inventory also runs on hosts without profiles.primaryUser.
+  deployUserIsPrimaryUser = hostMeta: {
+    name = "deploy.sshUser is the primary user";
+    check =
+      cfg:
+      require (cfg.profiles.primaryUser == hostMeta.deploy.sshUser)
+        "registry deploy.sshUser (${hostMeta.deploy.sshUser}) must equal profiles.primaryUser (${cfg.profiles.primaryUser})";
+  };
+
   mkRegistryAssertions =
     hostName: hostMeta:
     [

@@ -89,7 +89,7 @@ in `lib/hosts.nix`, which also sets the builder's own `system-features`.
 | `USE_BUILDER`     | `1`                                  | Set `0` to run `validate.sh` locally.                                  |
 | `BUILDER_ZONE`    | found automatically                  | GCE zone of the builder VM; it can move on a capacity shortage.        |
 | `BUILDER_SSH_KEY` | `/run/secrets/gcp_builder_build_key` | Override the caller’s SSH private-key file (CI uses a temporary file). |
-| `BUILDER_FQDN`    | `gcp-builder.<tailnet>.ts.net`       | Tailnet name of the builder.                                           |
+| `BUILDER_FQDN`    | registry `tailnetFQDN`               | Tailnet name or IP of the builder (CI: the registry `tailscale.ip4`).  |
 | `BUILDER_USER`    | registry `deploy.sshUser`            | SSH login on the builder.                                              |
 | `BUILDER_MAXJOBS` | registry `remoteBuilder.maxJobs`     | Remote `maxjobs` passed to `--builders` by `rebuild --remote`.         |
 
@@ -233,7 +233,11 @@ The job uses existing repository secrets `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`
 `BUILDER_CI_SSH_KEY` and `BUILDER_CI_GCP_KEY`. The SHA-pinned Tailscale action
 joins with `tag:ci-builder` and `--accept-dns=false`: this tag reaches only the
 builder's SSH port and cannot reach the tailnet resolver. `BUILDER_FQDN` is
-therefore set to the builder's tailnet IP, `100.106.144.121`. The existing
+therefore set to the builder's tailnet IP, `gcp-builder.tailscale.ip4` in
+`lib/hosts.nix`, and `BUILDER_USER` to its `deploy.sshUser`: the runner has no
+Nix to read them. `invariants-gcp-builder` fails if either workflow
+(`nix.yml`, `deploy-homeserver.yml`) drifts from the registry, so a reprovisioned
+builder's new IP is changed in all three places together. The existing
 GCP service account can manage only that VM. The shared startup/SSH probe in
 `scripts/lib/builder.sh` is reused, with `BUILDER_SSH_KEY` pointing to a mode-0600
 file under the runner's temporary directory. It is deleted even on failure;

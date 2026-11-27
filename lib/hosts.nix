@@ -104,6 +104,10 @@ let
       tailnetFQDN = "gcp-builder.${tailnetDomain}";
       tailscale = {
         tag = "builder";
+        # CI's tag:ci-builder cannot reach the tailnet resolver, so the
+        # workflows address the builder by this IP (BUILDER_FQDN), and
+        # invariants-gcp-builder fails if they drift. Reprovisioning changes it.
+        ip4 = "100.106.144.121";
         acceptFrom = {
           workstation = [ 22 ];
           # GitHub runners run CI on this host. A separate tag from `ci`, which
