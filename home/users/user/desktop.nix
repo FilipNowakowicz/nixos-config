@@ -1,12 +1,13 @@
 {
   config,
   lib,
+  osConfig,
   pkgs,
   self,
   ...
 }:
 let
-  inherit (config.fleet) hostName skipHeavyPackages;
+  inherit (config.fleet) skipHeavyPackages;
   nixRepo = "${config.home.homeDirectory}/nix";
   claudeLatest = pkgs.writeShellApplication {
     name = "claude";
@@ -98,7 +99,7 @@ in
             shift
             bash ${nixRepo}/scripts/rebuild-remote.sh "$@"
           else
-            nh os switch --hostname ${hostName} . "$@"
+            nh os switch --hostname ${osConfig.networking.hostName} . "$@"
           fi
         }
 

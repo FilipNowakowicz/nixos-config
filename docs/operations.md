@@ -534,7 +534,7 @@ and mask this — only building the actual `writeShellApplication` derivation
 reproduces the failure:
 
 ```bash
-nix build '.#checks.x86_64-linux.<name>'   # or the package/home.nix target that wraps it
+nix build '.#checks.x86_64-linux.<name>'   # or the package/Home Manager target that wraps it
 ```
 
 For an intentional non-expansion, add an explicit

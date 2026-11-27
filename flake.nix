@@ -105,7 +105,6 @@
       inherit (hostOutputs)
         allNixosConfigs
         ciNixosConfigs
-        deployCheckNixosConfigs
         ;
 
       deployOutputs = import ./flake/deploy.nix {
@@ -114,7 +113,7 @@
           lib
           hostRegistry
           allNixosConfigs
-          deployCheckNixosConfigs
+          ciNixosConfigs
           ;
       };
 
@@ -161,7 +160,7 @@
             pre-commit-hooks
             treefmt-nix
             hostRegistry
-            ciNixosConfigs
+            allNixosConfigs
             aclGen
             deploy-rs
             nixos-anywhere
