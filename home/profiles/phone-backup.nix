@@ -11,14 +11,18 @@
 # a photo deleted from the phone ages out with its last snapshot. Android hides
 # Android/data, Android/obb and app data from other programs, so those are not
 # reachable here. WhatsApp and the phone's own cloud backup cover them.
+#
+# The importing user module names the phone and the secrets through
+# `fleet.phoneBackup.*`; none of them has a default.
 {
   config,
+  lib,
   pkgs,
   ...
 }:
 let
-  # KDE Connect's ID for the paired Galaxy S24 (`kdeconnect-cli -l`).
-  deviceId = "f25cc0f05fce482c9e7b48507c116e17";
+  cfg = config.fleet.phoneBackup;
+  inherit (cfg) deviceId;
   devicePath = "/modules/kdeconnect/devices/${deviceId}";
 
   inherit (config.sops) secrets;
@@ -83,7 +87,7 @@ let
       # restic's default change detection would re-read all 20 GB each run.
       # Size and mtime are what the phone keeps stable.
       restic backup "$root" \
-        --host galaxy-s24 \
+        --host ${lib.escapeShellArg cfg.snapshotHost} \
         --tag phone \
         --ignore-inode \
         --ignore-ctime \
@@ -125,83 +129,105 @@ let
     '';
   };
 
-  sopsFile = ../users/user/secrets/phone-backup.yaml;
+  inherit (cfg) sopsFile;
   sopsUnit = {
     After = [ "sops-nix.service" ];
     Wants = [ "sops-nix.service" ];
   };
 in
 {
-  sops.secrets = {
-    phone-backup-repository = {
-      inherit sopsFile;
-      key = "restic_repository";
+  options.fleet.phoneBackup = {
+    deviceId = lib.mkOption {
+      type = lib.types.strMatching "[A-Za-z0-9_]+";
+      example = "0123456789abcdef0123456789abcdef";
+      description = "KDE Connect ID of the paired phone to back up (`kdeconnect-cli -l`).";
     };
-    phone-backup-password = {
-      inherit sopsFile;
-      key = "restic_password";
+    snapshotHost = lib.mkOption {
+      type = lib.types.strMatching "[A-Za-z0-9._-]+";
+      example = "my-phone";
+      description = "Host name recorded on the phone's restic snapshots (`restic backup --host`).";
     };
-    # B2 application key restricted to the bucket's phone/ prefix.
-    phone-backup-b2-credentials = {
-      inherit sopsFile;
-      key = "b2_credentials";
+    sopsFile = lib.mkOption {
+      type = lib.types.path;
+      description = ''
+        sops file holding the backup secrets under the keys
+        `restic_repository`, `restic_password` and `b2_credentials`.
+      '';
     };
   };
 
-  home.packages = [
-    (pkgs.writeShellApplication {
-      name = "phone-restic";
-      runtimeInputs = [ pkgs.restic ];
-      text = ''
-        ${resticEnv}
-        exec restic "$@"
-      '';
-    })
-  ];
-
-  systemd.user = {
-    services = {
-      phone-backup = {
-        Unit = sopsUnit // {
-          Description = "Back up the phone's shared storage to B2 over KDE Connect";
-        };
-        Service = {
-          Type = "oneshot";
-          ExecStart = "${backup}/bin/phone-backup";
-          Nice = 10;
-          IOSchedulingClass = "idle";
-        };
+  config = {
+    sops.secrets = {
+      phone-backup-repository = {
+        inherit sopsFile;
+        key = "restic_repository";
       };
-
-      phone-backup-stale-check = {
-        Unit = sopsUnit // {
-          Description = "Alert when the phone backup has not succeeded for 7 days";
-        };
-        Service = {
-          Type = "oneshot";
-          ExecStart = "${staleCheck}/bin/phone-backup-stale-check";
-        };
+      phone-backup-password = {
+        inherit sopsFile;
+        key = "restic_password";
+      };
+      # B2 application key restricted to the bucket's phone/ prefix.
+      phone-backup-b2-credentials = {
+        inherit sopsFile;
+        key = "b2_credentials";
       };
     };
 
-    timers = {
-      phone-backup = {
-        Unit.Description = "Try the phone backup hourly";
-        Timer = {
-          OnCalendar = "hourly";
-          RandomizedDelaySec = "10m";
-          Persistent = true;
+    home.packages = [
+      (pkgs.writeShellApplication {
+        name = "phone-restic";
+        runtimeInputs = [ pkgs.restic ];
+        text = ''
+          ${resticEnv}
+          exec restic "$@"
+        '';
+      })
+    ];
+
+    systemd.user = {
+      services = {
+        phone-backup = {
+          Unit = sopsUnit // {
+            Description = "Back up the phone's shared storage to B2 over KDE Connect";
+          };
+          Service = {
+            Type = "oneshot";
+            ExecStart = "${backup}/bin/phone-backup";
+            Nice = 10;
+            IOSchedulingClass = "idle";
+          };
         };
-        Install.WantedBy = [ "timers.target" ];
+
+        phone-backup-stale-check = {
+          Unit = sopsUnit // {
+            Description = "Alert when the phone backup has not succeeded for 7 days";
+          };
+          Service = {
+            Type = "oneshot";
+            ExecStart = "${staleCheck}/bin/phone-backup-stale-check";
+          };
+        };
       };
 
-      phone-backup-stale-check = {
-        Unit.Description = "Check the phone backup's age daily";
-        Timer = {
-          OnCalendar = "daily";
-          Persistent = true;
+      timers = {
+        phone-backup = {
+          Unit.Description = "Try the phone backup hourly";
+          Timer = {
+            OnCalendar = "hourly";
+            RandomizedDelaySec = "10m";
+            Persistent = true;
+          };
+          Install.WantedBy = [ "timers.target" ];
         };
-        Install.WantedBy = [ "timers.target" ];
+
+        phone-backup-stale-check = {
+          Unit.Description = "Check the phone backup's age daily";
+          Timer = {
+            OnCalendar = "daily";
+            Persistent = true;
+          };
+          Install.WantedBy = [ "timers.target" ];
+        };
       };
     };
   };

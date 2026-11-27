@@ -7,8 +7,9 @@ Managed files in this directory:
 - `gh-hosts.yaml`
 - `gcloud-application_default_credentials.json`
 - `user-identity.yaml`
-- `calendar-feeds.yaml`, declared by `home/profiles/calendar.nix`
-- `ntfy.yaml`, declared by `home/profiles/ntfy-notifications.nix`
+- `calendar-feeds.yaml`, `ntfy.yaml` and `phone-backup.yaml`, read by the
+  `calendar`, `ntfy-notifications` and `phone-backup` presets in
+  `home/profiles/` and passed to them as `fleet.*.sopsFile` from `main.nix`
 
 If any of these files are committed, they must be `sops`-encrypted first. The
 matching Home Manager declarations are in `home/users/user/secrets.nix`.

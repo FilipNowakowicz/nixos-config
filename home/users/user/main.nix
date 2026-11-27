@@ -12,6 +12,18 @@
     ../../profiles/python-development.nix
   ];
 
+  # This user's phone and secrets for the presets imported above.
+  fleet = {
+    phoneBackup = {
+      # KDE Connect's ID for the paired Galaxy S24 (`kdeconnect-cli -l`).
+      deviceId = "f25cc0f05fce482c9e7b48507c116e17";
+      snapshotHost = "galaxy-s24";
+      sopsFile = ./secrets/phone-backup.yaml;
+    };
+    calendar.sopsFile = ./secrets/calendar-feeds.yaml;
+    ntfy.sopsFile = ./secrets/ntfy.yaml;
+  };
+
   workflowPacks = {
     browsing.enable = true;
     coding.enable = true;
