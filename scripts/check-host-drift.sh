@@ -43,7 +43,7 @@ esac
 if [[ -n ${HOST_DRIFT_INVENTORY_JSON:-} ]]; then
   inventory_path="$HOST_DRIFT_INVENTORY_JSON"
 else
-  inventory_attr="${HOST_DRIFT_INVENTORY_ATTR:-.#packages.x86_64-linux.drift-inventory-data}"
+  inventory_attr="${HOST_DRIFT_INVENTORY_ATTR:-.#packages.x86_64-linux.inventory-data}"
   inventory_path="$(nix build "$inventory_attr" --no-link --print-out-paths)/inventory.json"
 fi
 

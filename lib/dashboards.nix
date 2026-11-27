@@ -231,6 +231,35 @@
       datasource = ds;
     };
 
+  # Row panel builder. A collapsed row carries its child panels in `panels`,
+  # each with a gridPos below the row's own y; an expanded row owns the
+  # top-level panels after it up to the next row, so a collapsed row in the
+  # middle of ungrouped panels would swallow them once toggled. Keep collapsed
+  # rows after every ungrouped panel.
+  rowPanel =
+    {
+      id,
+      title,
+      y,
+      collapsed ? true,
+      panels ? [ ],
+    }:
+    {
+      inherit
+        id
+        title
+        collapsed
+        panels
+        ;
+      type = "row";
+      gridPos = {
+        x = 0;
+        inherit y;
+        w = 24;
+        h = 1;
+      };
+    };
+
   # Dashboard builder with sensible defaults
   mkDashboard =
     {

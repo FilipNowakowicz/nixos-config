@@ -205,7 +205,7 @@ manual change to `infra/`, or periodically, to confirm live state still matches.
 `bash scripts/validate.sh smoke-homeserver-gcp` builds the booted NixOS test for
 the live homeserver routing surface. The test checks:
 
-- `/` redirects to the status homepage.
+- `/` redirects to `/grafana/`.
 - `/grafana/` works as a sub-path deployment.
 - exact `/obs/*` ingest endpoints require credentials, and broader
   observability API paths are denied.

@@ -67,7 +67,6 @@ let
         host
         // {
           closurePath = "/nix/store/00000000000000000000000000000000-nixos-system-server-example";
-          closureSizeBytes = null;
         };
     in
     pkgs.runCommand "inventory.sample.json"

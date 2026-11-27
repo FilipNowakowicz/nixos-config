@@ -88,6 +88,34 @@ let
         panelType = "timeseries";
       };
     };
+
+    # rowPanel spans the full width, defaults to collapsed and keeps children.
+    testRowPanel = {
+      expr =
+        let
+          row = dash.rowPanel {
+            id = 9;
+            title = "detail";
+            y = 3;
+            inherit (sampleDashboard) panels;
+          };
+        in
+        {
+          inherit (row) type collapsed gridPos;
+          children = builtins.length row.panels;
+        };
+      expected = {
+        type = "row";
+        collapsed = true;
+        gridPos = {
+          x = 0;
+          y = 3;
+          w = 24;
+          h = 1;
+        };
+        children = 1;
+      };
+    };
   };
 in
 assert failures == [ ];

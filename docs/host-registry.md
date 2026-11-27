@@ -2,8 +2,8 @@
 
 `lib/hosts.nix` is the source of truth for fleet metadata. Host modules,
 deploy-rs nodes, Tailscale ACL generation, backup policy, dashboards, and the
-homepage inventory export should consume this registry instead of duplicating
-host facts.
+inventory export should consume this registry instead of duplicating host
+facts.
 
 The reusable boundary is intentionally small:
 
@@ -11,8 +11,8 @@ The reusable boundary is intentionally small:
   `validateRegistry`.
 - `lib/hosts.nix` contains this repo's concrete host data and validates it with
   the helper.
-- `packages.inventory-data` builds `inventory.json` for status/homepage
-  consumers.
+- `packages.inventory-data` builds `inventory.json`, which the host drift check
+  (`scripts/check-host-drift.sh`) reads.
 - `apps.inventory-json` prints the generated JSON to stdout.
 
 ## Registry Schema
@@ -106,11 +106,10 @@ A host declares the facts the generator cannot derive through the
 own `/etc/host-drift-inventory.json`, as `homeserver-gcp` does, reads the same
 option and `lib/drift.nix`, so the two copies cannot disagree.
 
-Repo-local host fields are still exported for this fleet's dashboard and
-homepage, but consumers should treat them as allowed to evolve:
+Repo-local host fields are also exported, but consumers should treat them as
+allowed to evolve:
 
 - `closurePath`
-- `closureSizeBytes`
 - `health`
 - `impermanence`
 - `openTCPPorts`
@@ -121,10 +120,6 @@ homepage, but consumers should treat them as allowed to evolve:
 - `tailscaleTCPPorts`
 - `tailscaleUDPPorts`
 - `trackedServices`
-
-`closureSizeBytes` remains part of the export because the homepage consumes it.
-It is nullable: a value of `null` means the evaluated system closure path was
-not present in the local Nix store when `packages.inventory-data` was built.
 
 Minimal example:
 
@@ -142,7 +137,6 @@ Minimal example:
       "backupClass": "critical",
       "homeManagerRole": null,
       "tailscaleTracked": true,
-      "closureSizeBytes": 1234567890,
       "drift": {
         "tailscaleTag": "server",
         "tailnetFQDN": "homeserver.example.ts.net",

@@ -3,8 +3,6 @@ let
   cfg = config.profiles.homeserverGcpNginx;
   gen = import ../../lib/generators.nix { inherit lib; };
   certDir = "/var/lib/nginx-certs";
-  homepageDir = "/var/lib/homepage/public";
-  homepageEventsTarget = "http://127.0.0.1:9273/";
   proxy = gen.nginx.proxyLocation;
 
   # Security response headers. nginx add_header is per-block: once any
@@ -48,7 +46,6 @@ in
   config = lib.mkIf cfg.enable {
     systemd.tmpfiles.rules = [
       "d ${certDir} 0750 root nginx -"
-      "d ${homepageDir} 0755 root nginx -"
     ];
 
     services.nginx = {
@@ -94,7 +91,7 @@ in
         extraConfig = securityHeaders;
 
         locations = {
-          "= /".return = "302 /home/";
+          "= /".return = "302 /grafana/";
           "/".return = "404";
 
           "/grafana/" = proxy {
@@ -136,67 +133,6 @@ in
               proxy_set_header Content-Length "";
               proxy_set_header X-Tailscale-Remote-Addr $remote_addr;
               proxy_set_header X-Original-URI $request_uri;
-            '';
-          };
-
-          "= /home" = {
-            return = "301 /home/";
-          };
-
-          "= /home/index.html" = {
-            alias = "${homepageDir}/index.html";
-            extraConfig = ''
-              ${securityHeaders}
-              add_header Cache-Control "no-store" always;
-            '';
-          };
-
-          # {n} quantifiers break nginx location parsing (treated as block delimiters).
-          # Spell out 10 hex-char repetitions explicitly instead.
-          "~ ^/home/src/(?<asset>.+\\.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]\\.(?:js|css))$" =
-            {
-              alias = "${homepageDir}/src/$asset";
-              extraConfig = ''
-                ${securityHeaders}
-                add_header Cache-Control "public, max-age=31536000, immutable" always;
-              '';
-            };
-
-          "/home/" = {
-            alias = "${homepageDir}/";
-            extraConfig = ''
-              try_files $uri $uri/ /home/index.html;
-            '';
-          };
-
-          "= /home/status.json" = {
-            alias = "${homepageDir}/status.json";
-            extraConfig = ''
-              ${securityHeaders}
-              default_type application/json;
-              add_header Cache-Control "no-store";
-            '';
-          };
-
-          "= /home/status.events" = {
-            proxyPass = homepageEventsTarget;
-            extraConfig = ''
-              ${securityHeaders}
-              proxy_http_version 1.1;
-              proxy_set_header Connection "";
-              proxy_buffering off;
-              proxy_cache off;
-              add_header Cache-Control "no-store";
-              add_header X-Accel-Buffering "no";
-            '';
-          };
-
-          "= /home/status.svg" = {
-            alias = "${homepageDir}/status.svg";
-            extraConfig = ''
-              ${securityHeaders}
-              default_type image/svg+xml;
-              add_header Cache-Control "no-store";
             '';
           };
 

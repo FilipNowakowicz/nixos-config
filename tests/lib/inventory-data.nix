@@ -94,11 +94,6 @@ let
       expected = "https://example.invalid/fleet";
     };
 
-    testHostSpecIncludesClosurePath = {
-      expr = inventory.hostSpec;
-      expected = "alpha\t/nix/store/00000000000000000000000000000000-alpha-system";
-    };
-
     testStableFieldsAreDeclared = {
       expr = data.inventoryContract.stableInventoryFields;
       expected = [
@@ -112,11 +107,6 @@ let
         "tailscaleTracked"
         "drift"
       ];
-    };
-
-    testClosureSizeContractIsNullable = {
-      expr = data.inventoryContract.closureSizeBytes.nullable;
-      expected = true;
     };
 
     testPublicHostFields = {

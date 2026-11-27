@@ -39,7 +39,6 @@ in
     ./backups.nix
     ./restore-drill.nix
     ./heartbeat.nix
-    ./status-page.nix
     ./audits.nix
     ./hardening.nix
     ./github-runner.nix
@@ -66,6 +65,12 @@ in
   ];
 
   environment.etc."host-drift-inventory.json".text = builtins.toJSON hostDriftInventory;
+
+  # One-off cleanup of the retired homepage status stack (#625): the changed
+  # tmpfiles config restarts systemd-tmpfiles-resetup on switch, whose
+  # `--remove` deletes the old state directory. Drop the rule once a deploy
+  # has removed the directory from the live host.
+  systemd.tmpfiles.rules = [ "R /var/lib/homepage - - - - -" ];
 
   networking = {
     hostName = "homeserver-gcp";
