@@ -192,10 +192,11 @@ Item {
                     onClicked: Ui.open("controls")
                     Icon { anchors.centerIn: parent; name: "triangle-alert"; size: 15 }
                 }
-                // Tray items stay folded behind one button and fold again when the bar hides.
+                // Background apps' icons (KDE Connect, EasyEffects, Spotify) stay folded
+                // behind one button until asked for, and fold again when the bar hides.
                 Press {
-                    visible: SystemTray.items.values.length > 0 || Sys.mouseBattery !== null
-                    name: Ui.trayOpen ? "Hide tray" : "Show tray"
+                    visible: SystemTray.items.values.length > 0
+                    name: Ui.trayOpen ? "Hide app icons" : "Show app icons"
                     width: 18
                     height: 18
                     radius: 9
@@ -227,12 +228,6 @@ Item {
                             layer.effect: MultiEffect { saturation: -trayItem.grey }
                         }
                     }
-                }
-                Label {
-                    visible: Ui.trayOpen && Sys.mouseBattery !== null
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: Sys.mouseBattery === null ? "" : "Mouse " + Sys.mouseBattery + "%"
-                    font.features: { "tnum": 1 }
                 }
                 Icon { visible: Sys.focusMode; name: "bell-off"; size: 15 }
                 Icon { visible: Sys.awake; name: "coffee"; size: 15 }

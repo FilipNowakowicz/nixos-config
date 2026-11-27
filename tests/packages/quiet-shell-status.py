@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory() as tmp:
 
     empty = json.loads(subprocess.check_output(
         [sys.executable, status], env={"PATH": str(root / "nothing"), "QUIET_POWER_SUPPLY": str(root / "none"), "QUIET_HIDRAW": str(root / "none")}))
-    for key in ("wifi", "bluetooth", "vpn", "sink", "devices", "brightness", "profile", "battery", "mouseBattery"):
+    for key in ("wifi", "bluetooth", "vpn", "sink", "devices", "brightness", "profile", "battery", "mouse"):
         assert empty[key] is None, (key, empty[key])
 
     # An event khal repeats on each day it covers is one event. No khal, no agenda.

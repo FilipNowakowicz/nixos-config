@@ -106,3 +106,26 @@ def mouse_battery(sysfs=pathlib.Path("/sys/class/hidraw"), dev=pathlib.Path("/de
         finally:
             os.close(fd)
     return None
+
+
+def remembered(level, present, cache):
+    """What the card shows. A mouse sleeps seconds after it stops moving and then
+    answers nothing, so between readings it shows the last one, marked asleep.
+    With no receiver plugged in there is no mouse to show."""
+    if level is not None:
+        try:
+            if cache.read_text() != str(level):
+                raise ValueError
+        except (OSError, ValueError):
+            try:
+                cache.parent.mkdir(parents=True, exist_ok=True)
+                cache.write_text(str(level))
+            except OSError:
+                pass
+        return {"level": level, "awake": True}
+    if not present:
+        return None
+    try:
+        return {"level": int(cache.read_text()), "awake": False}
+    except (OSError, ValueError):
+        return None

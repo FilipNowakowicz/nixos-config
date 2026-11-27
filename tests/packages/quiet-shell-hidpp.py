@@ -23,7 +23,6 @@ assert hidpp.reply(bytes([0x10, 1, 0x8F, 3, 0x1A, 9, 0]), 1, 3, 1) is None, "an 
 assert hidpp.reply(bytes([0x10, 1, 3, 0x10, 55, 0, 0]), 1, 3, 1) is False, "software id 0 is a notification"
 assert hidpp.reply(bytes([0x10, 2, 3, 0x1A, 55, 0, 0]), 1, 3, 1) is False, "another device"
 
-
 def receiver(slots):
     """slots: {device: (type, {feature id: index}, battery reply)}."""
     ours, theirs = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
@@ -49,7 +48,6 @@ def receiver(slots):
     threading.Thread(target=serve, daemon=True).start()
     return ours
 
-
 def found(slots):
     ours = receiver(slots)
     rx = hidpp.Receiver(ours.fileno(), time.monotonic() + 1)
@@ -57,7 +55,6 @@ def found(slots):
         if (value := hidpp.mouse_level(rx, device)) is not None:
             return value
     return None
-
 
 unified = {hidpp.DEVICE_NAME_TYPE: 4, hidpp.UNIFIED_BATTERY: 7}
 assert found({2: (hidpp.MOUSE, unified, [62, 4, 0, 0])}) == 62, "slot 1 empty, mouse in slot 2"
@@ -91,4 +88,15 @@ with tempfile.TemporaryDirectory() as tmp:
     assert list(hidpp.nodes(sysfs)) == ["hidraw1"], list(hidpp.nodes(sysfs))
     # Its /dev node is missing (no grant): no battery, no error.
     assert hidpp.mouse_battery(sysfs, sysfs / "dev") is None
+
+    # Asleep, the mouse answers nothing: the card keeps the last reading, dimmed,
+    # until the receiver itself is gone.
+    cache = sysfs / "cache" / "quiet-shell" / "mouse-battery"
+    assert hidpp.remembered(None, True, cache) is None, "never seen"
+    assert hidpp.remembered(73, True, cache) == {"level": 73, "awake": True}
+    assert hidpp.remembered(None, True, cache) == {"level": 73, "awake": False}
+    assert hidpp.remembered(None, False, cache) is None, "receiver unplugged"
+    assert hidpp.remembered(70, True, cache)["level"] == 70 and cache.read_text() == "70"
+    cache.write_text("junk")
+    assert hidpp.remembered(None, True, cache) is None
 print("quiet-shell hidpp: ok")

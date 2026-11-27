@@ -239,6 +239,14 @@ def mouse_battery(root):
     return None
 
 
+def mouse(root, hidraw):
+    # The kernel reports a mouse only when a driver claims its receiver; else ask it.
+    level = mouse_battery(root) or hidpp.mouse_battery(hidraw)
+    present = any(root.glob("hidpp_battery_*")) or any(hidpp.nodes(hidraw))
+    cache = pathlib.Path(os.environ.get("XDG_CACHE_HOME") or pathlib.Path.home() / ".cache")
+    return hidpp.remembered(level, present, cache / "quiet-shell" / "mouse-battery")
+
+
 def timezone():
     """The zone /etc/localtime names, as timedatectl sets it, and its UTC offset now.
 
@@ -278,9 +286,7 @@ print(json.dumps({
     "brightness": brightness(),
     "profile": power_profile(),
     "battery": battery(power_supply),
-    # The kernel reports a mouse only when a driver claims its receiver; else ask it.
-    "mouseBattery": mouse_battery(power_supply) or hidpp.mouse_battery(
-        pathlib.Path(os.environ.get("QUIET_HIDRAW", "/sys/class/hidraw"))),
+    "mouse": mouse(power_supply, pathlib.Path(os.environ.get("QUIET_HIDRAW", "/sys/class/hidraw"))),
     "night": night(),
     "timezone": zone,
     # The shell itself can't see a new zone (Sys.clock), so it is told the offset.
