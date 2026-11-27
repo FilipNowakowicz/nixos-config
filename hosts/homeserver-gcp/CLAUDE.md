@@ -154,6 +154,23 @@ recovery runner access are root-equivalent. Required reviewers on the
   be populated via `sops` before this host will activate. A successful ping
   stamps `heartbeat_last_ping_timestamp_seconds` so internal alerting can also
   flag a _degraded_ (host-up, ping-failing) heartbeat.
+- **Alert pipeline dead-man's-switch (Watchdog)** — the heartbeat proves the VM
+  is up, not that alerts can leave it. The always-firing `Watchdog` rule is
+  routed only to the `watchdog` receiver, which Alertmanager posts about every
+  minute to the URL in sops secret `alertmanager_watchdog_url`: a _second_
+  healthchecks.io check (period 5 min, grace 5 min), separate from the
+  heartbeat one. Until it is set the secret holds a loopback placeholder
+  (`http://127.0.0.1:9/...`), so sends fail harmlessly in Alertmanager's log.
+  Set the real ping URL with
+  `bash scripts/rotate-secret.sh set hosts/homeserver-gcp/secrets/secrets.yaml alertmanager_watchdog_url`
+  (value on stdin, e.g. `printf '%s' "$URL" |`), then merge to deploy.
+- **Blind-spot alerts (#628)** — `DnsProbeFailed` resolves a real external
+  name through AdGuard's tailnet address (blackbox `dns-adguard` job), so a hung
+  AdGuard or failing upstreams page, not only a failed unit. `ScrapeTargetDown`
+  covers `up == 0`, including the stack's own Alertmanager, Grafana, Loki, Alloy
+  and blackbox exporter. `GcpBuilderLeftRunning` fires when gcp-builder has been
+  online in this host's `tailscale status` for 4 h (`tailnet-presence.timer`
+  writes `tailscale_peer_online`); it needs no GCP credentials.
 - **AdGuard DNS failure** — AdGuard is the tailnet-wide DNS resolver (set via the
   Tailscale admin DNS nameserver override), so its loss takes resolution down for
   every client. The two failure modes are not equal:
