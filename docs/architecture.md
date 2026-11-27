@@ -70,6 +70,16 @@ A host's Nix store closure should only contain what is explicitly requested.
 - **Modules** (`modules/nixos/services/`) define _how_ a service works and provide a DSL (e.g., `services.hardened`). They should be generic and reusable.
 - **Profiles** (`modules/nixos/profiles/`) define _what_ is enabled. They set the policy for the fleet (e.g., "All desktop machines use Hyprland and PipeWire").
 
+How each kind is switched on follows from that split. Modules, hardware
+modules (`modules/nixos/hardware/`) and the public exports in
+`flake/public-modules.nix` declare options and guard their config with
+`lib.mkIf`, so importing one does nothing until a host sets its `enable`.
+Preset profiles, in `modules/nixos/profiles/` and `home/profiles/`, are on
+when imported: the import list is the switch, and they do not grow an
+`enable` option just for uniformity. A profile that is imported globally
+(Rule 1) or exported publicly is the exception and must be option-gated. Give
+a preset an option only when a host needs to vary it, not to turn it off.
+
 ---
 
 ## 4. Layer Definitions
@@ -101,6 +111,19 @@ The entry points. A host file should be a "thin" composition of:
 2.  Disk layout (`disko.nix`).
 3.  A list of Profile imports.
 4.  Host-specific secrets and identity.
+
+When a host's own configuration outgrows one file, `default.nix` stays the
+entry point (imports, identity, profile settings, secrets) and each concern
+gets a sibling file, as in `hosts/homeserver-gcp/` (`nginx.nix`,
+`backups.nix`, …) and `hosts/main/` (`boot.nix`, `power.nix`,
+`bluetooth.nix`, `usbguard.nix`, `agent-maintenance.nix`, …). A hardware
+quirk that would apply to any machine with that device belongs in
+`modules/nixos/hardware/` behind an option, not in the host.
+
+The fleet's login account is `profiles.primaryUser` (default `user`, declared
+in `modules/nixos/profiles/meta.nix`). NixOS modules and hosts read it rather
+than spelling the name out; Home Manager modules under `home/users/user/` and
+test fixtures still use the literal.
 
 Hand-maintained `hardware-configuration.nix` files must carry a short header
 with their regeneration policy and a `Last reviewed: YYYY-MM-DD` note so it is
