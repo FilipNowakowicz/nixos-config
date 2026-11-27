@@ -37,7 +37,6 @@ in
 
         # ── Browsers / Apps ────────────────────────────────────────────────────
         discord
-        keepassxc
         mpv
         imv
         blanket
