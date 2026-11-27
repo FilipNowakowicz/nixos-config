@@ -7,14 +7,8 @@
   ...
 }:
 let
-  # An iCal link is a password for reading that calendar. Each name is a key in
-  # the sops file, so adding a calendar is that key and one word here.
-  privateFeeds = [
-    "imperial"
-    "primary"
-  ];
-
-  publicFeeds.holidays = "https://calendar.google.com/calendar/ical/pl.polish%23holiday%40group.v.calendar.google.com/public/basic.ics";
+  cfg = config.fleet.calendar;
+  inherit (cfg) privateFeeds publicFeeds;
 
   secretPath = name: config.sops.secrets."calendar-${name}".path;
 
@@ -41,16 +35,31 @@ let
   ) config.accounts.calendar.accounts;
 in
 {
-  options.fleet.calendar.sopsFile = lib.mkOption {
-    type = lib.types.path;
-    description = ''
-      sops file holding the private iCal links, one key per private feed name.
-    '';
+  options.fleet.calendar = {
+    sopsFile = lib.mkOption {
+      type = lib.types.path;
+      description = ''
+        sops file holding the private iCal links, one key per private feed name.
+      '';
+    };
+
+    # An iCal link is a password for reading that calendar, so private feeds
+    # are named here and their links live in `sopsFile` under the same key.
+    privateFeeds = lib.mkOption {
+      type = lib.types.nonEmptyListOf lib.types.str;
+      description = "Private calendar names; each is a key in `sopsFile`.";
+    };
+
+    publicFeeds = lib.mkOption {
+      type = lib.types.attrsOf lib.types.str;
+      default = { };
+      description = "Public calendars by name, as plain iCal URLs.";
+    };
   };
 
   config = {
     sops.secrets = lib.genAttrs (map (name: "calendar-${name}") privateFeeds) (secret: {
-      inherit (config.fleet.calendar) sopsFile;
+      inherit (cfg) sopsFile;
       key = lib.removePrefix "calendar-" secret;
     });
 

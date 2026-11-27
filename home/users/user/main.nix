@@ -20,7 +20,14 @@
       snapshotHost = "galaxy-s24";
       sopsFile = ./secrets/phone-backup.yaml;
     };
-    calendar.sopsFile = ./secrets/calendar-feeds.yaml;
+    calendar = {
+      sopsFile = ./secrets/calendar-feeds.yaml;
+      privateFeeds = [
+        "imperial"
+        "primary"
+      ];
+      publicFeeds.holidays = "https://calendar.google.com/calendar/ical/pl.polish%23holiday%40group.v.calendar.google.com/public/basic.ics";
+    };
     ntfy.sopsFile = ./secrets/ntfy.yaml;
   };
 
