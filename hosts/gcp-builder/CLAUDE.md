@@ -32,7 +32,7 @@ the host-local provisioning runbook.
   to `nix shell nixpkgs#google-cloud-sdk -c gcloud` if `gcloud` isn't on `PATH`),
   waits for SSH over Tailscale, and runs the whole command on it. See
   [`docs/remote-builder.md`](../../docs/remote-builder.md).
-- Knobs: `USE_BUILDER=0` disables offload; `BUILDER_ZONE`, `BUILDER_FQDN`,
+- Knobs: `USE_BUILDER=0` disables offload; `BUILDER_ZONE`, `BUILDER_FQDN`, `BUILDER_USER`,
   `BUILDER_MAXJOBS` override defaults. Commands run locally when the caller's build
   key isn't present (CI, fresh clones), and after a warning if the VM can't be
   started or reached.

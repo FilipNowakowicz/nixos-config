@@ -18,7 +18,7 @@ source scripts/lib/builder.sh
 expected_revision=$(git rev-parse --verify 'refs/remotes/origin/main^{commit}') || fail "fetch origin/main before using a prebuilt system"
 start_builder
 mapfile -t ssh_opts < <(builder_ssh_opts)
-status=$(ssh "${ssh_opts[@]}" "user@$builder_fqdn" cat /var/lib/builder-prebuilt/status.json) || fail "could not read builder status; no system activated"
+status=$(ssh "${ssh_opts[@]}" "$builder_user@$builder_fqdn" cat /var/lib/builder-prebuilt/status.json) || fail "could not read builder status; no system activated"
 
 jq -e '
   type == "object" and
@@ -38,7 +38,7 @@ store_path=$(jq -r .store_path <<<"$status")
 # This dedicated authenticated builder already has root-equivalent trust as a
 # remote builder. Its outputs are unsigned; skip signatures only for this copy.
 # Import before changing the boot profile or running activation.
-nix copy --from "ssh-ng://user@$builder_fqdn" --no-check-sigs "$store_path"
+nix copy --from "ssh-ng://$builder_user@$builder_fqdn" --no-check-sigs "$store_path"
 [[ -x $store_path/bin/switch-to-configuration ]] || fail "copied system has no activation executable"
 # Reject a changed local tracking ref after the copy as well.
 [[ $(git rev-parse --verify 'refs/remotes/origin/main^{commit}') == "$revision" ]] || fail "origin/main changed during copy; no system activated"

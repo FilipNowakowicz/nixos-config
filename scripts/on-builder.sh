@@ -28,7 +28,7 @@ else
 fi
 
 mapfile -t ssh_opts < <(builder_ssh_opts)
-target="user@$builder_fqdn"
+target="$builder_user@$builder_fqdn"
 run_dir="work/run-$(date +%s)-$$"
 
 # Runs interrupted by a lost connection cannot clean up after themselves.

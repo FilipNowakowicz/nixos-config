@@ -10,7 +10,7 @@ cp "$script_dir/rebuild-prebuilt.sh" "$work/repo/scripts/"
 cp "$script_dir/lib/builder.sh" "$work/repo/scripts/lib/"
 export TEST_REPO="$work/repo" TEST_LOG="$work/log" TEST_STATUS="$work/status"
 export TEST_REV=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-export BUILDER_FQDN=builder.example.test BUILDER_ZONE=test-zone
+export BUILDER_FQDN=builder.example.test BUILDER_USER=builduser BUILDER_ZONE=test-zone
 export TEST_HOST=main TEST_COPY_FAIL=0 TEST_STATUS_FAIL=0 TEST_REF_FAIL=0
 export PATH="$work/bin:$PATH"
 cat >"$work/bin/git" <<'STUB'
@@ -39,7 +39,7 @@ cat "$TEST_STATUS"
 STUB
 cat >"$work/bin/nix" <<'STUB'
 #!/usr/bin/env bash
-[[ $1 == copy && $2 == --from && $3 == ssh-ng://user@builder.example.test ]] || exit 91
+[[ $1 == copy && $2 == --from && $3 == ssh-ng://builduser@builder.example.test ]] || exit 91
 [[ $4 == --no-check-sigs ]] || exit 91
 echo copy >> "$TEST_LOG"
 [[ $TEST_COPY_FAIL == 0 ]]

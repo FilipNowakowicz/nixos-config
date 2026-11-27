@@ -70,6 +70,8 @@ jobs:
     timeout-minutes: 120
     env:
       BUILDER_FQDN: 100.106.144.121
+      # The runner has no Nix to read deploy.sshUser from the registry.
+      BUILDER_USER: user
     outputs:
       current: ${{ steps.recheck.outputs.current }}
     steps:
@@ -109,9 +111,9 @@ jobs:
           [[ $bundle =~ ^/home/user/deploy-bundles/bundle\.[a-zA-Z0-9]+$ ]]
           mkdir -p "$RUNNER_TEMP/deploy-bundle"
           scp -o BatchMode=yes -o StrictHostKeyChecking=accept-new -i "$BUILDER_SSH_KEY" \
-            "user@$BUILDER_FQDN:$bundle/bundle.json" \
-            "user@$BUILDER_FQDN:$bundle/closure.nar.zst" "$RUNNER_TEMP/deploy-bundle/"
-          ssh -o BatchMode=yes -i "$BUILDER_SSH_KEY" "user@$BUILDER_FQDN" "rm -rf '$bundle'"
+            "$BUILDER_USER@$BUILDER_FQDN:$bundle/bundle.json" \
+            "$BUILDER_USER@$BUILDER_FQDN:$bundle/closure.nar.zst" "$RUNNER_TEMP/deploy-bundle/"
+          ssh -o BatchMode=yes -i "$BUILDER_SSH_KEY" "$BUILDER_USER@$BUILDER_FQDN" "rm -rf '$bundle'"
 
       # The build takes long enough for main to move on; re-check so a
       # superseded run skips the deploy job (and its environment) entirely.
