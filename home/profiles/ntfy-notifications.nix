@@ -4,6 +4,7 @@
 # port is involved, and ntfy.sh's short message cache covers suspend and reboots.
 {
   config,
+  lib,
   pkgs,
   ...
 }:
@@ -54,27 +55,36 @@ let
   };
 in
 {
-  sops.secrets.ntfy-topic-url = {
-    sopsFile = ../users/user/secrets/ntfy.yaml;
-    key = "topic_url";
+  options.fleet.ntfy.sopsFile = lib.mkOption {
+    type = lib.types.path;
+    description = ''
+      sops file holding the private ntfy topic URL under the key `topic_url`.
+    '';
   };
 
-  systemd.user.services.ntfy-notifications = {
-    Unit = {
-      Description = "Desktop notifications from the private ntfy topic";
-      After = [
-        "graphical-session.target"
-        "sops-nix.service"
-      ];
-      Wants = [ "sops-nix.service" ];
-      PartOf = [ "graphical-session.target" ];
+  config = {
+    sops.secrets.ntfy-topic-url = {
+      inherit (config.fleet.ntfy) sopsFile;
+      key = "topic_url";
     };
-    Service = {
-      Environment = [ "XDG_STATE_HOME=${config.xdg.stateHome}" ];
-      ExecStart = "${subscribe}/bin/ntfy-subscribe";
-      Restart = "always";
-      RestartSec = 30;
+
+    systemd.user.services.ntfy-notifications = {
+      Unit = {
+        Description = "Desktop notifications from the private ntfy topic";
+        After = [
+          "graphical-session.target"
+          "sops-nix.service"
+        ];
+        Wants = [ "sops-nix.service" ];
+        PartOf = [ "graphical-session.target" ];
+      };
+      Service = {
+        Environment = [ "XDG_STATE_HOME=${config.xdg.stateHome}" ];
+        ExecStart = "${subscribe}/bin/ntfy-subscribe";
+        Restart = "always";
+        RestartSec = 30;
+      };
+      Install.WantedBy = [ "graphical-session.target" ];
     };
-    Install.WantedBy = [ "graphical-session.target" ];
   };
 }

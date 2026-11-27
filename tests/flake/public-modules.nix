@@ -213,9 +213,28 @@ let
       evaluated == expected
     ) "profiles-base-standalone-fixture: ${builtins.toJSON evaluated}";
     pkgs.writeText "profiles-base-standalone-fixture.json" (builtins.toJSON evaluated);
+
+  # The presets under home/profiles/ take per-user facts (sops files, device
+  # IDs) as `fleet.*` options set by the user's entry module, so none of them
+  # may point into a particular user's directory.
+  homeProfilesUserAgnostic =
+    let
+      profilesDir = ../../home/profiles;
+      offenders = builtins.filter (file: lib.hasInfix "users/user" (builtins.readFile file)) (
+        lib.filesystem.listFilesRecursive profilesDir
+      );
+    in
+    assert lib.assertMsg (offenders == [ ])
+      "home-profiles-user-agnostic: these presets reference a user directory; take the value as an option and set it from home/users/<name>/ instead: ${
+        lib.concatMapStringsSep ", " (
+          file: lib.removePrefix "${toString profilesDir}/" (toString file)
+        ) offenders
+      }";
+    pkgs.writeText "home-profiles-user-agnostic" "ok\n";
 in
 {
   checks = {
+    home-profiles-user-agnostic = homeProfilesUserAgnostic;
     services-hardened-example-fixture = servicesHardenedExampleFixture;
     public-modules-standalone = publicModulesStandalone;
     profiles-base-standalone-fixture = profilesBaseStandaloneFixture;
