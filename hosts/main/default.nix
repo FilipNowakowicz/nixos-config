@@ -1,101 +1,32 @@
 {
   config,
   inputs,
-  lib,
   pkgs,
   hostRegistry,
   self,
+  lib,
   ...
 }:
-let
-  agentMaintenanceCommands = [
-    # Verify and trigger post-reinstall backup/check jobs.
-    "/run/current-system/sw/bin/systemctl start restic-backups-local.service"
-    "/run/current-system/sw/bin/systemctl start restic-check-local.service"
-    "/run/current-system/sw/bin/systemctl status restic-backups-local.service --no-pager"
-    "/run/current-system/sw/bin/systemctl status restic-backups-local.timer --no-pager"
-    "/run/current-system/sw/bin/systemctl status restic-check-local.service --no-pager"
-    "/run/current-system/sw/bin/systemctl status restic-check-local.timer --no-pager"
-    "/run/current-system/sw/bin/systemctl start btrbk-local.service"
-    "/run/current-system/sw/bin/systemctl status btrbk-local.service --no-pager"
-    "/run/current-system/sw/bin/systemctl status btrbk-local.timer --no-pager"
-
-    # Clean stale boot entries and old system generations after rebuilds.
-    "/run/current-system/sw/bin/bootctl status --no-pager"
-    "/run/current-system/sw/bin/bootctl cleanup"
-    "/run/current-system/sw/bin/efibootmgr -b [0-9A-F][0-9A-F][0-9A-F][0-9A-F] -B"
-    "/run/current-system/sw/bin/nix-gc-14d"
-
-    # Root-equivalent activation path for agent-assisted local rebuilds.
-    # Keep this scoped to the fixed-argument wrapper below rather than granting
-    # broad passwordless sudo or arbitrary nh/nixos-rebuild commands.
-    "/run/current-system/sw/bin/nixos-switch-main"
-  ];
-
-  synatudor = pkgs.callPackage ../../packages/synatudor { };
-  # The quiet shell asks the mouse for its battery over HID++, because no kernel
-  # driver claims this LIGHTSPEED receiver (046d:c54d). Grant the seat user that
-  # one interface (02, HID++) and not 01, which carries keystrokes. Parent-matching
-  # keys must all match a single parent, hence the two steps. 73-seat-late.rules
-  # applies uaccess, so this sorts before it, which services.udev.extraRules can't.
-  logitechHidpp = pkgs.writeTextDir "lib/udev/rules.d/70-logitech-hidpp.rules" ''
-    SUBSYSTEM!="hidraw", GOTO="logitech_hidpp_end"
-    KERNELS=="0003:046D:C54D.*", ENV{LOGITECH_HIDPP_RECEIVER}="1"
-    ENV{LOGITECH_HIDPP_RECEIVER}=="1", ATTRS{bInterfaceNumber}=="02", TAG+="uaccess"
-    LABEL="logitech_hidpp_end"
-  '';
-
-  passwordlessAgentCommand = command: {
-    inherit command;
-    options = [ "NOPASSWD" ];
-  };
-
-  # nh >= 4.3 added a hard "don't run nh as root" guard, which broke this
-  # NOPASSWD wrapper: it is invoked as root via `sudo nixos-switch-main`, and nh
-  # then refuses. Build and activate the closure directly instead — the same
-  # manual pattern used for homeserver-gcp (nix build toplevel +
-  # switch-to-configuration), so the passwordless agent-rebuild path keeps
-  # working without granting broad NOPASSWD or running nh as root.
-  nixosSwitchMain = pkgs.writeShellScriptBin "nixos-switch-main" ''
-    set -euo pipefail
-    flake=/home/user/nix
-    # Root building a user-owned checkout otherwise trips git's dubious-ownership
-    # guard; scope the exception to this flake path only.
-    export HOME=/root
-    ${pkgs.git}/bin/git config --global --add safe.directory "$flake" || true
-    # --remote does the builds on gcp-builder. The caller starts the VM first
-    # (`bash scripts/on-builder.sh true`). It takes no other argument, so this
-    # passwordless command still can only activate this checkout.
-    remote_args=()
-    if [ "''${1:-}" = --remote ]; then
-      remote_args=(
-        --max-jobs 0
-        --builders "ssh-ng://user@${hostRegistry.gcp-builder.tailnetFQDN} x86_64-linux /run/secrets/gcp_builder_build_key 8 2 kvm,nixos-test,big-parallel,benchmark"
-      )
-    fi
-    toplevel=$(${pkgs.nix}/bin/nix build --no-link --print-out-paths "''${remote_args[@]}" \
-      "$flake#nixosConfigurations.main.config.system.build.toplevel")
-    ${pkgs.nix}/bin/nix-env -p /nix/var/nix/profiles/system --set "$toplevel"
-    exec "$toplevel/bin/switch-to-configuration" switch
-  '';
-
-  nixGc14d = pkgs.writeShellScriptBin "nix-gc-14d" ''
-    exec ${pkgs.nix}/bin/nix-collect-garbage --delete-older-than 14d
-  '';
-in
 {
   imports = [
     ../../packages/network-doctor
     inputs.disko.nixosModules.disko
     inputs.lanzaboote.nixosModules.lanzaboote
     inputs.nix-index-database.nixosModules.default
+    ./agent-maintenance.nix
     ./backups.nix
+    ./bluetooth.nix
+    ./boot.nix
     ./disko.nix
     ./gaming.nix
     ./impermanence.nix
     ./hardware-configuration.nix
     ./networking.nix
     ./nix-remote-build.nix
+    ./peripherals.nix
+    ./power.nix
+    ./services.nix
+    ./usbguard.nix
     # Public modules by their exported names, so this host exercises the
     # same interface outside consumers import (flake/public-modules.nix).
     self.nixosModules.profiles-base
@@ -108,14 +39,9 @@ in
     ../../modules/nixos/hardware/displaylink.nix
   ];
 
-  # ── Hardware ────────────────────────────────────────────────────────────────
   networking.hostName = "main";
 
   hardware = {
-    bluetooth = {
-      enable = true;
-      powerOnBoot = true;
-    };
     acpilight.enable = true;
     # The Turing GTX 1650 Ti stays awake with GSP enabled despite fine-grained
     # runtime PM. Use the proprietary driver's non-GSP path for idle power-off.
@@ -162,36 +88,6 @@ in
     qemu.package = pkgs.qemu_kvm;
   };
 
-  systemd.services = {
-    # The initrd runs systemd-networkd for SSH unlock (boot.initrd.network
-    # below), and its state file survives switch-root in /run reading
-    # OPER_STATE=off. Stage 2 uses NetworkManager, so nothing ever updates
-    # it, and systemd-timesyncd took the machine for offline forever: it
-    # never contacted a server. Without the file it counts as online.
-    clear-initrd-netif-state = {
-      description = "Forget the initrd's systemd-networkd state";
-      wantedBy = [ "sysinit.target" ];
-      before = [
-        "sysinit.target"
-        "systemd-timesyncd.service"
-      ];
-      unitConfig.DefaultDependencies = false;
-      serviceConfig.Type = "oneshot";
-      script = "rm -rf /run/systemd/netif";
-    };
-
-    # fprintd drives the sensor through the Tudor host process. With no ordering
-    # between them, shutdown stopped the host first. fprintd, in the middle of
-    # hyprlock's verify, then ignored SIGTERM for the full 90s default timeout.
-    # Ordering it after the host makes shutdown stop fprintd first. It keeps
-    # nothing in memory (enrollments are written when they are made), so a
-    # short kill timeout covers any other way it can hang.
-    fprintd = lib.mkIf (!config.profiles.ci) {
-      after = [ "tudor-host-launcher.service" ];
-      serviceConfig.TimeoutStopSec = "5s";
-    };
-  };
-
   # uv's standalone Python builds (and other non-Nix OpenSSL binaries) read the
   # OpenSSL default CA file /etc/ssl/cert.pem, which NixOS doesn't create, so TLS
   # verification failed in uv-run scripts. Point it at the system bundle.
@@ -199,420 +95,24 @@ in
     config.environment.etc."ssl/certs/ca-certificates.crt".source;
 
   environment.systemPackages = with pkgs; [
-    efibootmgr
-    nixGc14d
-    nixosSwitchMain
-    sbctl
     spice-gtk
     swtpm
     virt-viewer
   ];
 
-  # Narrow passwordless sudo for interactive agent-assisted maintenance.
-  # Keep wheel passworded globally; only these exact commands are exempt.
-  security = {
-    sudo.extraConfig = ''
-      Defaults lecture=never
-    '';
-    sudo.extraRules = [
-      {
-        users = [ "user" ];
-        commands = map passwordlessAgentCommand agentMaintenanceCommands;
-      }
-    ];
-    pam.services = lib.mkIf (!config.profiles.ci) {
-      # hyprlock reads the fingerprint itself, so a password works at the same time.
-      # Through PAM it would have to wait for the fingerprint attempt to end.
-      hyprlock.fprintAuth = false;
-      greetd.fprintAuth = true;
-    };
-  };
-
-  boot = {
-    # Lanzaboote (Secure Boot)
-    loader.systemd-boot.enable = lib.mkForce false;
-    loader.systemd-boot.configurationLimit = 5;
-    lanzaboote = {
-      enable = true;
-      pkiBundle = "/var/lib/sbctl";
-    };
-
-    # IOMMU protection — blocks Thunderbolt/PCIe DMA attacks
-    kernelParams = [
-      # igfx_off leaves only the integrated GPU untranslated. While i915 takes
-      # over the firmware framebuffer the iGPU still scans out memory that has
-      # no IOMMU mapping; the resulting DMAR faults can reach i915's pipe-fault
-      # IRQ handler before its planes exist, and handle_plane_fault NULL-derefs
-      # into a boot panic (6.18.64, 2026-11-24). The iGPU is soldered on, not a
-      # DMA attack surface; Thunderbolt/PCIe devices and the dGPU stay behind
-      # the IOMMU. Drop igfx_off once upstream i915 tolerates the fault.
-      "intel_iommu=on,igfx_off"
-      "iommu=force"
-      "mem_sleep_default=deep"
-      # This Yoga 9 15IMH5 exposes DYTC v4, which ideapad_laptop gates behind an
-      # opt-in ("DYTC_VERSION 4 support may not work"). Without it there is no
-      # ACPI platform_profile, so power-profiles-daemon only tunes intel_pstate
-      # EPP and never switches the EC's intelligent-cooling mode (fan curve and
-      # PL1/PL2). Opting in lets power-saver/balanced/performance reach firmware.
-      "ideapad_laptop.allow_v4_dytc=Y"
-    ];
-    blacklistedKernelModules = [ "btusb" ];
-
-    initrd = {
-      systemd = {
-        # Tear down all non-loopback interfaces before transitioning to stage 2.
-        # Ensures port 2222 stops being reachable the moment stage 1 is done,
-        # before stage 2's firewall loads. Guards against future misconfiguration
-        # (e.g. if WiFi support were added to initrd later).
-        services.flush-network-before-stage2 = {
-          description = "Tear down initrd network before transitioning to stage 2";
-          before = [ "initrd-cleanup.service" ];
-          wantedBy = [ "initrd.target" ];
-          unitConfig.DefaultDependencies = false;
-          serviceConfig = {
-            Type = "oneshot";
-          };
-          script = ''
-            for iface in /sys/class/net/*; do
-              iface=$(basename "$iface")
-              [ "$iface" = "lo" ] && continue
-              ${pkgs.iproute2}/bin/ip link set dev "$iface" down 2>/dev/null || true
-              ${pkgs.iproute2}/bin/ip addr flush dev "$iface" 2>/dev/null || true
-            done
-          '';
-        };
-      };
-
-      # Initrd SSH — fallback LUKS unlock when TPM2 fails.
-      # Recovery requires a USB Ethernet dongle; WiFi is not available in stage 1.
-      # Port 2222 is therefore NOT exposed on WiFi (including public WiFi).
-      # flush-network-before-stage2 tears down the interface before stage 2 starts.
-      network = {
-        enable = true;
-        ssh = {
-          enable = true;
-          port = 2222;
-          authorizedKeys = import ../../lib/recovery-pubkeys.nix;
-          hostKeys = [ "/etc/secrets/initrd/ssh_host_ed25519_key" ];
-        };
-      };
-      secrets = {
-        "/etc/secrets/initrd/ssh_host_ed25519_key" = lib.mkForce "/run/secrets/initrd_ssh_host_ed25519_key";
-      };
-    };
-  };
-
-  # ── Services ────────────────────────────────────────────────────────────────
-  services = {
-    # The battery, on top of the collectors every host gets; servers have none.
-    prometheus.exporters.node.enabledCollectors = [ "powersupplyclass" ];
-
-    # Enabled by default with a graphical session, and pulls in about 645 MiB
-    # of mbrola voices. Nothing here uses system text-to-speech.
-    speechd.enable = false;
-
-    thermald.enable = true;
-    power-profiles-daemon.enable = true;
-    fwupd.enable = true;
-    btrfs.autoScrub = {
-      enable = true;
-      fileSystems = [ "/" ];
-    };
-
-    openssh = {
-      enable = true;
-      openFirewall = false; # Accessible via Tailscale only
-      hostKeys = [
-        {
-          path = "/etc/ssh/ssh_host_ed25519_key";
-          type = "ed25519";
-        }
-      ];
-    };
-
-    logind.settings.Login = {
-      HandleLidSwitch = "suspend";
-      IdleAction = "suspend";
-      IdleActionSec = "15min";
-    };
-
-    fprintd = lib.mkIf (!config.profiles.ci) {
-      enable = true;
-      tod = {
-        enable = true;
-        driver = synatudor;
-      };
-    };
-
-    # The driver's host process runs outside fprintd's sandbox, started on demand over D-Bus.
-    dbus.packages = lib.mkIf (!config.profiles.ci) [ synatudor ];
-    udev.packages = [ logitechHidpp ] ++ lib.optional (!config.profiles.ci) synatudor;
-    # Bluetooth management (GUI)
-    blueman.enable = true;
-
-    # ── Systemd Failure Notifications ────────────────────────────────────────
-    systemd-failure-notify = {
-      enable = true;
-      # A system unit has no display, so without this a failure only reaches
-      # the journal.
-      webhookUrlFile = config.sops.secrets.failure_webhook_url.path;
-      services = [
-        # "prometheus"
-        "btrbk-local"
-        "restic-backups-local"
-        "restic-check-local"
-        "thermald"
-        "power-profiles-daemon"
-      ];
-    };
-
-  };
-
-  services.hardened = {
-    # thermald: Intel thermal daemon running in --adaptive mode.
-    # Needs /sys writes for thermal zones and perf_event_open for RAPL energy
-    # readings; upstream NixOS unit ships with no SystemCallFilter so relaxing
-    # the baseline filter would leave it completely unfiltered without this
-    # explicit replacement.
-    thermald = {
-      relaxBase = [ "PrivateDevices" ];
-      extraConfig = {
-        SystemCallFilter = [
-          "@system-service"
-          "perf_event_open"
-        ];
-        ProtectProc = "invisible";
-        ProcSubset = "pid";
-        RestrictAddressFamilies = [ "AF_UNIX" ];
-      };
-    };
-
-    # power-profiles-daemon: upstream unit ships its own tighter filter:
-    #   @system-service ~@resources ~@privileged
-    # Relax SystemCallFilter here so our baseline @system-service is not
-    # appended after those denials (which would re-allow @resources /
-    # @privileged). The upstream filter is intentionally preserved as-is.
-    power-profiles-daemon = {
-      relaxBase = [
-        "PrivateDevices"
-        "SystemCallFilter"
-        "ProtectKernelTunables" # needs /sys writes for energy_perf_bias (performance profile)
-      ];
-      extraConfig = {
-        ProtectProc = "invisible";
-        ProcSubset = "pid";
-        RestrictAddressFamilies = [ "AF_UNIX" ];
-      };
-    };
-
-    # fwupd: writes firmware to hardware and loads kernel modules.
-    # Skip ProtectSystem (firmware writes), PrivateDevices (/dev access),
-    # ProtectKernelModules/Tunables (capsule loading), ProtectClock (EFI time),
-    # MemoryDenyWriteExecute (plugin loading).
-    # Relaxing SystemCallFilter preserves fwupd's upstream custom allowlist
-    # (@basic-io @file-system @io-event ... ioctl uname fadvise64 ...), which
-    # is narrower than @system-service; appending @system-service would widen
-    # it.
-    fwupd = {
-      relaxBase = [
-        "PrivateDevices"
-        "ProtectSystem"
-        "ProtectKernelTunables"
-        "ProtectKernelModules"
-        "ProtectClock"
-        "MemoryDenyWriteExecute"
-        "SystemCallFilter"
-        "ProcSubset"
-      ];
-      extraConfig = {
-        RestrictAddressFamilies = [
-          "AF_UNIX"
-          "AF_INET"
-          "AF_INET6"
-          "AF_NETLINK"
-        ];
-        # fwupd 2.1.4 added fwupd-refresh.service, which runs as a dedicated
-        # fwupd-refresh user with StateDirectory=fwupd. systemd therefore chowns
-        # /var/lib/fwupd to fwupd-refresh:fwupd-refresh (0755). The root-run
-        # fwupd.service daemon then needs CAP_DAC_OVERRIDE to write into a
-        # directory it no longer owns, plus CAP_CHOWN/CAP_FOWNER to set
-        # ownership/permissions on the keyring/pki files it creates there. The
-        # hardening baseline strips all capabilities by default, so re-grant
-        # exactly these three (otherwise fwupd.service fails -> SystemdUnitFailed).
-        CapabilityBoundingSet = [
-          "CAP_DAC_OVERRIDE"
-          "CAP_CHOWN"
-          "CAP_FOWNER"
-        ];
-      };
-    };
-
-    # bluetoothd: needs AF_BLUETOOTH + AF_NETLINK for HCI management.
-    # Skip PrivateDevices (/dev/hci*), ProtectKernelModules (hci module loading).
-    bluetooth = {
-      relaxBase = [
-        "PrivateDevices"
-        "ProtectKernelModules"
-      ];
-      extraConfig = {
-        RestrictAddressFamilies = [
-          "AF_UNIX"
-          "AF_BLUETOOTH"
-          "AF_NETLINK"
-        ];
-      };
-    };
-  };
-
-  systemd = {
-    packages = lib.mkIf (!config.profiles.ci) [ synatudor ];
-    user.services = {
-      # The shell owns Bluetooth status and control, so suppress the redundant
-      # Blueman tray icon instead of autostarting blueman-applet.
-      blueman-applet.enable = false;
-
-      # The upstream dbus-broker unit is Type=notify-reload with no ExecReload,
-      # so a reload sends SIGHUP and then blocks on the RELOADING=1/READY=1
-      # sd_notify handshake. In user scope (dbus-broker-launch --scope user)
-      # that handshake never arrives, so the reloadIfChanged path NixOS uses
-      # for the session bus (see nixos/modules/services/system/dbus.nix) hangs
-      # for the full timeout on every `nh os switch` and fails activation. Make
-      # the reload a fire-and-forget SIGHUP instead: dbus-broker-launch
-      # re-reads its service files on SIGHUP, and plain Type=notify returns as
-      # soon as ExecReload exits rather than waiting on the reload-notification
-      # protocol the user-scope launcher does not implement.
-      dbus-broker.serviceConfig = {
-        Type = lib.mkForce "notify";
-        ExecReload = lib.mkForce "${pkgs.coreutils}/bin/kill -HUP $MAINPID";
-      };
-    };
-
-    services = {
-      # This Intel CNVi adapter occasionally fails firmware download if btusb
-      # probes as soon as udev sees the USB device:
-      #
-      #   Bluetooth: hci0: Failed to send firmware data (-38)
-      #   usb 1-14: device descriptor read/64, error -71
-      #
-      # Keep btusb blacklisted above and load it here after early boot settles.
-      # The timer below starts this at boot: bluetooth.target only follows the
-      # hci0 device, which cannot exist until btusb is loaded, so otherwise
-      # Bluetooth stays off until something happens to activate org.bluez.
-      bluetooth-load-btusb = {
-        description = "Load Intel Bluetooth USB driver after early boot settles";
-        requiredBy = [ "bluetooth.service" ];
-        before = [ "bluetooth.service" ];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-        };
-        script = ''
-          ${pkgs.kmod}/bin/modprobe btusb
-        '';
-      };
-
-      # Policy.AutoEnable can still race the adapter's MGMT init after firmware
-      # load (bluetoothd logs "Failed to set default system config for hci0" and
-      # leaves hci0 powered off). Force it on via D-Bus once the /org/bluez/hci0
-      # object is exposed. bluetoothctl is unusable here: in non-interactive
-      # mode it silently no-ops and exits 0 regardless of state.
-      bluetooth-power-on = {
-        description = "Power on Bluetooth controller after bluez is ready";
-        wantedBy = [ "bluetooth.target" ];
-        after = [ "bluetooth.service" ];
-        bindsTo = [ "bluetooth.service" ];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-        };
-        script = ''
-          for _ in $(seq 1 30); do
-            if ${pkgs.systemd}/bin/busctl set-property \
-                 org.bluez /org/bluez/hci0 \
-                 org.bluez.Adapter1 Powered b true 2>/dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Timed out waiting for /org/bluez/hci0" >&2
-          exit 1
-        '';
-      };
-
-    };
-
-    # A timer rather than multi-user.target, so the delay never holds up boot.
-    timers.bluetooth-load-btusb = {
-      description = "Load Intel Bluetooth USB driver after early boot settles";
-      wantedBy = [ "timers.target" ];
-      timerConfig.OnActiveSec = "10s";
-    };
-  };
-
-  # ── USB Device Control ─────────────────────────────────────────────────────
-  services.usbguard = {
-    enable = true;
-    IPCAllowedUsers = [
-      "root"
-      "user"
-    ];
-    rules = ''
-      # Default policy: block all USB devices
-      # Devices must be explicitly whitelisted below
-
-      # Allow Logitech USB Receiver (mouse) — exact HID interface set only (guard against BadUSB spoofing)
-      # ID: 046d:c54d
-      allow id 046d:c54d serial "3081376B3335" name "USB Receiver" with-interface equals { 03:01:02 03:01:01 03:00:00 }
-
-      # Allow Huawei EarPods (USB-C headphones) — exact interface set only:
-      # audio control + 4 audio streaming + HID for the inline remote buttons.
-      # ID: 12d1:3a06
-      allow id 12d1:3a06 name "EarPods" with-interface equals { 01:01:00 01:02:00 01:02:00 01:02:00 01:02:00 03:00:00 }
-
-      # Allow Intel CNVi Bluetooth (internal, Comet Lake AX201)
-      # ID: 8087:0026
-      allow id 8087:0026
-
-      # Allow internal fingerprint reader (Synaptics Tudor; synaTudor drives it)
-      # ID: 06cb:00be
-      allow id 06cb:00be
-
-      # Allow GenesysLogic USB extender hub (USB 2.1 + USB 3.1 interfaces)
-      # ID: 05e3:0610, 05e3:0626
-      allow id 05e3:0610
-      allow id 05e3:0626
-
-      # Allow GenesysLogic hubs inside the DisplayLink dock chain.
-      # The dock nests hubs; 0620 (USB3.1) and 0608 (USB2.0) sit between the
-      # allowed 0610 hub and the DisplayLink video chip. Without these the
-      # inner hubs are deauthorized and everything downstream (DisplayLink,
-      # dock NIC) never enumerates. No serial exposed (SerialNumber=0), so
-      # matched by id like the sibling hubs above. See .claude/main/displaylink.md.
-      # ID: 05e3:0620, 05e3:0608
-      allow id 05e3:0620
-      allow id 05e3:0608
-
-      # Allow DisplayLink video/NIC/audio device in the Dell Universal Dock D6000
-      # used for the external monitor. Serial captured from kernel history on
-      # 2026-06-05 after the dock enumerated with USBGuard disabled.
-      # ID: 17e9:6006, serial: 1712026441
-      allow id 17e9:6006 serial "1712026441" name "Dell Universal Dock D6000"
-
-      # Allow integrated webcam (SunplusIT)
-      # ID: 13d3:56b2
-      allow id 13d3:56b2
-
-      # Allow SanDisk Ultra USB backup stick
-      # ID: 0781:5581, serial: 4C530001250727100272
-      allow id 0781:5581 serial "4C530001250727100272" name "Ultra"
-
-      # Allow Toshiba TransMemory USB installer stick
-      # ID: 0930:6544, serial: C412F52D6C79C2307002C73F
-      allow id 0930:6544 serial "C412F52D6C79C2307002C73F" name "TransMemory"
-
-      # Reject everything else
-      reject
-    '';
+  # The upstream dbus-broker unit is Type=notify-reload with no ExecReload,
+  # so a reload sends SIGHUP and then blocks on the RELOADING=1/READY=1
+  # sd_notify handshake. In user scope (dbus-broker-launch --scope user)
+  # that handshake never arrives, so the reloadIfChanged path NixOS uses
+  # for the session bus (see nixos/modules/services/system/dbus.nix) hangs
+  # for the full timeout on every `nh os switch` and fails activation. Make
+  # the reload a fire-and-forget SIGHUP instead: dbus-broker-launch
+  # re-reads its service files on SIGHUP, and plain Type=notify returns as
+  # soon as ExecReload exits rather than waiting on the reload-notification
+  # protocol the user-scope launcher does not implement.
+  systemd.user.services.dbus-broker.serviceConfig = {
+    Type = lib.mkForce "notify";
+    ExecReload = lib.mkForce "${pkgs.coreutils}/bin/kill -HUP $MAINPID";
   };
 
   sops = {
@@ -640,5 +140,4 @@ in
     ];
     hashedPasswordFile = config.sops.secrets.user_password.path;
   };
-
 }
