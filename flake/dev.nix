@@ -6,7 +6,7 @@
   pre-commit-hooks,
   treefmt-nix,
   hostRegistry,
-  ciNixosConfigs,
+  allNixosConfigs,
   aclGen,
   deploy-rs,
   nixos-anywhere,
@@ -107,8 +107,8 @@ in
         lib
         pkgs
         hostRegistry
+        allNixosConfigs
         ;
-      allNixosConfigs = lib.intersectAttrs hostRegistry ciNixosConfigs;
       hostAssertions = inventoryHostAssertions;
     };
 
@@ -117,8 +117,8 @@ in
         lib
         pkgs
         hostRegistry
+        allNixosConfigs
         ;
-      allNixosConfigs = lib.intersectAttrs hostRegistry ciNixosConfigs;
       hostAssertions = inventoryHostAssertions;
       includeClosureSizes = false;
     };

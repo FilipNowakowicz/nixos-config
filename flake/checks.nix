@@ -123,7 +123,7 @@ in
             }
         ) { };
 
-        # CI ships `main-ci` (profiles.ci = true; skipHeavyPackages = true), not
+        # CI ships `main-ci` (profiles.ci = true, so Home Manager skips heavy packages), not
         # the full `main` closure; pin the same invariants to it so the gated
         # build is what gets validated.
         invariants-main-ci = hostInvariantCheck "main-ci" "main" ciNixosConfigs.main-ci;

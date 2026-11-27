@@ -1,4 +1,4 @@
-# Codex CLI launcher for the desktop role (home.nix). Runs the newest upstream
+# Codex CLI launcher for the desktop role (desktop.nix). Runs the newest upstream
 # release through `npm exec` rather than
 # nixpkgs, so it tracks upstream without a flake bump.
 #

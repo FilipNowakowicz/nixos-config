@@ -1,22 +1,18 @@
-{ lib, ... }:
+# `args.osConfig` rather than an `osConfig` parameter: the module system
+# forwards every named argument, so a standalone Home Manager evaluation (the
+# public `homeModules.*`) would throw on it even with a `? null` default.
+{ lib, ... }@args:
 {
   options.fleet = {
-    hostName = lib.mkOption {
-      type = lib.types.str;
-      default = "main";
-      description = "Fleet host name used by user-level commands.";
-    };
-
     skipHeavyPackages = lib.mkOption {
       type = lib.types.bool;
-      default = false;
-      description = "Skip heavyweight interactive packages for CI and lean profiles.";
-    };
-
-    enableSpotify = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = "Install Spotify where the desktop package set is enabled.";
+      default = args.osConfig.profiles.ci or false;
+      defaultText = lib.literalExpression "osConfig.profiles.ci or false";
+      description = ''
+        Skip heavyweight interactive packages for CI and lean profiles.
+        Follows the NixOS `profiles.ci` option when Home Manager runs as a
+        NixOS module.
+      '';
     };
   };
 }

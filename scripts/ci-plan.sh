@@ -25,7 +25,7 @@ module_all_hosts='^modules/nixos/(default\.nix|services/|profiles/(base|backup|s
 module_desktop_hosts='^modules/nixos/(profiles/(desktop|observability-client)\.nix|hardware/nvidia-prime\.nix)'
 module_machine_hosts='^modules/nixos/profiles/impermanence-base\.nix'
 home_all_hosts='^home/(profiles/base\.nix|users/user/common\.nix)'
-home_desktop_hosts='^home/(desktop/|neovim/|profiles/desktop\.nix|profiles/workflow-packs/|users/user/home\.nix|theme/|files/(nvim/|firefox|hypr|kitty|scripts/theme-switch\.sh))'
+home_desktop_hosts='^home/(desktop/|neovim/|profiles/desktop\.nix|profiles/workflow-packs/|users/user/desktop\.nix|theme/|files/(nvim/|firefox|hypr|kitty|scripts/theme-switch\.sh))'
 home_server_hosts='^home/users/user/server\.nix'
 # Everything the booted desktop tests load: the shell, the Lua config, the
 # generated theme files they both read, and the module that wires them up.

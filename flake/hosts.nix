@@ -9,39 +9,27 @@
   overlays,
 }:
 let
-  homeManagerRoleModules = {
-    desktop = ../home/users/user/home.nix;
-    server = ../home/users/user/server.nix;
-  };
-
-  homeManagerHostModules = {
-    main = ../home/users/user/main.nix;
-  };
-
+  # Home Manager entry modules follow a naming convention under
+  # home/users/user/: `<role>.nix` for the registry's `homeManager.role`, plus
+  # `<host>.nix` when that file exists. Shared building blocks there
+  # (common.nix, secrets.nix, codex.nix) are never named after a role or host.
   mkHomeManagerImports =
-    hostMeta:
-    [ homeManagerRoleModules.${hostMeta.homeManager.role} ]
-    ++
-      lib.optional (builtins.hasAttr hostMeta.name homeManagerHostModules)
-        homeManagerHostModules.${hostMeta.name};
+    host: hostMeta:
+    let
+      hostModule = ../home/users/user + "/${host}.nix";
+    in
+    [ (../home/users/user + "/${hostMeta.homeManager.role}.nix") ]
+    ++ lib.optional (builtins.pathExists hostModule) hostModule;
 
   mkNixos =
-    host: variantArgs:
+    host:
+    {
+      extraModules ? [ ],
+    }:
     let
       hostMeta = hostRegistry.${host};
       hostMetaWithName = hostMeta // {
         name = host;
-      };
-      extraModules = variantArgs.extraModules or [ ];
-      homeManagerExtraArgs = builtins.removeAttrs variantArgs [
-        "extraModules"
-        "skipHeavyPackages"
-      ];
-      homeManagerFleetConfig = {
-        fleet = {
-          hostName = host;
-          skipHeavyPackages = variantArgs.skipHeavyPackages or false;
-        };
       };
       configurationRevision = self.dirtyShortRev or self.shortRev or self.dirtyRev or self.rev or null;
     in
@@ -77,8 +65,8 @@ let
           { config, ... }:
           lib.mkIf (hostMeta ? homeManager) {
             home-manager.sharedModules = [ inputs.sops-nix.homeManagerModules.sops ];
-            home-manager.users.${config.profiles.primaryUser} = homeManagerFleetConfig // {
-              imports = mkHomeManagerImports hostMetaWithName;
+            home-manager.users.${config.profiles.primaryUser} = {
+              imports = mkHomeManagerImports host hostMeta;
             };
           }
         )
@@ -87,8 +75,7 @@ let
             # `self` lets the user modules import public `homeModules.*` by
             # their exported names.
             inherit hostRegistry self;
-          }
-          // homeManagerExtraArgs;
+          };
         }
       ]
       ++ extraModules;
@@ -96,16 +83,15 @@ let
 
   allNixosConfigs = lib.mapAttrs (name: _: mkNixos name { }) hostRegistry;
 
+  # `profiles.ci` also turns on Home Manager's `fleet.skipHeavyPackages`, which
+  # defaults from it (home/profiles/fleet.nix).
   ciNixosConfigs = allNixosConfigs // {
     main-ci = mkNixos "main" {
-      skipHeavyPackages = true;
       extraModules = [ { profiles.ci = true; } ];
     };
   };
 
-  deployCheckNixosConfigs = ciNixosConfigs;
-
 in
 {
-  inherit allNixosConfigs ciNixosConfigs deployCheckNixosConfigs;
+  inherit allNixosConfigs ciNixosConfigs;
 }

@@ -1,10 +1,11 @@
 {
+  lib,
   pkgs,
   config,
   ...
 }:
 let
-  inherit (config.fleet) enableSpotify skipHeavyPackages;
+  inherit (config.fleet) skipHeavyPackages;
   # Theme-reloaded Wayland UI tools (kitty); shared with
   # theme-switch's runtimeInputs in home/theme/module.nix.
   themedRuntime = import ./desktop-runtime.nix { inherit pkgs; };
@@ -41,7 +42,7 @@ in
         imv
         blanket
       ]
-      ++ (if skipHeavyPackages || !enableSpotify then [ ] else [ spotify ])
+      ++ lib.optional (!skipHeavyPackages) spotify
       ++ [
         # ── Visuals / Toys ─────────────────────────────────────────────────────
         cava
