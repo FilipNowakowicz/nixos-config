@@ -15,8 +15,13 @@ builder_snapshot="gcp-builder-move"
 builder_fqdn="${BUILDER_FQDN:-}"
 builder_user="${BUILDER_USER:-}"
 builder_key="${BUILDER_SSH_KEY:-/run/secrets/gcp_builder_build_key}" # root-owned on main; daemon reads it
-builder_maxjobs="${BUILDER_MAXJOBS:-14}"
-builder_features="kvm,nixos-test,big-parallel,benchmark"
+# maxjobs, speed factor and features for --builders; resolve_builder_fqdn reads
+# them from the registry (lib/hosts.nix gcp-builder.remoteBuilder).
+builder_maxjobs="${BUILDER_MAXJOBS:-}"
+builder_system=""
+builder_speed=""
+builder_features=""
+builder_registry="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)/lib/hosts.nix"
 gcloud_cmd=()
 
 # Only hosts with the build key deployed use the builder, so CI and fresh clones
@@ -37,18 +42,33 @@ resolve_gcloud_cmd() {
   fi
 }
 
-# The registry's FQDN and login (deploy.sshUser), through the deploy-rs output,
-# in one evaluation; BUILDER_FQDN and BUILDER_USER override them.
+# The registry's FQDN, login (deploy.sshUser) and remoteBuilder spec, read from
+# lib/hosts.nix in one evaluation without evaluating the flake. BUILDER_FQDN,
+# BUILDER_USER and BUILDER_MAXJOBS override them.
 resolve_builder_fqdn() {
-  [[ -n $builder_fqdn && -n $builder_user ]] && return 0
-  local node
+  [[ -n $builder_fqdn && -n $builder_user && -n $builder_maxjobs && -n $builder_speed ]] && return 0
+  local spec fqdn user system maxjobs speed features
   # Nix, not the shell, interpolates the ${...} below.
   # shellcheck disable=SC2016
-  node="$(nix eval --raw .#deploy.nodes.gcp-builder --apply 'n: "${n.hostname} ${n.sshUser}"' 2>/dev/null || true)"
-  [[ -n $builder_fqdn ]] || builder_fqdn="${node% *}"
-  [[ -n $builder_user ]] || builder_user="${node##* }"
-  [[ -n $builder_fqdn ]] || builder_fqdn="gcp-builder.tail90fc7a.ts.net"
-  [[ -n $builder_user ]] || builder_user="user"
+  spec="$(nix eval --raw --file "$builder_registry" gcp-builder --apply 'h: with h.remoteBuilder; "${h.tailnetFQDN} ${h.deploy.sshUser} ${h.system} ${toString maxJobs} ${toString speedFactor} ${builtins.concatStringsSep "," supportedFeatures}"' 2>/dev/null || true)"
+  read -r fqdn user system maxjobs speed features <<<"$spec" || true
+  [[ -n $builder_fqdn ]] || builder_fqdn="${fqdn:-gcp-builder.tail90fc7a.ts.net}"
+  [[ -n $builder_user ]] || builder_user="${user:-user}"
+  [[ -n $builder_system ]] || builder_system="$system"
+  [[ -n $builder_maxjobs ]] || builder_maxjobs="$maxjobs"
+  [[ -n $builder_speed ]] || builder_speed="$speed"
+  [[ -n $builder_features ]] || builder_features="$features"
+}
+
+# The --builders entry for nix; fails if the registry could not be read.
+builder_spec() {
+  resolve_builder_fqdn
+  [[ -n $builder_system && -n $builder_maxjobs && -n $builder_speed && -n $builder_features ]] || {
+    echo "remote builder: could not read gcp-builder.remoteBuilder from $builder_registry" >&2
+    return 1
+  }
+  printf 'ssh-ng://%s@%s %s %s %s %s %s\n' "$builder_user" "$builder_fqdn" "$builder_system" \
+    "$builder_key" "$builder_maxjobs" "$builder_speed" "$builder_features"
 }
 
 builder_ssh_opts() {

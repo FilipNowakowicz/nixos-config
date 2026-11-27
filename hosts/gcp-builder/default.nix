@@ -1,5 +1,6 @@
 {
   config,
+  hostMeta,
   inputs,
   pkgs,
   ...
@@ -39,14 +40,9 @@
       min-free = 10737418240;
       max-free = 32212254720;
       # Advertise build capabilities so `main` can offload the KVM-backed nixos
-      # test suite here. KVM requires the GCE instance to have nested
-      # virtualization enabled (see infra/builder.tf — n2 family).
-      system-features = [
-        "nixos-test"
-        "benchmark"
-        "big-parallel"
-        "kvm"
-      ];
+      # test suite here. The registry's remoteBuilder spec is what callers
+      # advertise in --builders too, so the two cannot drift.
+      system-features = hostMeta.remoteBuilder.supportedFeatures;
     };
   };
 

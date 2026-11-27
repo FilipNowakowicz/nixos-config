@@ -78,7 +78,9 @@ live in the system configuration, not a global build machine:
 evaluates locally, passes `--max-jobs 0` and `--builders` for that one invocation
 so that every build step runs on the builder, and copies the closure back.
 `sudo nixos-switch-main --remote` does the same for agents, after
-`bash scripts/on-builder.sh true` has started the VM.
+`bash scripts/on-builder.sh true` has started the VM. Both take the `--builders`
+jobs, speed factor and features from `remoteBuilder` on the `gcp-builder` entry
+in `lib/hosts.nix`, which also sets the builder's own `system-features`.
 
 ## Knobs
 
@@ -89,7 +91,7 @@ so that every build step runs on the builder, and copies the closure back.
 | `BUILDER_SSH_KEY` | `/run/secrets/gcp_builder_build_key` | Override the caller’s SSH private-key file (CI uses a temporary file). |
 | `BUILDER_FQDN`    | `gcp-builder.<tailnet>.ts.net`       | Tailnet name of the builder.                                           |
 | `BUILDER_USER`    | registry `deploy.sshUser`            | SSH login on the builder.                                              |
-| `BUILDER_MAXJOBS` | `8`                                  | Remote `maxjobs` passed to `--builders` by `rebuild`.                  |
+| `BUILDER_MAXJOBS` | registry `remoteBuilder.maxJobs`     | Remote `maxjobs` passed to `--builders` by `rebuild --remote`.         |
 
 Prerequisite: `gcloud` on `main` must be authenticated with the builder's project
 as its active config (`gcloud config set project <id>`).

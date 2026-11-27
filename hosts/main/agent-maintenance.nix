@@ -3,6 +3,7 @@
 # globally; only these exact commands are exempt.
 {
   config,
+  lib,
   pkgs,
   hostRegistry,
   ...
@@ -10,6 +11,21 @@
 let
   user = config.profiles.primaryUser;
   inherit (config.users.users.${user}) home;
+
+  # The registry's remote-builder spec, in the form `nix --builders` takes.
+  builderSpec =
+    let
+      builder = hostRegistry.gcp-builder;
+      inherit (builder.remoteBuilder) maxJobs speedFactor supportedFeatures;
+    in
+    lib.concatStringsSep " " [
+      "ssh-ng://${builder.deploy.sshUser}@${builder.tailnetFQDN}"
+      builder.system
+      config.sops.secrets.gcp_builder_build_key.path
+      (toString maxJobs)
+      (toString speedFactor)
+      (lib.concatStringsSep "," supportedFeatures)
+    ];
 
   agentMaintenanceCommands = [
     # Verify and trigger post-reinstall backup/check jobs.
@@ -60,7 +76,7 @@ let
     if [ "''${1:-}" = --remote ]; then
       remote_args=(
         --max-jobs 0
-        --builders "ssh-ng://${hostRegistry.gcp-builder.deploy.sshUser}@${hostRegistry.gcp-builder.tailnetFQDN} x86_64-linux /run/secrets/gcp_builder_build_key 8 2 kvm,nixos-test,big-parallel,benchmark"
+        --builders ${lib.escapeShellArg builderSpec}
       )
     fi
     toplevel=$(${pkgs.nix}/bin/nix build --no-link --print-out-paths "''${remote_args[@]}" \
