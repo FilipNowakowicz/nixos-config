@@ -1,6 +1,7 @@
 # shellcheck shell=bash disable=SC2034
 # Shared helpers for reaching the on-demand gcp-builder VM. Sourced by
-# scripts/validate.sh, scripts/on-builder.sh and scripts/rebuild-remote.sh.
+# scripts/validate.sh, scripts/on-builder.sh and scripts/rebuild-remote.sh, and
+# included in on-worker (home/profiles/on-worker.nix), which runs from any repo.
 
 builder_name="gcp-builder"
 # Set BUILDER_ZONE to skip the lookup; start_builder otherwise finds the VM.
@@ -22,6 +23,8 @@ builder_system=""
 builder_speed=""
 builder_features=""
 builder_registry="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)/lib/hosts.nix"
+# SSH readiness probes, 3 s apart, after the VM starts.
+builder_ssh_tries=40
 gcloud_cmd=()
 
 # Only hosts with the build key deployed use the builder, so CI and fresh clones
@@ -43,11 +46,11 @@ resolve_gcloud_cmd() {
 }
 
 # The registry's FQDN, login (deploy.sshUser) and remoteBuilder spec, read from
-# lib/hosts.nix in one evaluation without evaluating the flake. BUILDER_FQDN,
-# BUILDER_USER and BUILDER_MAXJOBS override them. CI has no Nix and sets the
-# first two; invariants-gcp-builder keeps the workflows equal to the registry.
-resolve_builder_fqdn() {
-  [[ -n $builder_fqdn && -n $builder_user && -n $builder_maxjobs && -n $builder_speed ]] && return 0
+# lib/hosts.nix in one evaluation without evaluating the flake. Values already
+# set (BUILDER_FQDN, BUILDER_USER, BUILDER_MAXJOBS, or on-worker's) are kept.
+# CI has no Nix and sets the first two; invariants-gcp-builder keeps the
+# workflows equal to the registry.
+read_builder_registry() {
   local spec fqdn user system maxjobs speed features
   # Nix, not the shell, interpolates the ${...} below.
   # shellcheck disable=SC2016
@@ -59,6 +62,11 @@ resolve_builder_fqdn() {
   [[ -n $builder_maxjobs ]] || builder_maxjobs="$maxjobs"
   [[ -n $builder_speed ]] || builder_speed="$speed"
   [[ -n $builder_features ]] || builder_features="$features"
+}
+
+# The address and login to reach the builder.
+resolve_builder_fqdn() {
+  [[ -n $builder_fqdn && -n $builder_user ]] || read_builder_registry
   [[ -n $builder_fqdn && -n $builder_user ]] || {
     echo "remote builder: could not read gcp-builder from $builder_registry (set BUILDER_FQDN and BUILDER_USER)" >&2
     return 1
@@ -67,6 +75,8 @@ resolve_builder_fqdn() {
 
 # The --builders entry for nix; fails if the registry could not be read.
 builder_spec() {
+  [[ -n $builder_system && -n $builder_maxjobs && -n $builder_speed && -n $builder_features ]] ||
+    read_builder_registry
   resolve_builder_fqdn || return 1
   [[ -n $builder_system && -n $builder_maxjobs && -n $builder_speed && -n $builder_features ]] || {
     echo "remote builder: could not read gcp-builder.remoteBuilder from $builder_registry" >&2
@@ -219,7 +229,7 @@ start_builder() {
     fi
     moved=1
   fi
-  for _ in $(seq 1 40); do
+  for _ in $(seq 1 "$builder_ssh_tries"); do
     if ssh "${opts[@]}" "$builder_user@$builder_fqdn" true 2>/dev/null; then
       ready=1
       break
@@ -235,4 +245,17 @@ start_builder() {
       echo "remote builder: could not delete snapshot $builder_snapshot" >&2
   fi
   echo "remote builder: $builder_name ready" >&2
+}
+
+# Power the VM off wherever it is. The idle timer normally does this.
+stop_builder() {
+  resolve_gcloud_cmd || {
+    echo "remote builder: gcloud is not available" >&2
+    return 1
+  }
+  find_builder_zone || {
+    echo "remote builder: could not find the VM (check gcloud project and login)" >&2
+    return 1
+  }
+  "${gcloud_cmd[@]}" compute instances stop "$builder_name" --zone "$builder_zone" --quiet
 }

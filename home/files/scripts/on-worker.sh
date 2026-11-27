@@ -1,8 +1,11 @@
-# shellcheck shell=bash disable=SC2016,SC2029
+# shellcheck shell=bash disable=SC2016,SC2029,SC2154
+# (SC2154: builder_* and gcloud_cmd come from scripts/lib/builder.sh, which
+# home/profiles/on-worker.nix places above this text.)
 # on-worker: run long CPU-heavy jobs from any Git checkout on the on-demand
 # gcp-builder VM, which runs them as its `jobs` user next to its builds
 # (modules/nixos/profiles/batch-jobs). Installed by home/profiles/on-worker.nix,
-# which sets WORKER_HOST, WORKER_VM and NOTIFY_URL_FILE above this text.
+# which puts scripts/lib/builder.sh (VM start/stop, zone moves), the registry's
+# builder address and NOTIFY_URL_FILE above this text.
 #
 # Each checkout gets a persistent workspace on the worker, so .venv and caches
 # survive between runs. Jobs run detached under the worker's `jobs` user and
@@ -51,7 +54,7 @@ ssh_opts=(
   -o "ControlPath=$control_dir/%C"
   -o ControlPersist=120
 )
-target="jobs@$WORKER_HOST"
+target="jobs@$builder_fqdn"
 
 remote() {
   ssh "${ssh_opts[@]}" "$target" "$@"
@@ -66,23 +69,14 @@ remote_script() {
   ssh "${ssh_opts[@]}" "$target" "bash -s -- $args" <<<"$script"
 }
 
-gcloud_cmd=()
-resolve_gcloud() {
-  if command -v gcloud >/dev/null 2>&1; then
-    gcloud_cmd=(gcloud)
-  else
-    gcloud_cmd=(nix shell nixpkgs#google-cloud-sdk -c gcloud)
-  fi
-}
-
 reachable() {
   ssh "${ssh_opts[@]}" -o ConnectTimeout=5 "$target" true 2>/dev/null
 }
 
 # Prints the VM's GCE status (RUNNING, TERMINATED, ...), or nothing.
 vm_status() {
-  resolve_gcloud
-  "${gcloud_cmd[@]}" compute instances list --filter="name=$WORKER_VM" \
+  resolve_gcloud_cmd || return 0
+  "${gcloud_cmd[@]}" compute instances list --filter="name=$builder_name" \
     --format='value(status)' 2>/dev/null || true
 }
 
@@ -97,38 +91,18 @@ vm_is_off() {
 }
 
 off_notice() {
-  echo "on-worker: $WORKER_VM is powered off, so no job is running." >&2
+  echo "on-worker: $builder_name is powered off, so no job is running." >&2
   echo "  Past jobs' logs and results stay on its disk: 'on-worker logs NAME' or 'on-worker pull PATH' boots it." >&2
 }
 
+# The library's start_builder finds the VM, retries a CPU quota refusal, moves
+# it out of a full zone (or resumes an interrupted move) and waits for SSH as
+# builder_user, which on-worker.nix sets to jobs. A job can wait out another
+# VM's hold on the quota for longer than an interactive build would.
 start_vm() {
   reachable && return 0
-  resolve_gcloud
-  local zone output deadline
-  zone=$("${gcloud_cmd[@]}" compute instances list --filter="name=$WORKER_VM" \
-    --format='value(zone.basename())' 2>/dev/null) || true
-  [[ -n $zone ]] || die "cannot find the $WORKER_VM VM (check gcloud login and project)"
-  deadline=$(($(date +%s) + ${ON_WORKER_QUOTA_WAIT:-1800}))
-  echo "on-worker: starting $WORKER_VM ..." >&2
-  until output=$("${gcloud_cmd[@]}" compute instances start "$WORKER_VM" --zone "$zone" --quiet 2>&1); do
-    if [[ $output == *CPUS_ALL_REGIONS* ]] && (($(date +%s) < deadline)); then
-      # The 16-vCPU project cap holds this VM and the homeserver; anything else
-      # running (a leftover builder zone-move probe) can take it for a while.
-      echo "on-worker: no CPU quota free yet (another VM holds it: gcloud compute instances list); retrying in 60s" >&2
-      sleep 60
-      continue
-    fi
-    printf '%s\n' "$output" >&2
-    die "could not start $WORKER_VM"
-  done
-  for _ in $(seq 1 60); do
-    if reachable; then
-      echo "on-worker: $WORKER_VM ready" >&2
-      return 0
-    fi
-    sleep 3
-  done
-  die "$WORKER_VM started but is not reachable over SSH"
+  BUILDER_QUOTA_WAIT=${ON_WORKER_QUOTA_WAIT:-1800} start_builder ||
+    die "could not start $builder_name"
 }
 
 toplevel=""
@@ -308,13 +282,10 @@ cmd_down() {
     fi
     # The VM also builds for main and CI; build users own running builds.
     if remote 'ps -eo user= | grep -q "^nixbld"'; then
-      die "a Nix build is running on $WORKER_VM; use down -f to power off anyway"
+      die "a Nix build is running on $builder_name; use down -f to power off anyway"
     fi
   fi
-  resolve_gcloud
-  local zone
-  zone=$("${gcloud_cmd[@]}" compute instances list --filter="name=$WORKER_VM" --format='value(zone.basename())')
-  "${gcloud_cmd[@]}" compute instances stop "$WORKER_VM" --zone "$zone" --quiet
+  stop_builder || die "could not power off $builder_name"
 }
 
 sub=${1:-}

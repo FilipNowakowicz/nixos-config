@@ -9,6 +9,8 @@
   ...
 }:
 let
+  builder = hostRegistry.gcp-builder;
+
   # Job results go to the same private ntfy topic as the other fleet
   # notifications; on-worker copies the URL to the worker on each run.
   notifyUrlFile = lib.optionalString (
@@ -30,12 +32,19 @@ let
       openssh
       rsync
     ];
-    text = ''
-      WORKER_HOST=${lib.escapeShellArg hostRegistry.gcp-builder.tailnetFQDN}
-      WORKER_VM=gcp-builder
-      NOTIFY_URL_FILE=${lib.escapeShellArg notifyUrlFile}
-    ''
-    + builtins.readFile ../files/scripts/on-worker.sh;
+    # on-worker runs from any repository, so the shared builder library is
+    # included at build time and the registry values it would evaluate are
+    # set here. builder_user only drives its SSH readiness probe; jobs log in
+    # as `jobs`, not the deploy user, and wait longer for SSH than builds do.
+    text =
+      builtins.readFile ../../scripts/lib/builder.sh
+      + ''
+        builder_fqdn=${lib.escapeShellArg builder.tailnetFQDN}
+        builder_user="jobs"
+        builder_ssh_tries=60
+        NOTIFY_URL_FILE=${lib.escapeShellArg notifyUrlFile}
+      ''
+      + builtins.readFile ../files/scripts/on-worker.sh;
   };
 in
 {
