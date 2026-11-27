@@ -72,6 +72,9 @@ on-worker run -w -- make test   # wait in the foreground
   `--max-runtime` (default 24h). Logs, command and exit status live in
   `~jobs/jobs/<name>/`. A finished job posts to the private ntfy topic.
 - `on-worker down` refuses while a job or a Nix build runs (`-f` overrides).
+- on-worker starts and stops the VM with `scripts/lib/builder.sh`, included at
+  build time, so it also moves the VM out of a full zone and resumes an
+  interrupted move. It waits up to `ON_WORKER_QUOTA_WAIT` (1800 s) for CPU quota.
 - `network-doctor worker`, run as `jobs`, checks DNS and the PyPI index.
 
 ## Idle auto-shutdown
@@ -84,7 +87,8 @@ full grace window before the first check.
 
 ## Zone moves
 
-If `start_builder` finds the VM's zone out of capacity, it test-creates a VM in
+If `start_builder` (validate.sh, on-builder.sh, `rebuild --remote`, on-worker)
+finds the VM's zone out of capacity, it test-creates a VM in
 another `europe-west2` zone, snapshots the disk as `gcp-builder-move`, deletes the
 old VM and recreates it there. The regional SSD quota cannot hold two copies of
 the disk, which is why the order is fixed. The address, cache and DisplayLink file
