@@ -248,8 +248,8 @@ Item {
             }
             NotesCard { width: 340 }
             AgentsCard { width: 340 }
-            PhoneCard { width: 340 }
             MouseCard { width: 340 }
+            PhoneCard { width: 340 }
             NotificationCentre { compact: true }
         }
     }

@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 
-// The mouse's battery, on one line under the phone. status.py asks the mouse over
+// The mouse's battery, on one line above the phone. status.py asks the mouse over
 // HID++; while it sleeps the last reading stays, dimmed. No receiver, no card.
 Item {
     id: root
