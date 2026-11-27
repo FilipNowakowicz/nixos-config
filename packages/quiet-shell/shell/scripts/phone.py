@@ -73,8 +73,8 @@ def device(id_):
         notes.append({
             "id": nid,
             "app": n.get("appName") or "",
-            "title": n.get("title") or "",
-            "text": n.get("text") or "",
+            "title": one_line(n.get("title")),
+            "text": one_line(n.get("text")),
             "reply": bool(n.get("replyId")),
         })
     # Newest last on the phone, newest first here.
@@ -82,6 +82,13 @@ def device(id_):
     phone["notifications"] = notes[:SHOWN]
     phone["more"] = max(0, len(notes) - SHOWN)
     return phone
+
+
+def one_line(value):
+    # Expanded notifications (a whole Gmail body) arrive with newlines; the card
+    # shows one line per notification, so fold the whitespace and cap the length.
+    text = " ".join((value or "").split())
+    return text if len(text) <= 200 else text[:199] + "…"
 
 
 def main():
