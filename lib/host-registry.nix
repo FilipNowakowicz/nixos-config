@@ -11,6 +11,7 @@ let
     "sops"
     "hardware"
     "remoteBuilder"
+    "dnsServer"
   ];
 
   knownHomeManagerRoles = [
@@ -137,13 +138,16 @@ let
                 "standard"
               ]
               && (!cfg.backup ? name || (builtins.isString cfg.backup.name && cfg.backup.name != ""))
+              && (!cfg.backup ? restoreTest || builtins.isBool cfg.backup.restoreTest)
+              && (!cfg.backup ? restoreDrill || builtins.isBool cfg.backup.restoreDrill)
             )
           )
-          "${name}.backup: expected class \"critical\" or \"standard\" and optional non-empty string name, got ${
-            builtins.toJSON (cfg.backup.class or null)
+          "${name}.backup: expected class \"critical\" or \"standard\", optional non-empty string name and optional bool restoreTest/restoreDrill, got ${
+            builtins.toJSON (cfg.backup or null)
           }"
         )
         (ok (!p "sops" || builtins.isBool cfg.sops) "${name}.sops: must be a bool")
+        (ok (!p "dnsServer" || builtins.isBool cfg.dnsServer) "${name}.dnsServer: must be a bool")
         (ok (
           !p "hardware"
           || (
@@ -177,6 +181,21 @@ let
       _valid = builtins.foldl' (a: b: a && b) true checks;
     in
     builtins.seq _valid cfg;
+
+  # The one active host with `dnsServer = true`: its AdGuard Home is the
+  # tailnet-wide global DNS nameserver. Zero or several is an error, since
+  # every other host needs exactly one resolver to be granted port 53 on.
+  dnsServerName =
+    registry:
+    let
+      names = builtins.filter (
+        name: (registry.${name}.status or null) == "active" && (registry.${name}.dnsServer or false)
+      ) (builtins.attrNames registry);
+    in
+    if builtins.length names == 1 then
+      builtins.head names
+    else
+      throw "host registry: expected exactly one active host with dnsServer = true, got ${builtins.toJSON names}";
 in
 {
   schema = {
@@ -189,7 +208,13 @@ in
       ;
   };
 
-  inherit validateHost;
+  inherit validateHost dnsServerName;
 
-  validateRegistry = builtins.mapAttrs validateHost;
+  # Validates every entry, then the fleet-wide rules (one DNS server).
+  validateRegistry =
+    registry:
+    let
+      validated = builtins.mapAttrs validateHost registry;
+    in
+    builtins.seq (dnsServerName validated) validated;
 }

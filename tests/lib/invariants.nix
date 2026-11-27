@@ -29,6 +29,7 @@ let
     };
     homeserver-gcp = {
       status = "active";
+      dnsServer = true;
       tailscale = {
         tag = "server";
         acceptFrom = {

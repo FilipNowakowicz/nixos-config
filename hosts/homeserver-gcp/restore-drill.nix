@@ -1,4 +1,9 @@
-{ config, pkgs, ... }:
+{
+  config,
+  pkgs,
+  hostMeta,
+  ...
+}:
 # Full-service restore drill (layer 6 automation).
 #
 # The daily restore canary (backups.nix) proves the B2 path round-trips a marker
@@ -24,6 +29,7 @@
 # running on its own timer.
 let
   inherit (config.lib.profiles.observability) mkPromScript;
+  metric = (import ../../lib/backup-evidence.nix).metrics.restoreDrill;
 
   scratchRoot = "/var/lib/restore-drill";
 
@@ -178,9 +184,9 @@ let
     ${mkPromScript {
       name = "restore_drill.prom";
       lines = [
-        "# HELP restore_drill_last_success_timestamp_seconds Unix timestamp of last successful full-service restore drill (Grafana + AdGuard Home brought up from B2-restored state)"
-        "# TYPE restore_drill_last_success_timestamp_seconds gauge"
-        "restore_drill_last_success_timestamp_seconds $(${pkgs.coreutils}/bin/date +%s)"
+        "# HELP ${metric} Unix timestamp of last successful full-service restore drill (Grafana + AdGuard Home brought up from B2-restored state)"
+        "# TYPE ${metric} gauge"
+        "${metric} $(${pkgs.coreutils}/bin/date +%s)"
       ];
     }}
 
@@ -188,6 +194,14 @@ let
   '';
 in
 {
+  # The registry flag is what makes BackupEvidenceMissing expect this stamp.
+  assertions = [
+    {
+      assertion = hostMeta.backup.restoreDrill or false;
+      message = "homeserver-gcp runs a restore drill: set backup.restoreDrill = true in lib/hosts.nix";
+    }
+  ];
+
   systemd = {
     services.restore-drill-b2 = {
       description = "Full-service restore drill (Grafana + AdGuard Home) from B2";

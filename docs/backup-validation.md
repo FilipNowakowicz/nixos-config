@@ -109,6 +109,13 @@ observability module deploys (`observability-alerts-lint` in `tests/flake/observ
 so a typo in a metric name fails the light lane instead of shipping a
 never-firing rule.
 
+`BackupEvidenceMissing` covers the missing-series case: every active host
+with a registry `backup` entry is expected to report its backup and check
+timestamps, plus the restore-canary and restore-drill timestamps when its entry
+sets `backup.restoreTest` or `backup.restoreDrill`. `lib/backup-evidence.nix`
+holds the metric name for each kind of evidence; the jobs that stamp them and
+the alert rules read it from there.
+
 ### 6. Full-service restore drill (automated + manual)
 
 The canary (layer 4) proves a marker round-trips and the Grafana DB opens;
@@ -189,9 +196,11 @@ stays inline until a second host needs it.
 4. For a critical host, add a restore canary modelled on
    `hosts/homeserver-gcp/backups.nix` (layer 4): seed a marker via
    `backupPrepareCommand`, restore-and-verify it on a separate timer, and stamp
-   `restic_last_restore_test_timestamp_seconds`.
+   `restic_last_restore_test_timestamp_seconds`, then set
+   `backup.restoreTest = true` in its registry entry.
 5. The stale alerts (layer 5) are already shared in
    `lib/observability-alerts.nix`; any host shipping the metrics gets them for
-   free once it scrapes into the stack.
+   free once it scrapes into the stack, and `BackupEvidenceMissing` derives
+   which timestamps to expect from the registry entry.
 6. Schedule the host into the quarterly drill (layer 6) if it holds
-   irreplaceable service state.
+   irreplaceable service state, and set `backup.restoreDrill = true`.
