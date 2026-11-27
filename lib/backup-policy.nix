@@ -1,5 +1,5 @@
 # Restic prune policy consumed by modules/nixos/profiles/backup.nix.
-# flake/checks.nix independently pins the homeserver critical retention.
+# hosts/homeserver-gcp/checks.nix independently pins the homeserver critical retention.
 #
 # forget's default --group-by is "host,paths": snapshots are only compared
 # against the keep-* policy within snapshots that share the *exact* same

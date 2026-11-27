@@ -16,7 +16,7 @@
 # both fail at once with their own message. A missing repository is never
 # initialized from here: an existing repo that has become unreadable must not
 # be silently replaced by a fresh one, so creating it is an operator step
-# (`restic init`). flake/checks.nix (restic-wait-repo-behaviour) runs this
+# (`restic init`). hosts/main/checks.nix (restic-wait-repo-behaviour) runs this
 # script against a fake and a real restic.
 { pkgs }:
 {

@@ -4,6 +4,9 @@
   hostRegistry,
   allNixosConfigs,
   repoBaseUrl ? "https://github.com/FilipNowakowicz/nixos-config",
+  # Extra health assertions per host name, reported after the common ones;
+  # the fleet passes each host's `inventoryAssertions` from hosts/<name>/checks.nix.
+  hostAssertions ? { },
   healthAssertionsFor ? null,
 }:
 let
@@ -19,24 +22,9 @@ let
         invariants.observabilityStaysMinimal
         invariants.obsClientUsesCanonicalUsername
       ];
-
-      hostSpecificAssertions =
-        if name == "main" then
-          [
-            invariants.mainSshIsTailnetOnly
-            invariants.mainUsbguardIsDenyDefault
-            invariants.mainLocalBackupProtectsCriticalPaths
-          ]
-        else if name == "homeserver-gcp" then
-          invariants.deployTargetAccessAssertions
-          ++ [
-            invariants.homeserverSshAndHttpsTailscaleOnly
-          ]
-        else
-          [ ];
     in
     commonAssertions
-    ++ hostSpecificAssertions
+    ++ (hostAssertions.${name} or [ ])
     ++ invariants.mkRegistryAssertions name hostRegistry.${name};
 
   hostHealth =

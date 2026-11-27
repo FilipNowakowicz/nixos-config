@@ -88,7 +88,8 @@ if [[ ${1:-} == "--with-builds" ]]; then
     "Builds the deploy checks, security/persistence invariants, sops
 bootstrap fixtures, and library tests that don't require hardware or
 secrets. A failure here points at a specific check name — open
-flake/checks.nix or the named test under tests/ to see what it asserts."
+hosts/<name>/checks.nix, flake/checks.nix or the named test under tests/ to
+see what it asserts."
   run bash scripts/validate.sh light
 
   section "Sample inventory data build" \

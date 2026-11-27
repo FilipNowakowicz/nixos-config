@@ -224,7 +224,7 @@ on `/home`, `/nix`, `/persist`, or is regenerated declaratively. Checks verify
 that every backup path is persisted or inherently persistent, so adding a Restic
 path that would vanish after reboot fails validation.
 Files: `hosts/main/impermanence.nix`,
-`modules/nixos/profiles/impermanence-base.nix`, `flake/checks.nix`.
+`modules/nixos/profiles/impermanence-base.nix`, `hosts/main/checks.nix`.
 
 ---
 
@@ -266,12 +266,12 @@ tooling).
 .
 ├── flake.nix          # Flake entry point and public outputs
 ├── flake/             # Host, deploy, dev-shell, and check wiring
-├── hosts/             # Hardware-bound host assemblies and per-host runbooks
+├── hosts/             # Host assemblies, their checks, and per-host runbooks
 ├── modules/nixos/     # Reusable NixOS profiles, services, hardware modules
 ├── home/              # Home Manager modules, profiles, dotfiles, themes
 ├── packages/          # Repo-owned packages and generated artifacts
 ├── lib/               # Pure helpers: host registry, ACLs, dashboards, invariants
-├── tests/             # Pure tests, fixtures, and NixOS profile tests
+├── tests/             # Pure tests, flake fixtures, and NixOS profile tests
 ├── scripts/           # Validation, deployment, CI planning, drift checks
 ├── docs/              # Architecture, operations, security, restore drills
 └── infra/             # Cloud infrastructure for homeserver rollback support
@@ -280,7 +280,8 @@ tooling).
 Adding a host: add an entry to `lib/hosts.nix` (role, system, Home Manager and
 backup metadata), create `hosts/<name>/default.nix` from the appropriate
 profiles, document any checked-in `hardware-configuration.nix` with a regeneration
-header, and add the host's sops recipient and secrets. See
+header, and add the host's sops recipient and secrets. Host-specific invariants
+go in `hosts/<name>/checks.nix`, which `flake/checks.nix` picks up by name. See
 [`docs/architecture.md`](docs/architecture.md) for the layering rules.
 
 ---

@@ -108,7 +108,7 @@ deterministically. Treat as code, not state:
 3. If the path also needs to survive disk loss, add it to
    `services.restic.backups.local.paths` in `hosts/main/backups.nix`. The
    `main backup paths are persisted or on a persistent fs` invariant in
-   `flake/checks.nix` enforces backup ⊆ persistence — a backed-up path that
+   `hosts/main/checks.nix` enforces backup ⊆ persistence — a backed-up path that
    isn't persisted would silently lose state on rollback and back up the empty
    directory on the next run.
 4. `nh os switch --hostname main .` to land the bind mount.
@@ -159,7 +159,7 @@ deployed.
 ## Scoped Agent Maintenance Sudo
 
 Normal `wheel` sudo still requires a password. A narrow `NOPASSWD` allowlist
-(`agentMaintenanceCommands`, reviewed in `lib/invariants.nix`) covers the
+(`agentMaintenanceCommands`, reviewed in `hosts/main/checks.nix`) covers the
 btrbk/Restic, `bootctl`, `efibootmgr -b XXXX -B`, `nix-gc-14d` and
 `nixos-switch-main [--remote]` commands above. Policy and the reasons:
 [`docs/security.md`](../../docs/security.md#scoped-agent-maintenance-sudo).

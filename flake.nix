@@ -75,31 +75,11 @@
     let
       defaultSystem = "x86_64-linux";
 
-      lazyactionsOverlay = _: prev: {
-        lazyactions = prev.buildGoModule {
-          pname = "lazyactions";
-          version = "unstable";
-          src = prev.fetchFromGitHub {
-            owner = "nnnkkk7";
-            repo = "lazyactions";
-            rev = "7058157e1ac3723c905cf2f9bf0138f8ebfb4465";
-            hash = "sha256-2y4jmuCBe6HDpn2tj9YMAHNBx46z/LsmMoPOWAGkbAk=";
-          };
-          vendorHash = "sha256-cDLLpU0xsv57yE2cOMddcf2/mHsmGAe69pbNYGSL1XE=";
-          subPackages = [ "cmd/lazyactions" ];
-        };
-      };
-
       hostRegistry = import ./lib/hosts.nix;
 
       inherit (nixpkgs) lib;
 
-      pkgsHelper = import ./flake/pkgs.nix {
-        inherit nixpkgs;
-        overlays = [
-          lazyactionsOverlay
-        ];
-      };
+      pkgsHelper = import ./flake/pkgs.nix { inherit nixpkgs; };
       inherit (pkgsHelper) mkPkgs overlays;
 
       pkgs = mkPkgs { system = defaultSystem; };
@@ -160,6 +140,7 @@
       inherit (checkOutputs)
         ciTestsFor
         invariantChecks
+        inventoryHostAssertions
         samples
         ;
     in
@@ -186,6 +167,7 @@
             nixos-anywhere
             ciDeployNodes
             invariantChecks
+            inventoryHostAssertions
             self'
             ;
           flakeInputs = inputs;

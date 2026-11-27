@@ -3,6 +3,7 @@
   pkgs,
   hostRegistry,
   allNixosConfigs,
+  hostAssertions ? { },
   includeClosureSizes ? true,
 }:
 let
@@ -12,6 +13,7 @@ let
       pkgs
       hostRegistry
       allNixosConfigs
+      hostAssertions
       ;
   };
   dataJson = builtins.toJSON inventoryData.data;
