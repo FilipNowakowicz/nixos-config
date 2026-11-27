@@ -12,12 +12,18 @@ let
   shouldUseIngestAuth = cfg.ingestAuth.username != null && cfg.ingestAuth.passwordFile != null;
 
   nodeExporterTextfileDir = "/var/lib/node-exporter-textfiles";
+  # The durable directory equals the default unless a host moves it.
+  textfileDirs = lib.unique [
+    nodeExporterTextfileDir
+    cfg.collectors.metrics.durableTextfileDir
+  ];
   prometheusPort = 9090;
   nodeExporterPort = 9100;
   mkPromScript =
     {
       name,
       lines,
+      dir ? nodeExporterTextfileDir,
     }:
     let
       filename = if lib.hasSuffix ".prom" name then name else "${name}.prom";
@@ -27,8 +33,8 @@ let
     pkgs.writeShellScript scriptName ''
       set -eu
 
-      ${pkgs.coreutils}/bin/install -d -m 0755 ${nodeExporterTextfileDir}
-      tmp="$(${pkgs.coreutils}/bin/mktemp "${nodeExporterTextfileDir}/${filename}.tmp.XXXXXX")"
+      ${pkgs.coreutils}/bin/install -d -m 0755 ${dir}
+      tmp="$(${pkgs.coreutils}/bin/mktemp "${dir}/${filename}.tmp.XXXXXX")"
       cleanup() {
         ${pkgs.coreutils}/bin/rm -f "$tmp"
       }
@@ -38,7 +44,7 @@ let
       ${content}
       EOF
       ${pkgs.coreutils}/bin/chmod 0644 "$tmp"
-      ${pkgs.coreutils}/bin/mv -f "$tmp" "${nodeExporterTextfileDir}/${filename}"
+      ${pkgs.coreutils}/bin/mv -f "$tmp" "${dir}/${filename}"
       trap - EXIT
     '';
   ingestAuthGroups = lib.optionals (shouldUseIngestAuth && cfg.ingestAuth.group != null) [
@@ -298,6 +304,19 @@ in
         description = "Prometheus remote write endpoint. When null, metrics stay in the local store.";
         example = "https://homeserver-gcp.example.ts.net/obs/prometheus/api/v1/write";
       };
+      durableTextfileDir = lib.mkOption {
+        type = lib.types.str;
+        default = nodeExporterTextfileDir;
+        description = ''
+          Textfile directory for last-success evidence (backup and check
+          timestamps). It must survive a reboot, or the matching staleness
+          alert has no series to age. A host that rolls back its root sets a
+          persisted path here. Per-boot metrics such as system_metadata.prom
+          stay in the default directory, because activation writes them before
+          stage-2 bind mounts exist.
+        '';
+        example = "/var/lib/node-exporter-durable";
+      };
     };
 
     logs = {
@@ -451,7 +470,7 @@ in
               "textfile"
               "thermal_zone"
             ];
-            extraFlags = [ "--collector.textfile.directory=${nodeExporterTextfileDir}" ];
+            extraFlags = map (dir: "--collector.textfile.directory=${dir}") textfileDirs;
           };
 
           # External labels apply only when sending out samples. Store the host
@@ -533,10 +552,10 @@ in
       };
 
       systemd = {
-        tmpfiles.rules = lib.mkIf cfg.collectors.metrics.enable [
-          "d /var/lib/prometheus2 0750 prometheus prometheus -"
-          "d ${nodeExporterTextfileDir} 0755 root root -"
-        ];
+        tmpfiles.rules = lib.mkIf cfg.collectors.metrics.enable (
+          [ "d /var/lib/prometheus2 0750 prometheus prometheus -" ]
+          ++ map (dir: "d ${dir} 0755 root root -") textfileDirs
+        );
 
         services = {
           # Short TimeoutStopSec: both units retry-flush their remoteWrite/loki

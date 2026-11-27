@@ -10,15 +10,19 @@ let
   backupClass = backup.class or null;
   backupName = backup.name or "local";
   inherit (config.sops) secrets;
-  inherit (config.lib.profiles.observability) mkPromScript;
+  inherit (config.lib.profiles.observability) mkPromScript nodeExporterTextfileDir;
+  inherit (config.profiles.observability.collectors.metrics) durableTextfileDir;
 
   # Canonical definition (and the rationale for --group-by host) lives in
   # lib/backup-policy.nix. The homeserver check pins its own expected values
   # so an accidental reduction in retention fails evaluation.
   pruneOptsByClass = import ../../../lib/backup-policy.nix;
 
+  # Success stamps go to the durable directory. If a reboot erased them, the
+  # *Stale alerts would have no series to age and could never fire.
   timestampMetric = file: metric: help: {
     name = file;
+    dir = durableTextfileDir;
     lines = [
       "# HELP ${metric} ${help}"
       "# TYPE ${metric} gauge"
@@ -51,6 +55,13 @@ lib.mkIf (backupClass != null) {
   };
 
   systemd = {
+    # Remove stamps written before the durable directory moved, so
+    # node_exporter never reads the same series from two files.
+    tmpfiles.rules = lib.optionals (durableTextfileDir != nodeExporterTextfileDir) [
+      "r ${nodeExporterTextfileDir}/restic_backup.prom"
+      "r ${nodeExporterTextfileDir}/restic_check.prom"
+    ];
+
     services = {
       # ExecStartPost only runs after every ExecStart command succeeds, so
       # reaching this script already means the backup completed cleanly — stamp
