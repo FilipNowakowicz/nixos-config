@@ -420,6 +420,7 @@ let
               inputs = { };
               self = { };
               hostRegistry.main = { };
+              tailnetAcl = { };
               allNixosConfigs.main = evaluated (lib.mkDefault null).priority;
               ciNixosConfigs.main-ci = evaluated (lib.mkOptionDefault null).priority;
               invariants = invariants // {

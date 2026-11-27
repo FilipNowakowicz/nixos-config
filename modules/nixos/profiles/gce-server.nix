@@ -86,6 +86,11 @@ in
     };
   };
 
+  # nixpkgs wants tailscaled-set only from tailscaled.service, so the switch
+  # that first adds it might not run it until tailscaled restarts. Wanting it
+  # from multi-user.target too makes that switch apply the advertisement.
+  systemd.services.tailscaled-set = lib.mkIf exitNode { wantedBy = [ "multi-user.target" ]; };
+
   users.users.${user}.home = "/home/${user}";
 
   environment.systemPackages = [
