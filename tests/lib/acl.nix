@@ -77,6 +77,23 @@ let
 
   result = acl.mkAcl { hostRegistry = testRegistry; };
 
+  exitNodeRegistry = {
+    laptop.tailscale.tag = "workstation";
+    server.tailscale = {
+      tag = "server";
+      exitNodeCanProvide = true;
+    };
+    builder.tailscale.tag = "builder";
+  };
+
+  exitNodeResult = acl.mkAcl {
+    hostRegistry = exitNodeRegistry;
+    exitNodeUsers = [
+      "tag:workstation"
+      "autogroup:admin"
+    ];
+  };
+
   failures = lib.runTests {
     testTagOwnersWorkstation = {
       expr = result.tagOwners."tag:workstation";
@@ -245,6 +262,63 @@ let
         rule: rule.action == "accept" && rule.src == [ "autogroup:admin" ] && rule.dst == [ "*:*" ]
       ) result.acls;
       expected = true;
+    };
+
+    # Without an exit-node host the policy keeps its plain shape.
+    testNoExitNodeOmitsAutoApprovers = {
+      expr = result ? autoApprovers;
+      expected = false;
+    };
+
+    testNoExitNodeOmitsInternetRule = {
+      expr =
+        let
+          withUsers = acl.mkAcl {
+            hostRegistry = testRegistry;
+            exitNodeUsers = [ "autogroup:admin" ];
+          };
+        in
+        lib.any (rule: builtins.elem "autogroup:internet:*" rule.dst) withUsers.acls;
+      expected = false;
+    };
+
+    # An exit-node host's tag is auto-approved, and only exitNodeUsers may
+    # route through it.
+    testExitNodeAutoApprover = {
+      expr = exitNodeResult.autoApprovers;
+      expected.exitNode = [ "tag:server" ];
+    };
+
+    testExitNodeInternetRuleSources = {
+      expr = map (rule: rule.src) (
+        lib.filter (rule: builtins.elem "autogroup:internet:*" rule.dst) exitNodeResult.acls
+      );
+      expected = [
+        [
+          "autogroup:admin"
+          "tag:workstation"
+        ]
+      ];
+    };
+
+    testExitNodeKeepsBreakGlassLast = {
+      expr = lib.last exitNodeResult.acls;
+      expected = {
+        action = "accept";
+        src = [ "autogroup:admin" ];
+        dst = [ "*:*" ];
+      };
+    };
+
+    testExitNodeUserUndefinedTagThrows = {
+      expr =
+        (builtins.tryEval (
+          builtins.deepSeq (acl.mkAcl {
+            hostRegistry = exitNodeRegistry;
+            exitNodeUsers = [ "tag:ghost" ];
+          }) "ok"
+        )).success;
+      expected = false;
     };
 
     # Invalid metadata: acceptFrom referencing a tag no host carries must throw,

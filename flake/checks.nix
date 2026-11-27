@@ -7,6 +7,7 @@
   allNixosConfigs,
   ciNixosConfigs,
   invariants,
+  tailnetAcl,
   self,
 }:
 let
@@ -126,7 +127,7 @@ in
         invariants-registry-security = invariants.mkInvariantCheck "registry-security" (
           invariants.registrySecurityAssertions
             {
-              inherit hostRegistry;
+              inherit hostRegistry tailnetAcl;
               sopsYaml = builtins.readFile ../.sops.yaml;
             }
         ) { };

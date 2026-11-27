@@ -204,8 +204,8 @@ Files: `lib/hosts.nix`, `lib/acl.nix`, `packages/inventory-data.nix`,
 
 `lib/acl.nix` turns the host registry into an `acl.hujson`-compatible policy:
 it maps tags to owners, emits explicit tag-to-tag port rules from `acceptFrom`,
-keeps `autogroup:admin` as deliberate break-glass, and rejects an `acceptFrom`
-source tag that no host carries. A scheduled workflow checks the generated
+keeps `autogroup:admin` as deliberate break-glass, auto-approves opt-in exit
+nodes, and rejects an `acceptFrom` source tag that no host carries. A scheduled workflow checks the generated
 policy against the live tailnet. See
 [`docs/tailscale-acl.md`](docs/tailscale-acl.md).
 

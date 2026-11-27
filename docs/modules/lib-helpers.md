@@ -129,8 +129,10 @@ and [`docs/samples/tailscale-acl.sample.json`](../samples/tailscale-acl.sample.j
 for a committed sanitized output.
 
 **Non-goals.** It emits only `tagOwners` and tag-to-tag `acls` plus one
-break-glass `autogroup:admin` rule — no per-node ACLs, SSH rules, or
-autogroups beyond admin. Express anything outside that shape directly in your
+break-glass `autogroup:admin` rule, and, for hosts with
+`tailscale.exitNodeCanProvide`, `autoApprovers.exitNode` with an optional
+`exitNodeUsers -> autogroup:internet:*` rule — no per-node ACLs, SSH rules,
+or route approvers. Express anything outside that shape directly in your
 own `acl.hujson`.
 
 ## Clean-clone validation

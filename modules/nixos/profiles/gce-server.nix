@@ -6,10 +6,12 @@
   config,
   lib,
   pkgs,
+  hostMeta,
   ...
 }:
 let
   user = config.profiles.primaryUser;
+  exitNode = hostMeta.tailscale.exitNodeCanProvide or false;
   binaryCache = import ../../../lib/binary-cache.nix;
 in
 {
@@ -67,6 +69,15 @@ in
       # homeserver's 2026-06-21 outage. Flags a host adds must be mentioned
       # explicitly, since --reset drops everything else.
       extraUpFlags = [ "--reset" ];
+    }
+    // lib.optionalAttrs exitNode {
+      # Registry `tailscale.exitNodeCanProvide`: offer this host as an exit
+      # node. `tailscale set` runs on every tailscaled start, after the
+      # autoconnect `up --reset`, so the advertisement survives a re-login.
+      # The ACL auto-approves it; devices still opt in from their client.
+      # Exit traffic leaves NATed to this VM, so GCE IP forwarding stays off.
+      useRoutingFeatures = "server";
+      extraSetFlags = [ "--advertise-exit-node" ];
     };
 
     journald.settings.Journal = {

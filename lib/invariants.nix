@@ -181,7 +181,11 @@ rec {
   # Fleet-wide registry policy, checked once by `invariants-registry-security`
   # rather than per host.
   registrySecurityAssertions =
-    { hostRegistry, sopsYaml }:
+    {
+      hostRegistry,
+      sopsYaml,
+      tailnetAcl,
+    }:
     [
       {
         name = "SOPS recipients match active host registry";
@@ -203,12 +207,16 @@ rec {
           mkResult (rootTargets == [ ]) "deploy.sshUser must not be root: ${builtins.toJSON rootTargets}";
       }
       {
-        # Reviewed tailnet grants (srcTag->dstTag:port). Any widening or removal
-        # of an acceptFrom entry changes the ACL; update this list deliberately.
+        # Reviewed tailnet grants (srcTag->dstTag:port), plus who may use an
+        # exit node (src->autogroup:internet) and which tags auto-approve as
+        # exit nodes (the rendered ACL). Any widening or removal of an
+        # acceptFrom entry or exit-node grant changes the ACL; update this
+        # list deliberately.
         name = "tailnet grants match the reviewed set";
         check =
           _:
           let
+            internetRules = lib.filter (rule: builtins.elem "autogroup:internet:*" rule.dst) tailnetAcl.acls;
             actual = lib.sort builtins.lessThan (
               lib.unique (
                 lib.concatLists (
@@ -221,6 +229,8 @@ rec {
                     )
                   ) (lib.filterAttrs (_: m: m ? tailscale) hostRegistry)
                 )
+                ++ lib.concatMap (rule: map (src: "${src}->autogroup:internet") rule.src) internetRules
+                ++ map (tag: "exit-node-approver:${tag}") (tailnetAcl.autoApprovers.exitNode or [ ])
               )
             );
             # KDE Connect: link port 1716 plus the 1739-1764 transfer range.
@@ -230,6 +240,11 @@ rec {
             reviewed = lib.sort builtins.lessThan (
               phoneKdeConnect
               ++ [
+                # Opt-in exit node on homeserver-gcp (#629), usable only by
+                # the owner's devices; CI, the builder and the phone get none.
+                "autogroup:admin->autogroup:internet"
+                "exit-node-approver:tag:server"
+                "tag:workstation->autogroup:internet"
                 "builder->server:53"
                 "ci->server:22"
                 "ci-builder->builder:22"
@@ -245,6 +260,22 @@ rec {
           mkResult (
             actual == reviewed
           ) "tailnet grants differ from the reviewed set: ${builtins.toJSON actual}";
+      }
+      {
+        # An exit node is something a device picks in its own client. No host
+        # selects one declaratively (main also runs Mullvad, whose routing an
+        # exit node would fight).
+        name = "no host selects an exit node by default";
+        check =
+          _:
+          let
+            selecting = builtins.attrNames (
+              lib.filterAttrs (_: m: (m.tailscale or { }) ? exitNodeUse) hostRegistry
+            );
+          in
+          mkResult (
+            selecting == [ ]
+          ) "tailscale.exitNodeUse is set on ${builtins.toJSON selecting}; exit nodes stay opt-in per device";
       }
     ];
 
@@ -349,6 +380,47 @@ rec {
     mkResult (violations == [ ]) (
       if violations == [ ] then
         "tailscale0 firewall ports match tailscale.acceptFrom"
+      else
+        lib.concatStringsSep "; " violations
+    );
+
+  # The ACL auto-approves `exitNodeCanProvide` hosts as exit nodes, so the
+  # host side must match: an exit-node host advertises and forwards, every
+  # other host advertises nothing, and no host picks an exit node itself
+  # (`--exit-node=`), which would route that host's traffic by default. Exit
+  # traffic is forwarded, never delivered to the host, so the tailscale0 INPUT
+  # ports checked above stay tied to acceptFrom alone.
+  tailscaleExitNodeMatchesRegistry =
+    hostMeta: cfg:
+    let
+      ts = cfg.services.tailscale;
+      flags = (ts.extraUpFlags or [ ]) ++ (ts.extraSetFlags or [ ]);
+      provides = hostMeta.tailscale.exitNodeCanProvide or false;
+      advertises = builtins.elem "--advertise-exit-node" flags;
+      selectsExitNode = lib.any (flag: flag == "--exit-node" || lib.hasPrefix "--exit-node=" flag) flags;
+      forwards = builtins.elem ts.useRoutingFeatures [
+        "server"
+        "both"
+      ];
+      violations = lib.filter (msg: msg != "") [
+        (lib.optionalString (
+          provides && !advertises
+        ) "exitNodeCanProvide needs --advertise-exit-node in services.tailscale.extraSetFlags")
+        (lib.optionalString (
+          provides && !forwards
+        ) "exitNodeCanProvide needs services.tailscale.useRoutingFeatures = \"server\" (IP forwarding)")
+        (lib.optionalString (
+          provides && (cfg.networking.firewall.filterForward or false)
+        ) "exitNodeCanProvide needs networking.firewall.filterForward off, or exit traffic is dropped")
+        (lib.optionalString (
+          !provides && advertises
+        ) "--advertise-exit-node needs tailscale.exitNodeCanProvide in lib/hosts.nix")
+        (lib.optionalString selectsExitNode "--exit-node must not be set: devices opt in from their client")
+      ];
+    in
+    mkResult (violations == [ ]) (
+      if violations == [ ] then
+        "tailscale exit-node flags match the registry"
       else
         lib.concatStringsSep "; " violations
     );
@@ -754,6 +826,10 @@ rec {
       {
         name = "tailnet metadata enables Tailscale";
         check = cfg: cfg.services.tailscale.enable;
+      }
+      {
+        name = "tailscale exit-node flags match registry";
+        check = tailscaleExitNodeMatchesRegistry hostMeta;
       }
     ]
     ++ lib.optionals (hostMeta.tailscale.acceptFrom or null != null) [

@@ -141,7 +141,8 @@ in
   };
 
   services = {
-    # gce-server.nix enables Tailscale with --reset.
+    # gce-server.nix enables Tailscale with --reset and, from the registry's
+    # exitNodeCanProvide, advertises this host as an opt-in exit node.
     tailscale.authKeyFile = config.sops.secrets.tailscale_auth_key.path;
 
     systemd-failure-notify = {
