@@ -35,6 +35,12 @@ let
       "restic_last_restore_test_timestamp_seconds"
       "restore_drill_last_success_timestamp_seconds"
     ];
+    # The laptop's stamps sit on a persisted path (hosts/main/impermanence.nix),
+    # so a reboot no longer empties this list until the next run.
+    main = [
+      "restic_last_backup_timestamp_seconds"
+      "restic_last_check_timestamp_seconds"
+    ];
   };
 
   # One series per missing (host, metric), labelled with the metric name.

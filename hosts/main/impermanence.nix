@@ -1,4 +1,7 @@
 { config, inputs, ... }:
+let
+  durableTextfileDir = "/var/lib/node-exporter-durable";
+in
 {
   imports = [
     inputs.impermanence.nixosModules.impermanence
@@ -44,7 +47,13 @@
     "/var/lib/systemd/pstore" # kernel panic dumps systemd-pstore archives from EFI on the next boot
     "/var/lib/runtime-timezone" # timezone chosen at runtime (profiles.runtimeTimezone)
     "/var/lib/libvirt" # libvirt VM images and domain definitions (Whonix KVM)
+    durableTextfileDir # last backup/check success stamps, so *Stale alerts survive a reboot
   ];
+
+  # Only the success stamps persist. system_metadata.prom stays per-boot in the
+  # default textfile directory: activation writes it in the initrd, before this
+  # bind mount exists, so a persisted copy would hide the fresh one.
+  profiles.observability.collectors.metrics.durableTextfileDir = durableTextfileDir;
 
   # systemd-creds host key. libvirt encrypts its secrets key with it
   # (virt-secret-init-encryption writes /var/lib/libvirt/secrets/), so a fresh

@@ -362,20 +362,19 @@ let
   # promtool unit tests for BackupEvidenceMissing: a reporting host missing
   # one expected timestamp alerts after the hold, the others stay quiet, and
   # a host that is not reporting at all (e.g. powered off) never alerts.
+  # One case per host in expectedBackupEvidence.
   missingEvidenceTests =
     let
-      host = "homeserver-gcp";
-      expected = alertData.expectedBackupEvidence.${host};
-      missing = lib.last expected;
-      series = name: {
-        series = ''${name}{host="${host}",instance="127.0.0.1:9100",job="node"}'';
-        values = "1x150";
-      };
-    in
-    (pkgs.formats.yaml { }).generate "missing-evidence-tests.yaml" {
-      rule_files = [ "rules.yaml" ];
-      evaluation_interval = "1m";
-      tests = [
+      hostCase =
+        host:
+        let
+          expected = alertData.expectedBackupEvidence.${host};
+          missing = lib.last expected;
+          series = name: {
+            series = ''${name}{host="${host}",instance="127.0.0.1:9100",job="node"}'';
+            values = "1x150";
+          };
+        in
         {
           interval = "1m";
           input_series = map series ([ "node_boot_time_seconds" ] ++ lib.init expected);
@@ -403,7 +402,12 @@ let
               ];
             }
           ];
-        }
+        };
+    in
+    (pkgs.formats.yaml { }).generate "missing-evidence-tests.yaml" {
+      rule_files = [ "rules.yaml" ];
+      evaluation_interval = "1m";
+      tests = map hostCase (builtins.attrNames alertData.expectedBackupEvidence) ++ [
         {
           interval = "1m";
           input_series = [ ];
