@@ -8,7 +8,7 @@
 # Every module listed here must be self-contained: it imports whatever it
 # reads from. The personal hosts consume these through `self.nixosModules.*`
 # / `self.homeModules.*`, and `public-modules-standalone` in
-# `flake/checks.nix` evaluates each one on its own, so a module that relies
+# `tests/flake/public-modules.nix` evaluates each one on its own, so a module that relies
 # on an option some other file happens to declare fails in CI.
 #
 # Support tiers (see README "Reusable Outputs"):

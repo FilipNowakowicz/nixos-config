@@ -46,7 +46,7 @@
     };
     ingestAuth = {
       # "test-password" mirrors the fixture convention used throughout
-      # `flake/checks.nix` — short enough to read as an obvious placeholder,
+      # `tests/flake/` — short enough to read as an obvious placeholder,
       # never a real credential (this whole tree is scanned by
       # `lib-scan-plaintext-secrets`).
       passwordFile = pkgs.writeText "demo-ingest-password" "test-password";

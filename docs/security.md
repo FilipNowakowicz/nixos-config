@@ -345,7 +345,7 @@ Security validation is split by where each rule belongs:
 narrow `security.sudo.extraRules` allowlist for the primary user so interactive
 agents can perform repeat maintenance without a password prompt. The allowlist
 lives in `agentMaintenanceCommands` in `hosts/main/agent-maintenance.nix`, and its
-reviewed copy, `mainExpectedAgentMaintenanceCommands` in `lib/invariants.nix`,
+reviewed copy, `mainExpectedAgentMaintenanceCommands` in `hosts/main/checks.nix`,
 is the authoritative list: widening it means changing both, and the
 `invariants-main` check fails if they differ. It covers starting and checking
 the local btrbk and Restic units, `bootctl` status/cleanup, deleting a named

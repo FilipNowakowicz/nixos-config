@@ -42,7 +42,7 @@ A copyable example is only honest if it cannot leak anything real:
   never a `/dev/disk/by-id/*` path (those are unique per physical disk and
   would otherwise tie this example to real hardware).
 - **No decryptable secrets** — the observability `ingestAuth` values are the
-  same `"test-password"` placeholder used throughout `flake/checks.nix`'s
+  same `"test-password"` placeholder used throughout the `tests/flake/`
   fixtures; short and obviously fake, never a real credential.
 - **No cloud project IDs or live tailnet hosts** — the remote endpoint is
   `observability.example.ts.net`, an `.example.` placeholder.
@@ -52,7 +52,7 @@ The whole tree is covered by the `lib-scan-plaintext-secrets` check (see
 
 ## Proving it doesn't rot
 
-`mini-fleet-example-fixture` in `flake/checks.nix` calls this flake's own
+`mini-fleet-example-fixture` in `tests/flake/mini-fleet.nix` calls this flake's own
 `outputs` function, with `nixos-fleet` bound to the repository checkout and the
 other inputs to the root flake's pins. It evaluates both system toplevels and
 the demo user's Home Manager activation, and asserts what this page and the

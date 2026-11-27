@@ -105,7 +105,7 @@ These comparisons require a timestamp series. A job that silently stops
 scheduling can alert while its last timestamp is still exported. A reboot
 that removes the textfile, or a drill that has never emitted a stamp, leaves
 the comparison without a sample. The alert rules are linted in CI against the exact data the
-observability module deploys (`observability-alerts-lint` in `flake/checks.nix`),
+observability module deploys (`observability-alerts-lint` in `tests/flake/observability.nix`),
 so a typo in a metric name fails the light lane instead of shipping a
 never-firing rule.
 
@@ -137,9 +137,10 @@ complementary exercises close that gap:
 
 ## What CI enforces
 
-Backup invariants are host-config assertions and live in `flake/checks.nix`
-(wired through `mainBackupInvariants` / `homeserverBackupInvariants` into
-`invariantChecks`), distinct from the `lib/*` eval tests in `flake/dev.nix`:
+Backup invariants are host-config assertions and live beside the host they
+guard, in `hosts/main/checks.nix` and `hosts/homeserver-gcp/checks.nix`
+(layered into `invariants-<host>` by `flake/checks.nix`), distinct from the
+`lib/*` eval tests in `flake/dev.nix`:
 
 - **`mainBackupPathsArePersisted`** — every `services.restic.backups.local.path`
   must match a persistence binding or fall under a configured persistent root.

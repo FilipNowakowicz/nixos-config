@@ -53,7 +53,7 @@ Files that have **unconditional side-effects** (e.g., adding packages to `enviro
 A host's Nix store closure should only contain what is explicitly requested.
 
 - **Headless Safety:** Headless hosts (like `homeserver-gcp`) must never inherit GUI libraries or X11/Wayland dependencies.
-- **Verification:** Use `nix build '.#checks.x86_64-linux.invariants-<host>'` to verify that unauthorized profiles haven't leaked into a host.
+- **Verification:** Use `nix build '.#checks.x86_64-linux.invariants-<host>'` to verify that unauthorized profiles haven't leaked into a host. Fleet-wide rules live in `lib/invariants.nix`; a rule that guards one host lives in `hosts/<name>/checks.nix`, beside the config it reads, and `flake/checks.nix` only wires them together.
 
 ### Rule 3: Single Source of Truth (Registry)
 
@@ -137,7 +137,9 @@ Desktop applications that need custom runtime wrapping but are still repo-owned
 should live under `packages/` and be exposed through flake `packages` and, when
 useful, flake `apps`.
 
-Current example:
+Current examples:
 
 - `packages/quiet-shell/` owns the Quickshell desktop shell and its runtime
   wrapper; Home Manager consumes the packaged output.
+- `packages/lazyactions/` builds a tool nixpkgs does not ship; the overlay in
+  `flake/pkgs.nix` exposes it as `pkgs.lazyactions` to every host.
