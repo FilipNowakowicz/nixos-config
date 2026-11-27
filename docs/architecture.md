@@ -122,8 +122,9 @@ quirk that would apply to any machine with that device belongs in
 
 The fleet's login account is `profiles.primaryUser` (default `user`, declared
 in `modules/nixos/profiles/meta.nix`). NixOS modules and hosts read it rather
-than spelling the name out; Home Manager modules under `home/users/user/` and
-test fixtures still use the literal.
+than spelling the name out, and Home Manager takes `home.username` from it
+through `osConfig`. The `home/users/user/` directory name is only a path; test
+fixtures that assert on the literal `user` stay literal.
 
 Hand-maintained `hardware-configuration.nix` files must carry a short header
 with their regeneration policy and a `Last reviewed: YYYY-MM-DD` note so it is
