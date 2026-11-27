@@ -33,6 +33,30 @@ let
       echo "${unit}: B2 repo unreachable after ~5min; last error: $err" >&2
       exit 1
     '';
+
+  # anki-generator's docs/recovery.md forbids copying its live SQLite file.
+  # Take a consistent copy through SQLite's backup API, as the user so no
+  # root-owned journal appears beside it, and swap it in only once
+  # integrity_check passes. A failure leaves the previous snapshot in place
+  # and warns instead of failing the whole workstation backup.
+  ankiLocal = "/home/user/academic/anki-generator/local";
+  ankiSnapshotDir = "${ankiLocal}/restic-snapshot";
+  ankiSnapshot = pkgs.writeShellScript "anki-generator-snapshot" ''
+    db=${ankiLocal}/workspace/state.sqlite3
+    [ -e "$db" ] || exit 0
+    if ! ${pkgs.util-linux}/bin/setpriv --reuid=user --regid=users --init-groups -- ${pkgs.writeShellScript "anki-generator-snapshot-user" ''
+      set -eu
+      sqlite=${pkgs.sqlite}/bin/sqlite3
+      ${pkgs.coreutils}/bin/install -d -m 0700 ${ankiSnapshotDir}
+      tmp=${ankiSnapshotDir}/state.sqlite3.tmp
+      ${pkgs.coreutils}/bin/rm -f "$tmp"
+      "$sqlite" -readonly ${ankiLocal}/workspace/state.sqlite3 ".backup '$tmp'"
+      [ "$("$sqlite" -readonly "$tmp" 'PRAGMA integrity_check;')" = ok ]
+      ${pkgs.coreutils}/bin/mv -f "$tmp" ${ankiSnapshotDir}/state.sqlite3
+    ''}; then
+      echo "anki-generator-snapshot: snapshot failed; backing up the previous one" >&2
+    fi
+  '';
 in
 {
   # Hidden maintenance mount for the filesystem top-level. btrbk snapshots
@@ -95,6 +119,19 @@ in
         "/var/lib/tudor"
         "/var/lib/sbctl"
         "/var/lib/usbguard"
+        # Project work that exists only on this laptop. Tracked code is on
+        # GitHub and linked worktrees are temporary, so neither is listed.
+        "/home/user/trading/secrets" # gitignored credentials
+        # Research outputs; the downloaded market data beside them is refetchable.
+        "/home/user/trading/data/s004"
+        "/home/user/trading/data/s004-effort"
+        "/home/user/trading/data/astra"
+        # anki-generator's card database lives outside Git (its docs/recovery.md).
+        # Its workspace minus the live database, which ankiSnapshot copies safely.
+        "${ankiLocal}/workspace"
+        "${ankiLocal}/paths.json"
+        "${ankiLocal}/anki-courses.json"
+        "${ankiSnapshotDir}"
         # VM images are deliberately not backed up. Whonix (/var/lib/libvirt)
         # and the user-session Kali VM (~/.local/share/kali-vm) are
         # near-default images that can be re-downloaded upstream; their qcow2
@@ -106,7 +143,12 @@ in
         "/home/user/.config/gcloud/credentials.db"
         "/home/user/.config/gcloud/logs"
         "/home/user/.config/gcloud/legacy_credentials"
+        # The app's own rotating copies; restic history replaces them.
+        "${ankiLocal}/workspace/backups"
+        # Never read the live database; the verified snapshot stands in for it.
+        "${ankiLocal}/workspace/state.sqlite3*"
       ];
+      backupPrepareCommand = "${ankiSnapshot}";
     };
   };
 

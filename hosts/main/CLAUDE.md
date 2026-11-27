@@ -123,9 +123,19 @@ Important covered state:
 - Wi-Fi profiles, Mullvad account/device state, Tailscale node identity,
   Bluetooth pairings, fingerprint enrollments, USBGuard state, Secure Boot PKI,
   machine-id, and SSH host identity.
-- Libvirt/Whonix VM state under `/var/lib/libvirt`; large transient artifacts
-  such as installer ISOs, snapshots, save/dump images, and RAM state are
-  excluded.
+- Project work that exists only here: `~/trading/secrets`, the research
+  outputs in `~/trading/data/{s004,s004-effort,astra}`, and anki-generator's
+  `local/` workspace and config. Its live `state.sqlite3` is never read. The
+  prepare step writes a verified SQLite copy to `local/restic-snapshot/`, and
+  that copy is what gets backed up. To restore, place it as
+  `local/workspace/state.sqlite3`.
+- Not covered by design: tracked code (on GitHub), linked worktrees,
+  downloaded data (Betfair archives, course PDFs, lecture videos), and VM
+  images (re-downloadable; they persist locally only).
+
+`checks.main-backup-coverage` backs up a marker tree with the effective
+paths and excludes, restores it, and fails if a covered marker is missing or
+an excluded one comes back.
 
 Manual verification:
 

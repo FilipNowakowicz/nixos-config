@@ -480,6 +480,67 @@ let
         touch $out
       '';
 
+  # Back up a marker tree with main's effective paths and excludes, restore it,
+  # and require each marker to be present or absent. This catches an exclude
+  # that swallows a listed path, which a paths-only invariant cannot see.
+  # Paths are rebased under ./root; listed paths with no marker are skipped.
+  mainBackupCoverage =
+    let
+      backup = allNixosConfigs.main.config.services.restic.backups.local;
+      ankiLocal = "home/user/academic/anki-generator/local";
+      kept = [
+        "home/user/.ssh/marker"
+        "home/user/nix/marker"
+        "home/user/.local/share/Anki2/marker"
+        "home/user/trading/secrets/marker"
+        "home/user/trading/data/s004/marker"
+        "home/user/trading/data/s004-effort/marker"
+        "home/user/trading/data/astra/marker"
+        "${ankiLocal}/workspace/maths-setup.json"
+        "${ankiLocal}/paths.json"
+        "${ankiLocal}/anki-courses.json"
+        "${ankiLocal}/restic-snapshot/state.sqlite3"
+      ];
+      dropped = [
+        "home/user/trading/data/betfair/marker"
+        "home/user/trading/.venv/marker"
+        "home/user/academic/materials/library/marker"
+        "${ankiLocal}/workspace/backups/marker"
+        "${ankiLocal}/workspace/state.sqlite3"
+        "${ankiLocal}/workspace/state.sqlite3-journal"
+        "${ankiLocal}/verification/marker"
+        "home/user/.config/gcloud/credentials.db"
+      ];
+    in
+    pkgs.runCommand "main-backup-coverage" { nativeBuildInputs = [ pkgs.restic ]; } ''
+      export RESTIC_PASSWORD=fixture HOME=$PWD
+      for m in ${lib.escapeShellArgs (kept ++ dropped)}; do
+        mkdir -p "root/$(dirname "$m")"
+        echo "$m" > "root/$m"
+      done
+      sources=()
+      for p in ${lib.escapeShellArgs backup.paths}; do
+        [ -e "root$p" ] && sources+=("root$p")
+      done
+      excludes=()
+      for e in ${lib.escapeShellArgs backup.exclude}; do
+        case "$e" in /*) e="$PWD/root$e" ;; esac
+        excludes+=(--exclude "$e")
+      done
+      restic init -r repo -q
+      restic backup -r repo -q "''${excludes[@]}" "''${sources[@]}"
+      restic restore -r repo -q latest --target out
+      fail=0
+      for m in ${lib.escapeShellArgs kept}; do
+        [ -e "out/root/$m" ] || { echo "not restored: /$m" >&2; fail=1; }
+      done
+      for m in ${lib.escapeShellArgs dropped}; do
+        [ ! -e "out/root/$m" ] || { echo "restored but should be excluded: /$m" >&2; fail=1; }
+      done
+      [ "$fail" = 0 ]
+      touch $out
+    '';
+
   observabilityAlertsLint =
     pkgs.runCommand "observability-alerts-lint" { nativeBuildInputs = [ pkgs.prometheus.cli ]; }
       ''
@@ -1195,6 +1256,7 @@ in
 
     observability-alerts-lint = observabilityAlertsLint;
     backup-retention-behaviour = backupRetentionBehaviour;
+    main-backup-coverage = mainBackupCoverage;
     observability-stack-fixture = observabilityStackFixture;
     observability-client-fixture = observabilityClientFixture;
     observability-dashboard-backend-assertion-fixture = observabilityDashboardBackendAssertionFixture;
