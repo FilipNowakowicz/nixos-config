@@ -28,13 +28,13 @@ assert hidpp.reply(bytes([0x10, 2, 3, 0x1A, 55, 0, 0]), 1, 3, 1) is None, "anoth
 
 # Captured live: the feature indices, and what each read answers.
 NAME = b"PRO X2 SUPERSTRIKE"
-FEATURES = {hidpp.DEVICE_NAME_TYPE: 3, hidpp.UNIFIED_BATTERY: 6, hidpp.EXTENDED_DPI: 9}
+FEATURES = {hidpp.DEVICE_NAME_TYPE: 3, hidpp.UNIFIED_BATTERY: 6}
 
 
 class Mouse:
-    def __init__(self, kind=hidpp.MOUSE, features=FEATURES, level=73, charging=0, dpi=800):
+    def __init__(self, kind=hidpp.MOUSE, features=FEATURES, level=73, charging=0):
         self.kind, self.features, self.awake = kind, features, True
-        self.level, self.charging, self.dpi = level, charging, dpi
+        self.level, self.charging = level, charging
         self.asked = 0
 
     def answer(self, index, function, params):
@@ -42,13 +42,10 @@ class Mouse:
         if index == 0:
             return [self.features.get(params[0] << 8 | params[1], 0)]
         feature = {i: f for f, i in self.features.items()}[index]
-        dpi = list(self.dpi.to_bytes(2, "big"))
         return {
             hidpp.DEVICE_NAME_TYPE: lambda: {0: [len(NAME)], 1: list(NAME[params[0]:params[0] + 16]), 2: [self.kind]}[function],
             hidpp.UNIFIED_BATTERY: lambda: [self.level, 8, self.charging, 0],
             hidpp.BATTERY_STATUS: lambda: [self.level, 30, self.charging],
-            hidpp.EXTENDED_DPI: lambda: [0, *dpi, *dpi, 0x03, 0x20, 0x03, 0x20, 2],
-            hidpp.ADJUSTABLE_DPI: lambda: [0, *dpi],
         }[feature]()
 
 
@@ -81,12 +78,12 @@ def read(slots):
     return found and {**hidpp.measure(rx, found), "name": found["name"]}
 
 
-superstrike = {"name": "PRO X2 SUPERSTRIKE", "level": 73, "charging": False, "dpi": 800}
+superstrike = {"name": "PRO X2 SUPERSTRIKE", "level": 73, "charging": False}
 assert read({2: Mouse()}) == superstrike, "slot 1 empty, the mouse in slot 2"
 assert read({1: Mouse(charging=1)})["charging"], "on the cable"
 assert read({1: Mouse(charging=3)})["charging"], "full, still on the cable"
-older = {hidpp.DEVICE_NAME_TYPE: 3, hidpp.BATTERY_STATUS: 5, hidpp.ADJUSTABLE_DPI: 7}
-assert read({1: Mouse(features=older, level=40, dpi=1600)}) == {**superstrike, "level": 40, "dpi": 1600}
+older = {hidpp.DEVICE_NAME_TYPE: 3, hidpp.BATTERY_STATUS: 5}
+assert read({1: Mouse(features=older, level=40)}) == {**superstrike, "level": 40}
 assert read({1: Mouse(kind=0)}) is None, "a keyboard is not the mouse"
 assert read({1: Mouse(level=0)})["level"] is None, "coarse levels only"
 assert read({}) is None, "nothing paired"
@@ -132,9 +129,9 @@ with tempfile.TemporaryDirectory() as tmp:
     mouse.level = 60
     now[0] += 30
     assert poll()["level"] == 73 and mouse.asked == first
-    # After it, one reading is two requests: battery and DPI. The rest is cached.
+    # After it, one reading is one request: the battery. The rest is cached.
     now[0] += 31
-    assert poll()["level"] == 60 and mouse.asked == first + 2, mouse.asked - first
+    assert poll()["level"] == 60 and mouse.asked == first + 1, mouse.asked - first
     # Asleep, the last reading stays, and costs no wait: the next poll asks again.
     mouse.awake = False
     now[0] += 61

@@ -1,4 +1,4 @@
-"""Read a mouse on a Logitech receiver over HID++ 2.0: name, battery, DPI.
+"""Read a mouse on a Logitech receiver over HID++ 2.0: its name and battery.
 
 No kernel driver claims the LIGHTSPEED receiver (046d:c54d), so its mouse never
 reaches /sys/class/power_supply. A few short requests on the receiver's HID++
@@ -25,7 +25,6 @@ ERRORS = (OLD_ERROR, ERROR)
 NOT_CONNECTED = 0x08  # the receiver's answer for a slot whose device has no link
 SOFTWARE_ID = 0x0A  # nonzero, so a reply is never mistaken for a notification
 DEVICE_NAME_TYPE, BATTERY_STATUS, UNIFIED_BATTERY = 0x0005, 0x1000, 0x1004
-ADJUSTABLE_DPI, EXTENDED_DPI = 0x2201, 0x2202
 MOUSE = 3  # DeviceNameType's getDeviceType
 EVERY = 60  # seconds between readings
 
@@ -97,8 +96,7 @@ def discover(receiver):
                 break
             name += chunk
         found = {"device": device, "name": name[:length].decode(errors="replace").strip() or "Mouse"}
-        for key, feature in (("unified", UNIFIED_BATTERY), ("battery", BATTERY_STATUS),
-                             ("extendedDpi", EXTENDED_DPI), ("dpi", ADJUSTABLE_DPI)):
+        for key, feature in (("unified", UNIFIED_BATTERY), ("battery", BATTERY_STATUS)):
             if (index := receiver.feature(device, feature)) is not None:
                 found[key] = index
         return found
@@ -106,8 +104,8 @@ def discover(receiver):
 
 
 def measure(receiver, found):
-    """The battery and DPI now: two requests to the mouse."""
-    device, now = found["device"], {"level": None, "charging": False, "dpi": None}
+    """The battery now: one request to the mouse."""
+    device, now = found["device"], {"level": None, "charging": False}
     if "unified" in found:
         # State of charge, level flags, charging (1 on, 2 slowly, 3 full on the
         # charger, 4 error), external power.
@@ -117,12 +115,6 @@ def measure(receiver, found):
         # Level, next level, status (1 recharging, 2 almost full, 3 full, 4 slowly).
         answer = receiver.ask(device, found["battery"], 0)
         now["level"], now["charging"] = answer[0], answer[2] in (1, 2, 3, 4)
-    if "extendedDpi" in found:
-        answer = receiver.ask(device, found["extendedDpi"], 5, 0)  # sensor 0: X, Y, …
-        now["dpi"] = int.from_bytes(answer[1:3], "big") or None
-    elif "dpi" in found:
-        answer = receiver.ask(device, found["dpi"], 2, 0)  # sensor 0: DPI
-        now["dpi"] = int.from_bytes(answer[1:3], "big") or None
     if not 0 < (now["level"] or 0) <= 100:
         now["level"] = None  # a mouse that reports only coarse levels says 0
     return now
@@ -161,7 +153,7 @@ def save(cache, state):
 def shown(state):
     if state.get("level") is None:
         return None
-    return {key: state.get(key) for key in ("name", "level", "charging", "dpi")}
+    return {key: state.get(key) for key in ("name", "level", "charging")}
 
 
 def opened(path):
@@ -169,7 +161,7 @@ def opened(path):
 
 
 def mouse(sysfs, dev, cache, timeout=1.0, clock=time.time, opener=opened):
-    """What the card shows, { name, level, charging, dpi }: the last reading, or
+    """What the card shows, { name, level, charging }: the last reading, or
     None with no receiver plugged in or no reading yet."""
     names = list(nodes(sysfs))
     if not names:

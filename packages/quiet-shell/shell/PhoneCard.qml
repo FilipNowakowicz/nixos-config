@@ -1,10 +1,9 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
 import Quickshell.Io
 
 // The paired phone at a glance, over KDE Connect: whether it is in reach, its
-// battery, the notifications waiting on it, and a button that rings it.
+// battery, and the notifications waiting on it.
 // scripts/phone.py asks KDE Connect's daemon; it is asked only while the card is on
 // screen, and without a paired phone the card stays away.
 Item {
@@ -17,12 +16,6 @@ Item {
     readonly property int shown: 2
 
     property var info: null
-
-    function ring(phone) {
-        Quickshell.execDetached(["busctl", "--user", "call", "org.kde.kdeconnect",
-            "/modules/kdeconnect/devices/" + phone.id + "/findmyphone",
-            "org.kde.kdeconnect.device.findmyphone", "ring"]);
-    }
 
     Process {
         id: probe
@@ -93,15 +86,6 @@ Item {
                         font.pixelSize: 10
                         font.features: { "tnum": 1 }
                         color: Theme.dim
-                    }
-                    Press {
-                        visible: phone.modelData.reachable
-                        implicitWidth: 26
-                        implicitHeight: 26
-                        radius: 13
-                        name: "Ring " + phone.modelData.name
-                        onClicked: root.ring(phone.modelData)
-                        Icon { anchors.centerIn: parent; name: "bell-ring"; size: 13; color: Theme.dim }
                     }
                 }
                 Repeater {

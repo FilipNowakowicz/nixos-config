@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 
-// The mouse on one line above the phone: its name, DPI and battery. status.py
+// The mouse on one line above the phone: its name and battery. status.py
 // reads it over HID++ at most once a minute (scripts/hidpp.py) and keeps the last
 // reading while the mouse sleeps. No receiver, no card.
 Item {
@@ -9,13 +9,14 @@ Item {
     readonly property var mouse: Sys.mouse
     readonly property bool low: !!mouse && mouse.level <= 15 && !mouse.charging
     visible: mouse !== null
-    implicitHeight: 36
+    implicitHeight: row.implicitHeight + 24
 
-    Glass { anchors.fill: parent; radius: 18 }
+    Glass { anchors.fill: parent; radius: 22 }
     RowLayout {
-        anchors.fill: parent
-        anchors.leftMargin: 16
-        anchors.rightMargin: 16
+        id: row
+        x: 16
+        y: 12
+        width: parent.width - 32
         spacing: 8
         Icon { name: "mouse"; size: 14 }
         Label {
@@ -24,13 +25,6 @@ Item {
             elide: Text.ElideRight
             font.pixelSize: 12
             font.weight: Font.Medium
-        }
-        Label {
-            visible: !!root.mouse && !!root.mouse.dpi
-            text: root.mouse && root.mouse.dpi ? root.mouse.dpi + " DPI" : ""
-            font.pixelSize: 10
-            font.features: { "tnum": 1 }
-            color: Theme.dim
         }
         Icon {
             name: root.mouse && root.mouse.charging ? "battery-charging" : "battery-medium"
