@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ config, pkgs, ... }:
 let
   prebuild = pkgs.writeShellApplication {
     name = "builder-prebuild";
@@ -23,7 +23,7 @@ in
     ];
     serviceConfig = {
       Type = "oneshot";
-      User = "user";
+      User = config.profiles.primaryUser;
       StateDirectory = "builder-prebuilt";
       StateDirectoryMode = "0755";
       ExecStart = "${prebuild}/bin/builder-prebuild";

@@ -1,10 +1,11 @@
 # USB device allowlist: every device is blocked unless listed here.
-_: {
+{ config, ... }:
+{
   services.usbguard = {
     enable = true;
     IPCAllowedUsers = [
       "root"
-      "user"
+      config.profiles.primaryUser
     ];
     rules = ''
       # Default policy: block all USB devices

@@ -2,11 +2,15 @@
 # allowlist and the fixed-argument wrappers it exempts. Keep wheel passworded
 # globally; only these exact commands are exempt.
 {
+  config,
   pkgs,
   hostRegistry,
   ...
 }:
 let
+  user = config.profiles.primaryUser;
+  inherit (config.users.users.${user}) home;
+
   agentMaintenanceCommands = [
     # Verify and trigger post-reinstall backup/check jobs.
     "/run/current-system/sw/bin/systemctl start restic-backups-local.service"
@@ -44,7 +48,7 @@ let
   # working without granting broad NOPASSWD or running nh as root.
   nixosSwitchMain = pkgs.writeShellScriptBin "nixos-switch-main" ''
     set -euo pipefail
-    flake=/home/user/nix
+    flake=${home}/nix
     # Root building a user-owned checkout otherwise trips git's dubious-ownership
     # guard; scope the exception to this flake path only.
     export HOME=/root
@@ -56,7 +60,7 @@ let
     if [ "''${1:-}" = --remote ]; then
       remote_args=(
         --max-jobs 0
-        --builders "ssh-ng://user@${hostRegistry.gcp-builder.tailnetFQDN} x86_64-linux /run/secrets/gcp_builder_build_key 8 2 kvm,nixos-test,big-parallel,benchmark"
+        --builders "ssh-ng://${hostRegistry.gcp-builder.deploy.sshUser}@${hostRegistry.gcp-builder.tailnetFQDN} x86_64-linux /run/secrets/gcp_builder_build_key 8 2 kvm,nixos-test,big-parallel,benchmark"
       )
     fi
     toplevel=$(${pkgs.nix}/bin/nix build --no-link --print-out-paths "''${remote_args[@]}" \
@@ -81,7 +85,7 @@ in
     '';
     extraRules = [
       {
-        users = [ "user" ];
+        users = [ user ];
         commands = map passwordlessAgentCommand agentMaintenanceCommands;
       }
     ];

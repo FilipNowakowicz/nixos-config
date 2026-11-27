@@ -2,8 +2,14 @@
 # VM reachable only over Tailscale SSH, with a serial console for recovery and
 # deploy-rs activation. Hosts add their own services, disko layout, Tailscale
 # auth key and flags, and authorized keys.
-{ lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
+  user = config.profiles.primaryUser;
   binaryCache = import ../../../lib/binary-cache.nix;
 in
 {
@@ -20,9 +26,9 @@ in
   # key-only (docs/security.md).
   security.sudo.wheelNeedsPassword = false;
 
-  # deploy-rs and remote builds connect as `user`; trust it so the daemon
+  # deploy-rs and remote builds connect as the primary user; trust it so the daemon
   # accepts remote-build store operations and restricted settings.
-  profiles.nix.extraTrustedUsers = [ "user" ];
+  profiles.nix.extraTrustedUsers = [ user ];
 
   nix.settings.trusted-public-keys = [
     binaryCache.cacheNixosOrgPublicKey
@@ -69,7 +75,7 @@ in
     };
   };
 
-  users.users.user.home = "/home/user";
+  users.users.${user}.home = "/home/${user}";
 
   environment.systemPackages = [
     # Keep common client terminal definitions available over SSH without pulling

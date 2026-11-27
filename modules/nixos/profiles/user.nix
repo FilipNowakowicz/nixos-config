@@ -1,6 +1,6 @@
-{ pkgs, ... }:
+{ config, pkgs, ... }:
 {
-  users.users.user = {
+  users.users.${config.profiles.primaryUser} = {
     isNormalUser = true;
     description = "Primary user";
     extraGroups = [

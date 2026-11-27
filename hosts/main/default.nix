@@ -66,7 +66,7 @@
     };
     # deploy-rs passes store settings for remote builds; trust the local admin
     # user so the daemon accepts those restricted options without warning.
-    nix.extraTrustedUsers = [ "user" ];
+    nix.extraTrustedUsers = [ config.profiles.primaryUser ];
 
     observability-client = {
       enable = true;
@@ -142,7 +142,7 @@
 
   users.groups.telemetry-ingest = { };
 
-  users.users.user = {
+  users.users.${config.profiles.primaryUser} = {
     extraGroups = [
       "kvm"
       "libvirtd"

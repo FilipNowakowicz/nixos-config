@@ -14,8 +14,8 @@
     # The deploy workflow is manual and main-branch gated. Run it as the same
     # account deploy-rs already uses so SSH and activation follow the existing
     # homeserver deployment path.
-    user = "user";
-    extraEnvironment.HOME = "/home/user";
+    user = config.profiles.primaryUser;
+    extraEnvironment.HOME = config.users.users.${config.profiles.primaryUser}.home;
 
     extraLabels = [
       "nixos"
@@ -53,7 +53,7 @@
   # check). Authorize the dedicated self-deploy key whose private half is
   # installed at /home/user/.ssh/id_ed25519 via the
   # homeserver_selfdeploy_ssh_key sops secret (see ./default.nix).
-  users.users.user.openssh.authorizedKeys.keys = [
+  users.users.${config.profiles.primaryUser}.openssh.authorizedKeys.keys = [
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPdNtbVSsK8QUvmf23/cytypBEjPBN/KVs9SdtwFMChC homeserver-gcp-selfdeploy"
   ];
 }
