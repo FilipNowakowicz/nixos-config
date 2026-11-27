@@ -32,6 +32,14 @@ locals {
 }
 
 # ── Firewall ─────────────────────────────────────────────────────────────────
+#
+# The "default" network's auto-created rules (default-allow-ssh, -rdp, -icmp
+# and -internal, all priority 65534) were deleted by hand in #627 and must stay
+# gone: nothing here needs them, and every allow the hosts rely on is declared
+# below. Terraform cannot assert that an unmanaged resource is absent, so
+# `bash scripts/validate.sh tf-drift` fails if any `default-allow-*` rule
+# reappears (for example after recreating the network). The deny rules below
+# predate that deletion and stay as defense-in-depth against a re-created rule.
 
 resource "google_compute_firewall" "tailscale" {
   name        = "${local.name}-tailscale"
@@ -47,11 +55,11 @@ resource "google_compute_firewall" "tailscale" {
   source_ranges = ["0.0.0.0/0"]
 }
 
-# The "default" network auto-creates default-allow-ssh (TCP/22 from 0.0.0.0/0)
-# at priority 65534, which exposes the public NAT IP to the internet. SSH is
-# meant to be tailnet-only, so this higher-precedence deny (lower priority
-# number) blocks public TCP/22 at the GCP edge as defense-in-depth alongside
-# the in-guest nftables rule.
+# SSH is meant to be tailnet-only, so this high-precedence deny (low priority
+# number) blocks public TCP/22 at the GCP edge, alongside the in-guest
+# nftables rule, even if a default-allow-ssh rule is ever re-created.
+# scripts/deploy-gcp.sh opens a caller-only TCP/22 allow at priority 400 for
+# provisioning and deletes it afterwards.
 #
 # NOTE: apply manually (NOT via terraform apply in this change):
 #   cd infra && tofu plan && tofu apply
@@ -68,13 +76,12 @@ resource "google_compute_firewall" "deny_public_ssh" {
   source_ranges = ["0.0.0.0/0"]
 }
 
-# The "default" network auto-creates default-allow-internal at priority 65534,
-# permitting ALL protocols/ports between instances on 10.128.0.0/9. That makes
-# the homeserver and builder mutually reachable on every port at the cloud
-# layer, with only the in-guest nftables interface allowlist as a boundary.
+# A re-created default-allow-internal (priority 65534) would permit ALL
+# protocols/ports between instances on 10.128.0.0/9, leaving only the in-guest
+# nftables interface allowlist as a boundary between the homeserver and builder.
 #
 # This rule denies all internal-IP traffic between the homeserver and builder
-# at a higher precedence (lower priority number) than default-allow-internal,
+# at a higher precedence (lower priority number) than that default rule,
 # scoped to just these two instances via target_tags. Tailscale connectivity
 # is unaffected: if direct internal-IP WireGuard traffic between these GCE
 # instances is blocked, Tailscale falls back to DERP relay over the internet,

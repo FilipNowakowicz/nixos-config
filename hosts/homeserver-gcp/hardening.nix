@@ -68,6 +68,7 @@ in
     "issue.net".text = lib.mkForce banner;
   };
 
-  # ── System activity accounting (ACCT-9626) ───────────────────────────────
-  services.sysstat.enable = true;
+  # Lynis ACCT-9626 (enable sysstat accounting) stays an accepted open
+  # suggestion: node-exporter already records system activity, so sysstat
+  # only duplicated it to raise the hardening index (#627).
 }

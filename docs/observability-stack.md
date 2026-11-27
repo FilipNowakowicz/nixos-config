@@ -112,7 +112,8 @@ Issue [#474](https://github.com/FilipNowakowicz/nixos-config/issues/474),
 following the homeserver design review (#459), removes **Mimir, Tempo and the
 OpenTelemetry collector**, including the OTLP trace pipeline. Keep **Prometheus
 as the single metrics store, Loki, Grafana, Alloy for logs, node and blackbox
-exporters, AdGuard, the GitHub recovery runner, and NixOS rather than containers**.
+exporters, AdGuard, and NixOS rather than containers**. (The GitHub recovery
+runner kept by #474 was removed later, in #627.)
 The tailnet DNS policy is unchanged.
 
 This is a small personal server. Only Grafana and AdGuard application data are

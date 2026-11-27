@@ -51,13 +51,12 @@ session, fall back to a manual closure deploy: `nix build` the system closure,
 `nix copy` it to the host (add `--derivation` if needed), then run
 `switch-to-configuration switch` over SSH.
 
-## Automated Deploy Runner
+## Automated Deploy
 
-The `Deploy homeserver-gcp` workflow is **disabled in GitHub** until reviewed
-and manually verified. Its routine jobs run on GitHub-hosted runners, never on
-this host's `github-runner-homeserver-deploy.service`. Keep that self-hosted
-runner as a recovery path only; its existing registration and registration-GC
-procedures below still apply.
+The `Deploy homeserver-gcp` workflow is **active**: every merge to `main` that
+touches this host's closure deploys it automatically. All of its jobs run on
+GitHub-hosted runners; this host runs no GitHub runner (the self-hosted
+recovery runner was removed in #627).
 
 The builder job joins as `tag:ci-builder` using the existing builder secrets
 and runs evaluation, shared CI light/smoke validation and all compilation on
@@ -75,9 +74,7 @@ There is no fast validation bypass.
 
 Deployment secrets `TS_OAUTH_DEPLOY_CLIENT_ID`, `TS_OAUTH_DEPLOY_SECRET` and
 `HOMESERVER_DEPLOY_SSH_KEY` live in the `homeserver-gcp-deploy` environment;
-never log their values. Review and a successful manual dispatch
-(including a repeat proving the no-op path) are required before leaving the
-workflow enabled. See [operations](../../docs/operations.md#automated-homeserver-deploy)
+never log their values. See [operations](../../docs/operations.md#automated-homeserver-deploy)
 for the full prerequisites and live validation checklist.
 
 `magicRollback` and `autoRollback` stay enabled with the existing confirmation
@@ -86,12 +83,22 @@ failed units, AdGuard UDP/TCP DNS, Prometheus, Loki and Grafana health. Health
 failures are visible failures; a reachable but unhealthy system may require
 manual rollback after deploy-rs has confirmed activation.
 
-The recovery runner registration credential remains the sops secret
-`github_runner_homeserver_deploy_token`, a fine-grained PAT limited to this
-repository with Administration read/write. This host grants its deploy user
-broad passwordless sudo: merge access to `main`, deployment credentials and
-recovery runner access are root-equivalent. Required reviewers on the
-`homeserver-gcp-deploy` environment can add a manual gate.
+This host grants its deploy user broad passwordless sudo: merge access to
+`main` and the deployment credentials are root-equivalent. Required reviewers
+on the `homeserver-gcp-deploy` environment can add a manual gate.
+
+## Out-of-band Recovery
+
+SSH is tailnet-only (in-guest firewall plus the `deny-public-ssh` GCP rule), so
+with Tailscale down the host looks unreachable. The remaining channels are:
+
+1. **GCE serial console** — `gcloud compute instances get-serial-port-output`
+   for read-only diagnosis; interactive login needs the sops-managed console
+   password. There is no guest agent, so metadata startup scripts do not run.
+2. **Boot-disk surgery via `gcp-builder`** — stop this VM, detach its boot disk,
+   attach it to a started `gcp-builder`, mount the ext4 root by device path
+   (both disks carry the same filesystem label), fix it, reattach it with
+   `--boot --device-name=persistent-disk-0`, and start the VM.
 
 ## Gotchas
 
@@ -103,7 +110,7 @@ recovery runner access are root-equivalent. Required reviewers on the
   `homeserver-gcp`. A break confined to an unrelated host fails this workflow even though `merge-gate` on the same PR
   passed clean. Read the failing derivation name in the run log before
   assuming the break is homeserver-gcp-specific.
-- **sops fails on first boot if the host key was not copied into the installed root** — Tailscale won't join, SSH won't work over Tailscale. Recover via GCE serial console or `gcloud compute ssh` (project SSH keys bypass tailnet-only firewall during recovery), then install the encrypted repo key at `/etc/ssh/ssh_host_ed25519_key` and redeploy.
+- **sops fails on first boot if the host key was not copied into the installed root** — Tailscale won't join, SSH won't work over Tailscale. Recover through the [out-of-band channels](#out-of-band-recovery), then install the encrypted repo key at `/etc/ssh/ssh_host_ed25519_key` and redeploy.
 - **TLS cert is not ACME** — `tailscale-cert.service` fetches it via `tailscale cert`; nginx
   depends on that service via `requires=` so it doesn't start without a cert. A daily
   `tailscale-cert.timer` renews the material and reloads nginx if it is already running.
@@ -189,34 +196,6 @@ recovery runner access are root-equivalent. Required reviewers on the
   is an accepted, recorded decision documented here.
 
 - **AdGuard web UI** — HTTPS on port 3001 (proxied by nginx using the Tailscale cert). AdGuard itself binds to `127.0.0.1:13001`. Login: `admin`; password material is managed through the sops-backed AdGuard configuration.
-- **Deploy runner registration GC** — `services.github-runners.homeserver-deploy`
-  only re-registers with GitHub when its NixOS module config or the
-  `github_runner_homeserver_deploy_token` secret _changes on disk_ (the
-  module's `unconfigure` script `diff`s the new config/token against
-  `.nixos-current-config.json`/`.current-token` in the state directory). If
-  GitHub garbage-collects or invalidates the registration server-side (e.g.
-  after a long idle period) while the local config and token are unchanged,
-  that diff sees no change, skips re-registration, and `Runner.Listener`
-  starts with stale `.runner`/`.credentials` that GitHub now rejects — the
-  unit fails, with a journal entry like "session ... has been deleted" /
-  "no longer exists". Recover by clearing the persisted runner state so the
-  next start re-registers from scratch:
-  ```bash
-  ssh user@homeserver-gcp.example.ts.net
-  sudo systemctl stop github-runner-homeserver-deploy.service
-  sudo find /var/lib/github-runner/homeserver-deploy -mindepth 1 -delete
-  sudo systemctl start github-runner-homeserver-deploy.service
-  sudo systemctl status github-runner-homeserver-deploy.service --no-pager
-  ```
-  `find -mindepth 1 -delete` is required instead of `rm -rf .../*` — the
-  persisted state (`.runner`, `.credentials`, `.nixos-current-config.json`,
-  ...) is all dotfiles a bare glob won't match, and leaving any behind makes
-  the unconfigure diff see "unchanged" again and skip re-registration. An
-  empty state directory hits the unconfigure script's first-start path, which
-  copies `github_runner_homeserver_deploy_token` into the work area; the
-  configure script then detects the PAT format and re-registers with
-  `--pat`, minting a fresh registration token automatically — no token
-  rotation needed for this recovery path.
 - **Memory-heavy maintenance oneshots must be contained** — this is a sub-4GB
   host, so any heavy CVE/scan/index maintenance oneshot or timer (the vulnix NVD
   load peaked ~3GB RSS) must **either** run off-host (CI or the `gcp-builder`)
@@ -234,8 +213,8 @@ recovery runner access are root-equivalent. Required reviewers on the
 ## Monitoring decision (#474)
 
 Keep Prometheus (30-day metrics and alert evaluation), Loki, Grafana, Alloy,
-Alertmanager, node/blackbox exporters, AdGuard and NixOS. The GitHub recovery
-runner stays, and tailnet DNS policy stays unchanged. Mimir, Tempo and the
+Alertmanager, node/blackbox exporters, AdGuard and NixOS. Tailnet DNS policy
+stays unchanged. Mimir, Tempo and the
 OpenTelemetry collector/OTLP pipeline were removed: one personal server has no
 useful trace producers or need for scalable metrics storage, and the former
 metrics backend's rings caused a GCP migration boot crash loop. Reconsider only

@@ -34,7 +34,7 @@ Usage:
   bash scripts/rotate-secret.sh observability                    # rotate the telemetry ingest password across main+homeserver
 
 Examples:
-  printf '%s' "$NEW_PAT" | bash scripts/rotate-secret.sh set hosts/homeserver-gcp/secrets/secrets.yaml github_runner_homeserver_deploy_token
+  printf '%s' "$NEW_URL" | bash scripts/rotate-secret.sh set hosts/homeserver-gcp/secrets/secrets.yaml heartbeat_ping_url
   bash scripts/rotate-secret.sh random   hosts/homeserver-gcp/secrets/secrets.yaml grafana_secret_key
   bash scripts/rotate-secret.sh password hosts/main/secrets/secrets.yaml user_password
   bash scripts/rotate-secret.sh sshkey   hosts/main/secrets/secrets.yaml initrd_ssh_host_ed25519_key

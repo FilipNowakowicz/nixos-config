@@ -115,23 +115,21 @@ the inventory into three kinds:
 
 ### Inventory
 
-| Secret                                                               | Owner host(s)             | Kind     | Rotate with                                                                    |
-| :------------------------------------------------------------------- | :------------------------ | :------- | :----------------------------------------------------------------------------- |
-| `user_password`                                                      | all                       | self     | `rotate-secret.sh password <file> <key>`                                       |
-| `observability_ingest_password` (+`_htpasswd`)                       | `main` / `homeserver-gcp` | self     | `rotate-secret.sh observability` (rotates the pair)                            |
-| `adguard_admin_password`                                             | `homeserver-gcp`          | self     | `rotate-secret.sh random`                                                      |
-| `grafana_admin_password`                                             | `homeserver-gcp`          | self     | `rotate-secret.sh random` — **but** set it in Grafana too; see caveats         |
-| `grafana_secret_key`                                                 | `homeserver-gcp`          | self     | `rotate-secret.sh random` — **caveat:** re-encrypts datasource secrets         |
-| `restic_password`                                                    | `main`,`homeserver-gcp`   | self     | `restic key add/remove` first, _then_ `rotate-secret.sh set`; see caveats      |
-| `initrd_ssh_host_ed25519_key`                                        | `main`                    | self     | `rotate-secret.sh sshkey <file> <key>`                                         |
-| `homeserver_selfdeploy_ssh_key`                                      | `homeserver-gcp`          | self     | `rotate-secret.sh sshkey`, then wire the new public half into nix              |
-| `tailscale_auth_key`                                                 | `homeserver-gcp`          | provider | Tailscale admin console → `rotate-secret.sh set`                               |
-| `b2_credentials` / `restic_repository`                               | `main`,`homeserver-gcp`   | provider | Backblaze B2 console / `b2` CLI → `rotate-secret.sh set`                       |
-| `alertmanager_webhook_url`                                           | `homeserver-gcp`          | provider | regenerate at the notification target → `rotate-secret.sh set`                 |
-| `heartbeat_ping_url`                                                 | `homeserver-gcp`          | provider | regenerate at the heartbeat service → `rotate-secret.sh set`                   |
-| `github_runner_homeserver_deploy_token`                              | `homeserver-gcp`          | provider | GitHub fine-grained PAT (browser) → `rotate-secret.sh set`; see worked example |
-| `claude-credentials.json`, gcloud ADC, gemini oauth, `gh-hosts.yaml` | `&user`                   | capture  | re-run the tool's login, capture the file into sops                            |
-| `git_user_name` / `git_user_email`                                   | `&user`                   | —        | static identity, not a rotating credential                                     |
+| Secret                                                               | Owner host(s)             | Kind     | Rotate with                                                               |
+| :------------------------------------------------------------------- | :------------------------ | :------- | :------------------------------------------------------------------------ |
+| `user_password`                                                      | all                       | self     | `rotate-secret.sh password <file> <key>`                                  |
+| `observability_ingest_password` (+`_htpasswd`)                       | `main` / `homeserver-gcp` | self     | `rotate-secret.sh observability` (rotates the pair)                       |
+| `adguard_admin_password`                                             | `homeserver-gcp`          | self     | `rotate-secret.sh random`                                                 |
+| `grafana_admin_password`                                             | `homeserver-gcp`          | self     | `rotate-secret.sh random` — **but** set it in Grafana too; see caveats    |
+| `grafana_secret_key`                                                 | `homeserver-gcp`          | self     | `rotate-secret.sh random` — **caveat:** re-encrypts datasource secrets    |
+| `restic_password`                                                    | `main`,`homeserver-gcp`   | self     | `restic key add/remove` first, _then_ `rotate-secret.sh set`; see caveats |
+| `initrd_ssh_host_ed25519_key`                                        | `main`                    | self     | `rotate-secret.sh sshkey <file> <key>`                                    |
+| `tailscale_auth_key`                                                 | `homeserver-gcp`          | provider | Tailscale admin console → `rotate-secret.sh set`                          |
+| `b2_credentials` / `restic_repository`                               | `main`,`homeserver-gcp`   | provider | Backblaze B2 console / `b2` CLI → `rotate-secret.sh set`                  |
+| `alertmanager_webhook_url`                                           | `homeserver-gcp`          | provider | regenerate at the notification target → `rotate-secret.sh set`            |
+| `heartbeat_ping_url`                                                 | `homeserver-gcp`          | provider | regenerate at the heartbeat service → `rotate-secret.sh set`              |
+| `claude-credentials.json`, gcloud ADC, gemini oauth, `gh-hosts.yaml` | `&user`                   | capture  | re-run the tool's login, capture the file into sops                       |
+| `git_user_name` / `git_user_email`                                   | `&user`                   | —        | static identity, not a rotating credential                                |
 
 **Trigger** for any entry: suspected exposure (logged, copied to an untrusted
 host, leaked artifact), a planned periodic rotation, or staff/device change. A
@@ -153,29 +151,6 @@ could read.
   Grafana as well.
 - **Host SSH / age keys** are not in scope for this helper: see
   [Host Key Rotation](#host-key-rotation) (`sops updatekeys` + `.sops.yaml`).
-
-### Worked example — `github_runner_homeserver_deploy_token`
-
-This fine-grained PAT registers the self-hosted runner and is more load-bearing
-since `homeserver-gcp` auto-deploys on every push to `main` (see the host
-runbook). Fine-grained PATs cannot be minted by the API, so the first step is
-manual:
-
-1. GitHub → Settings → Developer settings → Fine-grained tokens → generate a new
-   token scoped to this repo only, with repository **Administration**
-   read/write, matching the existing token. Copy it once.
-2. Write it byte-safely and verify the round-trip:
-   ```bash
-   printf '%s' "$NEW_PAT" \
-     | bash scripts/rotate-secret.sh set \
-         hosts/homeserver-gcp/secrets/secrets.yaml \
-         github_runner_homeserver_deploy_token
-   ```
-3. Commit and push. The change is inside the deploy workflow's path filter, so
-   `homeserver-gcp` redeploys itself and the runner re-registers with the new
-   token. Confirm the runner is online (repo → Settings → Actions → Runners) and
-   that a subsequent deploy run is green.
-4. Delete the old PAT in GitHub once the new one is confirmed working.
 
 ## Initrd SSH Recovery
 

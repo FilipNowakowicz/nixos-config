@@ -289,13 +289,10 @@ artifact size/time, or actual rollback and service behavior. After changing
 this path, dispatch it manually on `main` and inspect the run; disable the
 workflow if the live checks fail.
 
-The self-hosted `github-runner-homeserver-deploy.service` remains a recovery
-path only. No routine workflow job targets it. Its registration credential is
-`github_runner_homeserver_deploy_token` in sops, a fine-grained PAT restricted
-to this repository with Administration read/write. Rotate it with `sops`, apply
-through the normal host maintenance process, and remove stale registrations
-from GitHub settings. Recovery registration guidance lives in the
-[host runbook](../hosts/homeserver-gcp/CLAUDE.md).
+There is no self-hosted runner: the former `homeserver-gcp` recovery runner
+and its PAT and self-deploy key were removed in #627. Out-of-band recovery
+uses the serial console or boot-disk surgery via `gcp-builder`; see the
+[host runbook](../hosts/homeserver-gcp/CLAUDE.md#out-of-band-recovery).
 
 Merging to `main` and deployment credential access are root-equivalent on the
 homeserver. The deployment environment can add required reviewers if desired.

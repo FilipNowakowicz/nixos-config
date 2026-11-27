@@ -12,7 +12,6 @@ let
     inherit lib pkgs invariants;
     nixosConfigurations = { };
   };
-  runnerChecks = import ../../hosts/homeserver-gcp/github-runner-checks.nix { inherit lib; };
 
   # The real host registry, so the AdGuard DNS-grant invariant is validated
   # against live data in merge-gate: a newly-added tagged host that forgets its
@@ -979,48 +978,6 @@ let
       expr =
         (checkMainSudoExtraRules (mainSudoExtraRulesGood ++ [ mainSudoAgentMaintenanceRule ])).message;
       expected = "expected exactly 1 agent maintenance allowlist rule, got 2";
-    };
-
-    testRunnerSelfSwitchPolicy = {
-      expr =
-        map
-          (
-            runner:
-            (runnerChecks.selfSwitch.check {
-              systemd.services.github-runner-homeserver-deploy = runner;
-            }).passed
-          )
-          [
-            { restartIfChanged = false; }
-            { restartIfChanged = true; }
-            { }
-          ];
-      expected = [
-        true
-        false
-        false
-      ];
-    };
-
-    testRunnerRunbookTracksStateDirectory = {
-      expr =
-        map
-          (
-            stateDir:
-            (runnerChecks.runbook.check {
-              systemd.services.github-runner-homeserver-deploy.serviceConfig.StateDirectory = stateDir;
-            }).passed
-          )
-          [
-            "github-runner/homeserver-deploy"
-            "other/directory"
-            [ ]
-          ];
-      expected = [
-        true
-        false
-        false
-      ];
     };
   };
 in

@@ -17,7 +17,7 @@ variable "zone" {
 
 variable "machine_type" {
   type        = string
-  description = "GCE machine type (e2-medium = 2 vCPU, 4 GB RAM; sufficient for full LGTM stack)"
+  description = "GCE machine type (e2-medium = 2 vCPU, 4 GB RAM; sufficient for Prometheus, Loki, Grafana and AdGuard)"
   default     = "e2-medium"
 }
 
