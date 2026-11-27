@@ -29,6 +29,7 @@ with tempfile.TemporaryDirectory() as tmp:
         "PATH": f"{bin_dir}:{os.environ['PATH']}",
         "QUIET_FAKE_STATE": str(root / "state.json"),
         "QUIET_POWER_SUPPLY": str(root / "power"),
+        "QUIET_HIDRAW": str(root / "none"),
     }
     out = json.loads(subprocess.check_output([sys.executable, status], env=env))
     assert out["wifi"]["on"] is True and out["wifi"]["ssid"] == "Harbour 5G", out["wifi"]
@@ -52,8 +53,8 @@ with tempfile.TemporaryDirectory() as tmp:
     assert out["battery"] == {"level": 64, "charging": True}, out["battery"]
 
     empty = json.loads(subprocess.check_output(
-        [sys.executable, status], env={"PATH": str(root / "nothing"), "QUIET_POWER_SUPPLY": str(root / "none")}))
-    for key in ("wifi", "bluetooth", "vpn", "sink", "devices", "brightness", "profile", "battery"):
+        [sys.executable, status], env={"PATH": str(root / "nothing"), "QUIET_POWER_SUPPLY": str(root / "none"), "QUIET_HIDRAW": str(root / "none")}))
+    for key in ("wifi", "bluetooth", "vpn", "sink", "devices", "brightness", "profile", "battery", "mouseBattery"):
         assert empty[key] is None, (key, empty[key])
 
     # An event khal repeats on each day it covers is one event. No khal, no agenda.

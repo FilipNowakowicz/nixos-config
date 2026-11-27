@@ -14,6 +14,8 @@ import subprocess
 import sys
 import zoneinfo
 
+import hidpp
+
 
 def run(*cmd, timeout=3):
     try:
@@ -276,7 +278,9 @@ print(json.dumps({
     "brightness": brightness(),
     "profile": power_profile(),
     "battery": battery(power_supply),
-    "mouseBattery": mouse_battery(power_supply),
+    # The kernel reports a mouse only when a driver claims its receiver; else ask it.
+    "mouseBattery": mouse_battery(power_supply) or hidpp.mouse_battery(
+        pathlib.Path(os.environ.get("QUIET_HIDRAW", "/sys/class/hidraw"))),
     "night": night(),
     "timezone": zone,
     # The shell itself can't see a new zone (Sys.clock), so it is told the offset.

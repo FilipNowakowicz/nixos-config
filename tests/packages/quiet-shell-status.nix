@@ -19,6 +19,7 @@ pkgs.runCommand "quiet-shell-status-tests"
       ${../../packages/quiet-shell/shell/scripts/location.py} \
       ${../../packages/quiet-shell/shell/scripts/buds.py} \
       ${../../packages/quiet-shell/shell/scripts/agenda.py}
+    python3 ${./quiet-shell-hidpp.py} ${../../packages/quiet-shell/shell/scripts/hidpp.py}
     python3 ${./quiet-shell-agents.py} ${../../packages/quiet-shell/shell/scripts/agents.py}
     python3 ${./quiet-shell-resume.py} ${../../packages/quiet-shell/shell/scripts}/resume.py ${./quiet-shell-resume-screens}
     python3 ${./quiet-shell-phone.py} ${../../packages/quiet-shell/shell/scripts/phone.py}

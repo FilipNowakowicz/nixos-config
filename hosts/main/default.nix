@@ -33,6 +33,17 @@ let
   ];
 
   synatudor = pkgs.callPackage ../../packages/synatudor { };
+  # The quiet shell asks the mouse for its battery over HID++, because no kernel
+  # driver claims this LIGHTSPEED receiver (046d:c54d). Grant the seat user that
+  # one interface (02, HID++) and not 01, which carries keystrokes. Parent-matching
+  # keys must all match a single parent, hence the two steps. 73-seat-late.rules
+  # applies uaccess, so this sorts before it, which services.udev.extraRules can't.
+  logitechHidpp = pkgs.writeTextDir "lib/udev/rules.d/70-logitech-hidpp.rules" ''
+    SUBSYSTEM!="hidraw", GOTO="logitech_hidpp_end"
+    KERNELS=="0003:046D:C54D.*", ENV{LOGITECH_HIDPP_RECEIVER}="1"
+    ENV{LOGITECH_HIDPP_RECEIVER}=="1", ATTRS{bInterfaceNumber}=="02", TAG+="uaccess"
+    LABEL="logitech_hidpp_end"
+  '';
 
   passwordlessAgentCommand = command: {
     inherit command;
@@ -335,7 +346,7 @@ in
 
     # The driver's host process runs outside fprintd's sandbox, started on demand over D-Bus.
     dbus.packages = lib.mkIf (!config.profiles.ci) [ synatudor ];
-    udev.packages = lib.mkIf (!config.profiles.ci) [ synatudor ];
+    udev.packages = [ logitechHidpp ] ++ lib.optional (!config.profiles.ci) synatudor;
     # Bluetooth management (GUI)
     blueman.enable = true;
 
