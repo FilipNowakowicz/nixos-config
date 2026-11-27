@@ -76,25 +76,151 @@ let
             option = subvolOptionFor fs;
           in
           if option == null then null else lib.removePrefix "subvol=" option;
-        persistentRoots = lib.mapAttrsToList (mountPoint: _: mountPoint) (
-          lib.filterAttrs (
-            _: fs: (fs.fsType or "") == "btrfs" && subvolFor fs != null && subvolFor fs != "/@root"
-          ) cfg.fileSystems
-        );
-        isUnderRoot = root: path: path == root || (root != "/" && lib.hasPrefix "${root}/" path);
+        # Every mount that can own a path: real filesystems, and impermanence
+        # binds from /persist. Only the deepest owner decides, so a tmpfs
+        # mounted below a persistent /home shadows it and fails here.
+        owners =
+          lib.mapAttrsToList (mountPoint: fs: {
+            path = mountPoint;
+            persistent = (fs.fsType or "") == "btrfs" && subvolFor fs != null && subvolFor fs != "/@root";
+          }) cfg.fileSystems
+          ++ map (path: {
+            inherit path;
+            persistent = true;
+          }) (persistedDirs ++ persistedFiles);
+        isUnderRoot = root: path: path == root || root == "/" || lib.hasPrefix "${root}/" path;
 
         isPersistent =
           path:
-          lib.any (root: isUnderRoot root path) persistentRoots
-          || lib.elem path persistedDirs
-          || lib.elem path persistedFiles
-          || lib.any (d: lib.hasPrefix (d + "/") path) persistedDirs;
+          let
+            matching = lib.filter (o: isUnderRoot o.path path) owners;
+            depth = o: lib.stringLength o.path;
+            deepest = lib.foldl' lib.max 0 (map depth matching);
+          in
+          # At equal depth an impermanence bind wins over the mount it covers.
+          lib.any (o: o.persistent) (lib.filter (o: depth o == deepest) matching);
 
         offenders = lib.filter (p: !(isPersistent p)) (cfg.services.restic.backups.local.paths or [ ]);
       in
       mkResult (offenders == [ ])
         "backup path(s) not persisted (would be wiped on rollback boot): ${lib.concatStringsSep ", " offenders}";
   };
+
+  # Run the invariant above against main's real config and against injected
+  # faults it must reject: a tmpfs shadowing a persistent parent, at the
+  # backed-up path and one level up, and a backup path left on the
+  # rolled-back root.
+  mainBackupPersistenceCases =
+    let
+      cfg = allNixosConfigs.main.config;
+      passes = c: (mainBackupPathsArePersisted.check c).passed;
+      withMount =
+        mountPoint:
+        cfg
+        // {
+          fileSystems = cfg.fileSystems // {
+            ${mountPoint} = {
+              fsType = "tmpfs";
+              options = [ "mode=0700" ];
+            };
+          };
+        };
+      withPath =
+        path:
+        lib.recursiveUpdate cfg {
+          services.restic.backups.local.paths = cfg.services.restic.backups.local.paths ++ [ path ];
+        };
+      cases = {
+        "deployed config" = {
+          config = cfg;
+          expected = true;
+        };
+        "tmpfs on a backed-up path" = {
+          config = withMount "/home/user/.ssh";
+          expected = false;
+        };
+        "tmpfs between /home and a backed-up path" = {
+          config = withMount "/home/user";
+          expected = false;
+        };
+        "backup path on the rolled-back root" = {
+          config = withPath "/var/lib/upower";
+          expected = false;
+        };
+      };
+      wrong = lib.filterAttrs (_: c: passes c.config != c.expected) cases;
+    in
+    pkgs.runCommand "main-backup-persistence-cases" { } (
+      if wrong == { } then
+        "touch $out"
+      else
+        "echo 'persistence invariant misjudged: ${lib.concatStringsSep ", " (builtins.attrNames wrong)}' >&2; exit 1"
+    );
+
+  # Exercise main's restic pre-start probe. A fake restic replays exit codes
+  # from $PLAN (one per call, logging each call); the real one pins the exit
+  # code restic gives for a missing repository. Each deployed unit's first
+  # ExecStartPre must be this same generated script, so a renamed no-op
+  # cannot stand in for it.
+  resticWaitRepoBehaviour =
+    let
+      inherit (allNixosConfigs) main;
+      mkProbe = import ../hosts/main/restic-wait-repo.nix { inherit (main) pkgs; };
+      fakeRestic = pkgs.writeShellScriptBin "restic" ''
+        echo call >> "$CALLS"
+        code=$(${pkgs.coreutils}/bin/head -n1 "$PLAN")
+        ${pkgs.gnused}/bin/sed -i 1d "$PLAN"
+        echo "fake restic exit $code" >&2
+        exit "''${code:-1}"
+      '';
+      probe =
+        restic:
+        mkProbe {
+          unit = "probe-test";
+          repositoryFile = "repo-file";
+          inherit restic;
+          attempts = 4;
+          interval = 0;
+        };
+      fake = probe fakeRestic;
+      real = probe pkgs.restic;
+      deployedFirst =
+        unit: builtins.head (lib.toList main.config.systemd.services.${unit}.serviceConfig.ExecStartPre);
+      expectedFor =
+        unit:
+        toString (mkProbe {
+          inherit unit;
+          repositoryFile = main.config.sops.secrets.restic_repository.path;
+        });
+      misplaced = lib.filter (unit: toString (deployedFirst unit) != expectedFor unit) [
+        "restic-backups-local"
+        "restic-check-local"
+      ];
+    in
+    assert lib.assertMsg (
+      misplaced == [ ]
+    ) "first ExecStartPre is not the tested wait-repo probe: ${lib.concatStringsSep ", " misplaced}";
+    pkgs.runCommand "restic-wait-repo-behaviour" { nativeBuildInputs = [ pkgs.restic ]; } ''
+      export HOME=$PWD CALLS=$PWD/calls PLAN=$PWD/plan RESTIC_PASSWORD=fixture
+      run() { # name, plan, expected status, expected calls, stderr pattern
+        printf '%s\n' $2 > plan; : > calls
+        status=0; ${fake} 2> err || status=$?
+        [ "$status" = "$3" ] && [ "$(wc -l < calls)" = "$4" ] && { [ -z "$5" ] || grep -q "$5" err; } \
+          || { echo "FAIL $1: status=$status calls=$(wc -l < calls)" >&2; cat err >&2; exit 1; }
+      }
+      run "recovers when connectivity returns" "1 1 0" 0 3 ""
+      run "gives up after every attempt" "1 1 1 1" 1 4 "unreachable after 4 attempts; last error: fake restic exit 1"
+      run "missing repository fails at once" "10" 1 1 "does not exist"
+      run "wrong password fails at once" "12" 1 1 "wrong repository password"
+
+      echo "$PWD/missing" > repo-file
+      status=0; ${real} 2> err || status=$?
+      [ "$status" = 1 ] && grep -q "does not exist" err \
+        || { echo "FAIL real restic, missing repo: status=$status" >&2; cat err >&2; exit 1; }
+      restic init -q -r "$PWD/missing"
+      ${real} || { echo "FAIL real restic, existing repo" >&2; exit 1; }
+      touch $out
+    '';
 
   mainBtrbkPolicyMatchesLocalSnapshotIntent = {
     name = "main btrbk policy keeps local snapshots scoped and bounded";
@@ -1261,6 +1387,8 @@ in
     observability-alerts-lint = observabilityAlertsLint;
     backup-retention-behaviour = backupRetentionBehaviour;
     main-backup-coverage = mainBackupCoverage;
+    main-backup-persistence-cases = mainBackupPersistenceCases;
+    restic-wait-repo-behaviour = resticWaitRepoBehaviour;
     observability-stack-fixture = observabilityStackFixture;
     observability-client-fixture = observabilityClientFixture;
     observability-dashboard-backend-assertion-fixture = observabilityDashboardBackendAssertionFixture;

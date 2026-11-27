@@ -5,34 +5,13 @@
   ...
 }:
 let
-  # network-online.target is a no-op here: main force-disables both
-  # wait-online providers (see networking.nix), so it orders against nothing.
-  # Probe the B2 backend directly with a bounded retry instead, so both restic
-  # units wait for real connectivity. This matters most after a long suspend:
-  # Persistent=true fires the missed run the instant the machine resumes,
-  # before Wi-Fi/VPN/DNS are back, and a single failed attempt otherwise
-  # leaves the backup stale until the next daily slot.
-  #
-  # --no-cache: the probe only tests reachability, and `restic cat config`
-  # treats an unlocatable cache directory as fatal. restic-check-local has no
-  # User= (so no $HOME) and no CacheDirectory=, so without this flag the probe
-  # failed every attempt on a reachable repo. The last attempt's error is
-  # printed so a real outage is distinguishable from a local fault.
+  # See restic-wait-repo.nix for why both units probe B2 before starting.
   waitForRepo =
     unit:
-    pkgs.writeShellScript "${unit}-wait-repo" ''
-      err=
-      for _ in $(${pkgs.coreutils}/bin/seq 1 30); do
-        if err=$(${pkgs.restic}/bin/restic cat config --no-cache \
-          --repository-file=${config.sops.secrets.restic_repository.path} \
-          2>&1 >/dev/null); then
-          exit 0
-        fi
-        ${pkgs.coreutils}/bin/sleep 10
-      done
-      echo "${unit}: B2 repo unreachable after ~5min; last error: $err" >&2
-      exit 1
-    '';
+    import ./restic-wait-repo.nix { inherit pkgs; } {
+      inherit unit;
+      repositoryFile = config.sops.secrets.restic_repository.path;
+    };
 
   # anki-generator's docs/recovery.md forbids copying its live SQLite file.
   # Take a consistent copy through SQLite's backup API, as the user so no
