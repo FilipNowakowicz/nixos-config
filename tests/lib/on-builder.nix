@@ -21,5 +21,6 @@ pkgs.runCommand "on-builder-contract"
   ''
     bash "$src/scripts/test-ci-builder.sh"
     bash "$src/scripts/test-builder-move.sh"
+    bash "$src/scripts/test-builder-spec.sh"
     touch "$out"
   ''

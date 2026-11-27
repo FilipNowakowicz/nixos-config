@@ -10,6 +10,7 @@ let
     "backup"
     "sops"
     "hardware"
+    "remoteBuilder"
   ];
 
   knownHomeManagerRoles = [
@@ -150,6 +151,27 @@ let
             && (!cfg.hardware ? diskById || builtins.isString cfg.hardware.diskById)
           )
         ) "${name}.hardware: expected attrset with optional diskById string")
+        (ok
+          (
+            !p "remoteBuilder"
+            || (
+              builtins.isAttrs cfg.remoteBuilder
+              &&
+                builtins.attrNames cfg.remoteBuilder == [
+                  "maxJobs"
+                  "speedFactor"
+                  "supportedFeatures"
+                ]
+              && builtins.isInt cfg.remoteBuilder.maxJobs
+              && cfg.remoteBuilder.maxJobs > 0
+              && builtins.isInt cfg.remoteBuilder.speedFactor
+              && cfg.remoteBuilder.speedFactor > 0
+              && builtins.isList cfg.remoteBuilder.supportedFeatures
+              && builtins.all builtins.isString cfg.remoteBuilder.supportedFeatures
+            )
+          )
+          "${name}.remoteBuilder: expected positive int maxJobs and speedFactor and a supportedFeatures string list"
+        )
       ];
 
       _valid = builtins.foldl' (a: b: a && b) true checks;

@@ -22,6 +22,11 @@
 #     .class    — "critical" (14d/8w/6m/2y) | "standard" (7d/4w/3m); absent = no backup module
 #     .name     — restic backup job name; defaults to "local"
 #   sops        — whether this host should have host-secret SOPS coverage; defaults to true
+#   remoteBuilder — presence means other hosts offload Nix builds to this one
+#     .maxJobs           — concurrent remote jobs callers pass in `--builders`
+#     .speedFactor       — `--builders` speed factor
+#     .supportedFeatures — this host's nix.settings.system-features, also
+#                          advertised by callers in `--builders`
 #   hardware    — host-local hardware identifiers
 #     .diskById — stable /dev/disk/by-id/* path for the primary disk (consumed by disko)
 let
@@ -107,6 +112,19 @@ let
         };
       };
       deploy.sshUser = "user";
+      # Read by this host's system-features, `nixos-switch-main --remote` and
+      # scripts/lib/builder.sh. 14 jobs for the 14 vCPUs; kvm needs the VM's
+      # nested virtualization (n2 family).
+      remoteBuilder = {
+        maxJobs = 14;
+        speedFactor = 2;
+        supportedFeatures = [
+          "nixos-test"
+          "benchmark"
+          "big-parallel"
+          "kvm"
+        ];
+      };
       sops = false;
     };
 
