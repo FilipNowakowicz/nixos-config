@@ -12,6 +12,7 @@
 let
   hostRegistryLib = import ./host-registry.nix;
   invariants = import ./invariants.nix { inherit lib pkgs; };
+  driftLib = import ./drift.nix { inherit lib; };
 
   defaultHealthAssertionsFor =
     name: evaluated:
@@ -50,16 +51,8 @@ let
       health = hostHealth name cfg;
       resticBackups = c.services.restic.backups or { };
       tailscaleFirewall = (c.networking.firewall.interfaces or { }).tailscale0 or { };
-      trackedSystemdUnits = lib.filter (unit: unit != "") [
-        (lib.optionalString c.services.openssh.enable "sshd.service")
-        (lib.optionalString c.services.tailscale.enable "tailscaled.service")
-        (lib.optionalString (c.services.nginx.enable or false) "nginx.service")
-        (lib.optionalString (c.services.adguardhome.enable or false) "adguardhome.service")
-        (lib.optionalString (c.services.grafana.enable or false) "grafana.service")
-        (lib.optionalString (c.services.loki.enable or false) "loki.service")
-        (lib.optionalString (c.services.prometheus.enable or false) "prometheus.service")
-        (lib.optionalString (c.services.prometheus.alertmanager.enable or false) "alertmanager.service")
-      ];
+      # Absent on configs that do not import modules/nixos (e.g. the mini-fleet example).
+      driftFacts = c.profiles.drift or { };
     in
     {
       inherit name;
@@ -112,39 +105,16 @@ let
         usbguard = c.services.usbguard.enable or false;
         lanzaboote = c.boot.lanzaboote.enable or false;
       };
-      trackedServices =
-        if name == "homeserver-gcp" then
-          [
-            "adguard"
-            "nginx"
-            "grafana"
-            "loki"
-            "prometheus"
-            "alertmanager"
-          ]
-        else
-          [ ];
+      trackedServices = driftFacts.trackedServices or [ ];
       drift = {
         tailscaleTag = meta.tailscale.tag or null;
         tailnetFQDN = meta.tailnetFQDN or null;
         tcpPorts = tailscaleFirewall.allowedTCPPorts or [ ];
-        # Stable listeners that bind a non-loopback address but are deliberately
-        # not opened on tailscale0 (so they never appear in tcpPorts). Without
-        # this the strict drift check flags them as unexpected on every run.
-        # Each is reachable only from the host itself or a firewalled interface.
-        # tailscaled's own dynamic WireGuard ports are NOT listed here: they bind
-        # the host's tailnet IP and change every restart, so no static list can
-        # capture them — check-host-drift.sh drops them by tailnet address.
-        expectedExtraTCPPorts =
-          if name == "homeserver-gcp" then
-            [
-              80 # nginx HTTP->HTTPS redirect vhost (binds 0.0.0.0; tailnet-firewalled)
-              22000 # syncthing transport (user home-manager server role; GUI stays on loopback)
-            ]
-          else
-            [ ];
+        # Listeners deliberately not opened on tailscale0; see the
+        # profiles.drift.expectedExtraTCPPorts option description.
+        expectedExtraTCPPorts = driftFacts.expectedExtraTCPPorts or [ ];
         strictTCPPortSet = meta ? deploy;
-        systemdUnits = trackedSystemdUnits;
+        systemdUnits = driftLib.systemdUnits c;
       };
       inherit health;
     };

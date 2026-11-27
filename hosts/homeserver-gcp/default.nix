@@ -8,32 +8,23 @@
 }:
 let
   inherit (hostMeta) tailnetFQDN;
+  driftLib = import ../../lib/drift.nix { inherit lib; };
+  # Read by scripts/deploy-homeserver.sh; the same facts feed the fleet
+  # inventory through lib/inventory-data.nix.
   hostDriftInventory = {
     schemaVersion = 1;
     hosts = [
       {
         inherit (hostMeta) name;
         deployable = true;
-        deployUser = hostMeta.deploy.sshUser or "user";
+        deployUser = hostMeta.deploy.sshUser;
         drift = {
           tailscaleTag = hostMeta.tailscale.tag or null;
           inherit tailnetFQDN;
           tcpPorts = config.networking.firewall.interfaces.tailscale0.allowedTCPPorts or [ ];
-          expectedExtraTCPPorts = [
-            80
-            22000
-          ];
+          inherit (config.profiles.drift) expectedExtraTCPPorts;
           strictTCPPortSet = true;
-          systemdUnits = lib.filter (unit: unit != "") [
-            (lib.optionalString config.services.openssh.enable "sshd.service")
-            (lib.optionalString config.services.tailscale.enable "tailscaled.service")
-            (lib.optionalString (config.services.nginx.enable or false) "nginx.service")
-            (lib.optionalString (config.services.adguardhome.enable or false) "adguardhome.service")
-            (lib.optionalString (config.services.grafana.enable or false) "grafana.service")
-            (lib.optionalString (config.services.loki.enable or false) "loki.service")
-            (lib.optionalString config.services.prometheus.enable "prometheus.service")
-            (lib.optionalString config.services.prometheus.alertmanager.enable "alertmanager.service")
-          ];
+          systemdUnits = driftLib.systemdUnits config;
         };
       }
     ];
@@ -85,6 +76,20 @@ in
   };
 
   profiles = {
+    drift = {
+      trackedServices = [
+        "adguard"
+        "nginx"
+        "grafana"
+        "loki"
+        "prometheus"
+        "alertmanager"
+      ];
+      expectedExtraTCPPorts = [
+        80 # nginx HTTP->HTTPS redirect vhost (binds 0.0.0.0; tailnet-firewalled)
+        22000 # syncthing transport (user home-manager server role; GUI stays on loopback)
+      ];
+    };
     observability = {
       enable = true;
       alertWebhookUrlFile = config.sops.secrets.alertmanager_webhook_url.path;

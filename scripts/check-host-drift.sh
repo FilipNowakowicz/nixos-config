@@ -239,7 +239,7 @@ while true; do
         '$actual - $expected - $allowed'
     )"
     if [[ "$(jq 'length' <<<"$extra_ports_json")" -gt 0 ]]; then
-      record_failure "unexpected non-loopback listening TCP ports: $(jq -r 'join(", ")' <<<"$extra_ports_json"); add to drift.expectedExtraTCPPorts if intended, else review host service modules or manual changes"
+      record_failure "unexpected non-loopback listening TCP ports: $(jq -r 'join(", ")' <<<"$extra_ports_json"); add to the host's profiles.drift.expectedExtraTCPPorts if intended, else review host service modules or manual changes"
     fi
   fi
 
