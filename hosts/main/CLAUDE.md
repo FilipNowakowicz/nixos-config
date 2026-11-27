@@ -227,7 +227,7 @@ script so routing is re-asserted whenever either daemon restarts.
 - **Do not persist broad directories by default**; keep persistence minimal and service-owned.
 - **OpenSSH uses only the persisted Ed25519 host key**; do not reintroduce volatile RSA host key generation.
 - **Mullvad and Tailscale coexistence is fragile**; the three bypass mechanisms in `networking.nix` are load-bearing — do not remove the nftables table, the bypass service, or the loose reverse-path setting without understanding all three.
-- **Old roots are not normal backups**; they are local forensic rollback artifacts retained for 30 days.
+- **Old roots are not normal backups**; they are local forensic rollback artifacts retained for 7 days.
 - **Whonix VMs require Gateway before Workstation**; starting Workstation without a running Gateway leaves it without a Tor route.
 - **Under the Lua config (Hyprland 0.57+), `hyprctl keyword` is gone and
   `hyprctl dispatch` takes an `hl.dsp` expression**, e.g.
