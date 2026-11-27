@@ -280,7 +280,7 @@ let
             valid_rcodes = [ "NOERROR" ];
             # NOERROR with an empty answer (NODATA) has not resolved the name:
             # require at least one answer record of the queried type.
-            validate_answer_rrs.fail_if_none_matching_regexp = [
+            validate_answer_rrs.fail_if_none_matches_regexp = [
               ".*\\tIN\\t${probe.queryType}\\t.*"
             ];
           };
