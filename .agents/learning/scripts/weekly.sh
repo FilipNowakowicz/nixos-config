@@ -210,7 +210,7 @@ title=$(jq -r .pr_title "$run/reviewer.json")
 git -C "$wt" commit -q --no-verify -m "$title" -m "Weekly learning review: $summary."
 # Push over HTTPS with gh's token: a user service has no SSH agent.
 git -C "$wt" -c credential.helper='!gh auth git-credential' \
-  push -q "https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)" "$branch"
+  push -q "https://github.com/$(cd "$wt" && gh repo view --json nameWithOwner -q .nameWithOwner)" "$branch"
 url=$(cd "$wt" && gh pr create --base main --head "$branch" --title "$title" --body-file "$run/pr-body.md")
 
 agent_surface='^(\.agents/|\.claude/|\.codex/|CLAUDE\.md$|hosts/[^/]+/CLAUDE\.md$|docs/|tests/)'

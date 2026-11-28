@@ -27,9 +27,11 @@ and `.agents/learning/README.md` first.
    > a subagent > prose. When you add prose, look for stale or duplicated prose
    > nearby and delete it; net growth of all `CLAUDE.md` files together must stay
    > under 6 lines per run. Prefer editing an existing skill to adding a new one.
-5. Validate with the smallest meaningful command (the `nix-verification-loop`
-   skill; `bash scripts/validate.sh light` at least when you changed anything,
-   plus the focused check for what you changed). Fix what fails. If you cannot
+5. Validate with the smallest meaningful command, run inside the dev shell
+   (`nix develop -c bash scripts/validate.sh ...`; the bare shell has no
+   `python3` or `sops`). Use the `nix-verification-loop` skill: `light` at
+   least when you changed anything, plus the focused check for what you
+   changed. Fix what fails. If you cannot
    make it pass, revert that change and mark the candidate `deferred`.
 
 ## Both agents
