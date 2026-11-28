@@ -1,0 +1,17 @@
+schema: learning-candidate/v2
+id: 2026-11-28-sops-on-path-for-agents
+date: 2026-11-28
+expires: 2027-02-26
+status: superseded
+agent: miner-claude
+type: "tooling-wish"
+route: "implement-fix"
+best_form: "invariant"
+dedupe_key: "tooling:sops-not-on-path-for-secret-audits"
+cost: "3 failed calls across 3 sessions plus a user interruption"
+observation: "`sops` is not on PATH in agent shells. Agents running B2 audits or secret inspection hit `command not found: sops` in three sessions. In one the user said \"i'm missing sops on PATH\"."
+proposed_upgrade: "Add `sops` to the main user's packages or to the dev shell. Add an invariant or home-profile check that `sops`, `jq` and `statix` are present. Otherwise provide a `scripts/with-sops.sh` wrapper that runs `nix shell nixpkgs#sops`."
+evidence: ["claude 570a7e006296: `(eval):2: command not found: sops`","claude 4b0ad6b2ab9f: `b2audit.sh: line 6: sops: command not found`","codex 198aa41e22fd: `zsh:2: command not found: sops`","claude 81d71311d6c0 user: \"i'm missing sops on PATH\""]
+targets: ["home/profiles","flake/dev.nix"]
+resolved: 2026-11-28
+resolution: "Already handled. PR #651 (b5a406b, 2026-11-28) added the CLAUDE.md note 'Bare agent shells lack repo tooling (sops, statix, …): run repo scripts as nix develop -c <cmd>, one-off tools as nix shell nixpkgs#<pkg>', and flake/dev.nix already puts sops in the dev shell. The cited failures happened before that note existed."

@@ -1,0 +1,16 @@
+schema: learning-candidate/v1
+id: 2026-11-28-phone-backup-stale-sshfs-mount
+date: 2026-11-28
+expires: 2027-02-26
+status: superseded
+route: implement-fix
+best_form: test
+evidence: [pr-#638, "kdeconnect-kde 26.08.3 plugins/sftp/mounter.cpp Mounter::onStarted emits mounted()", home/profiles/phone-backup.nix:70, home/profiles/phone-backup.nix:75, "journalctl --user -u phone-backup: 2026-11-26T08:05 transport endpoint is not connected, 2026-11-28T00:02 not the phone's shared storage", "2026-11-28 ls on the fuse.sshfs mount: Transport endpoint is not connected; phone-restic --no-lock snapshots --json: []"]
+observation: KDE Connect mountAndWait returns once the sshfs process starts, so an immediate path check races the mount; a dropped connection also left a dead sshfs mount that blocked remounting
+proposed_upgrade: "implemented with a test in PR #638 (unmerged); mark promoted once merged"
+type: repo-fix
+dedupe_key: phone-backup:stale-sshfs-mount
+triggers: [phone-backup failure, "not the phone's shared storage"]
+targets: [home/profiles/phone-backup.nix]
+resolved: 2026-11-28
+resolution: "The candidate itself said to close it once PR #638 merged. It is merged as 7c0a9ee (home/files/scripts/phone-mount.sh, with the regression test tests/home/phone-mount.nix)."
