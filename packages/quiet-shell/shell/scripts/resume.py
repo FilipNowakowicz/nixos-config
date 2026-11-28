@@ -114,7 +114,12 @@ def prompt_empty(screen):
 def send(terminal, text, pause=time.sleep):
     """Type text into the session's terminal as a paste, then press Enter. Claude
     Code drops an Enter that comes before it has taken the paste in, so wait for
-    the text to show on the prompt first, and press again if it is still there."""
+    the text to show on the prompt first, and press again if it is still there.
+
+    Enter goes in as a carriage return through send-text, not send-key: kitty
+    0.51 silently drops send-key for a window in a tab that is not showing,
+    while send-text reaches every window. A bare CR is how a terminal sends
+    Enter without the kitty keyboard protocol, and Claude Code submits on it."""
     pasted = kitty(terminal, "send-text", "--bracketed-paste", "auto", "--stdin", text=text)
     if pasted.returncode != 0:
         return False
@@ -123,7 +128,7 @@ def send(terminal, text, pause=time.sleep):
             break
         pause(0.2)
     for _ in range(3):
-        if kitty(terminal, "send-key", "enter").returncode != 0:
+        if kitty(terminal, "send-text", "--stdin", text="\r").returncode != 0:
             return False
         pause(0.5)
         if prompt_empty(screen(terminal)):
