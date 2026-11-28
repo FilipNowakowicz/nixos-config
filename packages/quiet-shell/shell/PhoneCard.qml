@@ -96,6 +96,9 @@ Item {
                         // The app says who, the title says what; Messages puts the sender in the title.
                         text: [modelData.app, modelData.title].filter(s => s).join(" · ") + (modelData.text ? " — " + modelData.text : "")
                         elide: Text.ElideRight
+                        // phone.py already folds newlines; this keeps any that slip through to one line.
+                        maximumLineCount: 1
+                        wrapMode: Text.NoWrap
                         font.pixelSize: 11
                         color: Theme.dim
                     }

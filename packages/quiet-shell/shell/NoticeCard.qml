@@ -6,6 +6,8 @@ Item {
     id: root
     property var entry
     property int more: 0
+    // The first card of an opened app group, which folds it back up.
+    property bool fold: false
     signal showMore
 
     readonly property var source: entry ? entry.source : null
@@ -82,15 +84,15 @@ Item {
             }
         }
         Press {
-            visible: root.more > 0
+            visible: root.more > 0 || root.fold
             Layout.topMargin: 4
             implicitWidth: moreText.implicitWidth + 16
             implicitHeight: 22
             radius: 11
             rest: Theme.fill
-            name: root.more + " more from " + (root.entry ? root.entry.app : "")
+            name: root.fold ? "Fold " + (root.entry ? root.entry.app : "") + " notifications" : root.more + " more from " + (root.entry ? root.entry.app : "")
             onClicked: root.showMore()
-            Label { id: moreText; anchors.centerIn: parent; text: root.more + " more"; font.pixelSize: 11 }
+            Label { id: moreText; anchors.centerIn: parent; text: root.fold ? "Show less" : root.more + " more"; font.pixelSize: 11 }
         }
     }
     Press {

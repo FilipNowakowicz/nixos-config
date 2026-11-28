@@ -52,10 +52,11 @@ Singleton {
         }
         const out = [];
         for (const [app, list] of seen) {
+            // fold marks the opened app's first card, which carries "Show less".
             if (openApps.includes(app))
-                list.forEach(entry => out.push({ entry, more: 0 }));
+                list.forEach((entry, i) => out.push({ entry, more: 0, fold: i === 0 && list.length > 1 }));
             else
-                out.push({ entry: list[0], more: list.length - 1 });
+                out.push({ entry: list[0], more: list.length - 1, fold: false });
         }
         return out;
     }
