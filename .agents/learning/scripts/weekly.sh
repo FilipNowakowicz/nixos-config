@@ -179,7 +179,10 @@ cleanup_wt() {
   printf '\nInbox: %s\nToday: %s\n' "$inbox" "$(date +%F)"
 } >"$run/reviewer-prompt.md"
 
+# The reviewer edits and validates unattended, so it runs without prompts;
+# the deny rules below still apply, and the repo guard hooks still run.
 (cd "$wt" && timeout 3h claude -p --model "$reviewer_model" --no-session-persistence \
+  --permission-mode bypassPermissions \
   --add-dir "$inbox" \
   --disallowedTools "Bash(git push:*)" "Bash(git commit:*)" "Bash(gh pr:*)" "Bash(gh issue:*)" \
   --output-format json --json-schema "$(cat "$prompts/reviewer-schema.json")" \
