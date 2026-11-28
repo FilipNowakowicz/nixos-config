@@ -259,11 +259,22 @@ ColumnLayout {
         }
     }
     Repeater {
-        model: Notify.groups.slice(0, root.compact ? 3 : 6)
+        // The limit counts apps, not cards: an opened app shows every one of its
+        // notifications instead of losing the ones past the limit.
+        model: {
+            const limit = root.compact ? 3 : 6;
+            const apps = [];
+            return Notify.groups.filter(group => {
+                if (!apps.includes(group.entry.app))
+                    apps.push(group.entry.app);
+                return apps.indexOf(group.entry.app) < limit;
+            });
+        }
         NoticeCard {
             required property var modelData
             entry: modelData.entry
             more: modelData.more
+            fold: modelData.fold
             Layout.fillWidth: true
             onShowMore: Notify.toggleApp(modelData.entry.app)
         }
