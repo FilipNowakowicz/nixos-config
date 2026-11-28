@@ -83,8 +83,19 @@ elif "get-text" in args:
     if os.path.exists({str(pending)!r}):
         shown = shown.replace("❯\\xa0 ", "❯\\xa0\\x1b[39m" + open({str(pending)!r}).read())
     print(shown, end="")
+elif "send-key" in args:
+    # kitty drops send-key for a window in a background tab (see resume.send).
+    sys.exit("send-key never reaches a background tab; send a CR with send-text")
+elif "send-text" in args and (text := sys.stdin.read()) == "\\r":
+    import os
+    with open({str(sent)!r}, "a") as f:
+        f.write(json.dumps("<enter>") + "\\n")
+    # Claude Code drops an Enter now and then; this test says when.
+    if os.path.exists({str(drop)!r}):
+        os.unlink({str(drop)!r})
+    elif os.path.exists({str(pending)!r}):
+        os.unlink({str(pending)!r})
 elif "send-text" in args:
-    text = sys.stdin.read()
     with open({str(sent)!r}, "a") as f:
         f.write(json.dumps(text) + "\\n")
     # The paste shows on the prompt until Enter takes it.
@@ -94,15 +105,6 @@ elif "send-text" in args:
     if text == "/compact" and not __import__("os").path.exists({str(root / "hang")!r}):
         with open({str(log)!r}, "a") as f:
             f.write(json.dumps({{"type": "system", "subtype": "compact_boundary"}}) + "\\n")
-elif "send-key" in args:
-    import os
-    with open({str(sent)!r}, "a") as f:
-        f.write(json.dumps("<enter>") + "\\n")
-    # Claude Code drops an Enter now and then; this test says when.
-    if os.path.exists({str(drop)!r}):
-        os.unlink({str(drop)!r})
-    elif os.path.exists({str(pending)!r}):
-        os.unlink({str(pending)!r})
 """)
     fake.chmod(0o755)
     os.environ["PATH"] = f"{root / 'bin'}:{os.environ.get('PATH', '')}"
