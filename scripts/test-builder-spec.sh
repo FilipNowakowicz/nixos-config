@@ -44,6 +44,7 @@ fi
 resolve() (
   # shellcheck source=scripts/lib/builder.sh disable=SC1091
   source "$script_dir/lib/builder.sh"
+  # shellcheck disable=SC2154 # builder_user and builder_fqdn come from builder.sh
   resolve_builder_fqdn && printf '%s@%s' "$builder_user" "$builder_fqdn"
 )
 if NIX_RC=1 resolve 2>/dev/null; then
