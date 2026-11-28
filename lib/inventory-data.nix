@@ -94,6 +94,7 @@ let
         syncthing = c.services.syncthing.enable or false;
         nginx = c.services.nginx.enable or false;
         adguard = c.services.adguardhome.enable or false;
+        attic = c.services.atticd.enable or false;
         grafana = c.services.grafana.enable or false;
         loki = c.services.loki.enable or false;
         prometheus = c.services.prometheus.enable or false;

@@ -9,6 +9,7 @@
   imports = [
     inputs.disko.nixosModules.disko
     ./prebuilt.nix
+    ./attic-push.nix
     ./disko.nix
     ../../modules/nixos/profiles/gce-server.nix
     ../../modules/nixos/profiles/gce-on-demand.nix

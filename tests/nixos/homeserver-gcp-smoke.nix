@@ -66,6 +66,10 @@ let
         timeout=60,
     )
   '';
+  # Throwaway attic cache keypair; the JWT key is generated at boot.
+  smokeCacheKeypair = pkgs.writeText "smoke-cache-keypair" "smoke-cache-1:BydnatGgj4Kg6gYoCgb7XziABuW7pma+ZP/khOQMpXq6MfcvA/fJjognckEw6vZ2J0War9KY9BIAK9FnaLN6jA==";
+  smokeCachePublicKey = "smoke-cache-1:ujH3LwP3yY6IJ3JBMOr2didFmq/SmPQSACvRZ2izeow=";
+  atticLoopback = "127.0.0.1:18180";
 in
 (import "${nixpkgs}/nixos/lib/testing-python.nix" {
   inherit system pkgs;
@@ -81,6 +85,32 @@ in
           ../../hosts/homeserver-gcp/ntfy.nix
           ../../modules/nixos/profiles/observability
           ../../modules/nixos/services/systemd-failure-notify.nix
+          ../../hosts/homeserver-gcp/attic.nix
+          # The real attic module with local storage instead of GCS.
+          {
+            profiles.homeserverAttic = {
+              enable = true;
+              fqdn = testFqdn;
+              publicKey = smokeCachePublicKey;
+              environmentFile = "/run/attic-smoke.env";
+              signingKeyFile = smokeCacheKeypair;
+              storage = {
+                type = "local";
+                path = "/var/lib/atticd/storage";
+              };
+            };
+            # The attic client (rustls) rejects the throwaway self-signed
+            # cert, and it follows the server's advertised api-endpoint, so
+            # the push goes to atticd over loopback; Nix's reads go through
+            # nginx.
+            services.atticd.settings = {
+              allowed-hosts = lib.mkForce [
+                testFqdn
+                atticLoopback
+              ];
+              api-endpoint = lib.mkForce "http://${atticLoopback}/";
+            };
+          }
         ];
 
         profiles = {
@@ -173,6 +203,19 @@ in
               PYTHON
             '';
           };
+          attic-smoke-env = {
+            before = [ "atticd.service" ];
+            requiredBy = [ "atticd.service" ];
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+            };
+            script = ''
+              umask 077
+              key=$(${pkgs.openssl}/bin/openssl genrsa -traditional 2048 | ${pkgs.coreutils}/bin/base64 -w0)
+              printf 'ATTIC_SERVER_TOKEN_RS256_SECRET_BASE64=%s\n' "$key" > /run/attic-smoke.env
+            '';
+          };
           smoke-test-tls-cert = {
             description = "Generate self-signed TLS cert for smoke test";
             before = [ "nginx.service" ];
@@ -185,7 +228,8 @@ in
                 ${pkgs.openssl}/bin/openssl req -x509 -newkey rsa:2048 \
                   -keyout /var/lib/nginx-certs/homeserver-gcp.key \
                   -out /var/lib/nginx-certs/homeserver-gcp.crt \
-                  -days 1 -nodes -subj '/CN=${testFqdn}'
+                  -days 1 -nodes -subj '/CN=${testFqdn}' \
+                  -addext 'subjectAltName=DNS:${testFqdn}'
                 chmod 640 /var/lib/nginx-certs/homeserver-gcp.key
                 chown root:nginx /var/lib/nginx-certs/homeserver-gcp.key
               '';
@@ -304,6 +348,8 @@ in
           pkgs.python3
           pkgs.jq
           pkgs.prometheus.cli
+          pkgs.attic-client
+          pkgs.attic-server
         ];
       };
 
@@ -413,5 +459,38 @@ in
       "# Watchdog reaches only its own dead-man's-switch receiver."
       "server.wait_until_succeeds('grep -q \\'^/watchdog .*\"alertname\":\"Watchdog\"\\' /tmp/webhook-received', timeout=150)"
       "server.fail(f\"{poll_main} | grep -q Watchdog\")"
+      "server.fail('grep -q \\'^/alerts .*\"alertname\":\"Watchdog\"\\' /tmp/webhook-received')"
+      ''
+
+        # attic: atticd-init creates the cache with the trusted key, twice
+        # without harm, and nginx serves it on the cache port.
+        server.wait_for_unit("atticd.service")
+        server.succeed("systemctl start atticd-init.service")
+        server.succeed("systemctl start atticd-init.service")
+        server.succeed("journalctl -u atticd-init.service | grep -q 'configured; public key ${smokeCachePublicKey}'")
+        cache = "https://${testFqdn}:8443/fleet"
+        tls = "NIX_SSL_CERT_FILE=/var/lib/nginx-certs/homeserver-gcp.crt"
+        nix = "nix --extra-experimental-features nix-command"
+        server.succeed(f"curl -fsS --cacert /var/lib/nginx-certs/homeserver-gcp.crt {cache}/nix-cache-info | grep -qx 'Priority: 41'")
+
+        # Push a small and a chunked path, as the builder's watch-store does.
+        server.succeed(
+          "set -a; . /run/attic-smoke.env; atticadm -f /etc/atticd/admin.toml make-token"
+          " --sub smoke --validity '1 hour' --push fleet --pull fleet > /tmp/push-token"
+        )
+        small = server.succeed("readlink -f /etc/atticd/admin.toml").strip()
+        big = "${pkgs.jq}"
+        server.succeed(f"attic login smoke http://${atticLoopback} \"$(cat /tmp/push-token)\" && attic push smoke:fleet {small} {big}")
+
+        # Substitution through nginx: signed by the cache key, byte-exact NARs.
+        for path in (small, big):
+          server.succeed(f"{tls} {nix} store verify --no-contents --store {cache} --trusted-public-keys '${smokeCachePublicKey}' {path}")
+          server.succeed(f"test \"$({tls} {nix} store dump-path --store {cache} {path} | sha256sum)\" = \"$(nix-store --dump {path} | sha256sum)\"")
+
+        # nginx streams uploads of any size to atticd (its default limit is 1 MiB).
+        server.succeed("head -c 3000000 /dev/zero > /tmp/big-body")
+        code = server.succeed("curl -sk -o /dev/null -w '%{http_code}' -X PUT --data-binary @/tmp/big-body ${"https://${testFqdn}:8443"}/_api/v1/upload-path").strip()
+        assert code != "413", code
+      ''
     ];
   }

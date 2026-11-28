@@ -260,6 +260,10 @@ rec {
                 "workstation->server:3001"
                 "workstation->server:443"
                 "workstation->server:53"
+                # Fleet attic binary cache on homeserver-gcp (#631): the builder
+                # pushes and substitutes, main substitutes. CI has no grant.
+                "builder->server:8443"
+                "workstation->server:8443"
                 "workstation->workstation:22"
               ]
             );

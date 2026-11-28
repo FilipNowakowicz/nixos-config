@@ -91,6 +91,7 @@
       "services": {
         "adguard": false,
         "alertmanager": false,
+        "attic": false,
         "fail2ban": true,
         "firewall": true,
         "grafana": false,

@@ -15,6 +15,8 @@ Status: **active** — deployed on GCP and accessible via Tailscale.
   opt-in exit node (see [Exit node](#exit-node))
 - **ntfy** — the fleet's notification server, tailnet-only on HTTPS port 2586 (see [ntfy](#ntfy))
 - **AdGuard Home** — DNS (TCP/UDP 53) + web UI (HTTPS port 3001 via nginx, internal HTTP on 127.0.0.1:13001), tailscale0 only; state is exposed at `/var/lib/AdGuardHome` and stored by systemd at `/var/lib/private/AdGuardHome`
+- **Attic binary cache** — `atticd` behind nginx on HTTPS port 8443
+  (tailnet-only), chunks in GCS; see [Binary cache](#binary-cache)
 - **Restic/B2** — off-site backups to Backblaze B2 (`/var/lib/grafana`, staged AdGuard state, and a restore canary)
 - **GCE snapshots** — daily 7-day boot disk snapshots for fast provider-local rollback
 
@@ -122,6 +124,71 @@ Not automated. The phone must be on the tailnet as `tag:phone`.
 
 The app label stays "ntfy" on Android; titles and emoji tags identify the
 source.
+
+## Binary cache
+
+The `fleet` attic cache (#631, `attic.nix`) holds what `gcp-builder` builds,
+so `main`, this host and the builder can substitute it while the builder is
+off.
+
+- **Path** — the builder's `attic-watch-store` pushes to
+  `https://homeserver-gcp.<tailnet>:8443/`; nginx streams to `atticd` on
+  `127.0.0.1:18180`; attic stores zstd chunks in the GCS bucket
+  `nixos-config-attic-8c41e7` (`infra/cache.tf`) through the S3 XML API with
+  an HMAC key. Consumers read `https://…:8443/fleet`
+  (`modules/nixos/profiles/fleet-cache.nix`).
+- **Reach** — tailscale0 port 8443 only, granted to `tag:workstation` and
+  `tag:builder` in `lib/hosts.nix`. The cache is public inside that boundary
+  (no pull tokens); pushing needs a token. CI runners have no grant: CI builds
+  on the builder, which substitutes from the cache itself.
+- **Never a dependency** — the cache has priority 41, after cache.nixos.org,
+  and consumers set `connect-timeout = 5` and `fallback = true`, so a down
+  host costs one short timeout before Nix disables the substituter for that
+  session. The builder's watcher just restarts.
+- **Bounds** — objects neither pushed nor fetched for 30 days are dropped by
+  attic's 12-hourly GC, which deletes the orphaned chunks from GCS. The bucket
+  has no versioning or soft delete and aborts multipart uploads after a day.
+  Local state is only the sqlite database at `/var/lib/private/atticd`.
+  `atticd` runs at `MemoryHigh=384M`/`MemoryMax=640M`, low CPU and IO weight.
+- **Bootstrap** — `atticd-init` (timer: 30 s after boot or switch, then
+  every 12 h) creates the cache with the sops signing key and re-asserts its
+  settings. It fails if the cache signs with anything but
+  `lib/binary-cache.nix`'s `fleetCache.publicKey`. It is not in the switch
+  path, so it cannot fail a deploy.
+- **Secrets** — `secrets/attic.yaml`: `attic_signing_key`,
+  `attic_jwt_rs256_secret_base64`, `attic_gcs_access_key_id`,
+  `attic_gcs_secret_access_key`. The builder's push token (`push_token`,
+  valid until about 2028-11-28) is operator-only in
+  `home/users/user/secrets/attic.yaml`; see the builder's
+  [runbook](../gcp-builder/CLAUDE.md#binary-cache-push).
+- **No backup** — the cache is rebuildable. If the database is lost, empty
+  the bucket (`gcloud storage rm "gs://nixos-config-attic-8c41e7/**"`), because
+  chunks the new database does not know are never collected; `atticd-init`
+  re-creates the cache with the same key.
+- **Check** — `curl -fsS https://homeserver-gcp.<tailnet>:8443/fleet/nix-cache-info`;
+  the blackbox `attic-cache` probe does the same, and
+  `nix path-info --store https://homeserver-gcp.<tailnet>:8443/fleet <path>`
+  finds a pushed path.
+
+Rotations:
+
+- **HMAC key** — create a new one and pipe it into sops without printing it,
+  merge, then deactivate and delete the old key:
+
+  ```bash
+  json=$(gcloud storage hmac create attic-cache@<project>.iam.gserviceaccount.com --format=json)
+  jq -j .metadata.accessId <<<"$json" | bash scripts/rotate-secret.sh set hosts/homeserver-gcp/secrets/attic.yaml attic_gcs_access_key_id
+  jq -j .secret <<<"$json" | bash scripts/rotate-secret.sh set hosts/homeserver-gcp/secrets/attic.yaml attic_gcs_secret_access_key
+  unset json
+  ```
+
+- **Push token** — after the JWT secret changes or before the token expires,
+  mint a new one against `/etc/atticd/admin.toml` (`atticadm make-token --sub
+gcp-builder --validity 2y --pull fleet --push fleet`, with the JWT secret in
+  `ATTIC_SERVER_TOKEN_RS256_SECRET_BASE64`), pipe it into
+  `rotate-secret.sh set home/users/user/secrets/attic.yaml push_token`, and
+  reseed the builder. Rotating `attic_jwt_rs256_secret_base64` invalidates
+  every token.
 
 ## Provisioning & First Deploy
 

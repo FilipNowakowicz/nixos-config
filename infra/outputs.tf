@@ -20,3 +20,13 @@ output "snapshot_storage_locations" {
   description = "Storage locations used by scheduled GCE boot disk snapshots"
   value       = local.snapshot_storage_locations
 }
+
+output "attic_bucket" {
+  description = "GCS bucket holding the attic binary cache chunks"
+  value       = google_storage_bucket.attic.name
+}
+
+output "attic_service_account" {
+  description = "Service account whose HMAC key atticd uses for the cache bucket"
+  value       = google_service_account.attic.email
+}
