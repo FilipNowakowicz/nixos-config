@@ -5,8 +5,6 @@
 let
   inherit (invariants) mkResult requirePaths;
 
-  runnerChecks = import ./github-runner-checks.nix { inherit lib; };
-
   homeserverSshAndHttpsTailscaleOnly = {
     name = "SSH and HTTPS stay Tailscale-only";
     check =
@@ -96,8 +94,6 @@ in
 {
   invariants = invariants.deployTargetAccessAssertions ++ [
     homeserverSshAndHttpsTailscaleOnly
-    runnerChecks.selfSwitch
-    runnerChecks.runbook
     homeserverGcpB2BackupUsesCriticalPolicy
     alertDeliveryHasFailedUnitFallback
   ];

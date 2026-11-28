@@ -311,6 +311,23 @@ tf-drift)
     -target google_compute_resource_policy.homeserver_boot_daily_snapshots \
     -target google_compute_disk_resource_policy_attachment.homeserver_boot_daily_snapshots
   rc=$?
+  # The default network's default-allow-* rules were deleted by hand (#627);
+  # Terraform cannot see unmanaged rules, so check for their return here.
+  if command -v gcloud >/dev/null 2>&1; then
+    default_rules=$(gcloud compute firewall-rules list \
+      --filter='name~^default-allow-' --format='value(name)')
+    gcloud_rc=$?
+    if ((gcloud_rc != 0)); then
+      echo "tf-drift: could not list GCP firewall rules (rc=$gcloud_rc)" >&2
+      ((rc == 0)) && rc=$gcloud_rc
+    elif [[ -n $default_rules ]]; then
+      echo "tf-drift: default firewall rules are back; delete them (see infra/main.tf):" >&2
+      echo "$default_rules" >&2
+      ((rc == 0)) && rc=2
+    fi
+  else
+    echo "tf-drift: gcloud not in PATH; skipped the default-allow-* firewall check" >&2
+  fi
   set -e
   case "$rc" in
   0) echo "tf-drift: no drift — live homeserver state matches infra/" ;;

@@ -178,7 +178,7 @@ let
       exit 1
     ''}
 
-    # All three services came up from restored bytes — stamp the freshness
+    # Both services came up from restored bytes — stamp the freshness
     # metric last (set -eu means any failure above skips this and leaves the
     # metric stale for RestoreDrillStale to catch).
     ${mkPromScript {

@@ -10,7 +10,7 @@ gcp_project = "your-gcp-project-id"
 # disk_size_gb = 50
 # disk_type    = "pd-balanced"  # pd-ssd only if you actually need the IOPS
 
-# On-demand hosts: 8 + 2 vCPU leave 2 for the homeserver within the 12-vCPU project quota.
+# vCPU quota: homeserver-gcp 2 (e2-medium) + gcp-builder 14 (see scripts/lib/builder.sh).
 # Compute is billed while running; persistent disks remain billed while stopped.
 
 # Daily GCE boot disk snapshots are provider-local fast rollback, not a restic replacement.

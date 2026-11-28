@@ -76,6 +76,14 @@ resource "google_compute_resource_policy" "builder_weekly_prebuild" {
 
 # GitHub CI wakes the builder with this account. Its key is created outside
 # Terraform so it never enters state, and its only role is on this one VM.
+#
+# Key rotation (#627, not yet done): the account has two user-managed keys,
+# both created 2026-11-08. 4bfa0f50... expires 2028-11-07; 98c8cab7... never
+# expires. Before 2028-11-07, create a replacement key, update the
+# BUILDER_CI_GCP_KEY GitHub secret, confirm a builder start works, then delete every
+# older key (`gcloud iam service-accounts keys delete`). Retire the
+# non-expiring key sooner once CI is confirmed not to use it. Check with
+# `gcloud iam service-accounts keys list --managed-by=user --iam-account ci-builder-start@<project>.iam.gserviceaccount.com`.
 resource "google_service_account" "ci_builder_start" {
   account_id   = "ci-builder-start"
   display_name = "CI: start gcp-builder"

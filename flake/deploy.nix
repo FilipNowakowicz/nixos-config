@@ -21,8 +21,7 @@ let
       # existing known_hosts entries (keyed by the short MagicDNS name) don't
       # match it. TOFU-accept the FQDN's host key on first connect — same
       # tailnet-only, key-only trust model already used for the
-      # gcp-builder build link and the homeserver-gcp self-deploy
-      # "Check failed units" step.
+      # gcp-builder build link.
       sshOpts = [
         "-o"
         "StrictHostKeyChecking=accept-new"

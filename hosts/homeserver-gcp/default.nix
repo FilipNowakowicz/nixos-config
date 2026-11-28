@@ -42,7 +42,6 @@ in
     ./tailnet-presence.nix
     ./audits.nix
     ./hardening.nix
-    ./github-runner.nix
     ./build-resource-limits.nix
     ./tailscale-cert.nix
     ./grafana.nix
@@ -67,11 +66,16 @@ in
 
   environment.etc."host-drift-inventory.json".text = builtins.toJSON hostDriftInventory;
 
-  # One-off cleanup of the retired homepage status stack (#625): the changed
-  # tmpfiles config restarts systemd-tmpfiles-resetup on switch, whose
-  # `--remove` deletes the old state directory. Drop the rule once a deploy
-  # has removed the directory from the live host.
-  systemd.tmpfiles.rules = [ "R /var/lib/homepage - - - - -" ];
+  # One-off cleanup of the removed GitHub runner (#627): its state directory
+  # holds a copy of the registration PAT, and the self-deploy key was a sops
+  # symlink in the user's ~/.ssh. A changed tmpfiles config restarts
+  # systemd-tmpfiles-resetup on switch, whose `--remove` deletes them. Drop
+  # these rules once a deploy has run.
+  systemd.tmpfiles.rules = [
+    "R /var/lib/github-runner - - - - -"
+    "R /var/log/github-runner - - - - -"
+    "r ${config.users.users.${config.profiles.primaryUser}.home}/.ssh/id_ed25519 - - - - -"
+  ];
 
   networking = {
     hostName = "homeserver-gcp";
@@ -93,7 +97,6 @@ in
       ];
       expectedExtraTCPPorts = [
         80 # nginx HTTP->HTTPS redirect vhost (binds 0.0.0.0; tailnet-firewalled)
-        22000 # syncthing transport (user home-manager server role; GUI stays on loopback)
       ];
     };
     observability = {
@@ -208,21 +211,6 @@ in
       # Read at runtime by heartbeat-ping.service via LoadCredential; populate
       # with `sops hosts/homeserver-gcp/secrets/secrets.yaml` before deploying.
       heartbeat_ping_url = { };
-      # Fine-grained PAT used only to register the GitHub Actions deploy runner.
-      # Populate with `sops hosts/homeserver-gcp/secrets/secrets.yaml` before
-      # enabling github-runner-homeserver-deploy.service.
-      github_runner_homeserver_deploy_token = { };
-      # SSH private key the deploy runner uses to reach this host. The runner
-      # lives on homeserver-gcp and the deploy workflow runs deploy-rs +
-      # systemctl checks over `ssh user@homeserver-gcp` (a self-connection), so
-      # the runner's `user` account needs an authorized identity. Placed at the
-      # default identity path; the matching public key is authorized for `user`
-      # in ./github-runner.nix.
-      homeserver_selfdeploy_ssh_key = {
-        path = "${config.users.users.${config.profiles.primaryUser}.home}/.ssh/id_ed25519";
-        owner = config.profiles.primaryUser;
-        mode = "0600";
-      };
     };
   };
 
