@@ -48,9 +48,9 @@ traffic goes through it until that device picks it. It is driven by
 merge).
 
 - **Who can use it** — only sources granted `autogroup:internet` in
-  `flake.nix`'s `tailnetAcl`: devices logged in as an admin user and
-  `tag:workstation`. `tag:ci`, `tag:ci-builder`, `tag:builder` and `tag:phone`
-  are not offered it.
+  `flake.nix`'s `tailnetAcl`: devices logged in as an admin user,
+  `tag:workstation`, and `tag:phone` (the phone, its main user).
+  `tag:ci`, `tag:ci-builder` and `tag:builder` are not offered it.
 - **Turn it on** — in the Tailscale app, pick _Exit node → homeserver-gcp_ (on
   Linux: `tailscale set --exit-node=homeserver-gcp`). Turn it off the same way
   (`tailscale set --exit-node=`). Never set it declaratively: the invariants

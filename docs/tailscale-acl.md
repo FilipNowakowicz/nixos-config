@@ -145,9 +145,9 @@ bash scripts/apply-tailscale-acl.sh
 `modules/nixos/profiles/gce-server.nix` turns on IP forwarding
 (`useRoutingFeatures = "server"`) and runs `tailscale set --advertise-exit-node`,
 and `mkAcl` auto-approves the host's tag as an exit node. Only the sources in
-`exitNodeUsers` (here `autogroup:admin` and `tag:workstation`) get
+`exitNodeUsers` (here `autogroup:admin`, `tag:phone` and `tag:workstation`) get
 `autogroup:internet`, and Tailscale offers an exit node only to sources allowed
-to use it, so CI runners, the builder and the tagged phone never see it.
+to use it, so CI runners and the builder never see it.
 
 Nothing is routed through an exit node until a device picks it in its client.
 `lib/invariants.nix` keeps it that way: no registry host may set `exitNodeUse`,

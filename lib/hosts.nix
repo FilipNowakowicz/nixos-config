@@ -61,7 +61,8 @@ let
           # transfers. Its UDP discovery broadcast doesn't cross the tailnet, so
           # the phone adds this host by its tailnet IP. An untagged phone on the
           # admin's account already passes the break-glass rule; tagging it
-          # tag:phone confines it to these ports.
+          # tag:phone confines it to these ports (plus the opt-in exit node
+          # on homeserver-gcp, granted in flake.nix's tailnetAcl).
           phone = [ 1716 ] ++ builtins.genList (i: 1739 + i) 26;
         };
       };

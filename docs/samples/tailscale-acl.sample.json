@@ -63,7 +63,7 @@
     {
       "action": "accept",
       "dst": ["autogroup:internet:*"],
-      "src": ["autogroup:admin", "tag:workstation"]
+      "src": ["autogroup:admin", "tag:phone", "tag:workstation"]
     },
     {
       "action": "accept",

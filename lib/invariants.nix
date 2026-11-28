@@ -241,9 +241,11 @@ rec {
               phoneKdeConnect
               ++ [
                 # Opt-in exit node on homeserver-gcp (#629), usable only by
-                # the owner's devices; CI, the builder and the phone get none.
+                # the owner's devices (the phone first of all); CI and the
+                # builder get none.
                 "autogroup:admin->autogroup:internet"
                 "exit-node-approver:tag:server"
+                "tag:phone->autogroup:internet"
                 "tag:workstation->autogroup:internet"
                 "builder->server:53"
                 "ci->server:22"

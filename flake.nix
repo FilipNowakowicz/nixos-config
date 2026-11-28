@@ -94,7 +94,7 @@
         # CI runners are external to the NixOS host registry, but use a
         # pre-approved Tailscale tag to reach the homeserver over SSH;
         # `ci-builder` reaches only gcp-builder. A phone tagged `phone` reaches
-        # only KDE Connect on main.
+        # only KDE Connect on main, plus the exit node below.
         externalTags = [
           "ci"
           "ci-builder"
@@ -102,10 +102,12 @@
           "phone"
         ];
         # Only the owner's own devices may route through an exit node: devices
-        # logged in as an admin user, and the workstation. CI and the other
-        # tags get no internet access over the tailnet.
+        # logged in as an admin user, the workstation, and the phone (the main
+        # user of the homeserver exit node). CI and the builder get no internet
+        # access over the tailnet.
         exitNodeUsers = [
           "autogroup:admin"
+          "tag:phone"
           "tag:workstation"
         ];
       };
