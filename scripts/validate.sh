@@ -177,6 +177,11 @@ docs)
   bash scripts/check-ci-closure-targets.sh
   bash scripts/check-ci-closure-targets.sh --self-test
   bash .agents/scripts/check-agent-sync.sh
+  echo "{\"cwd\":\"$PWD\"}" | bash .claude/hooks/session-context.sh | jq -e .hookSpecificOutput.additionalContext >/dev/null
+  echo "{\"cwd\":\"$PWD\",\"tool_input\":{\"command\":\"echo git commit\"}}" | bash .claude/hooks/format-before-commit.sh | grep -q . && {
+    echo "format-before-commit fired on a non-commit" >&2
+    exit 1
+  }
   bash .agents/learning/scripts/validate-candidates.sh --self-test
   bash .agents/learning/scripts/index-candidates.sh --self-test
   bash .agents/learning/scripts/scaffold-promotion-check.sh --self-test

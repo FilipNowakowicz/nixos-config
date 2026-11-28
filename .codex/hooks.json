@@ -8,6 +8,11 @@
             "type": "command",
             "command": "bash \"$(git rev-parse --show-toplevel)\"/.claude/hooks/guard-bash.sh",
             "statusMessage": "Checking Bash command"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)\"/.claude/hooks/format-before-commit.sh",
+            "statusMessage": "Formatting before commit"
           }
         ]
       },
@@ -18,6 +23,16 @@
             "type": "command",
             "command": "bash \"$(git rev-parse --show-toplevel)\"/.claude/hooks/guard-edits.sh",
             "statusMessage": "Checking edit target"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)\"/.claude/hooks/session-context.sh"
           }
         ]
       }

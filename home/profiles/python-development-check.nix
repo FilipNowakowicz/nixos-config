@@ -14,6 +14,14 @@ in
 assert lib.assertMsg (lib.any (
   p: lib.getName p == "uv"
 ) hm.home.packages) "Home Manager must install uv";
+# python3 on PATH must be the uv shim, never a Nix Python that bypasses the
+# managed-interpreter policy.
+assert lib.assertMsg (
+  lib.any (p: lib.getName p == "python3") hm.home.packages
+  && !(lib.any (
+    p: (p.pname or "") == "python3" || lib.hasPrefix "python3-" (p.name or "")
+  ) hm.home.packages)
+) "python3 on PATH must be the uv shim from python-development.nix";
 assert lib.assertMsg (lib.all enabledFile (
   targets
   ++ map configFile [

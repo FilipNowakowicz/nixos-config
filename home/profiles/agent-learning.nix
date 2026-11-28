@@ -66,8 +66,18 @@ in
     };
     schedule = lib.mkOption {
       type = lib.types.str;
-      default = "Mon *-*-* 10:00";
+      # Friday, the day of the weekly flake.lock update (18:00 UTC).
+      default = "Fri *-*-* 10:00";
       description = "systemd OnCalendar for the weekly run.";
+    };
+    claudeTokenFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        File holding a long-lived Claude Code token (`claude setup-token`) for the
+        unattended reviewer. Interactive sign-ins expire; without this the run
+        fails once they do.
+      '';
     };
   };
 
@@ -93,7 +103,10 @@ in
             "AGENT_LEARNING_NTFY_URL=${ntfy.topicUrl}"
             "AGENT_LEARNING_NTFY_TOKEN_FILE=${config.sops.secrets.ntfy-token.path}"
             "AGENT_LEARNING_NTFY_TAGS=${ntfy.tags "agents"}"
-          ];
+          ]
+          ++ lib.optional (
+            cfg.claudeTokenFile != null
+          ) "AGENT_LEARNING_CLAUDE_TOKEN_FILE=${cfg.claudeTokenFile}";
           TimeoutStartSec = "4h";
           Nice = 10;
         };

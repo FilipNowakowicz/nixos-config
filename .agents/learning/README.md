@@ -101,7 +101,10 @@ improvements.
 
 The `agent-learning-weekly` user timer on `main`
 ([`home/profiles/agent-learning.nix`](../../home/profiles/agent-learning.nix))
-runs `scripts/weekly.sh` every Monday:
+runs `scripts/weekly.sh` every Friday at 10:00 (the day of the weekly
+`flake.lock` update). Interactive Claude sign-ins expire, so set
+`fleet.agentLearning.claudeTokenFile` to a `claude setup-token` token kept in
+sops for the unattended reviewer:
 
 1. digest and miner, as above;
 2. the **reviewer**, Claude Opus with fresh context in its own worktree of

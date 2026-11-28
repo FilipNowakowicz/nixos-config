@@ -19,9 +19,10 @@ debugging a host, read its runbook (Codex does not load these on its own):
 
 - **Dev machine:** NixOS (`main`).
 - **Dev shell:** `nix develop` — provides `deploy-rs`, `nixos-anywhere`, `nixd`, `statix`, `deadnix`, `sops`, `ssh-to-age`, `vulnix`, `direnv`, and the flake-managed pre-commit hook tooling.
-- **Bare agent shells lack repo tooling** (`python3`, `sops`, …): run repo
+- **Bare agent shells lack repo tooling** (`sops`, `statix`, …): run repo
   scripts and checks as `nix develop -c <cmd>`, and one-off tools as
-  `nix shell nixpkgs#<pkg> -c <cmd>`.
+  `nix shell nixpkgs#<pkg> -c <cmd>`. `python3` on PATH is uv's managed 3.12
+  (`home/profiles/python-development.nix`); projects use `uv run`.
 - **Git hooks:** `nix develop` installs a `commit-msg` hook that strips `Co-authored-by:` trailers to keep history single-author.
 - **Fresh linked worktrees** (`~/.local/share/worktrees/nix/*`, per the global worktree rule)**:** a `codex/*` branch may already be checked out in another worktree (`git worktree list`), and `.pre-commit-config.yaml` is flake-generated so a worktree never entered via `nix develop` lacks it — commit there with `--no-verify`, but never use `--no-verify` to skip a real lint failure in the primary checkout.
 - **Lost worktree recovery.** If a worktree disappears before its work is committed, inspect `git fsck --no-reflogs --dangling` and recover matching blobs with `git cat-file` before `git worktree prune` drops the remaining worktree metadata and index.
@@ -90,13 +91,16 @@ shared profiles changed, build all affected hosts.
   (`.agents/scripts/check-agent-sync.sh` fails when they drift): edits to
   secrets are denied (use `sops`); `disko.nix` edits, destructive block-device
   or LUKS ops, recursive `rm` of a top-level path, `gh pr merge --admin`, and
-  (Claude only) worktree subagents spawned from a dirty checkout all ask first. A blocked or
-  prompted action is by design, not a failure.
+  (Claude only) worktree subagents spawned from a dirty checkout all ask first.
+  `format-before-commit.sh` runs `nix fmt` on changed files and stops a
+  `git commit` that would fail CI formatting; `session-context.sh` tells a new
+  session which checkout and branches are in use. A blocked or prompted action
+  is by design, not a failure.
 
 ## Learning Candidates
 
 Lessons go to an inbox outside git (`~/.local/state/agent-learning/inbox/`).
-Each Monday `agent-learning-weekly` mines the week's Claude and Codex
+Each Friday `agent-learning-weekly` mines the week's Claude and Codex
 sessions for more (Codex), then a reviewer that did not write them (Claude
 Opus, fresh worktree) verifies and promotes or rejects them in one PR, which
 auto-merges via `merge-gate` when it only touches the agent surface. Promotion

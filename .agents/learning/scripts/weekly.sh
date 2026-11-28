@@ -22,6 +22,7 @@
 #   AGENT_LEARNING_REVIEWER_MODEL
 #   AGENT_LEARNING_NTFY_URL, AGENT_LEARNING_NTFY_TOKEN_FILE, AGENT_LEARNING_NTFY_TAGS
 #   AGENT_LEARNING_AUTO_MERGE  1 (default) or 0
+#   AGENT_LEARNING_CLAUDE_TOKEN_FILE  long-lived `claude setup-token` token
 set -euo pipefail
 
 mode=full
@@ -55,6 +56,12 @@ mkdir -p "$run" "$inbox" "$state/processed"
 find "$state/runs" -mindepth 1 -maxdepth 1 -type d | sort | head -n -12 | xargs -r rm -rf
 
 log() { printf 'agent-learning: %s\n' "$*" >&2; }
+
+# Interactive Claude sign-ins expire; an unattended run uses a setup-token.
+if [[ -r ${AGENT_LEARNING_CLAUDE_TOKEN_FILE:-/nonexistent} ]]; then
+  CLAUDE_CODE_OAUTH_TOKEN=$(<"$AGENT_LEARNING_CLAUDE_TOKEN_FILE")
+  export CLAUDE_CODE_OAUTH_TOKEN
+fi
 
 notify() { # $1=title $2=body [$3=priority]
   [[ -n ${AGENT_LEARNING_NTFY_URL:-} && -r ${AGENT_LEARNING_NTFY_TOKEN_FILE:-/nonexistent} ]] || return 0
