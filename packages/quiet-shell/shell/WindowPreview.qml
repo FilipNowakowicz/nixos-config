@@ -19,6 +19,7 @@ Item {
         visible: root.late && !capture.hasContent
         size: root.iconSize
         icon: Dockable.iconOf(root.appId)
+        glyph: Dockable.glyphOf(root.appId)
         fallback: Dockable.nameOf(root.appId || "?")
         lit: root.lit
     }

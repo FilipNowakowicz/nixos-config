@@ -47,6 +47,7 @@ Item {
                     y: 136
                     size: 20
                     icon: Dockable.iconOf(card.appId)
+                    glyph: Dockable.glyphOf(card.appId)
                     fallback: Dockable.nameOf(card.appId || "?")
                     lit: card.index === Ui.switcherIndex || card.hovered
                 }

@@ -29,6 +29,7 @@ Item {
                     anchors.centerIn: parent
                     size: 44
                     icon: item.modelData.icon
+                    glyph: item.modelData.glyph
                     fallback: item.modelData.name
                     lit: item.hovered || item.activeFocus || item.modelData.windows.some(Dockable.isActive)
                     opacity: item.minimized ? 0.45 : 1

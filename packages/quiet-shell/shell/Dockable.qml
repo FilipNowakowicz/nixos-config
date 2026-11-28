@@ -10,10 +10,15 @@ Singleton {
     id: root
     readonly property string hiddenWorkspace: "special:minimized"
 
+    // Windows the shell opens itself have no desktop entry to take these from.
+    readonly property var own: ({ "quiet-notes": { name: "Notes", glyph: "notebook-pen" } })
+
     function entry(id) {
         return DesktopEntries.heuristicLookup(id);
     }
     function nameOf(id) {
+        if (own[id])
+            return own[id].name;
         const e = entry(id);
         return e ? e.name : id.charAt(0).toUpperCase() + id.slice(1);
     }
@@ -32,6 +37,10 @@ Singleton {
     function iconOf(id) {
         const e = entry(id);
         return e ? e.icon : id;
+    }
+
+    function glyphOf(id) {
+        return own[id] ? own[id].glyph : "";
     }
 
     // Windows, last focused first. Hyprland doesn't expose this order.
@@ -134,7 +143,7 @@ Singleton {
             let app = out.find(a => a.id === id.toLowerCase());
             if (!app) {
                 const e = entry(id);
-                app = { id: id.toLowerCase(), name: nameOf(id), icon: e ? e.icon : id, windows: [] };
+                app = { id: id.toLowerCase(), name: nameOf(id), icon: e ? e.icon : id, glyph: glyphOf(id), windows: [] };
                 out.push(app);
             }
             app.windows.push(t);
