@@ -70,18 +70,26 @@ in
       default = "Fri *-*-* 10:00";
       description = "systemd OnCalendar for the weekly run.";
     };
-    claudeTokenFile = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
+    sopsFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
       default = null;
       description = ''
-        File holding a long-lived Claude Code token (`claude setup-token`) for the
-        unattended reviewer. Interactive sign-ins expire; without this the run
-        fails once they do.
+        sops file holding `claude_token`, a long-lived Claude Code token from
+        `claude setup-token`, for the unattended reviewer. Interactive sign-ins
+        expire, and the run fails once they do. Set the value with
+        `scripts/rotate-secret.sh set <file> claude_token`.
       '';
     };
   };
 
   config = {
+    sops.secrets = lib.mkIf (cfg.sopsFile != null) {
+      agent-learning-claude-token = {
+        inherit (cfg) sopsFile;
+        key = "claude_token";
+      };
+    };
+
     home.packages = [ weekly ];
 
     systemd.user = {
@@ -105,8 +113,8 @@ in
             "AGENT_LEARNING_NTFY_TAGS=${ntfy.tags "agents"}"
           ]
           ++ lib.optional (
-            cfg.claudeTokenFile != null
-          ) "AGENT_LEARNING_CLAUDE_TOKEN_FILE=${cfg.claudeTokenFile}";
+            cfg.sopsFile != null
+          ) "AGENT_LEARNING_CLAUDE_TOKEN_FILE=${config.sops.secrets.agent-learning-claude-token.path}";
           TimeoutStartSec = "4h";
           Nice = 10;
         };
