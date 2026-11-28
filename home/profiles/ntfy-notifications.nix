@@ -9,7 +9,7 @@
 #   Alertmanager, heartbeat), GitHub deploy failures and healthchecks.io.
 #
 # Each message carries a `source-*` tag (lib/ntfy.nix). It picks the app name
-# and icon, so a notification reads as coming from its source and the quiet
+# and glyph, so a notification reads as coming from its source and the quiet
 # shell groups it with that source. ntfy priority maps to urgency.
 {
   config,
@@ -41,10 +41,10 @@ let
       case $source in
       ${lib.concatStrings (
         lib.mapAttrsToList (name: s: ''
-          ${name}) app=${lib.escapeShellArg s.appName} icon=${lib.escapeShellArg s.icon} ;;
+          ${name}) app=${lib.escapeShellArg s.appName} glyph=${lib.escapeShellArg s.glyph} ;;
         '') ntfy.sources
       )}
-      *) app=Notifications icon=dialog-information ;;
+      *) app=Notifications glyph=bell ;;
       esac
 
       case ''${NTFY_PRIORITY:-3} in
@@ -53,7 +53,8 @@ let
       *) urgency=normal ;;
       esac
 
-      notify-send --app-name="$app" --icon="$icon" --urgency="$urgency" \
+      notify-send --app-name="$app" --urgency="$urgency" \
+        --hint=string:x-quiet-shell-glyph:"$glyph" \
         -- "''${NTFY_TITLE:-$app}" "''${NTFY_MESSAGE:-}" || true
 
       # Recorded after showing, so a crash repeats a message rather than losing it.

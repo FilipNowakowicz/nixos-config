@@ -2,7 +2,8 @@
 # config, every sender and the `main` subscriber share.
 #
 # Senders mark each message with a `source-<name>` tag. The subscriber on
-# `main` maps it to a desktop app name and icon, so notifications read as coming
+# `main` maps it to a desktop app name and a quiet-shell glyph (a Lucide icon
+# under packages/quiet-shell/shell/assets/icons), so notifications read as coming
 # from their source, and the quiet shell groups them per source. The second tag
 # is an emoji shortcode, which the Android app shows in front of the title.
 {
@@ -29,38 +30,38 @@ rec {
   sources = {
     homeserver = {
       appName = "Homeserver";
-      icon = "network-server";
+      glyph = "server";
       emoji = "cloud";
     };
     builder = {
       appName = "Remote builder";
-      icon = "system-software-update";
+      glyph = "hammer";
       emoji = "hammer_and_wrench";
     };
     backups = {
       appName = "Backups";
-      icon = "drive-harddisk";
+      glyph = "hard-drive";
       emoji = "floppy_disk";
     };
     phone-backup = {
       appName = "Phone backup";
-      icon = "phone";
+      glyph = "smartphone";
       emoji = "iphone";
     };
     on-worker = {
       appName = "On-worker";
-      icon = "utilities-terminal";
+      glyph = "terminal";
       emoji = "gear";
     };
     deploys = {
       appName = "Deploys";
-      icon = "system-software-install";
+      glyph = "rocket";
       emoji = "rocket";
     };
     # Failures of main's own system units that aren't backups.
     system = {
       appName = "System";
-      icon = "computer";
+      glyph = "monitor";
       emoji = "computer";
     };
   };

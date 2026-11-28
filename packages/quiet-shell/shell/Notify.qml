@@ -85,7 +85,10 @@ Singleton {
         imageSupported: true
         onNotification: n => {
             n.tracked = true;
-            const entry = { key: ++root.lastKey, source: n, app: n.appName, icon: n.appIcon, title: n.summary, body: n.body, at: new Date() };
+            // Senders that know the shell (the fleet ntfy subscriber) name one of its own
+            // glyphs in assets/icons instead of a theme icon.
+            const glyph = String(n.hints["x-quiet-shell-glyph"] || "");
+            const entry = { key: ++root.lastKey, source: n, app: n.appName, icon: n.appIcon, glyph: /^[a-z0-9-]+$/.test(glyph) ? glyph : "", title: n.summary, body: n.body, at: new Date() };
             // Apps can close their own notifications. Quickshell destroys the
             // object after this signal; retain the history without a dead QObject
             // whose dismiss()/actions would throw when the card is used later.

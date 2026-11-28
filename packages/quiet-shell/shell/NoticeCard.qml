@@ -53,7 +53,7 @@ Item {
         icon: root.entry && root.entry.icon ? root.entry.icon : ""
         lit: root.hovered
         fallback: root.entry ? root.entry.app : ""
-        glyph: root.entry && root.entry.system ? "bell" : ""
+        glyph: !root.entry ? "" : root.entry.glyph || (root.entry.system ? "bell" : "")
     }
     ColumnLayout {
         id: column
