@@ -46,7 +46,20 @@ let
         fi
       done
 
-      exec npm exec --yes --package "$pkg@$version" -- codex --dangerously-bypass-approvals-and-sandbox "$@"
+      # Interactive use skips approvals and the sandbox, as Claude Code does here.
+      # A caller that asks for a sandbox (`-s`/`--sandbox`, e.g. the learning
+      # miner or the second-opinion skill) gets it: the bypass flag overrides -s.
+      bypass=(--dangerously-bypass-approvals-and-sandbox)
+      for arg in "$@"; do
+        case $arg in
+        -s | --sandbox | --sandbox=*)
+          bypass=()
+          break
+          ;;
+        esac
+      done
+
+      exec npm exec --yes --package "$pkg@$version" -- codex "''${bypass[@]}" "$@"
     '';
   };
 in
