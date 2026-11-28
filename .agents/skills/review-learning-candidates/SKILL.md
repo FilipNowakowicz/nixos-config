@@ -1,29 +1,33 @@
 ---
 name: review-learning-candidates
-description: Use when reviewing accumulated .agents/learning candidates, deduplicating them, rejecting weak ones, or promoting strong ones into executable checks, hooks, skills, or docs.
+description: Use when reviewing the learning-candidate inbox by hand, deduplicating candidates, rejecting weak ones, or promoting strong ones into executable checks, hooks, skills, subagents or docs. The weekly agent-learning-weekly run does the same unattended.
 ---
 
 # Review Learning Candidates
 
-Review compact learning candidates under `.agents/learning/candidates/`.
-Candidate review is explicit, batch-oriented work. Do not run it as part of
-normal task wrap-up.
+Review compact learning candidates in the inbox
+(`~/.local/state/agent-learning/inbox/`, outside git; see
+`.agents/learning/scripts/common.sh`). The weekly `agent-learning-weekly` run
+does this unattended with `.agents/learning/prompts/reviewer.md`; use this
+skill when the user asks for a review by hand. Do not run it as part of normal
+task wrap-up.
 
 End state of a review pass: every candidate touched is either implemented in a
-PR (and `promoted`), `superseded`, `rejected`, or consciously left `open` with a
-reason. The promotion and the candidate's `status` flip travel together in the
-same branch, and `promoted`/`rejected`/`superseded` files are moved out of the
-open queue so the index stays lean.
+PR (and `promoted`), `superseded`, `rejected`, or consciously left in the inbox
+with a reason. Decided candidates are archived in the repo under
+`.agents/learning/candidates/archive/` in the same PR as the promotion, and
+removed from the inbox once the PR is open.
 
 ## Goal
 
 Turn candidate proposals into the strongest useful repo artifact:
 
 1. assertion / test / CI gate
-2. hook
+2. hook (wired for both Claude and Codex)
 3. skill
-4. doc
-5. rejection
+4. subagent
+5. doc
+6. rejection
 
 Prefer executable enforcement over prose. A candidate that can become a check,
 test, or invariant should not be promoted to `CLAUDE.md`.
@@ -110,11 +114,11 @@ never edit the same file. If a candidate's promotion needs validation, use the
 
 In the PR that implements a promotion, also:
 
-- flip the candidate `status` (`promoted` / `rejected` / `superseded`), and
-- **archive the file**: `git mv` it from `candidates/` to `candidates/archive/`.
-  The index scripts only scan `candidates/` at depth 1, so archiving drops it
-  from the open queue automatically while keeping the file in-tree (greppable
-  under `archive/`) for later dedup and audit.
+- copy the candidate from the inbox to `candidates/archive/` with its `status`
+  flipped (`promoted` / `rejected` / `superseded`) and a `resolution:` line,
+  and
+- once the PR is open, delete it from the inbox. The archive stays greppable
+  (`query-candidates.sh` searches it too) for later dedup and audit.
 
 `status` values:
 
@@ -122,7 +126,7 @@ In the PR that implements a promotion, also:
 - `rejected` — no durable action should be taken.
 - `superseded` — another candidate or artifact (often an already-merged fix)
   covers it.
-- `open` — still needs later work; leave it in `candidates/` (do not archive).
+- `open` — still needs later work; leave it in the inbox (do not archive).
 
 ## Guardrails
 
@@ -133,5 +137,6 @@ In the PR that implements a promotion, also:
   memory.
 - If promotion changes repo behavior, use the `nix-verification-loop` skill to
   pick the smallest meaningful validation.
-- Review stays human-gated: the promotion PR is the gate. Do not enable
-  auto-merge or merge it yourself unless the user asks.
+- Review by a different agent than the one that filed the candidate. The
+  weekly run's PR auto-merges through `merge-gate` when it only touches the
+  agent surface; in a hand review, do not merge unless the user asks.

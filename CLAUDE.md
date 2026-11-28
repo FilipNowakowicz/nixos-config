@@ -73,7 +73,6 @@ shared profiles changed, build all affected hosts.
 ## Agents
 
 - **Claude Code** — all `.nix` changes, deployments, secrets.
-- **Gemini CLI** — documentation only (`.md` files), consistency checks, README updates.
 - **Codex CLI** — uses this same `CLAUDE.md` guidance through the repo-local
   `.codex/config.toml` fallback configuration. Do not maintain separate
   `CODEX.md`/`AGENTS.md` copies for this repo.
@@ -85,7 +84,9 @@ shared profiles changed, build all affected hosts.
   do not add project-local Nix files solely for Python dependencies.
 - **Shared workflow skills** — repo-local skills live under `.agents/skills/`.
   Codex auto-discovers them directly, and Claude discovers the same tree through
-  the `.claude/skills -> ../.agents/skills` symlink.
+  the `.claude/skills -> ../.agents/skills` symlink. Repo hooks are wired for
+  both agents; `.agents/scripts/check-agent-sync.sh` (in `validate.sh docs`)
+  fails when the two drift.
 - **Personal skills** — skills that apply in any repository live under
   `home/files/agents/skills/`; `home/profiles/agent-skills.nix` links each one
   into `~/.claude/skills/` and `~/.codex/skills/`. Project-specific skills stay
@@ -118,25 +119,25 @@ Use these repo-local skills when the task matches:
   criteria and the proving check before editing when feasible.
 - **`nix-review-ledger-batch`** — use when processing review findings, backlog
   items, or status ledgers in small validated batches.
-- **`capture-learning-candidate`** — use at the end of non-trivial work when you
-  learned something reusable. Record it as a candidate under
-  `.agents/learning/candidates/`; never self-edit `CLAUDE.md`, skills, hooks, or
-  invariants from a lesson.
-- **`review-learning-candidates`** — use when explicitly reviewing accumulated
-  learning candidates. Start from the metadata review script, open only the
-  selected batch, and promote strong candidates as checks/hooks/skills/docs.
+- **`capture-learning-candidate`** — use when work surfaced a reusable lesson
+  or a missing skill/hook/check that would have saved real time. Files it
+  into the inbox with `file-candidate.sh`; never self-edit `CLAUDE.md`,
+  skills, hooks, or invariants from a lesson.
+- **`review-learning-candidates`** — use when the user asks for a review by
+  hand; the weekly run does it otherwise.
 - **`repo-map-query`** — use before broad repo exploration when the relevant
   files are not already obvious. Query the generated repo map, then open only
   the top likely files and verify against source.
 
 ## Learning Candidates
 
-Agents capture reusable lessons as reviewed candidates under
-`.agents/learning/` (see its `README.md`); a human-gated reviewer promotes the
-good ones later. Capture never changes behavior on its own. Promotion prefers
-the strongest viable form — assertion/test > hook > skill > prose — because an
-executable check is self-validating via `merge-gate`, while prose is a permanent
-context tax with no safety net. Capture and on-demand review are active now.
+Lessons go to an inbox outside git (`~/.local/state/agent-learning/inbox/`).
+Each Monday `agent-learning-weekly` mines the week's Claude and Codex
+sessions for more (Codex), then a reviewer that did not write them (Claude
+Opus, fresh worktree) verifies and promotes or rejects them in one PR, which
+auto-merges via `merge-gate` when it only touches the agent surface. Promotion
+prefers assertion/test > hook > skill > subagent > prose. See
+[`.agents/learning/README.md`](.agents/learning/README.md).
 
 ## Secrets (sops-nix)
 

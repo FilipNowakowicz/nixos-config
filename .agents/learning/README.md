@@ -1,13 +1,15 @@
 # Learning Candidates
 
-A reviewed learning loop for the agents working in this repo. Agents capture
-reusable lessons as **candidates**; a human-gated reviewer later promotes the
-good ones into durable artifacts. Agents never self-edit `CLAUDE.md`, skills,
-hooks, or invariants from a lesson — promotion is always a separate, reviewed
-step.
+The learning loop for the agents (Claude Code and Codex) working in this repo.
+Lessons become **candidates**; once a week a reviewer model that did not write
+them verifies each against the source and turns the good ones into durable
+artifacts. Agents never self-edit `CLAUDE.md`, skills, hooks, or invariants from
+a lesson; promotion is always a separate, reviewed step.
 
 ```
-work  ->  candidate lesson  ->  review  ->  promote  ->  better future agents
+sessions --digest--> miner --+
+                             +--> inbox --> reviewer --> one PR --> merge-gate
+agent in a session ----------+
 ```
 
 ## Candidate vs. agent memory
@@ -25,43 +27,50 @@ If a fact would help a teammate's agent as much as your own, it is a candidate.
 
 ## Layout
 
-- `candidates/` — open candidate notes, one compact YAML file per lesson
-  (`<date>-<slug>.yml`). This is a staging area, not instructions; nothing here
-  changes agent behavior until promoted.
-- `TEMPLATE.yml` — the compact candidate format. Copy it when capturing.
-- `scripts/index-candidates.sh` — emits a TSV index from candidate metadata.
-- `scripts/query-candidates.sh` — searches the index so agents do not read the
-  candidate archive during capture.
-- `scripts/review-candidates.sh` — groups open candidates for low-token reviewer
-  triage and lists expired ones.
-- `scripts/check-candidate-liveness.sh` — flags open candidates whose evidence
-  already landed (PR merged / commit on HEAD), so a reviewer does not
-  re-implement a done fix.
-- `scripts/validate-candidates.sh` — checks required routing fields and allowed
-  categories.
-- `candidates/archive/` — `promoted`/`rejected`/`superseded` candidates land
-  here (see [Lifecycle](#lifecycle)); the index scripts ignore it so the open
-  queue stays lean.
+- **Inbox** (`~/.local/state/agent-learning/inbox/`, outside git): the open
+  queue, one compact YAML file per lesson (`<date>-<slug>.yml`). Keeping it out
+  of git means candidates never sit uncommitted in a checkout other agents
+  share. `scripts/common.sh` resolves the path (`AGENT_LEARNING_INBOX`
+  overrides it).
+- `candidates/archive/`: decided candidates (`promoted`, `rejected`,
+  `superseded`) with a `resolution:` line, committed by the PR that decided
+  them. Kept for dedup and audit.
+- `TEMPLATE.yml`: the candidate format (schema v2).
+- `prompts/`: the miner and reviewer prompts and their output schemas.
+- `promotions/`: regression checks promoted from candidates, run by
+  `scripts/validate.sh`.
+- `scripts/`:
+  - `file-candidate.sh` validates and files one candidate.
+  - `query-candidates.sh` searches the inbox and archive by metadata, so
+    agents never read the queue to dedupe.
+  - `review-candidates.sh` and `check-candidate-liveness.sh` are the
+    reviewer's triage: grouping, expiry, and whether the evidence already
+    landed.
+  - `validate-candidates.sh` and `index-candidates.sh` back the others.
+  - `digest.py` and `weekly.sh` run the weekly loop.
 
-## Capture (active now)
+## Schema v2
 
-Any agent (Claude, Codex) may drop a candidate as a side effect of high-signal
-work, using the `capture-learning-candidate` skill. The bar is high and the act
-is cheap: a candidate is a structured _proposal_, reviewed later, so it must
-never edit instructions directly.
+v2 adds the `tooling-wish` type: a skill, hook, check, script or subagent that
+would have made the work cheaper. `cost` (optional, any type) records what its
+absence cost, such as "4 failed calls in 3 sessions", so the reviewer can rank
+wishes. Routes gain `promote-subagent`, and forms gain `subagent`. v1 files
+still validate.
 
-A shared `Stop` hook (`.claude/hooks/learning-nudge.sh`, wired for Claude in
-`.claude/settings.json` and for Codex in `.codex/hooks.json`) gives a
-_one-time, non-binding_ reflection prompt only when the transcript shows both a
-file edit and high-signal learning evidence such as a failed check, CI/deploy
-failure, merge conflict, explicit bypass, or user correction. It asks whether a
-lesson is worth capturing and explicitly accepts "nothing qualified." It never
-forces a candidate, fires at most once per session, and stays silent on
-pure-conversation or routine-success turns.
+## Capture
 
-Capture must not scan `.agents/learning/candidates/`. Use
-`scripts/query-candidates.sh` and open at most the likely duplicate candidates
-that the index returns.
+Two sources feed the inbox:
+
+- **The weekly miner.** `digest.py` condenses the week's Claude and Codex
+  sessions in `~/nix` and its worktrees: user prompts and corrections, failed
+  tool calls, commands repeated three or more times, hook blocks, and session
+  size. The miner (Codex by default, Claude Sonnet as fallback, no tools) turns
+  that into at most 8 candidates, deduplicated against the inbox and archive.
+  It sees patterns across sessions that no single session can.
+- **An agent in the moment**, through the `capture-learning-candidate` skill,
+  when it holds evidence the transcript would not show well. This is optional;
+  there is no Stop hook prompting for it any more. That hook used to fire in
+  almost every session.
 
 ## Promotion hierarchy (read before proposing a destination)
 
@@ -73,9 +82,12 @@ when the repo changes underneath it. Prefer, in order:
 1. **assertion / test / CI gate** — `lib/invariants.nix`, a NixOS assertion, a
    profile/package/smoke test, a `scripts/validate.sh` check. Self-checking:
    `merge-gate` is the reviewer.
-2. **hook** — `.claude/hooks/*` (shared with Codex via `.codex/hooks.json`).
-3. **skill** — `.agents/skills/*`, loaded on demand.
-4. **CLAUDE.md prose** — last resort. Permanent context-budget tax on every
+2. **hook**: `.claude/hooks/*`, wired in both `.claude/settings.json` and
+   `.codex/hooks.json` (`.agents/scripts/check-agent-sync.sh` enforces it).
+3. **skill** — `.agents/skills/*`, loaded on demand by both agents.
+4. **subagent** — a focused agent definition for work that would flood the
+   main context (research, broad audits).
+5. **CLAUDE.md prose** — last resort. Permanent context-budget tax on every
    future invocation, and no safety net if it goes stale. Reserve for genuine
    non-executable judgment.
 
@@ -85,44 +97,40 @@ Use `route: implement-fix` for candidates that are really backlog items, such as
 "make `merge-gate` require lint." Use `promote-*` routes for agent behavior
 improvements.
 
-## Review (active on demand)
+## Review (weekly, unattended)
 
-Use the `review-learning-candidates` skill when explicitly reviewing the
-candidate queue. The reviewer starts from metadata:
+The `agent-learning-weekly` user timer on `main`
+([`home/profiles/agent-learning.nix`](../../home/profiles/agent-learning.nix))
+runs `scripts/weekly.sh` every Monday:
 
-1. run `scripts/validate-candidates.sh`,
-2. run `scripts/review-candidates.sh`,
-3. run `scripts/check-candidate-liveness.sh` to drop already-landed candidates,
-4. choose one small batch by `route`, `best_form`, or related target,
-5. open only the selected candidate files, and
-6. draft or implement the promotion in the strongest viable form.
+1. digest and miner, as above;
+2. the **reviewer**, Claude Opus with fresh context in its own worktree of
+   `origin/main`, follows [`prompts/reviewer.md`](prompts/reviewer.md). It
+   picks at most 8 candidates, verifies each against the source, and promotes
+   (implements and validates), rejects, supersedes or defers it. It cannot
+   commit, push or open PRs;
+3. the script archives the decided candidates, commits, opens one PR, and
+   enables auto-merge when every changed path is on the agent surface
+   (`.agents/`, `.claude/`, `.codex/`, `CLAUDE.md` files, `docs/`, `tests/`).
+   `merge-gate` is then the gate. A PR that touches anything else waits for the
+   user. Deferred candidates stay in the inbox;
+4. it posts a summary to ntfy (source "Agents").
 
-The reviewer should:
+`agent-learning-weekly --dry-run` runs only the digest and miner;
+`--review-only` skips the miner. Runs keep their prompts, outputs and logs
+under `~/.local/state/agent-learning/runs/` (the last 12).
 
-- dedup and cluster candidates,
-- reject stale or expired ones,
-- draft the promotion in its strongest viable form (invariant > hook >
-  skill > prose),
-- compact the batch into coherent PRs (executable changes in one PR, prose
-  grouped by target file) rather than one PR per candidate, and
-- leave promotion reviewable as a normal branch/PR.
-
-Review remains human-gated: a candidate never changes behavior until the
-promotion itself is reviewed.
+The `review-learning-candidates` skill is the same review done by hand.
 
 ## Lifecycle
 
-`candidates/` holds only the **open** queue. The moment a candidate is resolved
-its file leaves that queue, so triage never re-reads settled lessons:
+- Open candidates live in the inbox until reviewed. One past its `expires`
+  date (90 days) shows up in `review-candidates.sh`; the reviewer re-justifies
+  or rejects it.
+- Decided candidates leave the inbox when their PR is opened, and land in
+  `candidates/archive/` with `status` and `resolution`.
 
-- `promoted` / `rejected` / `superseded` → `git mv` into `candidates/archive/`
-  in the same PR that resolves it. The index scripts (`find … -maxdepth 1`)
-  skip the subdir, so the file leaves triage but stays in-tree — `rg <dedupe_key>
-.agents/learning/candidates/archive/` still finds it for manual dedup/audit.
-- `open` past its `expires` date → surfaced by `review-candidates.sh`; re-justify
-  it or reject it. Capture is cheap precisely because stale lessons age out.
-
-Evidence should cite a durable pointer — a **PR number** or a SHA on `main` —
-not a local `codex/*` branch name. Because this repo squash-merges, a pre-merge
-SHA stops being an ancestor of `main`, so a `#NNN` reference is what
-`check-candidate-liveness.sh` can actually verify later.
+Evidence should cite a durable pointer, such as a **PR number** or a SHA on
+`main`, not a local branch name. This repo squash-merges, so a pre-merge SHA
+stops being an ancestor of `main`. A `#NNN` reference is what
+`check-candidate-liveness.sh` can verify.

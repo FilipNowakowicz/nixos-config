@@ -1,0 +1,66 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["candidates"],
+  "properties": {
+    "candidates": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "slug",
+          "type",
+          "route",
+          "best_form",
+          "dedupe_key",
+          "observation",
+          "proposed_upgrade",
+          "evidence",
+          "cost",
+          "targets"
+        ],
+        "properties": {
+          "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+          "type": {
+            "enum": [
+              "behavior-upgrade",
+              "repo-fix",
+              "workflow-gotcha",
+              "policy-gap",
+              "tooling-wish"
+            ]
+          },
+          "route": {
+            "enum": [
+              "implement-fix",
+              "promote-memory",
+              "promote-skill",
+              "promote-hook",
+              "promote-subagent",
+              "promote-doc"
+            ]
+          },
+          "best_form": {
+            "enum": [
+              "invariant",
+              "test",
+              "ci-gate",
+              "hook",
+              "skill",
+              "subagent",
+              "doc"
+            ]
+          },
+          "dedupe_key": { "type": "string" },
+          "observation": { "type": "string" },
+          "proposed_upgrade": { "type": "string" },
+          "evidence": { "type": "array", "items": { "type": "string" } },
+          "cost": { "type": "string" },
+          "targets": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

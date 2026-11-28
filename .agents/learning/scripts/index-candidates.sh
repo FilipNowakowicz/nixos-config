@@ -10,21 +10,19 @@ field_from_path() {
     sed "s/^\"//; s/\"$//; s/^'//; s/'$//"
 }
 
+# build_index DIR... : one row per candidate file directly inside each DIR.
 build_index() {
-  local root=${1:-.agents/learning}
-  local candidate_dir="$root/candidates"
-
   printf 'path\tid\tstatus\texpires\ttype\troute\tbest_form\tdedupe_key\ttriggers\ttargets\tevidence\trecurrence\n'
 
-  [ -d "$candidate_dir" ] || return 0
-
-  local candidate_list dedupe_counts
+  local candidate_list dedupe_counts dir
   candidate_list=$(mktemp)
   dedupe_counts=$(mktemp)
   trap 'rm -f "$candidate_list" "$dedupe_counts"' RETURN
 
-  find "$candidate_dir" -maxdepth 1 -type f \( -name '*.md' -o -name '*.yml' -o -name '*.yaml' \) |
-    sort >"$candidate_list"
+  for dir in "$@"; do
+    [ -d "$dir" ] || continue
+    find "$dir" -maxdepth 1 -type f \( -name '*.md' -o -name '*.yml' -o -name '*.yaml' \)
+  done | sort >"$candidate_list"
 
   while IFS= read -r path; do
     local dedupe
@@ -88,7 +86,7 @@ status: open
 EOF
 
   set +e
-  out=$(build_index "$tmp")
+  out=$(build_index "$tmp/candidates")
   rc=$?
   set -e
   [[ $rc -eq 0 ]] || {
@@ -121,4 +119,7 @@ if [[ ${1:-} == --self-test ]]; then
   exit $?
 fi
 
-build_index "${1:-.agents/learning}"
+# shellcheck source-path=SCRIPTDIR source=common.sh
+. "$(dirname -- "$0")/common.sh"
+[[ $# -gt 0 ]] || set -- "$(learning_inbox)"
+build_index "$@"

@@ -21,16 +21,6 @@
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)\"/.claude/hooks/learning-nudge.sh"
-          }
-        ]
-      }
     ]
   }
 }
