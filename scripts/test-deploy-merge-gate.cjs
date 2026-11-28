@@ -26,6 +26,12 @@ async function run(overrides = {}, options = {}) {
       },
     ],
     jobs: [{ name: "merge-gate", status: "completed", conclusion: "success" }],
+    // Files changed between this commit and a newer main; by default they
+    // touch the homeserver, so the newer push deploys on its own.
+    compare: {
+      status: "ahead",
+      files: [{ filename: "hosts/homeserver-gcp/x.nix" }],
+    },
     ...overrides,
   };
   const github = {
@@ -40,6 +46,7 @@ async function run(overrides = {}, options = {}) {
           },
         }),
         listPullRequestsAssociatedWithCommit: "pulls",
+        compareCommitsWithBasehead: async () => ({ data: data.compare }),
       },
       actions: {
         listWorkflowRuns: "runs",
@@ -132,6 +139,46 @@ async function run(overrides = {}, options = {}) {
     false,
   );
   assert.equal(outputs.current, "false");
+  // A newer commit outside the deploy paths starts no deploy of its own, so
+  // this run carries on and deploys.
+  assert.equal(
+    await run({
+      latest: "newer",
+      compare: {
+        status: "ahead",
+        files: [{ filename: "packages/quiet-shell/x.qml" }],
+      },
+    }),
+    true,
+  );
+  assert.equal(outputs.current, "true");
+  // A rename out of the deploy paths still counts as touching them.
+  assert.equal(
+    await run({
+      latest: "newer",
+      compare: {
+        status: "ahead",
+        files: [{ filename: "docs/x.md", previous_filename: "lib/x.nix" }],
+      },
+    }),
+    false,
+  );
+
+  // The script's path list matches the workflow's push filter.
+  const yml = require("node:fs").readFileSync(
+    ".github/workflows/deploy-homeserver.yml",
+    "utf8",
+  );
+  const block = yml
+    .split("\n    paths:\n")[1]
+    .split("\n  workflow_dispatch:")[0];
+  const workflowPaths = block
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.startsWith("- "))
+    .map((l) => l.slice(2));
+  assert.deepEqual(check.DEPLOY_PATHS, workflowPaths);
+
   console.log("Deployment merge-gate fail-closed and superseded cases passed");
 })().catch((error) => {
   console.error(error);
