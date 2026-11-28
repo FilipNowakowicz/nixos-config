@@ -133,6 +133,7 @@ ICONS_COLOUR, ICONS_MONO = (1740, 371), (1740, 405)
 DOCK_FIRST = (960, 1040)
 # The first button of an agent request banner (Take control).
 AGENT_TAKE = (1693, 123)
+BANNER_DISMISS = (1894, 60)
 VOLUME_Y, BRIGHT_Y = 343, 393
 CC_ICON, BATTERY, CLOCK = (1778, 21), (1732, 21), (1850, 21)
 TRAY_TOGGLE, TRAY_ITEM = (1652, 21), (1653, 21)
@@ -997,23 +998,73 @@ def shut_down_asks_first():
 
 
 @test
-def low_battery_warns_once_per_discharge():
+def low_battery_warns_at_each_level_and_sticks_when_urgent():
     level, status = run / "power/BAT0/capacity", run / "power/BAT0/status"
-    before = ui()["notices"]
-    try:
-        level.write_text("12\n")
+
+    def read(percent, charging=False):
+        level.write_text(f"{percent}\n")
+        status.write_text("Charging\n" if charging else "Discharging\n")
+        # Opening the controls reads the status at once.
         shell("controls")
-        wait(lambda: ui()["notices"] == before + 1, "low battery notice", timeout=8)
+        wanted = {"level": percent, "charging": charging}
+        wait(lambda: ui()["sys"]["battery"] == wanted, f"battery at {percent}", timeout=10)
         shell("close")
-        level.write_text("11\n")
-        shell("controls")
-        time.sleep(5)
-        assert ui()["notices"] == before + 1, "warned twice"
-        level.write_text("4\n")
-        wait(lambda: ui()["notices"] == before + 2, "critical notice", timeout=8)
+
+    def showing(percent):
+        return ui()["bannerBody"].startswith(f"{percent}% left")
+
+    def toggle_focus(want):
+        open_controls()
+        click(*FOCUS_TOGGLE)
+        wait(lambda: ui()["focus"] == want, "focus to change")
+        shell("close")
+
+    try:
+        wait(lambda: not ui()["banner"], "earlier banners to go", timeout=8)
+        before = ui()["notices"]
+
+        toggle_focus(True)
+        read(28)
+        wait(lambda: ui()["notices"] == before + 1, "30% notice")
+        assert not ui()["banner"], "Focus let the 30% banner through"
+        read(28, charging=True)
+        wait(lambda: ui()["notices"] == before, "charging to drop the warning")
+        read(12)
+        wait(lambda: showing(12), "15% banner despite Focus")
+        read(12, charging=True)
+        wait(lambda: not ui()["banner"], "charging to take the banner away")
+        toggle_focus(False)
+
+        read(28)
+        wait(lambda: showing(28), "30% banner")
+        wait(lambda: not ui()["banner"], "30% banner to hide itself", timeout=8)
+
+        read(12)
+        wait(lambda: showing(12), "15% banner")
+        read(11)
+        time.sleep(6)
+        assert showing(12), "15% banner left, or warned twice"
+        assert ui()["notices"] == before + 1, "older warning kept"
+        shot("battery-warning")
+
+        sh("notify-send", "Kitty", "Build finished")
+        wait(lambda: ui()["bannerBody"] == "Build finished", "newer banner on top")
+        wait(lambda: showing(12), "warning to come back", timeout=8)
+
+        read(4)
+        wait(lambda: showing(4), "5% banner")
+        assert ui()["notices"] == before + 2, "older warning kept"
+        # The dismiss button shows while the pointer is on the card.
+        click(*BANNER_DISMISS)
+        wait(lambda: not ui()["banner"], "dismiss to take the banner away")
+        assert ui()["notices"] == before + 1, "dismissed warning kept"
+        read(3)
+        time.sleep(1)
+        assert not ui()["banner"], "warned again after dismissal"
     finally:
-        level.write_text("64\n")
-        status.write_text("Discharging\n")
+        # Charging resets the warnings for whatever runs next.
+        read(64, charging=True)
+        read(64)
 
 
 def mullvad_memory(**picks):

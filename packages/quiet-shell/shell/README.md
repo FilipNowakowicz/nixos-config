@@ -8,6 +8,12 @@ swap those commands with fakes rather than using a separate test mode.
 Fonts: Open Runde (SIL OFL, see `assets/fonts/OFL.txt`).
 Icons: Lucide 0.469 (ISC).
 
+## Battery warnings
+
+`Sys.qml` warns at 30%, 15% and 5% while discharging. The 30% banner hides by
+itself and Focus silences it. The 15% and 5% banners show even in Focus and stay
+until dismissed or the laptop starts charging. Only the latest warning is kept.
+
 ## Agent requests
 
 `Agents.qml` follows Agent Desktop's event stream (`agent-desktop events --follow`).
