@@ -66,17 +66,6 @@ in
 
   environment.etc."host-drift-inventory.json".text = builtins.toJSON hostDriftInventory;
 
-  # One-off cleanup of the removed GitHub runner (#627): its state directory
-  # holds a copy of the registration PAT, and the self-deploy key was a sops
-  # symlink in the user's ~/.ssh. A changed tmpfiles config restarts
-  # systemd-tmpfiles-resetup on switch, whose `--remove` deletes them. Drop
-  # these rules once a deploy has run.
-  systemd.tmpfiles.rules = [
-    "R /var/lib/github-runner - - - - -"
-    "R /var/log/github-runner - - - - -"
-    "r ${config.users.users.${config.profiles.primaryUser}.home}/.ssh/id_ed25519 - - - - -"
-  ];
-
   networking = {
     hostName = "homeserver-gcp";
     firewall.interfaces.tailscale0.allowedTCPPorts = [
