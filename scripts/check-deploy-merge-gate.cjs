@@ -4,10 +4,15 @@
 // otherwise race this check. While a matching PR run is still pending, poll
 // until it completes or the timeout passes; with nothing pending, fail at once.
 //
-// A newer main commit is not a failure: that push starts its own deploy, which
-// carries this commit's changes too. The check sets output `current` to false
-// and returns, the workflow skips every later step, and the superseded run
-// ends green with a notice instead of red. Every other refusal still throws.
+// A newer main commit is not a failure when that push starts its own deploy,
+// which carries this commit's changes too. The check sets output `current` to
+// false and returns, the workflow skips every later step, and the superseded
+// run ends green with a notice instead of red. Every other refusal still throws.
+//
+// A newer commit only starts a deploy if it touches the workflow's `paths`
+// filter. When nothing between this commit and main does, no newer run is
+// coming, so this one carries on and deploys: the homeserver closure is the
+// same at both commits.
 const PENDING = new Set([
   "queued",
   "in_progress",
@@ -16,7 +21,48 @@ const PENDING = new Set([
   "pending",
 ]);
 
-module.exports = async ({
+// Mirrors `on.push.paths` in .github/workflows/deploy-homeserver.yml;
+// scripts/test-deploy-merge-gate.cjs fails if the two drift apart.
+const DEPLOY_PATHS = [
+  "hosts/homeserver-gcp/**",
+  "modules/**",
+  "lib/**",
+  "home/**",
+  "flake.nix",
+  "flake.lock",
+  "flake/**",
+  "scripts/**",
+  ".github/workflows/deploy-homeserver.yml",
+  ".github/actions/setup-nix/**",
+];
+
+const matchesDeployPath = (file) =>
+  DEPLOY_PATHS.some((pattern) =>
+    pattern.endsWith("/**")
+      ? file.startsWith(pattern.slice(0, -2))
+      : file === pattern,
+  );
+
+// Whether a push run will deploy the newer main: true if any commit after
+// ours touches the deploy paths, or if the comparison cannot tell.
+async function newerRunDeploys(github, owner, repo, base, head) {
+  const compare = await github.rest.repos.compareCommitsWithBasehead({
+    owner,
+    repo,
+    basehead: `${base}...${head}`,
+    per_page: 300,
+  });
+  const files = compare.data.files || [];
+  // The API lists at most 300 files; beyond that, assume a deploy follows.
+  if (compare.data.status !== "ahead" || files.length >= 300) return true;
+  return files.some(
+    (f) =>
+      matchesDeployPath(f.filename) ||
+      (f.previous_filename && matchesDeployPath(f.previous_filename)),
+  );
+}
+
+const checkDeployMergeGate = async ({
   github,
   context,
   core,
@@ -34,7 +80,16 @@ module.exports = async ({
       repo,
       branch: "main",
     });
-    if (latest.data.commit.sha !== commit_sha) {
+    if (
+      latest.data.commit.sha !== commit_sha &&
+      (await newerRunDeploys(
+        github,
+        owner,
+        repo,
+        commit_sha,
+        latest.data.commit.sha,
+      ))
+    ) {
       core.notice(
         `Skipping deploy: main moved on to ${latest.data.commit.sha}, whose own run deploys these changes`,
       );
@@ -109,3 +164,6 @@ module.exports = async ({
     await sleep(pollMs);
   }
 };
+
+module.exports = checkDeployMergeGate;
+module.exports.DEPLOY_PATHS = DEPLOY_PATHS;
