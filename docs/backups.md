@@ -262,3 +262,11 @@ GCE snapshot existence, IAM, costs and restore usability; obsolete remote data;
 and existence/freshness of escrow copies. This document establishes none of
 those facts. A human-authorized account and restore review is needed to settle
 them. No backup cleanup or configuration change is proposed by this inventory.
+
+To measure a repository's size read-only, ask B2 rather than restic:
+`nix shell nixpkgs#backblaze-b2 -c backblaze-b2 bucket get --show-size <bucket>`
+answers in seconds, with `B2_APPLICATION_KEY_ID`/`B2_APPLICATION_KEY` set from
+the host's restic `B2_ACCOUNT_ID`/`B2_ACCOUNT_KEY` (`b2_credentials`).
+`restic --no-cache stats` over B2 ran for more than 15 minutes without
+finishing. The account's storage and daily download caps are shown only in
+the B2 web console, not through the API.

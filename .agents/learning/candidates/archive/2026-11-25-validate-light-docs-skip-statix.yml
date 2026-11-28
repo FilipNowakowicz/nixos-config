@@ -1,0 +1,17 @@
+schema: learning-candidate/v1
+id: 2026-11-25-validate-light-docs-skip-statix
+date: 2026-11-25
+expires: 2027-02-25
+status: promoted
+
+route: implement-fix
+best_form: ci-gate
+evidence: [pr-#590 body claims validate.sh light+docs pass, CI lint run 45554299861 failed statix W20 repeated services keys at flake/checks.nix:877, scripts/validate.sh:206 light excludes pre-commit (statix/deadnix)]
+observation: validate.sh light and docs never run statix or deadnix, so an agent can report both green and still fail the CI lint job and merge-gate
+proposed_upgrade: add a validate.sh lint target (statix check . && deadnix --fail .) and run it from docs or light so local validation matches the CI lint job
+agent: claude
+type: repo-fix
+dedupe_key: validate:local-gate-misses-statix
+targets: [scripts/validate.sh]
+resolved: 2026-11-28
+resolution: "Confirmed: neither light nor docs ran statix or deadnix, but the CI lint job does. validate.sh docs now runs them (about 1 s each), and nix-verification-loop says to run docs for every change because light skips lint."

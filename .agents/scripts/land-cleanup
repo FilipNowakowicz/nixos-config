@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# Clean up after a merged PR: remove the branch's linked worktree, its local
+# branch and its remote branch. Every step is skipped when already done, so a
+# rerun, or a remote branch GitHub already deleted on merge, is not an error.
+#
+# The branch's PR must be MERGED (this repo squash-merges, so the branch is not
+# an ancestor of main and `git branch -d` cannot prove it). A worktree with
+# uncommitted or untracked changes is left alone, and nothing else is deleted.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: land-cleanup <branch>
+       land-cleanup --self-test
+EOF
+}
+
+say() { printf 'land-cleanup: %s\n' "$*"; }
+die() {
+  printf 'land-cleanup: %s\n' "$*" >&2
+  exit 1
+}
+
+pr_state() { # LAND_CLEANUP_PR_STATE overrides the lookup (self-test only).
+  if [[ -n ${LAND_CLEANUP_PR_STATE:-} ]]; then
+    printf '%s\n' "$LAND_CLEANUP_PR_STATE"
+  else
+    gh pr list --head "$1" --state all --json state --jq '.[0].state // "NONE"'
+  fi
+}
+
+worktree_of() {
+  git worktree list --porcelain | awk -v ref="refs/heads/$1" '
+    /^worktree / { path = substr($0, 10) }
+    $0 == "branch " ref { print path; exit }'
+}
+
+cleanup() {
+  local branch=$1 state wt done=()
+  state=$(pr_state "$branch")
+  [[ $state == MERGED ]] || die "PR for '$branch' is $state, not MERGED; nothing removed"
+
+  wt=$(worktree_of "$branch")
+  if [[ -n $wt ]]; then
+    [[ $(git rev-parse --path-format=absolute --show-toplevel) != "$wt" ]] ||
+      die "run this from another checkout, not from $wt"
+    [[ -z $(git -C "$wt" status --porcelain) ]] ||
+      die "$wt has uncommitted changes; commit or discard them first"
+    git worktree remove "$wt"
+    done+=("worktree $wt")
+  fi
+
+  if git show-ref --verify --quiet "refs/heads/$branch"; then
+    git branch -D "$branch" >/dev/null
+    done+=("local branch")
+  fi
+
+  if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+    git push --quiet origin --delete "$branch"
+    done+=("remote branch")
+  fi
+  git fetch --quiet --prune origin
+
+  if ((${#done[@]})); then
+    say "$branch: removed $(
+      IFS=,
+      echo "${done[*]}"
+    )"
+  else
+    say "$branch: already clean"
+  fi
+}
+
+self_test() {
+  local script
+  script=$(realpath "$0")
+  tmp=$(mktemp -d) # global: the EXIT trap outlives this function
+  trap 'rm -rf "$tmp"' EXIT
+  fail() {
+    printf 'land-cleanup: self-test: %s\n' "$*" >&2
+    exit 1
+  }
+  export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+  git init -q --bare "$tmp/origin.git"
+  git init -q -b main "$tmp/repo"
+  cd "$tmp/repo"
+  git commit -q --allow-empty -m init
+  git remote add origin "$tmp/origin.git"
+  git push -q origin main
+  git worktree add -q -b feat "$tmp/wt" main
+  git -C "$tmp/wt" push -q origin feat
+
+  LAND_CLEANUP_PR_STATE=OPEN bash "$script" feat 2>/dev/null && fail "cleaned up an unmerged PR"
+  touch "$tmp/wt/dirty"
+  LAND_CLEANUP_PR_STATE=MERGED bash "$script" feat 2>/dev/null && fail "removed a dirty worktree"
+  rm "$tmp/wt/dirty"
+
+  out=$(LAND_CLEANUP_PR_STATE=MERGED bash "$script" feat) || fail "cleanup failed"
+  [[ $out == *"worktree"*"local branch"*"remote branch"* ]] || fail "unexpected summary: $out"
+  [[ ! -e $tmp/wt ]] || fail "worktree still present"
+  ! git show-ref --verify --quiet refs/heads/feat || fail "local branch still present"
+  ! git ls-remote --exit-code --heads origin feat >/dev/null || fail "remote branch still present"
+
+  out=$(LAND_CLEANUP_PR_STATE=MERGED bash "$script" feat) || fail "rerun failed"
+  [[ $out == *"already clean"* ]] || fail "rerun was not a no-op: $out"
+  echo "land-cleanup self-test passed"
+}
+
+case "${1:-}" in
+--self-test) self_test ;;
+"" | -h | --help)
+  usage
+  [[ -n ${1:-} ]] || exit 2
+  ;;
+-*)
+  usage >&2
+  exit 2
+  ;;
+*) cleanup "$1" ;;
+esac
