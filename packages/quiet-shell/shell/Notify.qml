@@ -8,6 +8,10 @@ Singleton {
     id: root
     property var items: []
     property var banner: null
+    // A warning that stays up until it is dismissed. A newer banner covers it for
+    // its few seconds, then it comes back.
+    property var sticky: null
+    readonly property var shown: banner || sticky
     // A card's entry arrives through a Repeater's modelData, which is a copy, not
     // the object in `items`. So entries are matched by this key, never identity.
     property int lastKey: 0
@@ -17,6 +21,7 @@ Singleton {
         const previous = items;
         items = [];
         banner = null;
+        sticky = null;
         openApps = [];
         timer.stop();
         for (const n of previous)
@@ -27,7 +32,15 @@ Singleton {
         items = items.filter(i => !same(i, entry));
         if (same(banner, entry))
             banner = null;
+        if (same(sticky, entry))
+            sticky = null;
         if (original && original.source) original.source.dismiss();
+    }
+
+    function stick(entry) {
+        sticky = entry;
+        banner = null;
+        timer.stop();
     }
 
     // The app decides what happens next, so the notification has done its job.

@@ -90,18 +90,30 @@ Singleton {
     readonly property bool night: !!state.night
     readonly property bool awake: !!state.awake
 
-    // Warn once per discharge at each threshold, and again after charging.
+    // Warn once per discharge at each threshold, and again after charging. Each
+    // warning replaces the one before; from 15% down it stays up until dismissed.
     property int warnedAt: 100
+    property var batteryWarning: null
+    function dropBatteryWarning() {
+        if (batteryWarning)
+            Notify.remove(batteryWarning);
+        batteryWarning = null;
+    }
     onBatteryChanged: {
         if (!battery) return;
         if (battery.charging) {
             warnedAt = 100;
+            dropBatteryWarning();
             return;
         }
-        for (const limit of [5, 15]) {
+        for (const limit of [5, 15, 30]) {
             if (battery.level <= limit && limit < warnedAt) {
                 warnedAt = limit;
-                Notify.post("Battery low", battery.level + "% left. Plug in soon.", limit === 5);
+                dropBatteryWarning();
+                const urgent = limit <= 15;
+                batteryWarning = Notify.post("Battery low", battery.level + "% left. Plug in soon.", urgent);
+                if (urgent)
+                    Notify.stick(batteryWarning);
                 break;
             }
         }
@@ -801,7 +813,8 @@ Singleton {
     property bool glance: false
     // Each refresh spawns about twenty commands, so the idle pace matters for battery.
     Timer {
-        interval: Object.keys(root.writes).length ? 700 : root.live ? 4000 : root.glance ? 15000 : 60000
+        // A warning left on screen should go soon after the charger is plugged in.
+        interval: Object.keys(root.writes).length ? 700 : root.live ? 4000 : Notify.sticky ? 5000 : root.glance ? 15000 : 60000
         running: true
         repeat: true
         triggeredOnStart: true

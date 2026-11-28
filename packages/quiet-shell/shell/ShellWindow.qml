@@ -28,7 +28,7 @@ PanelWindow {
         Region { item: Ui.blocking && win.focused ? root : null }
         Region { item: win.fullscreenApp ? null : hotTop }
         Region { item: win.fullscreenApp ? null : hotBottom }
-        Region { item: Notify.banner && win.focused ? banner : null }
+        Region { item: Notify.shown && win.focused ? banner : null }
         Region { item: ring.visible ? ring : null }
     }
 

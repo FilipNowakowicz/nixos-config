@@ -1,7 +1,7 @@
 import QtQuick
 
 NoticeCard {
-    entry: Notify.banner
+    entry: Notify.shown
     anchors.right: parent.right
     anchors.rightMargin: entry ? 8 : -360
     y: 42
