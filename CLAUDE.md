@@ -7,8 +7,9 @@ approaches proactively. Explain why, not just what.
 For repository overview and structure see [`README.md`](README.md).
 For deeper context see [`docs/architecture.md`](docs/architecture.md),
 [`docs/operations.md`](docs/operations.md), and
-[`docs/security.md`](docs/security.md). Host-local runbooks live
-under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
+[`docs/security.md`](docs/security.md). Before changing, deploying or
+debugging a host, read its runbook (Codex does not load these on its own):
+[`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
 [`hosts/homeserver-gcp/CLAUDE.md`](hosts/homeserver-gcp/CLAUDE.md),
 [`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md).
 
@@ -18,7 +19,9 @@ under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
 
 - **Dev machine:** NixOS (`main`).
 - **Dev shell:** `nix develop` — provides `deploy-rs`, `nixos-anywhere`, `nixd`, `statix`, `deadnix`, `sops`, `ssh-to-age`, `vulnix`, `direnv`, and the flake-managed pre-commit hook tooling.
-- **Per-project shells:** `direnv` enabled — use `use flake` in `.envrc`.
+- **Bare agent shells lack repo tooling** (`python3`, `sops`, …): run repo
+  scripts and checks as `nix develop -c <cmd>`, and one-off tools as
+  `nix shell nixpkgs#<pkg> -c <cmd>`.
 - **Git hooks:** `nix develop` installs a `commit-msg` hook that strips `Co-authored-by:` trailers to keep history single-author.
 - **Fresh linked worktrees** (`~/.local/share/worktrees/nix/*`, per the global worktree rule)**:** a `codex/*` branch may already be checked out in another worktree (`git worktree list`), and `.pre-commit-config.yaml` is flake-generated so a worktree never entered via `nix develop` lacks it — commit there with `--no-verify`, but never use `--no-verify` to skip a real lint failure in the primary checkout.
 - **Lost worktree recovery.** If a worktree disappears before its work is committed, inspect `git fsck --no-reflogs --dangling` and recover matching blobs with `git cat-file` before `git worktree prune` drops the remaining worktree metadata and index.
@@ -30,11 +33,12 @@ under each host: [`hosts/main/CLAUDE.md`](hosts/main/CLAUDE.md),
   Agents and other non-interactive sessions use `sudo nixos-switch-main`
   (add `--remote` to build on `gcp-builder` after `bash scripts/on-builder.sh true`
   starts it), a narrow NOPASSWD wrapper.
-- **`homeserver-gcp`:** `deploy '.#homeserver-gcp'` for ongoing updates.
-  `scripts/deploy-gcp.sh` is **provisioning/reinstall only** (Terraform apply +
-  `nixos-anywhere`), not an ongoing-deploy alias. Note `deploy-rs` can appear
-  silent/hung in non-interactive sessions; fall back to a manual closure deploy
-  (`nix build` the system, `nix copy` the closure, then `switch-to-configuration`).
+- **`homeserver-gcp`:** every merge to `main` that changes its closure deploys
+  it automatically (the `Deploy homeserver-gcp` workflow); do not also deploy by
+  hand. `deploy '.#homeserver-gcp'` is for when that workflow cannot run; if
+  `deploy-rs` hangs silently in a non-interactive session, do a manual closure
+  deploy (`nix build`, `nix copy`, `switch-to-configuration`).
+  `scripts/deploy-gcp.sh` is **provisioning/reinstall only**.
 - **`gcp-builder`:** `deploy '.#gcp-builder'` for ongoing updates (start the VM
   first; it is normally powered off). Provision once via
   [`hosts/gcp-builder/CLAUDE.md`](hosts/gcp-builder/CLAUDE.md). It is an on-demand
@@ -72,62 +76,22 @@ shared profiles changed, build all affected hosts.
 
 ## Agents
 
-- **Claude Code** — all `.nix` changes, deployments, secrets.
-- **Codex CLI** — uses this same `CLAUDE.md` guidance through the repo-local
-  `.codex/config.toml` fallback configuration. Do not maintain separate
-  `CODEX.md`/`AGENTS.md` copies for this repo.
-- **Cross-repo Python workflow** — `home/profiles/python-development.nix`
-  installs `uv`, selects a uv-managed Python 3.12 default, and renders the one
-  policy in `home/files/agents/global-development.md` to the supported global
-  instruction file for Claude Code, Codex, and Gemini CLI. Unless a repository
-  explicitly declares another workflow, agents use `uv sync` and `uv run` and
-  do not add project-local Nix files solely for Python dependencies.
-- **Shared workflow skills** — repo-local skills live under `.agents/skills/`.
-  Codex auto-discovers them directly, and Claude discovers the same tree through
-  the `.claude/skills -> ../.agents/skills` symlink. Repo hooks are wired for
-  both agents; `.agents/scripts/check-agent-sync.sh` (in `validate.sh docs`)
-  fails when the two drift.
-- **Personal skills** — skills that apply in any repository live under
-  `home/files/agents/skills/`; `home/profiles/agent-skills.nix` links each one
-  into `~/.claude/skills/` and `~/.codex/skills/`. Project-specific skills stay
-  in their own repository.
-- **Edit/Bash guards** — `.claude/hooks/guard-edits.sh` and
-  `.claude/hooks/guard-bash.sh` (PreToolUse, wired in `.claude/settings.json`)
-  are the safety net for bypass-permissions mode. The edit guard _denies_ direct
-  edits to `*.enc`/`*.age`/`secrets/**`/the age key (use `sops`) and _asks_
-  before editing any `disko.nix`. The Bash guard _asks_ before catastrophic
-  block-device ops (`dd`/`mkfs`/`wipefs`/partitioning), LUKS format/erase,
-  recursive `rm` of a top-level path, and `gh pr merge --admin` (admin-merge
-  only when the user explicitly asks; otherwise merge after `merge-gate`). A blocked/prompted action there is by
-  design, not a failure.
-- **Agent-spawn dirty-checkout guard** —
-  `.claude/hooks/guard-agent-dirty-checkout.sh` (PreToolUse on the `Agent`
-  tool) _asks_ before launching an `isolation: "worktree"` subagent if this
-  checkout has uncommitted, non-generated changes — a worktree-isolated
-  subagent still shares this checkout's `.git` and can clobber staged/unstaged
-  edits here via `git reset`/`checkout`/`clean`. Commit or stash first, or
-  instruct the subagent not to touch this checkout's path.
-
-## Shared Workflow Skills
-
-Use these repo-local skills when the task matches:
-
-- **`nix-verification-loop`** — use for repo changes that need validation. Select
-  the smallest meaningful `scripts/validate.sh` command before broader checks.
-- **`issue-driven-development`** — use when work starts from a GitHub issue,
-  review finding, roadmap item, CI failure, or bug report. Define acceptance
-  criteria and the proving check before editing when feasible.
-- **`nix-review-ledger-batch`** — use when processing review findings, backlog
-  items, or status ledgers in small validated batches.
-- **`capture-learning-candidate`** — use when work surfaced a reusable lesson
-  or a missing skill/hook/check that would have saved real time. Files it
-  into the inbox with `file-candidate.sh`; never self-edit `CLAUDE.md`,
-  skills, hooks, or invariants from a lesson.
-- **`review-learning-candidates`** — use when the user asks for a review by
-  hand; the weekly run does it otherwise.
-- **`repo-map-query`** — use before broad repo exploration when the relevant
-  files are not already obvious. Query the generated repo map, then open only
-  the top likely files and verify against source.
+- **Claude Code and Codex CLI** both do full repo work here from this one
+  `CLAUDE.md` (Codex reads it through `.codex/config.toml`). Do not add
+  `CODEX.md`/`AGENTS.md` copies.
+- **Skills** — repo skills live in `.agents/skills/` (Claude reads them through
+  the `.claude/skills` symlink) and both agents list them by description, so
+  they are not repeated here. Personal cross-repo skills live in
+  `home/files/agents/skills/` (`home/profiles/agent-skills.nix`). The global
+  instruction file for both agents is rendered from
+  `home/files/agents/global-development.md`
+  (`home/profiles/python-development.nix`).
+- **Hooks** — `.claude/hooks/` guards, wired for both agents
+  (`.agents/scripts/check-agent-sync.sh` fails when they drift): edits to
+  secrets are denied (use `sops`); `disko.nix` edits, destructive block-device
+  or LUKS ops, recursive `rm` of a top-level path, `gh pr merge --admin`, and
+  (Claude only) worktree subagents spawned from a dirty checkout all ask first. A blocked or
+  prompted action is by design, not a failure.
 
 ## Learning Candidates
 
@@ -176,8 +140,15 @@ See [`docs/security.md`](docs/security.md) for the full secrets/exposure model.
 
 ## Preferences
 
-- Large or structural changes route through an issue + PR rather than a
-  live ask — scope each to one issue, let `merge-gate` and review be the gate.
+- Other agents share `~/nix`: edit in a worktree
+  (`~/.local/share/worktrees/nix/<branch>`), open a PR, and merge only when
+  the user asks; never `--admin` unless they say so.
+- Large or structural changes route through an issue + PR rather than a live
+  ask. One issue (and usually one PR) per problem; do not split related fixes
+  into many issues.
+- UI changes (quiet shell, Hyprland): switch `main` from the branch and let the
+  user try it before merging.
+- Ask before using the user's real screen or changing TTY.
 - Prefer Home Manager for user-level config over system-level.
 - Keep things declarative — avoid imperative workarounds.
 - Flag anything that might cause issues on rebuild.
