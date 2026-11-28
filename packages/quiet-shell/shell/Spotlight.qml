@@ -19,20 +19,20 @@ Item {
     readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/quiet-shell"
 
     readonly property var actions: [
-        { title: "Lock Screen", note: "Run", run: () => Ui.session("lock") },
-        { title: "Sleep", note: "Run", run: () => Ui.session("sleep") },
-        { title: "Restart", note: "Run", run: () => Ui.session("restart") },
-        { title: "Shut Down", note: "Run", run: () => Ui.session("shutdown") },
-        { title: "Log Out", note: "Run", run: () => Ui.session("logout") },
-        { title: "Focus", note: Sys.focusMode ? "Turn off" : "Turn on", run: () => { Sys.focusMode = !Sys.focusMode; Ui.close(); } },
-        { title: "Night Mode", note: Sys.night ? "Turn off" : "Turn on", run: () => { Sys.toggleNight(); Ui.close(); } },
-        { title: "Keep Awake", note: Sys.awake ? "Turn off" : "Turn on", run: () => { Sys.toggleAwake(); Ui.close(); } },
-        { title: "Wi-Fi", note: Sys.wifiOn ? "Turn off" : "Turn on", run: () => { Sys.toggleWifi(); Ui.close(); } },
-        { title: "Bluetooth", note: Sys.btOn ? "Turn off" : "Turn on", run: () => { Sys.toggleBluetooth(); Ui.close(); } },
-        { title: "Mullvad", note: Sys.mullvadOn ? "Disconnect" : "Connect", run: () => { Sys.toggleMullvad(); Ui.close(); } },
-        { title: "Mullvad Location", note: (Sys.state.vpn && Sys.state.vpn.country || "").toUpperCase() || "Choose", run: () => { input.text = "mullvad "; } },
-        { title: "Location", note: Sys.place ? Sys.place.name : Sys.timezone || "Choose", run: () => { input.text = "location "; } },
-        { title: "Notes", note: "Open", run: () => { Ui.close(); Sys.openNotes(); } }
+        { title: "Lock Screen", glyph: "lock", note: "Run", run: () => Ui.session("lock") },
+        { title: "Sleep", glyph: "bed", note: "Run", run: () => Ui.session("sleep") },
+        { title: "Restart", glyph: "rotate-ccw", note: "Run", run: () => Ui.session("restart") },
+        { title: "Shut Down", glyph: "power", note: "Run", run: () => Ui.session("shutdown") },
+        { title: "Log Out", glyph: "log-out", note: "Run", run: () => Ui.session("logout") },
+        { title: "Focus", glyph: "bell-off", note: Sys.focusMode ? "Turn off" : "Turn on", run: () => { Sys.focusMode = !Sys.focusMode; Ui.close(); } },
+        { title: "Night Mode", glyph: "moon", note: Sys.night ? "Turn off" : "Turn on", run: () => { Sys.toggleNight(); Ui.close(); } },
+        { title: "Keep Awake", glyph: "coffee", note: Sys.awake ? "Turn off" : "Turn on", run: () => { Sys.toggleAwake(); Ui.close(); } },
+        { title: "Wi-Fi", glyph: "wifi", note: Sys.wifiOn ? "Turn off" : "Turn on", run: () => { Sys.toggleWifi(); Ui.close(); } },
+        { title: "Bluetooth", glyph: "bluetooth", note: Sys.btOn ? "Turn off" : "Turn on", run: () => { Sys.toggleBluetooth(); Ui.close(); } },
+        { title: "Mullvad", glyph: "shield", note: Sys.mullvadOn ? "Disconnect" : "Connect", run: () => { Sys.toggleMullvad(); Ui.close(); } },
+        { title: "Mullvad Location", glyph: "globe", note: (Sys.state.vpn && Sys.state.vpn.country || "").toUpperCase() || "Choose", run: () => { input.text = "mullvad "; } },
+        { title: "Location", glyph: "map-pin", note: Sys.place ? Sys.place.name : Sys.timezone || "Choose", run: () => { input.text = "location "; } },
+        { title: "Notes", glyph: "notebook-pen", note: "Open", run: () => { Ui.close(); Sys.openNotes(); } }
     ]
     // Towns of 15,000 people or more (GeoNames), biggest first, found by name, region
     // or country: "location krakow", "location poland". Picking one sets the clock's
@@ -139,7 +139,7 @@ Item {
         // Last, so typing a country's first letter can't land on the switch.
         const word = Sys.mullvadOn ? "Disconnect" : "Connect";
         const toggle = q && Search.wordsMatch(word + (Sys.mullvadOn ? " off" : " on"), q)
-            ? [{ group: "Mullvad", title: word, note: "Mullvad", kind: "action", value: () => { Sys.toggleMullvad(); Ui.close(); }, glyph: "power" }]
+            ? [{ group: "Mullvad", title: word, note: "Mullvad", kind: "action", value: () => { Sys.toggleMullvad(); Ui.close(); }, glyph: "shield" }]
             : [];
         return places.concat(toggle);
     }
@@ -197,10 +197,10 @@ Item {
         appActions.splice(3);
         const windows = ToplevelManager.toplevels.values
             .filter(t => (t.title + " " + t.appId).toLowerCase().includes(q)).slice(0, 3)
-            .map(t => ({ group: "Open windows", title: t.title || t.appId, note: "Switch", kind: "window", value: t }));
+            .map(t => ({ group: "Open windows", title: t.title || t.appId, note: "Switch", kind: "window", value: t, icon: Dockable.iconOf(t.appId), glyph: Dockable.glyphOf(t.appId) }));
         const system = actions.filter(a => Search.score(a.title, q) >= 0).slice(0, 3)
-            .map(a => ({ group: "System", title: a.title, note: a.note, kind: "action", value: a.run, glyph: "power", key: "system:" + a.title, match: Search.score(a.title, q) }));
-        const inFiles = files.map(f => ({ group: "Files", title: f.name, note: f.folder, kind: "file", value: f.path, glyph: "folder", key: "file:" + f.path, match: Search.score(f.name, q) }));
+            .map(a => ({ group: "System", title: a.title, note: a.note, kind: "action", value: a.run, glyph: a.glyph, key: "system:" + a.title, match: Search.score(a.title, q) }));
+        const inFiles = files.map(f => ({ group: "Files", title: f.name, note: f.folder, kind: "file", value: f.path, glyph: "file", key: "file:" + f.path, match: Search.score(f.name, q) }));
         const web = answer === null && !converted ? [{ group: "Web", title: "Search the web for " + query, note: "Open", kind: "web", value: query, glyph: "globe" }] : [];
         const all = sums.concat(conversions, found, appActions, windows, system, inFiles, web);
         const hit = Search.topHit(all, memory, q, Date.now());
