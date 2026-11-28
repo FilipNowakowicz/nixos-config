@@ -58,9 +58,16 @@ find "$state/runs" -mindepth 1 -maxdepth 1 -type d | sort | head -n -12 | xargs 
 log() { printf 'agent-learning: %s\n' "$*" >&2; }
 
 # Interactive Claude sign-ins expire; an unattended run uses a setup-token.
+# Anything that is not one (the placeholder the secret starts with) is ignored,
+# so the interactive sign-in is used instead.
 if [[ -r ${AGENT_LEARNING_CLAUDE_TOKEN_FILE:-/nonexistent} ]]; then
-  CLAUDE_CODE_OAUTH_TOKEN=$(<"$AGENT_LEARNING_CLAUDE_TOKEN_FILE")
-  export CLAUDE_CODE_OAUTH_TOKEN
+  token=$(tr -d '[:space:]' <"$AGENT_LEARNING_CLAUDE_TOKEN_FILE")
+  if [[ $token == sk-ant-* ]]; then
+    export CLAUDE_CODE_OAUTH_TOKEN=$token
+  else
+    log "no setup-token in $AGENT_LEARNING_CLAUDE_TOKEN_FILE; using the interactive sign-in"
+  fi
+  unset token
 fi
 
 notify() { # $1=title $2=body [$3=priority]

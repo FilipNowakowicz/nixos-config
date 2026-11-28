@@ -21,6 +21,7 @@
       snapshotHost = "galaxy-s24";
       sopsFile = ./secrets/phone-backup.yaml;
     };
+    agentLearning.sopsFile = ./secrets/agent-learning.yaml;
     calendar = {
       sopsFile = ./secrets/calendar-feeds.yaml;
       privateFeeds = [
