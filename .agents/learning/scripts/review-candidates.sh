@@ -3,12 +3,14 @@
 set -euo pipefail
 
 script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
-root=${1:-.agents/learning}
+# shellcheck source-path=SCRIPTDIR source=common.sh
+. "$script_dir/common.sh"
+inbox=${1:-$(learning_inbox)}
 today=${LEARNING_TODAY:-$(date +%F)}
 tmp=${TMPDIR:-/tmp}/learning-review-$$.tsv
 trap 'rm -f "$tmp"' EXIT
 
-"$script_dir/index-candidates.sh" "$root" >"$tmp"
+"$script_dir/index-candidates.sh" "$inbox" >"$tmp"
 
 printf 'Learning candidate review index (%s)\n\n' "$today"
 

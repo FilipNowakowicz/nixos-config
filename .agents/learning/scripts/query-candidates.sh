@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Query the compact candidate index without opening candidate bodies.
+# Query the compact candidate index (open inbox plus the repo archive, so a
+# lesson already resolved is found too) without opening candidate bodies.
 set -euo pipefail
 
 if [ "$#" -eq 0 ]; then
@@ -8,12 +9,13 @@ if [ "$#" -eq 0 ]; then
 fi
 
 script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
-root=$(CDPATH='' cd -- "$script_dir/.." && pwd)
+# shellcheck source-path=SCRIPTDIR source=common.sh
+. "$script_dir/common.sh"
 query=$*
 tmp=${TMPDIR:-/tmp}/learning-index-$$.tsv
 trap 'rm -f "$tmp"' EXIT
 
-"$script_dir/index-candidates.sh" "$root" >"$tmp"
+"$script_dir/index-candidates.sh" "$(learning_inbox)" "$(learning_archive)" >"$tmp"
 
 {
   head -1 "$tmp"

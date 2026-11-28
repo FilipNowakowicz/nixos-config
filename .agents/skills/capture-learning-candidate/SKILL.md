@@ -1,67 +1,58 @@
 ---
 name: capture-learning-candidate
-description: Use at the end of high-signal work to record one compact reviewed learning candidate, without scanning candidate bodies or editing CLAUDE.md, skills, hooks, or invariants directly.
+description: Use when work surfaced a reusable lesson or a missing skill, hook, check or subagent that would have saved real time, to file one compact candidate into the learning inbox without scanning candidate bodies or editing CLAUDE.md, skills, hooks, or invariants directly.
 ---
 
 # Capture Learning Candidate
 
-When work surfaces something a _future_ agent should know, record one compact
-candidate under `.agents/learning/candidates/`. Candidates are machine-routed
-proposals reviewed later by a human-gated reviewer — see
-`.agents/learning/README.md`. Capturing a candidate must never change agent
-behavior on its own.
+When work surfaces something a _future_ agent should know, or a tool it should
+have, file one compact candidate into the learning inbox. The weekly
+`agent-learning-weekly` run reviews the inbox with a different model and turns
+good candidates into checks, hooks, skills or docs (see
+`.agents/learning/README.md`). It also mines the week's sessions on its own, so
+capturing is optional: do it when you hold evidence the transcript alone would
+not show well.
 
 ## When to capture (high bar)
 
 File a candidate only when **all** hold:
 
 - The lesson is **reusable** across future sessions, not a one-off fact.
-- You have **verifiable evidence** (commit, `file:line`, failing check output,
-  or a direct user correction).
+- You have **verifiable evidence** (PR, commit, `file:line`, failing check
+  output, or a direct user correction).
 - It is **not already** encoded in `CLAUDE.md`, `lib/invariants.nix`, a test, a
   hook, or an existing skill.
 
 Strong triggers: a user correction of how you worked; a validation gate
-(`scripts/validate.sh`, `merge-gate`) catching something a careful agent would
-have avoided; a non-obvious repo gotcha you only learned by hitting it; or a
-repo/CI fix that should become a durable check, hook, skill, or doc update.
+catching something a careful agent would have avoided; a non-obvious repo
+gotcha; or a **tooling wish** (`type: tooling-wish`): a skill, hook, check,
+script or subagent that would have saved you turns, reruns or tokens. Put what
+its absence cost in `cost`.
 
-## When NOT to capture
-
-- One-off or session-only context (belongs in your normal summary, nowhere else).
-- Anything already covered by docs, invariants, tests, hooks, or skills.
-- Ephemeral user/preference facts better suited to auto-memory.
-- A lesson you cannot back with evidence.
-
-Prefer **fewer, higher-signal** candidates. Skipping is the default.
+Skip one-off context, facts better kept in your own memory, and anything you
+cannot back with evidence. Skipping is the default.
 
 ## Workflow
 
-1. **Do not scan candidate bodies.** Build 3-6 query terms from the issue
-   shape, file paths, commands, CI job, host, or hook involved.
-2. Run `bash .agents/learning/scripts/query-candidates.sh <terms>`.
-   - If it returns a likely duplicate, open only that candidate file and update
-     it in place.
-   - If it returns nothing relevant, create a new candidate.
-3. Copy `.agents/learning/TEMPLATE.yml` to
-   `.agents/learning/candidates/<date>-<kebab-slug>.yml`.
-4. Fill the required fields with terse, grep-friendly values:
-   - `route`: `implement-fix`, `promote-memory`, `promote-skill`,
-     `promote-hook`, `promote-doc`, or `reject`.
-   - `best_form`: strongest viable artifact, preferring executable checks over
-     hooks, hooks over skills, and skills over prose docs.
-   - `evidence`, `observation`, `proposed_upgrade`, plus `date`/`expires`/
-     `status`.
-     The optional fields (`triggers`, `targets`, `dedupe_key`, `type`, `risk`,
-     `agent`) are commented out in the template — add one only when it adds real
-     routing signal. Do not pad fields to look thorough.
-5. Mention the captured candidate's path in your work summary.
+1. **Do not scan candidate bodies.** Build 3-6 query terms and run
+   `bash .agents/learning/scripts/query-candidates.sh <terms>`. It searches the
+   inbox and the archive.
+   - A likely duplicate in the inbox: update that file (same `id`) instead.
+   - A duplicate in the archive: it was already decided; skip unless you have
+     new evidence that the decision was wrong.
+2. Write the candidate from `.agents/learning/TEMPLATE.yml` to a scratch file.
+   Fill `route`, `best_form` (strongest viable artifact: executable checks over
+   hooks, hooks over skills, skills over prose), `evidence`, `observation`,
+   `proposed_upgrade`, `date`, `expires` (90 days), `status: open`. Add optional
+   fields only when they add routing signal.
+3. File it: `bash .agents/learning/scripts/file-candidate.sh <scratch-file>`.
+   It validates the candidate and prints its inbox path.
+4. Mention the filed path in your work summary.
 
 ## Guardrails
 
 - **Never** edit `CLAUDE.md`, skills, hooks, or `lib/invariants.nix` as part of
-  capture. Promotion is a separate, reviewed step.
-- Never read all candidates to dedupe. The index/query helper is the routing
-  surface for normal capture.
+  capture. Promotion is the reviewer's job.
+- Never write candidates into the repo checkout; the inbox is outside git.
 - Never put secrets, tokens, or host-specific credentials in a candidate.
 - Do not file a candidate to look productive. No evidence, no candidate.

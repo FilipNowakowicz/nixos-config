@@ -1,4 +1,4 @@
-schema: learning-candidate/v1
+schema: learning-candidate/v2
 id: YYYY-MM-DD-short-kebab-slug
 date: YYYY-MM-DD
 expires: YYYY-MM-DD
@@ -10,19 +10,20 @@ status: open
 # is a same-line grep and rejects next-line block values.
 #
 # Routing for the reviewer. Keep values short and grep-friendly.
-route: implement-fix|promote-memory|promote-skill|promote-hook|promote-doc|reject
-best_form: invariant|test|ci-gate|hook|skill|doc|none
+route: implement-fix|promote-memory|promote-skill|promote-hook|promote-subagent|promote-doc|reject
+best_form: invariant|test|ci-gate|hook|skill|subagent|doc|none
 
 # Evidence must be enough for a reviewer agent to reopen the real source.
-# Prefer a durable pointer — a PR number (#NNN) or a SHA already on main — over
-# a local codex/* branch name; check-candidate-liveness.sh can verify those.
+# Prefer a durable pointer (a PR number #NNN or a SHA already on main) over a
+# branch name; check-candidate-liveness.sh can verify those.
 evidence: [pr-#NNN-or-sha-on-main-or-file-line-or-command-output-pointer]
 observation: terse-fact-not-story
 proposed_upgrade: terse-action-for-reviewer
 
-# Optional — fill only when they add routing signal. Omit the rest.
-# agent: claude|codex
-# type: behavior-upgrade|repo-fix|workflow-gotcha|policy-gap
+# Optional: fill only when they add routing signal. Omit the rest.
+# agent: claude|codex|miner
+# type: behavior-upgrade|repo-fix|workflow-gotcha|policy-gap|tooling-wish
+# cost: what the missing check/skill/hook cost, e.g. "3 CI reruns, ~40 turns"
 # dedupe_key: area:short-normalized-problem
 # triggers: [path-or-command-or-task-shape]
 # targets: [path-or-artifact-to-change]

@@ -3,10 +3,26 @@ let
   globalAgentInstructions = pkgs.writeText "global-agent-instructions.md" (
     builtins.readFile ../files/agents/global-development.md
   );
+  pythonShim =
+    name:
+    pkgs.writeShellScriptBin name ''
+      exec ${lib.getExe pkgs.uv} run --no-project --quiet python "$@"
+    '';
 in
 {
   home = {
-    packages = [ pkgs.uv ];
+    # `python3` and `python` on PATH run uv's managed interpreter (the 3.12 pin
+    # below), not a Nix Python. Agents reach for `python3 - <<EOF` for quick
+    # edits and checks, and `#!/usr/bin/env python3` scripts need it; without
+    # these they failed with "command not found" in a bare shell. Projects still
+    # use `uv run` for their own environment; a dev shell's python3 comes first.
+    packages = [
+      pkgs.uv
+    ]
+    ++ map pythonShim [
+      "python3"
+      "python"
+    ];
 
     # These are the supported user-global instruction surfaces for the three
     # agent CLIs installed on main. One source keeps their Python workflow,

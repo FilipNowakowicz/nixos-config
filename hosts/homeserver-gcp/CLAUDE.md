@@ -194,7 +194,10 @@ gcp-builder --validity 2y --pull fleet --push fleet`, with the JWT secret in
 
 Runbook: [`.claude/homeserver-gcp/provisioning.md`](../../.claude/homeserver-gcp/provisioning.md)
 
-## Ongoing Updates
+## Manual deploy
+
+Merges to `main` deploy this host automatically (next section); deploy by hand
+only when that workflow cannot run:
 
 ```bash
 deploy '.#homeserver-gcp'

@@ -21,13 +21,15 @@
 set -euo pipefail
 
 script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+# shellcheck source-path=SCRIPTDIR source=common.sh
+. "$script_dir/common.sh"
 root=$(CDPATH='' cd -- "$script_dir/.." && pwd)
 
 filter=${1:-__open__}
 tmp=${TMPDIR:-/tmp}/learning-liveness-$$.tsv
 trap 'rm -f "$tmp"' EXIT
 
-"$script_dir/index-candidates.sh" "$root" >"$tmp"
+"$script_dir/index-candidates.sh" "$(learning_inbox)" >"$tmp"
 
 have_gh=0
 if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then

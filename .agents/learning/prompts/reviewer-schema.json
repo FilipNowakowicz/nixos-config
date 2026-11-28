@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decisions", "pr_title", "pr_summary"],
+  "properties": {
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "decision", "reason"],
+        "properties": {
+          "id": { "type": "string" },
+          "decision": {
+            "enum": ["promoted", "rejected", "superseded", "deferred"]
+          },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "pr_title": { "type": "string" },
+    "pr_summary": { "type": "string" }
+  }
+}

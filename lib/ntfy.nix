@@ -53,6 +53,11 @@ rec {
       glyph = "terminal";
       emoji = "gear";
     };
+    agents = {
+      appName = "Agents";
+      glyph = "notebook-pen";
+      emoji = "brain";
+    };
     deploys = {
       appName = "Deploys";
       glyph = "rocket";

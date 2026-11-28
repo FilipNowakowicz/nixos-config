@@ -2,6 +2,7 @@
 {
   imports = [
     ../../profiles/agent-desktop.nix
+    ../../profiles/agent-learning.nix
     ../../profiles/agent-skills.nix
     ../../profiles/agent-usage.nix
     ../../profiles/calendar.nix
