@@ -6,7 +6,7 @@ let
   inherit (invariants) mkResult requirePaths;
 
   homeserverSshAndHttpsTailscaleOnly = {
-    name = "SSH and HTTPS stay Tailscale-only";
+    name = "SSH, HTTPS and ntfy stay Tailscale-only";
     check =
       cfg:
       invariants.checkTCPPortsRestrictedToInterface {
@@ -14,6 +14,7 @@ let
         ports = [
           22
           443
+          (import ../../lib/ntfy.nix { }).port
         ];
       } cfg;
   };
@@ -64,28 +65,29 @@ let
   };
 
   alertDeliveryHasFailedUnitFallback = {
-    name = "alerting stack has direct failed-unit webhook fallback";
+    name = "alerting and ntfy stack has direct failed-unit fallback";
     check =
       cfg:
       let
         notifier = cfg.services.systemd-failure-notify;
+        # The units the local ntfy server and the alert path depend on report
+        # through the public fallback topic, never through ntfy itself.
         expectedUnits = [
           "alertmanager"
           "heartbeat-ping"
           "nginx"
-          "prometheus"
-          "prometheus-node-exporter"
+          "ntfy-sh"
           "tailscaled"
         ];
-        actualUnits = lib.sort builtins.lessThan notifier.services;
+        actualUnits = lib.sort builtins.lessThan notifier.fallbackServices;
         violations = lib.filter (msg: msg != "") [
           (lib.optionalString (!notifier.enable) "services.systemd-failure-notify.enable must be true")
           (lib.optionalString (
-            notifier.webhookUrlFile != "/run/secrets/alertmanager_webhook_url"
-          ) "services.systemd-failure-notify.webhookUrlFile must use /run/secrets/alertmanager_webhook_url")
-          (lib.optionalString (
-            actualUnits != expectedUnits
-          ) "services.systemd-failure-notify.services must cover the alerting/reachability stack")
+            notifier.webhookUrlFile != "/run/secrets/ntfy_fallback_url"
+          ) "services.systemd-failure-notify.webhookUrlFile must use /run/secrets/ntfy_fallback_url")
+          (lib.optionalString (actualUnits != expectedUnits)
+            "services.systemd-failure-notify.fallbackServices must cover the alerting, ntfy and reachability stack"
+          )
         ];
       in
       mkResult (violations == [ ]) (lib.concatStringsSep "; " violations);

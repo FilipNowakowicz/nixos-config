@@ -1,6 +1,9 @@
 # System services that don't belong to a larger concern: firmware updates,
 # filesystem scrubbing, SSH, and failure notifications.
 { config, ... }:
+let
+  ntfy = import ../../lib/ntfy.nix { };
+in
 {
   services = {
     # Enabled by default with a graphical session, and pulls in about 645 MiB
@@ -25,10 +28,19 @@
     };
 
     # A system unit has no display, so without this a failure only reaches
-    # the journal.
+    # the journal. It posts to the self-hosted ntfy server, so the laptop and
+    # the phone show it.
     systemd-failure-notify = {
       enable = true;
-      webhookUrlFile = config.sops.secrets.failure_webhook_url.path;
+      ntfy = {
+        url = ntfy.topicUrl;
+        tokenFile = config.sops.secrets.ntfy_token.path;
+      };
+      unitSources = {
+        btrbk-local = "backups";
+        restic-backups-local = "backups";
+        restic-check-local = "backups";
+      };
       services = [
         # "prometheus"
         "btrbk-local"

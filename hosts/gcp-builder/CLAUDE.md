@@ -70,7 +70,9 @@ on-worker run -w -- make test   # wait in the foreground
   checkout are copied as their targets. Sync never deletes remote files.
 - Jobs are `systemd-run --user` units named `worker-job-<name>`, bounded by
   `--max-runtime` (default 24h). Logs, command and exit status live in
-  `~jobs/jobs/<name>/`. A finished job posts to the private ntfy topic.
+  `~jobs/jobs/<name>/`. A finished job posts to the self-hosted ntfy server on
+  homeserver-gcp with the builder's publish-only token, which on-worker seeds
+  into `~jobs/.config/worker/ntfy-token` on every run.
 - `on-worker down` refuses while a job or a Nix build runs (`-f` overrides).
 - on-worker starts and stops the VM with `scripts/lib/builder.sh`, included at
   build time, so it also moves the VM out of a full zone and resumes an
@@ -102,17 +104,21 @@ resource from git history and drop its `removed` block.
 
 ## Prebuild notification
 
-`builder-prebuild` posts "ready" or "failed" to the private ntfy topic when it
-finishes, and the laptop shows it (`home/profiles/ntfy-notifications.nix`). The
-topic URL is the builder's one secret outside Nix: a `user`-owned `0600` file at
-`/var/lib/builder-prebuilt/notify-url`, seeded by hand. Anyone holding it can
-only post to that topic. Without the file the job stays quiet, so reseed it
-after reprovisioning:
+`builder-prebuild` posts "ready" or "failed" to the self-hosted ntfy server on
+homeserver-gcp (`lib/ntfy.nix`, tag `source-builder`) when it finishes, and the
+laptop and phone show it (`home/profiles/ntfy-notifications.nix`). The
+builder's publish-only ntfy token is its one secret outside Nix: a
+`user`-owned `0600` file at `/var/lib/builder-prebuilt/ntfy-token`, seeded by
+hand. Anyone holding it can only post to the fleet topic. Without the file the
+job stays quiet, so reseed it after reprovisioning or after
+`rotate-secret.sh ntfy-token builder`:
 
-```bash
-sops -d --extract '["topic_url"]' home/users/user/secrets/ntfy.yaml |
+````bash
+sops -d --extract '["builder_token"]' home/users/user/secrets/ntfy.yaml |
+  ssh user@gcp-builder 'umask 077; cat > /var/lib/builder-prebuilt/ntfy-token; rm -f /var/lib/builder-prebuilt/notify-url'
+```|
   ssh user@gcp-builder 'umask 077; cat > /var/lib/builder-prebuilt/notify-url'
-```
+````
 
 ## Provisioning (operator-only, one time)
 

@@ -110,7 +110,7 @@ phone through KDE Connect's sftp plugin and only reads from it.
   new inodes and ctimes on every mount. Without them restic would re-read
   everything on each run.
 - **Alerting:** `phone-backup-stale-check` runs daily and publishes to the
-  private ntfy topic when no backup has succeeded for 7 days. It also alerts
+  self-hosted ntfy server when no backup has succeeded for 7 days. It also alerts
   7 days after installation if no backup has ever succeeded.
 - **Secrets:** `home/users/user/secrets/phone-backup.yaml`, encrypted to the
   personal age key only: repository, restic password, and a B2 application key

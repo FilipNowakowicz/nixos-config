@@ -248,6 +248,11 @@ rec {
                 "tag:phone->autogroup:internet"
                 "tag:workstation->autogroup:internet"
                 "builder->server:53"
+                # Self-hosted ntfy (#630): the owner's workstation and phone
+                # subscribe, and the builder publishes.
+                "builder->server:2586"
+                "phone->server:2586"
+                "workstation->server:2586"
                 "ci->server:22"
                 "ci-builder->builder:22"
                 "workstation->builder:22"

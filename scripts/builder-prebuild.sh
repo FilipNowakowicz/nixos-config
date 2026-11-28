@@ -21,11 +21,13 @@ write_status() {
   mv -f "$temporary" "$state_dir/status.json"
 }
 
-# Tell the private ntfy topic how the run ended. Best effort: the status file is
-# the record, and a builder reprovisioned without the URL file simply stays quiet.
+# Tell the self-hosted ntfy server how the run ended. NOTIFY_URL and NOTIFY_TAGS
+# come from the unit; the token is the builder's one secret outside Nix, seeded
+# by hand. Best effort: the status file is the record, and a builder
+# reprovisioned without the token file simply stays quiet.
 notify_result() {
-  local url_file=$state_dir/notify-url result_now short_rev title body priority=default
-  [[ -r $url_file ]] || return 0
+  local token_file=$state_dir/ntfy-token result_now short_rev title body priority=default
+  [[ -r $token_file && -n ${NOTIFY_URL:-} ]] || return 0
   result_now=$(jq -r '.result // "failed"' "$state_dir/status.json")
   short_rev=$(jq -r '.revision // "" | .[0:7]' "$state_dir/status.json")
   if [[ $result_now == success ]]; then
@@ -37,8 +39,9 @@ notify_result() {
     priority=high
   fi
   curl --fail --silent --show-error --max-time 10 --retry 2 --retry-delay 2 \
-    -H "Title: $title" -H "Priority: $priority" --data-binary "$body" \
-    "$(<"$url_file")" >/dev/null || echo "could not send prebuild notification" >&2
+    --config <(printf 'header = "Authorization: Bearer %s"\n' "$(<"$token_file")") \
+    -H "Title: $title" -H "Priority: $priority" -H "Tags: ${NOTIFY_TAGS:-}" --data-binary "$body" \
+    "$NOTIFY_URL" >/dev/null || echo "could not send prebuild notification" >&2
 }
 
 # ExecStopPost: runs after every run, whatever its result.

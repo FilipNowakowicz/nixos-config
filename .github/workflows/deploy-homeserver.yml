@@ -199,15 +199,16 @@ jobs:
         if: always()
         run: rm -f "$HOME/.ssh/homeserver-deploy"
 
-  # Only a real failure reaches the private ntfy topic, which main shows as a
-  # desktop notification. Superseded skips and cancelled builds stay quiet.
+  # Only a real failure reaches the public ntfy.sh fallback topic (runners are
+  # not on the tailnet, so they cannot reach the homeserver's own ntfy), which
+  # main shows as a desktop notification. Superseded skips and cancelled builds stay quiet.
   notify:
     needs: [gate, builder, deploy]
     if: failure()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Tell the private ntfy topic the deploy failed
+      - name: Tell the ntfy fallback topic the deploy failed
         env:
           NTFY_TOPIC_URL: ${{ secrets.NTFY_TOPIC_URL }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -217,5 +218,6 @@ jobs:
           [[ -n $NTFY_TOPIC_URL ]] || exit 0
           curl --fail --silent --show-error --max-time 10 --retry 2 --retry-delay 2 \
             -H "Title: Homeserver deploy failed" -H "Priority: high" -H "Click: $RUN_URL" \
+            -H "Tags: source-deploys,rocket" \
             --data-binary "Deploy of ${SHORT_SHA:0:7} failed: $RUN_URL" \
             "$NTFY_TOPIC_URL" >/dev/null || echo "could not send the failure notification" >&2

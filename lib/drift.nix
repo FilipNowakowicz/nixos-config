@@ -14,5 +14,6 @@
       (lib.optionalString (c.services.loki.enable or false) "loki.service")
       (lib.optionalString (c.services.prometheus.enable or false) "prometheus.service")
       (lib.optionalString (c.services.prometheus.alertmanager.enable or false) "alertmanager.service")
+      (lib.optionalString (c.services.ntfy-sh.enable or false) "ntfy-sh.service")
     ];
 }

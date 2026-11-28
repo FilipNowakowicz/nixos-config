@@ -63,7 +63,7 @@ The fix is a static supplementary group, not a dynamic owner:
   — systemd adds the dynamic user to this group at start, and
   `sops-install-secrets` can resolve the static group at activation time.
 
-See `alertmanager_webhook_url`/`alertmanager-webhook` and
+See `ntfy_token_homeserver`/`alertmanager-webhook` and
 `adguardhome_admin_password`/`adguardhome-secrets` in
 `hosts/homeserver-gcp/default.nix` and `hosts/homeserver-gcp/adguard.nix` for
 worked examples. A smoke test that doesn't import the affected module (e.g.
@@ -115,21 +115,23 @@ the inventory into three kinds:
 
 ### Inventory
 
-| Secret                                                               | Owner host(s)             | Kind     | Rotate with                                                               |
-| :------------------------------------------------------------------- | :------------------------ | :------- | :------------------------------------------------------------------------ |
-| `user_password`                                                      | all                       | self     | `rotate-secret.sh password <file> <key>`                                  |
-| `observability_ingest_password` (+`_htpasswd`)                       | `main` / `homeserver-gcp` | self     | `rotate-secret.sh observability` (rotates the pair)                       |
-| `adguard_admin_password`                                             | `homeserver-gcp`          | self     | `rotate-secret.sh random`                                                 |
-| `grafana_admin_password`                                             | `homeserver-gcp`          | self     | `rotate-secret.sh random` — **but** set it in Grafana too; see caveats    |
-| `grafana_secret_key`                                                 | `homeserver-gcp`          | self     | `rotate-secret.sh random` — **caveat:** re-encrypts datasource secrets    |
-| `restic_password`                                                    | `main`,`homeserver-gcp`   | self     | `restic key add/remove` first, _then_ `rotate-secret.sh set`; see caveats |
-| `initrd_ssh_host_ed25519_key`                                        | `main`                    | self     | `rotate-secret.sh sshkey <file> <key>`                                    |
-| `tailscale_auth_key`                                                 | `homeserver-gcp`          | provider | Tailscale admin console → `rotate-secret.sh set`                          |
-| `b2_credentials` / `restic_repository`                               | `main`,`homeserver-gcp`   | provider | Backblaze B2 console / `b2` CLI → `rotate-secret.sh set`                  |
-| `alertmanager_webhook_url`                                           | `homeserver-gcp`          | provider | regenerate at the notification target → `rotate-secret.sh set`            |
-| `heartbeat_ping_url`                                                 | `homeserver-gcp`          | provider | regenerate at the heartbeat service → `rotate-secret.sh set`              |
-| `claude-credentials.json`, gcloud ADC, gemini oauth, `gh-hosts.yaml` | `&user`                   | capture  | re-run the tool's login, capture the file into sops                       |
-| `git_user_name` / `git_user_email`                                   | `&user`                   | —        | static identity, not a rotating credential                                |
+| Secret                                                                  | Owner host(s)                     | Kind     | Rotate with                                                                        |
+| :---------------------------------------------------------------------- | :-------------------------------- | :------- | :--------------------------------------------------------------------------------- |
+| `user_password`                                                         | all                               | self     | `rotate-secret.sh password <file> <key>`                                           |
+| `observability_ingest_password` (+`_htpasswd`)                          | `main` / `homeserver-gcp`         | self     | `rotate-secret.sh observability` (rotates the pair)                                |
+| `adguard_admin_password`                                                | `homeserver-gcp`                  | self     | `rotate-secret.sh random`                                                          |
+| `grafana_admin_password`                                                | `homeserver-gcp`                  | self     | `rotate-secret.sh random` — **but** set it in Grafana too; see caveats             |
+| `grafana_secret_key`                                                    | `homeserver-gcp`                  | self     | `rotate-secret.sh random` — **caveat:** re-encrypts datasource secrets             |
+| `restic_password`                                                       | `main`,`homeserver-gcp`           | self     | `restic key add/remove` first, _then_ `rotate-secret.sh set`; see caveats          |
+| `initrd_ssh_host_ed25519_key`                                           | `main`                            | self     | `rotate-secret.sh sshkey <file> <key>`                                             |
+| `tailscale_auth_key`                                                    | `homeserver-gcp`                  | provider | Tailscale admin console → `rotate-secret.sh set`                                   |
+| `b2_credentials` / `restic_repository`                                  | `main`,`homeserver-gcp`           | provider | Backblaze B2 console / `b2` CLI → `rotate-secret.sh set`                           |
+| `ntfy_fallback_url` (+`topic_url` in `ntfy.yaml`)                       | `homeserver-gcp` / `&user`        | self     | `rotate-secret.sh ntfy-fallback`, then GitHub `NTFY_TOPIC_URL` and healthchecks.io |
+| `ntfy_token_*` (+ client copies `token`, `builder_token`, `ntfy_token`) | `homeserver-gcp`, `main`, `&user` | self     | `rotate-secret.sh ntfy-token <main\|builder\|homeserver>` (writes every copy)      |
+| `ntfy_phone_password`                                                   | `homeserver-gcp`                  | self     | `rotate-secret.sh random`, then re-enter it in the phone's ntfy app                |
+| `heartbeat_ping_url`                                                    | `homeserver-gcp`                  | provider | regenerate at the heartbeat service → `rotate-secret.sh set`                       |
+| `claude-credentials.json`, gcloud ADC, gemini oauth, `gh-hosts.yaml`    | `&user`                           | capture  | re-run the tool's login, capture the file into sops                                |
+| `git_user_name` / `git_user_email`                                      | `&user`                           | —        | static identity, not a rotating credential                                         |
 
 **Trigger** for any entry: suspected exposure (logged, copied to an untrusted
 host, leaked artifact), a planned periodic rotation, or staff/device change. A

@@ -9,6 +9,7 @@
 let
   inherit (hostMeta) tailnetFQDN;
   driftLib = import ../../lib/drift.nix { inherit lib; };
+  ntfy = import ../../lib/ntfy.nix { };
   # Read by scripts/deploy-homeserver.sh; the same facts feed the fleet
   # inventory through lib/inventory-data.nix.
   hostDriftInventory = {
@@ -35,6 +36,7 @@ in
     inputs.disko.nixosModules.disko
     ./disko.nix
     ./nginx.nix
+    ./ntfy.nix
     ./adguard.nix
     ./backups.nix
     ./restore-drill.nix
@@ -83,6 +85,7 @@ in
         "loki"
         "prometheus"
         "alertmanager"
+        "ntfy"
       ];
       expectedExtraTCPPorts = [
         80 # nginx HTTP->HTTPS redirect vhost (binds 0.0.0.0; tailnet-firewalled)
@@ -90,7 +93,9 @@ in
     };
     observability = {
       enable = true;
-      alertWebhookUrlFile = config.sops.secrets.alertmanager_webhook_url.path;
+      # Alerts go to the local ntfy server, formatted by its fleet-alert template.
+      alertWebhookUrl = "${ntfy.localTopicUrl}?template=fleet-alert&tags=${ntfy.tags "homeserver"}";
+      alertWebhookBearerTokenFile = config.sops.secrets.ntfy_token_homeserver.path;
       watchdogUrlFile = config.sops.secrets.alertmanager_watchdog_url.path;
       grafana = {
         enable = true;
@@ -138,6 +143,23 @@ in
       ingestHtpasswdFile = config.sops.secrets.observability_ingest_htpasswd.path;
       grafanaAuthRequestUrl = "http://127.0.0.1:3180/auth";
     };
+
+    homeserverGcpNtfy = {
+      enable = true;
+      fqdn = tailnetFQDN;
+      phonePasswordFile = config.sops.secrets.ntfy_phone_password.path;
+      tokenFiles = {
+        main = config.sops.secrets.ntfy_token_main.path;
+        builder = config.sops.secrets.ntfy_token_builder.path;
+        homeserver = config.sops.secrets.ntfy_token_homeserver.path;
+      };
+      # main subscribes and publishes; the builder and this host only publish.
+      tokenAccess = {
+        main = "rw";
+        builder = "wo";
+        homeserver = "wo";
+      };
+    };
   };
 
   services = {
@@ -145,16 +167,28 @@ in
     # exitNodeCanProvide, advertises this host as an opt-in exit node.
     tailscale.authKeyFile = config.sops.secrets.tailscale_auth_key.path;
 
+    # Failures of the units the ntfy path depends on, and of the alerting
+    # and reachability stack itself, go straight to the public ntfy.sh
+    # fallback topic. The rest post to the local ntfy server, falling back to
+    # the public topic if it is down.
     systemd-failure-notify = {
       enable = true;
-      webhookUrlFile = config.sops.secrets.alertmanager_webhook_url.path;
+      source = "homeserver";
+      ntfy = {
+        url = ntfy.localTopicUrl;
+        tokenFile = config.sops.secrets.ntfy_token_homeserver.path;
+      };
+      webhookUrlFile = config.sops.secrets.ntfy_fallback_url.path;
       services = [
-        "alertmanager"
         "prometheus"
         "prometheus-node-exporter"
-        "nginx"
-        "tailscaled"
+      ];
+      fallbackServices = [
+        "alertmanager"
         "heartbeat-ping"
+        "nginx"
+        "ntfy-sh"
+        "tailscaled"
       ];
     };
 
@@ -179,10 +213,19 @@ in
       tailscale_auth_key = { };
       grafana_admin_password.owner = "grafana";
       grafana_secret_key.owner = "grafana";
-      alertmanager_webhook_url = {
+      # Public ntfy.sh topic for failures the local ntfy server cannot report.
+      # Read by systemd-failure-notify as a root-loaded credential.
+      ntfy_fallback_url = { };
+      # Alertmanager sends it as a bearer token; systemd-failure-notify loads
+      # it as a credential.
+      ntfy_token_homeserver = {
         mode = "0440";
         group = "alertmanager-webhook";
       };
+      # Loaded by ntfy-sh.service as credentials to provision its users.
+      ntfy_token_main = { };
+      ntfy_token_builder = { };
+      ntfy_phone_password = { };
       # Ping URL of the healthchecks.io check behind the always-firing
       # Watchdog alert. Alertmanager reads it at send time, so the loopback
       # placeholder only yields failed sends until the real URL is set with
@@ -203,7 +246,7 @@ in
     };
   };
 
-  # Static group bridging the root-owned alertmanager_webhook_url secret to the
+  # Static group bridging the root-owned ntfy_token_homeserver and watchdog secrets to the
   # Alertmanager service user. systemd adds the dynamic user to this group at start.
   users.groups.alertmanager-webhook = { };
   systemd.services.alertmanager.serviceConfig.SupplementaryGroups = [ "alertmanager-webhook" ];

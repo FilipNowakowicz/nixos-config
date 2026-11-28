@@ -94,7 +94,8 @@
         # CI runners are external to the NixOS host registry, but use a
         # pre-approved Tailscale tag to reach the homeserver over SSH;
         # `ci-builder` reaches only gcp-builder. A phone tagged `phone` reaches
-        # only KDE Connect on main, plus the exit node below.
+        # only KDE Connect on main and ntfy on homeserver-gcp, plus the exit
+        # node below.
         externalTags = [
           "ci"
           "ci-builder"

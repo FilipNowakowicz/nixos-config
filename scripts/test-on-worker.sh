@@ -12,7 +12,7 @@ export CLOUD="$test_dir/cloud"
 {
   printf '#!%s\nset -euo pipefail\n' "$(command -v bash)"
   cat "$repo_root/scripts/lib/builder.sh"
-  printf '%s\n' 'builder_fqdn=builder.example' 'builder_user="jobs"' 'builder_ssh_tries=60' 'NOTIFY_URL_FILE='
+  printf '%s\n' 'builder_fqdn=builder.example' 'builder_user="jobs"' 'builder_ssh_tries=60' 'NOTIFY_TOKEN_FILE='
   cat "$repo_root/home/files/scripts/on-worker.sh"
 } >"$test_dir/bin/on-worker"
 

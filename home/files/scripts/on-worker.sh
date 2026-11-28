@@ -5,7 +5,7 @@
 # gcp-builder VM, which runs them as its `jobs` user next to its builds
 # (modules/nixos/profiles/batch-jobs). Installed by home/profiles/on-worker.nix,
 # which puts scripts/lib/builder.sh (VM start/stop, zone moves), the registry's
-# builder address and NOTIFY_URL_FILE above this text.
+# builder address and NOTIFY_TOKEN_FILE above this text.
 #
 # Each checkout gets a persistent workspace on the worker, so .venv and caches
 # survive between runs. Jobs run detached under the worker's `jobs` user and
@@ -115,10 +115,12 @@ resolve_checkout() {
   workspace="work/$base-$hash"
 }
 
-seed_notify_url() {
-  [[ -n ${NOTIFY_URL_FILE:-} && -r $NOTIFY_URL_FILE ]] || return 0
-  remote 'umask 077; mkdir -p ~/.config/worker; cat > ~/.config/worker/notify-url' <"$NOTIFY_URL_FILE" ||
-    echo "on-worker: could not seed the ntfy topic; jobs will finish silently" >&2
+seed_notify_token() {
+  [[ -n ${NOTIFY_TOKEN_FILE:-} && -r $NOTIFY_TOKEN_FILE ]] || return 0
+  # The URL file held the public topic before #630; jobs now post to the
+  # self-hosted server with this publish-only token.
+  remote 'umask 077; mkdir -p ~/.config/worker; rm -f ~/.config/worker/notify-url; cat > ~/.config/worker/ntfy-token' <"$NOTIFY_TOKEN_FILE" ||
+    echo "on-worker: could not seed the ntfy token; jobs will finish silently" >&2
 }
 
 sync_checkout() {
@@ -214,7 +216,7 @@ cmd_run() {
   [[ $name =~ ^[A-Za-z0-9_.-]+$ ]] || die "job name may only contain letters, digits, _ . -"
 
   start_vm
-  seed_notify_url
+  seed_notify_token
   echo "on-worker: syncing $toplevel" >&2
   sync_checkout "${includes[@]}"
 

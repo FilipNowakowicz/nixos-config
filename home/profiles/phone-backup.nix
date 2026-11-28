@@ -4,8 +4,9 @@
 #
 # The phone is only sometimes reachable, so an hourly timer tries and skips
 # quietly unless the phone is reachable and charging, or a backup has already
-# succeeded in the last 20 hours. A separate daily check sends an ntfy alert
-# when nothing has succeeded for 7 days, so the job can't go silent.
+# succeeded in the last 20 hours. A separate daily check posts to the
+# self-hosted ntfy server when nothing has succeeded for 7 days, so the job
+# can't go silent.
 #
 # Scope is a mirror, not an archive: the shared `standard` retention applies, so
 # a photo deleted from the phone ages out with its last snapshot. Android hides
@@ -28,6 +29,7 @@ let
   inherit (config.sops) secrets;
   stateDir = "${config.xdg.stateHome}/phone-backup";
   pruneOpts = (import ../../lib/backup-policy.nix).standard;
+  ntfy = import ../../lib/ntfy.nix { };
 
   resticEnv = ''
     set -a
@@ -121,10 +123,12 @@ let
 
       if ((age_days >= 7)); then
         curl -fsS --retry 3 \
+          --config <(printf 'header = "Authorization: Bearer %s"\n' "$(<${secrets.ntfy-token.path})") \
           -H "Title: Phone backup is stale" \
           -H "Priority: high" \
+          -H "Tags: ${ntfy.tags "phone-backup"}" \
           -d "No successful phone backup for $age_days days. Leave the phone charging on the tailnet, or check: journalctl --user -u phone-backup" \
-          "$(<${secrets.ntfy-topic-url.path})" >/dev/null
+          ${lib.escapeShellArg ntfy.topicUrl} >/dev/null
       fi
     '';
   };

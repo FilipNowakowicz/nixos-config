@@ -133,7 +133,7 @@ No deployment or cleanup is performed by this change. Prometheus now keeps 30
 days on the homeserver, accepts remote write through the exact authenticated
 `/obs/prometheus/api/v1/write` nginx route, evaluates the shared infrastructure
 rules, and delivers them to the loopback Alertmanager with the existing
-`alertmanager_webhook_url`. Clients retain a 24-hour local buffer. Metrics
+webhook receiver (since #630 the local ntfy server). Clients retain a 24-hour local buffer. Metrics
 history from the removed backend is not imported; the existing Prometheus TSDB
 supplies its recent local samples and new remote writes accumulate from cutover.
 
