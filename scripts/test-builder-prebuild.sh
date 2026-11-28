@@ -8,6 +8,7 @@ mkdir -p "$fixture/bin"
 export STATE_DIRECTORY="$fixture/state" PREBUILD_LOG="$fixture/log"
 export TEST_REV=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 export TEST_STORE=/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-nixos-system-main-fixture
+export NOTIFY_URL=https://ntfy.example/fleet NOTIFY_TAGS=source-builder,hammer_and_wrench
 cat >"$fixture/bin/nix" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -31,6 +32,11 @@ STUB
 cat >"$fixture/bin/curl" <<'STUB'
 #!/usr/bin/env bash
 printf 'curl %s\n' "$*" >>"$PREBUILD_LOG"
+# The token arrives through a --config pipe, never on the command line.
+while (($# > 1)); do
+  [[ $1 != --config ]] || sed 's/^/curl-config /' "$2" >>"$PREBUILD_LOG"
+  shift
+done
 [[ ${FAIL_NOTIFY:-0} != 1 ]]
 STUB
 # The Nix sandbox has no /usr/bin/env.
@@ -69,16 +75,21 @@ grep -q '^root --add-root .*displaylink-source --indirect --realise ' "$PREBUILD
 SERVICE_RESULT=timeout bash "$script_dir/builder-prebuild.sh" --service-failed
 jq -e --arg rev "$TEST_REV" '.result == "timeout" and .revision == $rev and .store_path == ""' "$STATE_DIRECTORY/status.json" >/dev/null
 
-# Without the URL file nothing is sent.
+# Without the token file nothing is sent.
 if grep -q '^curl ' "$PREBUILD_LOG"; then
-  echo 'sent a notification without a URL file' >&2
+  echo 'sent a notification without a token file' >&2
   exit 1
 fi
 
-printf 'https://ntfy.example/topic' >"$STATE_DIRECTORY/notify-url"
+printf 'tk_test' >"$STATE_DIRECTORY/ntfy-token"
 bash "$script_dir/builder-prebuild.sh"
 SERVICE_RESULT=success bash "$script_dir/builder-prebuild.sh" --service-failed
-grep -q '^curl .*Title: System update ready.*Prebuilt main at aaaaaaa.*https://ntfy.example/topic' "$PREBUILD_LOG"
+grep -q '^curl .*Title: System update ready.*Tags: source-builder,hammer_and_wrench.*Prebuilt main at aaaaaaa.*https://ntfy.example/fleet' "$PREBUILD_LOG"
+grep -qx 'curl-config header = "Authorization: Bearer tk_test"' "$PREBUILD_LOG"
+if grep -q '^curl .*tk_test' "$PREBUILD_LOG"; then
+  echo 'the token reached the curl command line' >&2
+  exit 1
+fi
 
 : >"$PREBUILD_LOG"
 if FAIL_BUILD=1 bash "$script_dir/builder-prebuild.sh"; then

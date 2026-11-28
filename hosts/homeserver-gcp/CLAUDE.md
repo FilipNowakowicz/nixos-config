@@ -13,6 +13,7 @@ Status: **active** — deployed on GCP and accessible via Tailscale.
   adds a high-priority GCP firewall deny for public TCP/22 on the default VPC.
 - **Tailscale** — auth key from sops secret `tailscale_auth_key`; also an
   opt-in exit node (see [Exit node](#exit-node))
+- **ntfy** — the fleet's notification server, tailnet-only on HTTPS port 2586 (see [ntfy](#ntfy))
 - **AdGuard Home** — DNS (TCP/UDP 53) + web UI (HTTPS port 3001 via nginx, internal HTTP on 127.0.0.1:13001), tailscale0 only; state is exposed at `/var/lib/AdGuardHome` and stored by systemd at `/var/lib/private/AdGuardHome`
 - **Restic/B2** — off-site backups to Backblaze B2 (`/var/lib/grafana`, staged AdGuard state, and a restore canary)
 - **GCE snapshots** — daily 7-day boot disk snapshots for fast provider-local rollback
@@ -64,6 +65,63 @@ merge).
   `tailscale status --json | jq .ExitNodeStatus` stays `null` until picked.
 - **Egress** — exit traffic is NATed to the VM's own address by Tailscale, so
   GCE needs no `canIpForward`; it leaves with the VM's external IP.
+
+## ntfy
+
+Self-hosted ntfy (#630, `ntfy.nix`, shared facts in `lib/ntfy.nix`) carries
+every notification that starts inside the tailnet, on one topic, `fleet`.
+
+- **Reach** — ntfy listens on `127.0.0.1:12586`; nginx serves it with the
+  Tailscale cert at `https://homeserver-gcp.tail90fc7a.ts.net:2586`, opened on
+  `tailscale0` only. The ACL admits port 2586 from `tag:workstation`,
+  `tag:phone` and `tag:builder` (plus admin devices through break-glass); the
+  firewall/`acceptFrom` invariant and the reviewed-grants list keep them tied.
+- **Auth** — anonymous access is denied. Users are provisioned from sops on
+  every start: `phone` (password `ntfy_phone_password`, read-only), `main`
+  (token, read-write), `builder` and `homeserver` (tokens, write-only).
+  Rotate a token with `bash scripts/rotate-secret.sh ntfy-token <name>`, which
+  writes every copy (homeserver, `home/users/user/secrets/ntfy.yaml`,
+  `hosts/main/secrets/secrets.yaml`).
+- **State** — the message cache keeps 168 h, for clients offline for a few
+  days. State lives in `/var/lib/private/ntfy-sh` and is not backed up: users
+  are declarative, and the cache holds only delivered notifications.
+- **Senders and sources** — each message carries a `source-*` tag and an
+  emoji tag (`lib/ntfy.nix`), which `main` maps to the app name and icon:
+  homeserver (Alertmanager, failed units), remote builder (`builder-prebuild`),
+  backups and system (`main`'s failed units), phone backup
+  (`phone-backup-stale-check`), on-worker (jobs) and deploys (GitHub).
+- **Alerts** — the `fleet-alert` template turns the Alertmanager payload into
+  `[FIRING] <alert> on <host>`, the summaries as body, and priority from
+  severity: critical 5, warning 3, resolved 2.
+- **Fallback** — when this host, nginx or ntfy is down, nothing can report
+  through it. The public ntfy.sh topic (`ntfy_fallback_url`, `topic_url` in
+  `ntfy.yaml`, GitHub secret `NTFY_TOPIC_URL`) keeps this host's own
+  delivery-path failures, GitHub deploy failures and the healthchecks.io
+  heartbeat integration. `main` subscribes to both. Rotate the topic with
+  `bash scripts/rotate-secret.sh ntfy-fallback`, then update the GitHub secret
+  and the healthchecks.io integration.
+- **Test** — from `main`:
+  `curl -u ":$(sops -d --extract '["token"]' home/users/user/secrets/ntfy.yaml)" -H 'Title: Test' -H 'Priority: high' -H 'Tags: source-homeserver' -d hello https://homeserver-gcp.tail90fc7a.ts.net:2586/fleet`.
+  For a formatted alert, run `amtool --alertmanager.url=http://127.0.0.1:9093 alert add NtfyTest severity=warning host=homeserver-gcp --annotation=summary=test` on this host
+  and remove it with `amtool silence` or let it expire.
+
+### Subscribe the phone
+
+Not automated. The phone must be on the tailnet as `tag:phone`.
+
+1. Install the ntfy app (F-Droid or Play Store).
+2. Settings → Users → Add user: service URL
+   `https://homeserver-gcp.tail90fc7a.ts.net:2586`, username `phone`, password
+   from `sops -d --extract '["ntfy_phone_password"]' hosts/homeserver-gcp/secrets/secrets.yaml`.
+3. Add subscription → topic `fleet`, tick "Use another server" and enter the
+   same URL. The app keeps a connection open to a self-hosted server (instant
+   delivery); allow it to run in the background.
+4. Add subscription → topic name from the fallback URL
+   (`sops -d --extract '["topic_url"]' home/users/user/secrets/ntfy.yaml`, the
+   part after `https://ntfy.sh/`) on the default ntfy.sh server.
+
+The app label stays "ntfy" on Android; titles and emoji tags identify the
+source.
 
 ## Provisioning & First Deploy
 
@@ -175,13 +233,15 @@ with Tailscale down the host looks unreachable. The remaining channels are:
   It never touches live data and complements the daily canary; `RestoreDrillStale`
   alerts if it has not passed in ~100 days. Defined in `restore-drill.nix`;
   procedure in [`docs/restore-drill.md`](../../docs/restore-drill.md).
-- **Alert delivery** — Prometheus/Alertmanager sends fleet alerts to the sops-backed
-  `alertmanager_webhook_url`; keep it pointed at an off-host notification
-  target. For the alerting/reachability stack itself (`alertmanager`, `prometheus`,
-  `prometheus-node-exporter`, `nginx`, `tailscaled`, `heartbeat-ping`),
-  `systemd-failure-notify` also posts directly to that webhook through
-  `OnFailure=` so a delivery-path unit can report its own failure without
-  waiting for the Prometheus evaluator.
+- **Alert delivery** — Alertmanager posts fleet alerts to the local ntfy
+  server (loopback, bearer token `ntfy_token_homeserver`), whose `fleet-alert`
+  template formats them (see [ntfy](#ntfy)). `systemd-failure-notify` posts
+  `prometheus` and `prometheus-node-exporter` failures there too, and falls
+  back to the public topic if ntfy refuses. The units ntfy delivery depends on
+  (`alertmanager`, `heartbeat-ping`, `nginx`, `ntfy-sh`, `tailscaled`) post
+  straight to the public ntfy.sh fallback topic in `ntfy_fallback_url`, so a
+  delivery-path unit can report its own failure. The
+  `alertDeliveryHasFailedUnitFallback` invariant pins that list.
 - **Off-box heartbeat (dead-man's-switch)** — every alerting component runs _on_
   this host, so a dead VM fires nothing. `heartbeat-ping.timer` pings the
   external URL in sops secret `heartbeat_ping_url` (e.g. a healthchecks.io

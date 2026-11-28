@@ -61,8 +61,8 @@ let
           # transfers. Its UDP discovery broadcast doesn't cross the tailnet, so
           # the phone adds this host by its tailnet IP. An untagged phone on the
           # admin's account already passes the break-glass rule; tagging it
-          # tag:phone confines it to these ports (plus the opt-in exit node
-          # on homeserver-gcp, granted in flake.nix's tailnetAcl).
+          # tag:phone confines it to these ports (plus ntfy and the opt-in exit
+          # node on homeserver-gcp; the latter granted in flake.nix's tailnetAcl).
           phone = [ 1716 ] ++ builtins.genList (i: 1739 + i) 26;
         };
       };
@@ -100,11 +100,19 @@ let
             443
             53 # AdGuard DNS
             3001 # AdGuard web UI
+            2586 # ntfy (lib/ntfy.nix)
           ];
           # gcp-builder has no other resolver: AdGuard is the tailnet-wide
           # global nameserver, so without DNS it cannot resolve cache.nixos.org
           # and every offloaded closure build stalls on cache lookups.
-          builder = [ 53 ];
+          #
+          # The builder also publishes prebuild and on-worker results to ntfy.
+          builder = [
+            53
+            2586
+          ];
+          # The phone subscribes to ntfy, and reaches nothing else here.
+          phone = [ 2586 ];
           # External CI runners use a pre-approved tag and only need SSH for
           # the homeserver's CI maintenance/deployment surface.
           ci = [ 22 ];

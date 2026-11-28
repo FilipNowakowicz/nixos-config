@@ -279,8 +279,10 @@ before the first workflow run. Never print key material.
 The builder job uses only the existing builder secrets listed above.
 
 A real failure (not a superseded skip or a cancelled build) runs the `notify`
-job, which posts to the private ntfy topic from the repository secret
-`NTFY_TOPIC_URL` (the same `topic_url` as `home/users/user/secrets/ntfy.yaml`).
+job, which posts to the public ntfy.sh fallback topic from the repository
+secret `NTFY_TOPIC_URL` (the same `topic_url` as
+`home/users/user/secrets/ntfy.yaml`; GitHub runners are not on the tailnet, so
+they cannot reach the homeserver's ntfy).
 `main` shows it as a desktop notification that links to the run. Without the
 secret, the job stays quiet.
 

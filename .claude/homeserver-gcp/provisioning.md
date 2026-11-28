@@ -48,7 +48,9 @@ When provisioning from scratch:
    - `tailscale_auth_key` — Tailscale admin → Settings → Keys → reusable, non-ephemeral, tagged `tag:server`
    - `user_password` — bcrypt hash: `mkpasswd -m bcrypt`
    - `grafana_admin_password`, `grafana_secret_key`, `observability_ingest_htpasswd`
-   - `alertmanager_webhook_url` — off-host notification URL such as an ntfy topic
+   - `ntfy_fallback_url` — public ntfy.sh fallback topic URL; `bash scripts/rotate-secret.sh ntfy-fallback`
+   - `ntfy_token_main`, `ntfy_token_builder`, `ntfy_token_homeserver` — `bash scripts/rotate-secret.sh ntfy-token <name>`
+   - `ntfy_phone_password` — `bash scripts/rotate-secret.sh random hosts/homeserver-gcp/secrets/secrets.yaml ntfy_phone_password 32`
    - `restic_password`, `b2_credentials` (env-file format: `B2_ACCOUNT_ID=…` / `B2_ACCOUNT_KEY=…`)
 
 2. **Provision the VM + install NixOS** — `bash scripts/deploy-gcp.sh` (see above).

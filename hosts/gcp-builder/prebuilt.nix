@@ -1,5 +1,6 @@
 { config, pkgs, ... }:
 let
+  ntfy = import ../../lib/ntfy.nix { };
   prebuild = pkgs.writeShellApplication {
     name = "builder-prebuild";
     runtimeInputs = with pkgs; [
@@ -31,6 +32,11 @@ in
       TimeoutStartSec = "3h";
       TimeoutStopSec = "30s";
       KillMode = "control-group";
+    };
+    # The token itself is seeded by hand into the state directory.
+    environment = {
+      NOTIFY_URL = ntfy.topicUrl;
+      NOTIFY_TAGS = ntfy.tags "builder";
     };
   };
 

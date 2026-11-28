@@ -17,13 +17,14 @@
 }:
 let
   cfg = config.profiles.batchJobs;
+  ntfy = import ../../../../lib/ntfy.nix { };
 
   # Fixed so the idle check can find the job cgroups without asking systemd.
   jobsUid = 1001;
 
   # Runs one job inside its `systemd-run --user` unit (started by `on-worker
   # run` on main): logs to ~/jobs/<name>/log, records the exit status, and
-  # posts to ntfy if a topic URL has been seeded.
+  # posts to the self-hosted ntfy server if a token has been seeded.
   workerJob = pkgs.writeShellApplication {
     name = "worker-job";
     runtimeInputs = with pkgs; [
@@ -31,6 +32,10 @@ let
       coreutils
       curl
     ];
+    runtimeEnv = {
+      NOTIFY_URL = ntfy.topicUrl;
+      NOTIFY_TAGS = ntfy.tags "on-worker";
+    };
     text = builtins.readFile ./worker-job.sh;
   };
 in

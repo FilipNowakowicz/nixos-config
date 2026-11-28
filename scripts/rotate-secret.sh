@@ -32,6 +32,8 @@ Usage:
   bash scripts/rotate-secret.sh password <file> <key> [method]   # prompt + mkpasswd hash (default yescrypt)
   bash scripts/rotate-secret.sh sshkey   <file> <key> [comment]  # generate an ed25519 key, print the public half
   bash scripts/rotate-secret.sh observability                    # rotate the telemetry ingest password across main+homeserver
+  bash scripts/rotate-secret.sh ntfy-token <main|builder|homeserver>    # rotate one self-hosted ntfy token in every file holding it
+  bash scripts/rotate-secret.sh ntfy-fallback                    # move the public ntfy.sh fallback to a new random topic
 
 Examples:
   printf '%s' "$NEW_URL" | bash scripts/rotate-secret.sh set hosts/homeserver-gcp/secrets/secrets.yaml heartbeat_ping_url
@@ -188,6 +190,64 @@ cmd_observability() {
   echo "  Deploy homeserver-gcp BEFORE main so the new htpasswd is live when the client switches."
 }
 
+# Self-hosted ntfy tokens (#630). homeserver-gcp provisions every token, and
+# each client holds its own copy; rotating one copy alone locks that client out.
+ntfy_token_files() {
+  case $1 in
+  main) echo "hosts/homeserver-gcp/secrets/secrets.yaml:ntfy_token_main home/users/user/secrets/ntfy.yaml:token hosts/main/secrets/secrets.yaml:ntfy_token" ;;
+  builder) echo "hosts/homeserver-gcp/secrets/secrets.yaml:ntfy_token_builder home/users/user/secrets/ntfy.yaml:builder_token" ;;
+  homeserver) echo "hosts/homeserver-gcp/secrets/secrets.yaml:ntfy_token_homeserver" ;;
+  *) die "unknown ntfy token '$1' (main, builder or homeserver)" ;;
+  esac
+}
+
+# Write the bytes of $1 to every file:key pair after it.
+rotate_copies() {
+  local src=$1 pair
+  shift
+  for pair in "$@"; do
+    rotate_one "${pair%%:*}" "${pair#*:}" "$src"
+  done
+}
+
+# ntfy tokens are tk_ plus 29 characters from [-_A-Za-z0-9].
+cmd_ntfy_token() {
+  local name=${1:-}
+  [[ -n $name ]] || die "usage: ntfy-token <main|builder|homeserver>"
+  require_tools sops jq nix
+  local files src value=
+  files=$(ntfy_token_files "$name")
+  while ((${#value} < 29)); do
+    value+=$(head -c 256 /dev/urandom | LC_ALL=C tr -dc 'a-z0-9')
+  done
+  src=$(mktemp -p "$scratch")
+  printf 'tk_%s' "${value:0:29}" >"$src"
+  # shellcheck disable=SC2086 # word-split the file:key list
+  rotate_copies "$src" $files
+  rm -f "$src"
+  echo
+  echo "Next: commit, let homeserver-gcp deploy, then rebuild the clients holding the token."
+  [[ $name != builder ]] || echo "  The builder's copies are seeded by hand and by on-worker; see hosts/gcp-builder/CLAUDE.md."
+}
+
+# The public fallback topic is unauthenticated, so its name is the secret.
+cmd_ntfy_fallback() {
+  require_tools sops jq nix
+  local src value=
+  while ((${#value} < 32)); do
+    value+=$(head -c 256 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9')
+  done
+  src=$(mktemp -p "$scratch")
+  printf 'https://ntfy.sh/%s' "${value:0:32}" >"$src"
+  rotate_copies "$src" home/users/user/secrets/ntfy.yaml:topic_url hosts/homeserver-gcp/secrets/secrets.yaml:ntfy_fallback_url
+  rm -f "$src"
+  echo
+  echo "Next, without printing the value:"
+  echo "  - GitHub: sops -d --extract '[\"topic_url\"]' home/users/user/secrets/ntfy.yaml | gh secret set NTFY_TOPIC_URL"
+  echo "  - healthchecks.io: point the heartbeat check's ntfy integration at the new topic"
+  echo "  - commit, let homeserver-gcp deploy, then rebuild main"
+}
+
 next_steps() {
   local file=$1
   echo
@@ -208,6 +268,8 @@ main() {
   password) cmd_password "$@" ;;
   sshkey) cmd_sshkey "$@" ;;
   observability) cmd_observability "$@" ;;
+  ntfy-token) cmd_ntfy_token "$@" ;;
+  ntfy-fallback) cmd_ntfy_fallback "$@" ;;
   -h | --help | "") usage ;;
   *) die "unknown command '$sub' (try --help)" ;;
   esac

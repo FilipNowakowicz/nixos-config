@@ -135,8 +135,9 @@
         mode = "0440";
       };
       initrd_ssh_host_ed25519_key = { };
-      # The private ntfy topic that homeserver alerts and failures also use.
-      failure_webhook_url = { };
+      # Access token for the self-hosted ntfy server on homeserver-gcp, used
+      # by systemd-failure-notify. Rotate with `rotate-secret.sh ntfy-token main`.
+      ntfy_token = { };
     };
   };
 

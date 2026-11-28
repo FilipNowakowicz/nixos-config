@@ -11,11 +11,11 @@
 let
   builder = hostRegistry.gcp-builder;
 
-  # Job results go to the same private ntfy topic as the other fleet
-  # notifications; on-worker copies the URL to the worker on each run.
-  notifyUrlFile = lib.optionalString (
-    config.sops.secrets ? ntfy-topic-url
-  ) config.sops.secrets.ntfy-topic-url.path;
+  # Job results go to the self-hosted ntfy server with the builder's
+  # publish-only token, which on-worker copies to the worker on each run.
+  notifyTokenFile = lib.optionalString (
+    config.sops.secrets ? ntfy-builder-token
+  ) config.sops.secrets.ntfy-builder-token.path;
 
   onWorker = pkgs.writeShellApplication {
     name = "on-worker";
@@ -42,7 +42,7 @@ let
         builder_fqdn=${lib.escapeShellArg builder.tailnetFQDN}
         builder_user="jobs"
         builder_ssh_tries=60
-        NOTIFY_URL_FILE=${lib.escapeShellArg notifyUrlFile}
+        NOTIFY_TOKEN_FILE=${lib.escapeShellArg notifyTokenFile}
       ''
       + builtins.readFile ../files/scripts/on-worker.sh;
   };

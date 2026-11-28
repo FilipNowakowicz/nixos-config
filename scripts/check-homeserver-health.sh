@@ -8,9 +8,10 @@ for attempt in {1..10}; do
     curl --fail --silent --show-error --max-time 10 http://127.0.0.1:9090/-/ready >/dev/null &&
     curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3100/ready >/dev/null &&
     curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3000/grafana/api/health | jq -e '.database == "ok"' >/dev/null &&
+    curl --fail --silent --show-error --max-time 10 http://127.0.0.1:12586/v1/health | jq -e '.healthy' >/dev/null &&
     dig +time=5 +tries=1 @127.0.0.1 example.com A | grep -q 'status: NOERROR' &&
     dig +tcp +time=5 +tries=1 @127.0.0.1 example.com A | grep -q 'status: NOERROR'; then
-    echo 'Homeserver failed-unit, Prometheus, Loki, Grafana and AdGuard DNS checks passed.'
+    echo 'Homeserver failed-unit, Prometheus, Loki, Grafana, ntfy and AdGuard DNS checks passed.'
     exit 0
   fi
   printf 'Health checks failed (attempt %s/10); failed units:\n%s\n' "$attempt" "$failed_units" >&2

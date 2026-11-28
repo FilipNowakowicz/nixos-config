@@ -9,7 +9,7 @@
 let
   cfg = config.profiles.observability;
   alertData = import ../../../../lib/observability-alerts.nix;
-  webhookEnabled = cfg.alertWebhookUrlFile != null;
+  webhookEnabled = cfg.alertWebhookUrlFile != null || cfg.alertWebhookUrl != null;
   watchdogEnabled = cfg.watchdogUrlFile != null;
 
   inherit (config.services) grafana loki alloy;
@@ -70,6 +70,10 @@ in
   config = lib.mkIf (cfg.enable && cfg.alerts.enable) {
     assertions = [
       {
+        assertion = cfg.alertWebhookUrl == null || cfg.alertWebhookUrlFile == null;
+        message = "profiles.observability: set alertWebhookUrl or alertWebhookUrlFile, not both";
+      }
+      {
         assertion = cfg.collectors.metrics.enable;
         message = "profiles.observability.alerts.enable requires collectors.metrics.enable";
       }
@@ -96,10 +100,23 @@ in
             ++ lib.optional webhookEnabled {
               name = "webhook";
               webhook_configs = [
-                {
-                  url_file = toString cfg.alertWebhookUrlFile;
-                  send_resolved = true;
-                }
+                (
+                  (
+                    if cfg.alertWebhookUrl != null then
+                      { url = cfg.alertWebhookUrl; }
+                    else
+                      { url_file = toString cfg.alertWebhookUrlFile; }
+                  )
+                  // {
+                    send_resolved = true;
+                  }
+                  // lib.optionalAttrs (cfg.alertWebhookBearerTokenFile != null) {
+                    http_config.authorization = {
+                      type = "Bearer";
+                      credentials_file = toString cfg.alertWebhookBearerTokenFile;
+                    };
+                  }
+                )
               ];
             }
             ++ lib.optional watchdogEnabled {

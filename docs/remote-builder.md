@@ -117,8 +117,9 @@ boundary is kept tight accordingly:
   from personal SSH keys. It is low-stakes and rotatable (rotation steps in the
   builder runbook).
 - **Disposable builder.** The builder holds no sops secrets, no service state,
-  and no backup. Its only secret beyond the tailnet key is the ntfy topic URL for
-  prebuild notifications, which can only post to that topic. Losing the builder
+  and no backup. Its only secret beyond the tailnet key is the publish-only ntfy
+  token for prebuild and on-worker notifications, which can only post to the
+  fleet topic. Losing the builder
   costs only provisioning time, which is why a changed host key after
   reprovisioning is tolerated with `accept-new`.
 

@@ -28,7 +28,29 @@ in
         store. When null (the default), alerts route to a null receiver so
         deployments without a configured URL keep working.
       '';
-      example = lib.literalExpression "config.sops.secrets.alertmanager_webhook_url.path";
+      example = lib.literalExpression "config.sops.secrets.ntfy_fallback_url.path";
+    };
+
+    alertWebhookUrl = lib.mkOption {
+      type = with lib.types; nullOr str;
+      default = null;
+      description = ''
+        Webhook URL for Alertmanager notifications when the URL itself is not
+        secret, such as a topic on an access-controlled ntfy server. Use
+        instead of `alertWebhookUrlFile`, with `alertWebhookBearerTokenFile`
+        for the credential.
+      '';
+      example = "http://127.0.0.1:2586/alerts?template=alertmanager";
+    };
+
+    alertWebhookBearerTokenFile = lib.mkOption {
+      type = with lib.types; nullOr path;
+      default = null;
+      description = ''
+        Runtime file with a bearer token Alertmanager sends with each webhook
+        notification (`http_config.authorization.credentials_file`).
+      '';
+      example = lib.literalExpression "config.sops.secrets.ntfy_token.path";
     };
 
     watchdogUrlFile = lib.mkOption {
