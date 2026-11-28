@@ -1,4 +1,8 @@
 //@ pragma UseQApplication
+//@ pragma IconTheme Adwaita
+// IconTheme: named icons (notification icons such as network-server) resolve in the
+// same theme as GTK apps (gtk.iconTheme in home/profiles/desktop.nix); without it
+// Qt looks only in hicolor and shows a checkerboard for anything else.
 import QtQuick
 import Quickshell
 import Quickshell.Io
