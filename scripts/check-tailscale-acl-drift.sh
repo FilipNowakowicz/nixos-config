@@ -2,8 +2,10 @@
 set -euo pipefail
 
 # Compares the rendered tailscale-acl package against the live Tailscale policy.
-# Only the fields emitted by our generator (tagOwners, acls) are compared after
-# key-sorting so formatting noise does not trigger false positives.
+# Only the fields emitted by our generator (tagOwners, acls and
+# autoApprovers.exitNode) are compared after key-sorting so formatting noise
+# does not trigger false positives. Other autoApprovers keys (routes) stay
+# live-only.
 #
 # Required env:
 #   TAILSCALE_API_KEY   — Tailscale API key with policy:read scope
@@ -38,8 +40,10 @@ if [[ $status != 200 ]]; then
 fi
 live_json="$(cat "$response")"
 
-rendered_normal="$(jq -S '{tagOwners, acls}' "$acl_path")"
-live_normal="$(printf '%s' "$live_json" | jq -S '{tagOwners, acls}')"
+# Keep this filter in sync with scripts/apply-tailscale-acl.sh.
+managed='{tagOwners, acls, exitNodeApprovers: ((.autoApprovers.exitNode // []) | sort)}'
+rendered_normal="$(jq -S "$managed" "$acl_path")"
+live_normal="$(printf '%s' "$live_json" | jq -S "$managed")"
 
 if diff --unified \
   --label "rendered (lib/acl.nix)" \

@@ -1,5 +1,6 @@
 # Tailscale ACL generator — derives tag owners and access rules from
-# acceptFrom relationships in the host registry.
+# acceptFrom relationships in the host registry, plus exit-node
+# auto-approvers from exitNodeCanProvide.
 # Feed the output to builtins.toJSON for acl.hujson.
 # Rules are tag-to-tag (not per-FQDN) so new nodes join the correct group
 # automatically. Tailscale ACLs are connection-oriented, so accepted inbound
@@ -37,6 +38,32 @@ let
       throw "lib/acl.nix: acceptFrom references undefined tag(s) ${builtins.toJSON undefined}; every source tag must be carried by some tailnet host or be explicitly declared external (defined tags: ${builtins.toJSON definedTags})";
 
   sortedUnique = values: builtins.sort builtins.lessThan (lib.unique values);
+
+  # Tags of hosts with `tailscale.exitNodeCanProvide = true`.
+  collectExitNodeTags =
+    hosts:
+    sortedUnique (
+      map (cfg: cfg.tailscale.tag) (
+        lib.attrValues (
+          lib.filterAttrs (_: cfg: cfg.tailscale.exitNodeCanProvide or false) (tailscaleHosts hosts)
+        )
+      )
+    );
+
+  # `exitNodeUsers` entries are ACL sources: an autogroup, or a tag that must
+  # be defined, for the same reason as acceptFrom source tags above.
+  assertExitNodeUsersDefined =
+    hostRegistry: externalTags: exitNodeUsers: value:
+    let
+      definedTags = map (tag: "tag:${tag}") ((collectTagNames hostRegistry) ++ externalTags);
+      invalid = lib.filter (
+        src: !(lib.hasPrefix "autogroup:" src || builtins.elem src definedTags)
+      ) exitNodeUsers;
+    in
+    if invalid == [ ] then
+      value
+    else
+      throw "lib/acl.nix: exitNodeUsers has source(s) ${builtins.toJSON invalid} that are neither an autogroup nor a defined tag (defined tags: ${builtins.toJSON definedTags})";
 
   mkTagOwners =
     tags:
@@ -105,20 +132,47 @@ in
   # Serialize with builtins.toJSON to get acl.hujson content.
   # Throws if any acceptFrom source tag is not carried by some tailnet host or
   # listed in externalTags.
+  #
+  # Exit nodes: hosts with `tailscale.exitNodeCanProvide = true` get an
+  # `autoApprovers.exitNode` entry for their tag, so their advertisement needs
+  # no manual approval. `exitNodeUsers` lists the ACL sources (autogroups or
+  # defined tags) granted `autogroup:internet`, i.e. allowed to route through
+  # an exit node; Tailscale only offers an exit node to such sources. Both are
+  # omitted when no host provides an exit node. Advertising never selects the
+  # exit node anywhere: each device opts in from its own client.
   mkAcl =
     {
       hostRegistry,
       externalTags ? [ ],
+      exitNodeUsers ? [ ],
     }:
-    assertSourceTagsDefined hostRegistry externalTags {
-      tagOwners = mkTagOwners (sortedUnique ((collectTagNames hostRegistry) ++ externalTags));
-      acls = (mkTagAclRules hostRegistry) ++ [
+    let
+      exitNodeTags = collectExitNodeTags hostRegistry;
+      hasExitNodes = exitNodeTags != [ ];
+    in
+    assertSourceTagsDefined hostRegistry externalTags (
+      assertExitNodeUsersDefined hostRegistry externalTags exitNodeUsers (
         {
-          # Deliberate break-glass access for tailnet admins.
-          action = "accept";
-          src = [ "autogroup:admin" ];
-          dst = [ "*:*" ];
+          tagOwners = mkTagOwners (sortedUnique ((collectTagNames hostRegistry) ++ externalTags));
+          acls =
+            (mkTagAclRules hostRegistry)
+            ++ lib.optional (hasExitNodes && exitNodeUsers != [ ]) {
+              action = "accept";
+              src = sortedUnique exitNodeUsers;
+              dst = [ "autogroup:internet:*" ];
+            }
+            ++ [
+              {
+                # Deliberate break-glass access for tailnet admins.
+                action = "accept";
+                src = [ "autogroup:admin" ];
+                dst = [ "*:*" ];
+              }
+            ];
         }
-      ];
-    };
+        // lib.optionalAttrs hasExitNodes {
+          autoApprovers.exitNode = map (tag: "tag:${tag}") exitNodeTags;
+        }
+      )
+    );
 }

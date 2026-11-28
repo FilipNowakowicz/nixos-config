@@ -1,7 +1,15 @@
 {
   "acls": [
-    { "action": "accept", "dst": ["tag:server:53"], "src": ["tag:builder"] },
-    { "action": "accept", "dst": ["tag:server:22"], "src": ["tag:ci"] },
+    {
+      "action": "accept",
+      "dst": ["tag:server:53"],
+      "src": ["tag:builder"]
+    },
+    {
+      "action": "accept",
+      "dst": ["tag:server:22"],
+      "src": ["tag:ci"]
+    },
     {
       "action": "accept",
       "dst": ["tag:builder:22"],
@@ -52,8 +60,20 @@
       ],
       "src": ["tag:workstation"]
     },
-    { "action": "accept", "dst": ["*:*"], "src": ["autogroup:admin"] }
+    {
+      "action": "accept",
+      "dst": ["autogroup:internet:*"],
+      "src": ["autogroup:admin", "tag:phone", "tag:workstation"]
+    },
+    {
+      "action": "accept",
+      "dst": ["*:*"],
+      "src": ["autogroup:admin"]
+    }
   ],
+  "autoApprovers": {
+    "exitNode": ["tag:server"]
+  },
   "tagOwners": {
     "tag:builder": ["autogroup:admin"],
     "tag:ci": ["autogroup:admin"],

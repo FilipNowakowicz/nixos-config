@@ -19,7 +19,7 @@
       },
       "health": {
         "invariantFailed": 0,
-        "invariantPassed": 9,
+        "invariantPassed": 10,
         "invariantResults": [
           {
             "message": "system.stateVersion has an explicit definition",
@@ -59,6 +59,11 @@
           {
             "message": "tailnet metadata enables Tailscale",
             "name": "tailnet metadata enables Tailscale",
+            "passed": true
+          },
+          {
+            "message": "tailscale exit-node flags match the registry",
+            "name": "tailscale exit-node flags match registry",
             "passed": true
           },
           {

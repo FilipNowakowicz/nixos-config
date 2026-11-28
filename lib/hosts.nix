@@ -13,8 +13,11 @@
 #                    node-key); used by consumers (e.g. AdGuard clients) that
 #                    need a literal IP rather than a resolvable FQDN
 #     .advertisedRoutes / .acceptedRoutes — optional explicit CIDR route lists
-#     .exitNodeCanProvide — optional capability flag; false when omitted
-#     .exitNodeUse — optional host name selected as this host's exit node
+#     .exitNodeCanProvide — optional; true makes the host advertise itself as an
+#                    exit node (IP forwarding, ACL auto-approval). Devices
+#                    still opt in from their Tailscale client; false when omitted
+#     .exitNodeUse — optional host name selected as this host's exit node;
+#                    lib/invariants.nix rejects it so exit nodes stay opt-in
 #   homeManager — primary-user Home Manager mapping for this host
 #     .role     — entrypoint module under home/users/user; host additions live
 #                 in home/users/user/<host>.nix
@@ -58,7 +61,8 @@ let
           # transfers. Its UDP discovery broadcast doesn't cross the tailnet, so
           # the phone adds this host by its tailnet IP. An untagged phone on the
           # admin's account already passes the break-glass rule; tagging it
-          # tag:phone confines it to these ports.
+          # tag:phone confines it to these ports (plus the opt-in exit node
+          # on homeserver-gcp, granted in flake.nix's tailnetAcl).
           phone = [ 1716 ] ++ builtins.genList (i: 1739 + i) 26;
         };
       };
@@ -86,6 +90,10 @@ let
         # A rebuilt host joins with a new address. The tailnet's global DNS
         # nameserver override points here too and must be changed to match.
         ip4 = "100.73.57.109";
+        # Opt-in exit node: nothing routes through it until a device picks it
+        # in its Tailscale client. Exit traffic is forwarded, not delivered to
+        # this host, so it needs no acceptFrom port or tailscale0 opening.
+        exitNodeCanProvide = true;
         acceptFrom = {
           workstation = [
             22

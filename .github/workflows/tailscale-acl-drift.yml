@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/tailscale-acl-drift.yml"
+      # tailnetAcl: external tags and exit-node users
+      - "flake.nix"
       - "lib/acl.nix"
       - "lib/hosts.nix"
       - "scripts/apply-tailscale-acl.sh"

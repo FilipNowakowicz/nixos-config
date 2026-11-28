@@ -87,6 +87,31 @@
       invariants = import ./lib/invariants.nix { inherit lib pkgs; };
       aclGen = import ./lib/acl.nix { inherit lib; };
 
+      # This fleet's tailnet policy, rendered by `packages.tailscale-acl` and
+      # checked by `invariants-registry-security`.
+      tailnetAcl = aclGen.mkAcl {
+        inherit hostRegistry;
+        # CI runners are external to the NixOS host registry, but use a
+        # pre-approved Tailscale tag to reach the homeserver over SSH;
+        # `ci-builder` reaches only gcp-builder. A phone tagged `phone` reaches
+        # only KDE Connect on main, plus the exit node below.
+        externalTags = [
+          "ci"
+          "ci-builder"
+          # The phone, which pairs with main over KDE Connect.
+          "phone"
+        ];
+        # Only the owner's own devices may route through an exit node: devices
+        # logged in as an admin user, the workstation, and the phone (the main
+        # user of the homeserver exit node). CI and the builder get no internet
+        # access over the tailnet.
+        exitNodeUsers = [
+          "autogroup:admin"
+          "tag:phone"
+          "tag:workstation"
+        ];
+      };
+
       hostOutputs = import ./flake/hosts.nix {
         inherit
           inputs
@@ -132,6 +157,7 @@
           allNixosConfigs
           ciNixosConfigs
           invariants
+          tailnetAcl
           self
           ;
       };
@@ -161,7 +187,7 @@
             treefmt-nix
             hostRegistry
             allNixosConfigs
-            aclGen
+            tailnetAcl
             deploy-rs
             nixos-anywhere
             ciDeployNodes

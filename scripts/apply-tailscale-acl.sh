@@ -2,13 +2,13 @@
 set -euo pipefail
 
 # Applies the rendered Tailscale ACL artifact (lib/acl.nix) to the live tailnet
-# policy without clobbering live-only sections (ssh, autoApprovers, nodeAttrs,
-# groups, ...). The rendered artifact only carries {tagOwners, acls} — POSTing
-# it as-is would replace the *entire* policy file and silently wipe everything
-# else. Instead this fetches the live policy, overlays only .tagOwners and
-# .acls from the rendered artifact, and POSTs the merged result back — guarded
-# by the live policy's ETag so a concurrent edit aborts the apply rather than
-# racing it.
+# policy without clobbering live-only sections (ssh, autoApprovers.routes,
+# nodeAttrs, groups, ...). The rendered artifact only carries tagOwners, acls
+# and autoApprovers.exitNode — POSTing it as-is would replace the *entire*
+# policy file and silently wipe everything else. Instead this fetches the live
+# policy, overlays only those three from the rendered artifact, and POSTs the
+# merged result back — guarded by the live policy's ETag so a concurrent edit
+# aborts the apply rather than racing it.
 #
 # Required env:
 #   TAILSCALE_API_KEY   — Tailscale API key with ACL read+write access
@@ -54,8 +54,10 @@ live_json="$(
 # the live policy changed between this GET and the apply (out-of-band edit).
 etag="$(tr -d '\r' <"$headers_file" | awk -F': ' 'tolower($1) == "etag" { print $2 }')"
 
-live_normal="$(jq -S '{tagOwners, acls}' <<<"$live_json")"
-rendered_normal="$(jq -S '{tagOwners, acls}' <<<"$rendered_json")"
+# Keep this filter in sync with scripts/check-tailscale-acl-drift.sh.
+managed='{tagOwners, acls, exitNodeApprovers: ((.autoApprovers.exitNode // []) | sort)}'
+live_normal="$(jq -S "$managed" <<<"$live_json")"
+rendered_normal="$(jq -S "$managed" <<<"$rendered_json")"
 
 if [[ $live_normal == "$rendered_normal" ]]; then
   echo "No drift: live policy already matches the rendered artifact. Nothing to apply."
@@ -63,7 +65,7 @@ if [[ $live_normal == "$rendered_normal" ]]; then
 fi
 
 echo ""
-echo "tagOwners/acls diff (live -> rendered):"
+echo "Managed policy diff (live -> rendered):"
 diff --unified \
   --label "live (${TAILSCALE_TAILNET})" \
   <(printf '%s\n' "$live_normal") \
@@ -76,13 +78,21 @@ if [[ $dry_run == 1 ]]; then
   exit 0
 fi
 
-# Shallow-merge: keep every live top-level key (ssh, autoApprovers, nodeAttrs,
-# groups, ...) and override only tagOwners/acls with the rendered values. A
-# deep merge (jq's `*`) would instead union live and rendered tag keys, leaving
-# stale live-only tags behind.
+# Shallow-merge: keep every live top-level key (ssh, nodeAttrs, groups, ...)
+# and override only tagOwners/acls with the rendered values. A deep merge (jq's
+# `*`) would instead union live and rendered tag keys, leaving stale live-only
+# tags behind. Within autoApprovers only exitNode is managed: live route
+# approvers stay, and exitNode is dropped when no host provides an exit node.
 merged_json="$(
-  jq -n --argjson live "$live_json" --argjson rendered "$rendered_json" \
-    '$live + { tagOwners: $rendered.tagOwners, acls: $rendered.acls }'
+  jq -n --argjson live "$live_json" --argjson rendered "$rendered_json" '
+    ($live + { tagOwners: $rendered.tagOwners, acls: $rendered.acls })
+    | if ($rendered.autoApprovers.exitNode // []) == [] then
+        del(.autoApprovers.exitNode)
+        | if .autoApprovers == {} then del(.autoApprovers) else . end
+      else
+        .autoApprovers = ((.autoApprovers // {}) + { exitNode: $rendered.autoApprovers.exitNode })
+      end
+  '
 )"
 
 post_args=(
@@ -94,7 +104,7 @@ if [[ -n $etag ]]; then
 fi
 
 echo ""
-echo "Applying merged policy (live sections outside tagOwners/acls preserved)..."
+echo "Applying merged policy (live sections outside the managed ones preserved)..."
 curl -sf "${post_args[@]}" \
   --data "$merged_json" \
   "$api_url" >/dev/null

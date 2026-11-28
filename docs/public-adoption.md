@@ -165,11 +165,11 @@ files with their generators as JSON, so a stale sample fails CI.
 
 ### How each sample is generated
 
-`apps.tailscale-acl` only ever emits `tagOwners` and tag-to-tag `acls` (see
-[`docs/tailscale-acl.md`](tailscale-acl.md)), with no hostnames, keys, or
-per-node identifiers, so its sample is the real fleet output, verbatim. It
-changes when a host's Tailscale tag or `acceptFrom` changes, which is the
-point of committing it.
+`apps.tailscale-acl` only ever emits `tagOwners`, tag-to-tag `acls` and
+exit-node `autoApprovers` (see [`docs/tailscale-acl.md`](tailscale-acl.md)),
+with no hostnames, keys, or per-node identifiers, so its sample is the real
+fleet output, verbatim. It changes when a host's Tailscale tag, `acceptFrom`
+or `exitNodeCanProvide` changes, which is the point of committing it.
 
 `apps.inventory-json` describes the real hosts, including store paths, the
 real tailnet suffix, backup paths and the current nixpkgs revision. A sample

@@ -11,7 +11,8 @@ Status: **active** — deployed on GCP and accessible via Tailscale.
 - **Nginx** — reverse proxy, TLS via Tailscale cert; `/` redirects to `/grafana/`
 - **SSH** — in-guest firewall exposure limited to `tailscale0`; Terraform also
   adds a high-priority GCP firewall deny for public TCP/22 on the default VPC.
-- **Tailscale** — auth key from sops secret `tailscale_auth_key`
+- **Tailscale** — auth key from sops secret `tailscale_auth_key`; also an
+  opt-in exit node (see [Exit node](#exit-node))
 - **AdGuard Home** — DNS (TCP/UDP 53) + web UI (HTTPS port 3001 via nginx, internal HTTP on 127.0.0.1:13001), tailscale0 only; state is exposed at `/var/lib/AdGuardHome` and stored by systemd at `/var/lib/private/AdGuardHome`
 - **Restic/B2** — off-site backups to Backblaze B2 (`/var/lib/grafana`, staged AdGuard state, and a restore canary)
 - **GCE snapshots** — daily 7-day boot disk snapshots for fast provider-local rollback
@@ -35,6 +36,34 @@ Keep this layout until a concrete operational need appears for isolated quotas
 or retention, such as separating Loki, Prometheus, or restic cache churn from the root
 filesystem. If that happens, mount only the specific high-churn paths and update
 the restore procedure alongside the partition change.
+
+## Exit node
+
+This host is a Tailscale exit node that is **off by default**: no device's
+traffic goes through it until that device picks it. It is driven by
+`tailscale.exitNodeCanProvide = true` in `lib/hosts.nix`, which makes
+`gce-server.nix` enable IP forwarding (`useRoutingFeatures = "server"`) and run
+`tailscale set --advertise-exit-node`, and makes the generated ACL auto-approve
+`tag:server` as an exit node (applied by the `tailscale-acl-drift` workflow on
+merge).
+
+- **Who can use it** — only sources granted `autogroup:internet` in
+  `flake.nix`'s `tailnetAcl`: devices logged in as an admin user,
+  `tag:workstation`, and `tag:phone` (the phone, its main user).
+  `tag:ci`, `tag:ci-builder` and `tag:builder` are not offered it.
+- **Turn it on** — in the Tailscale app, pick _Exit node → homeserver-gcp_ (on
+  Linux: `tailscale set --exit-node=homeserver-gcp`). Turn it off the same way
+  (`tailscale set --exit-node=`). Never set it declaratively: the invariants
+  reject `exitNodeUse` in the registry and `--exit-node` in any host's flags.
+  On `main` it would also compete with Mullvad's routing.
+- **DNS** — clients keep the tailnet DNS (MagicDNS, global nameserver
+  override → AdGuard here), so filtering still applies on the exit node; the
+  resolver is reached over the tailnet, not through the exit path.
+- **Check** — `tailscale status` on a client lists this host with
+  `offers exit node`; `tailscale exit-node list` shows it as available, and
+  `tailscale status --json | jq .ExitNodeStatus` stays `null` until picked.
+- **Egress** — exit traffic is NATed to the VM's own address by Tailscale, so
+  GCE needs no `canIpForward`; it leaves with the VM's external IP.
 
 ## Provisioning & First Deploy
 

@@ -420,6 +420,7 @@ let
               inputs = { };
               self = { };
               hostRegistry.main = { };
+              tailnetAcl = { };
               allNixosConfigs.main = evaluated (lib.mkDefault null).priority;
               ciNixosConfigs.main-ci = evaluated (lib.mkOptionDefault null).priority;
               invariants = invariants // {
@@ -705,6 +706,65 @@ let
             enable = true;
             authKeyFile = null;
             extraUpFlags = [ ];
+          };
+        }).passed;
+      expected = true;
+    };
+
+    # Exit nodes: the registry flag and the host's Tailscale flags must agree,
+    # and no host may select an exit node for itself.
+    testTailscaleExitNodePassesForProvider = {
+      expr =
+        (invariants.tailscaleExitNodeMatchesRegistry { tailscale.exitNodeCanProvide = true; } {
+          services.tailscale = {
+            useRoutingFeatures = "server";
+            extraUpFlags = [ "--reset" ];
+            extraSetFlags = [ "--advertise-exit-node" ];
+          };
+          networking.firewall.filterForward = false;
+        }).passed;
+      expected = true;
+    };
+
+    testTailscaleExitNodeRejectsProviderWithoutForwarding = {
+      expr =
+        (invariants.tailscaleExitNodeMatchesRegistry { tailscale.exitNodeCanProvide = true; } {
+          services.tailscale = {
+            useRoutingFeatures = "none";
+            extraSetFlags = [ "--advertise-exit-node" ];
+          };
+        }).message;
+      expected = "exitNodeCanProvide needs services.tailscale.useRoutingFeatures = \"server\" (IP forwarding)";
+    };
+
+    testTailscaleExitNodeRejectsUndeclaredAdvertiser = {
+      expr =
+        (invariants.tailscaleExitNodeMatchesRegistry { tailscale.tag = "builder"; } {
+          services.tailscale = {
+            useRoutingFeatures = "none";
+            extraSetFlags = [ "--advertise-exit-node" ];
+          };
+        }).message;
+      expected = "--advertise-exit-node needs tailscale.exitNodeCanProvide in lib/hosts.nix";
+    };
+
+    testTailscaleExitNodeRejectsDefaultSelection = {
+      expr =
+        (invariants.tailscaleExitNodeMatchesRegistry { tailscale.tag = "workstation"; } {
+          services.tailscale = {
+            useRoutingFeatures = "client";
+            extraUpFlags = [ "--exit-node=homeserver-gcp" ];
+          };
+        }).message;
+      expected = "--exit-node must not be set: devices opt in from their client";
+    };
+
+    testTailscaleExitNodePassesForPlainHost = {
+      expr =
+        (invariants.tailscaleExitNodeMatchesRegistry { tailscale.tag = "builder"; } {
+          services.tailscale = {
+            useRoutingFeatures = "none";
+            extraUpFlags = [ "--reset" ];
           };
         }).passed;
       expected = true;
