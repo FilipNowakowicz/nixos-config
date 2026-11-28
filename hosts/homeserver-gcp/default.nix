@@ -10,6 +10,7 @@ let
   inherit (hostMeta) tailnetFQDN;
   driftLib = import ../../lib/drift.nix { inherit lib; };
   ntfy = import ../../lib/ntfy.nix { };
+  inherit ((import ../../lib/binary-cache.nix)) fleetCache;
   # Read by scripts/deploy-homeserver.sh; the same facts feed the fleet
   # inventory through lib/inventory-data.nix.
   hostDriftInventory = {
@@ -38,6 +39,7 @@ in
     ./nginx.nix
     ./ntfy.nix
     ./adguard.nix
+    ./attic.nix
     ./backups.nix
     ./restore-drill.nix
     ./heartbeat.nix
@@ -73,6 +75,7 @@ in
     firewall.interfaces.tailscale0.allowedTCPPorts = [
       22
       443
+      fleetCache.port # attic binary cache (./attic.nix)
     ];
   };
 
@@ -80,6 +83,7 @@ in
     drift = {
       trackedServices = [
         "adguard"
+        "attic"
         "nginx"
         "grafana"
         "loki"
@@ -126,6 +130,12 @@ in
               url = "https://${tailnetFQDN}/grafana/";
               expectedStatusCodes = [ 200 ];
             };
+            # The public cache's metadata through nginx: proves the
+            # listener, atticd and the cache atticd-init created.
+            attic-cache = {
+              url = "https://${tailnetFQDN}:${toString fleetCache.port}/${fleetCache.name}/nix-cache-info";
+              expectedStatusCodes = [ 200 ];
+            };
           };
           # A real external name through AdGuard's tailnet address: catches a
           # hung AdGuard and failing upstreams, not only a failed unit.
@@ -134,6 +144,21 @@ in
             queryName = "cloudflare.com";
           };
         };
+      };
+    };
+
+    homeserverAttic = {
+      enable = true;
+      fqdn = tailnetFQDN;
+      environmentFile = config.sops.templates."atticd.env".path;
+      signingKeyFile = config.sops.secrets.attic_signing_key.path;
+      # infra/cache.tf, through GCS's S3 interop with an HMAC key; GCS
+      # accepts "auto" as the signing region.
+      storage = {
+        type = "s3";
+        region = "auto";
+        bucket = "nixos-config-attic-8c41e7";
+        endpoint = "https://storage.googleapis.com";
       };
     };
 
@@ -243,7 +268,28 @@ in
       # Read at runtime by heartbeat-ping.service via LoadCredential; populate
       # with `sops hosts/homeserver-gcp/secrets/secrets.yaml` before deploying.
       heartbeat_ping_url = { };
-    };
+    }
+    # The attic cache (./attic.nix) keeps its secrets in their own file.
+    # Root-owned: systemd reads them for atticd's EnvironmentFile and
+    # atticd-init's LoadCredential before dropping to the DynamicUser.
+    //
+      lib.genAttrs
+        [
+          "attic_signing_key"
+          "attic_jwt_rs256_secret_base64"
+          "attic_gcs_access_key_id"
+          "attic_gcs_secret_access_key"
+        ]
+        (_: {
+          sopsFile = ./secrets/attic.yaml;
+        });
+
+    templates."atticd.env".restartUnits = [ "atticd.service" ];
+    templates."atticd.env".content = ''
+      ATTIC_SERVER_TOKEN_RS256_SECRET_BASE64=${config.sops.placeholder.attic_jwt_rs256_secret_base64}
+      AWS_ACCESS_KEY_ID=${config.sops.placeholder.attic_gcs_access_key_id}
+      AWS_SECRET_ACCESS_KEY=${config.sops.placeholder.attic_gcs_secret_access_key}
+    '';
   };
 
   # Static group bridging the root-owned ntfy_token_homeserver and watchdog secrets to the

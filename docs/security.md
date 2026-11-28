@@ -249,7 +249,8 @@ roles as a local security boundary.
 ## Binary Cache Trust
 
 `homeserver-gcp` and `gcp-builder` trust the `main.local` cache served by
-`main`, in addition to `cache.nixos.org`. Public keys are defined in
+`main`, in addition to `cache.nixos.org`. All three hosts also substitute from the
+`fleet` attic cache on `homeserver-gcp`, which `gcp-builder` feeds. Public keys are defined in
 [`lib/binary-cache.nix`](../lib/binary-cache.nix). CI uses `cache.nixos.org`
 and optional GitHub Actions store caching; it does not publish binary caches.
 
@@ -262,6 +263,35 @@ by `main` itself. This is a much smaller trust delta: `main` (the user's own dev
 workstation) is already the deploy and admin source of truth for both of those
 hosts, so trusting its cache does not add a new principal — it just lets them
 substitute from a host they already implicitly trust.
+
+### `fleet` attic cache (`main`, `homeserver-gcp`, `gcp-builder`)
+
+`modules/nixos/profiles/fleet-cache.nix` makes all three hosts substitute from
+the attic cache on `homeserver-gcp` and trust `fleetCache.publicKey`
+(`fleet-cache-1:…`) from `lib/binary-cache.nix`. The server signs every path
+it accepts, so whoever can push can place content `main` will install:
+
+- **Push** — only `gcp-builder`'s token (`--push fleet`). The builder is
+  already trusted with `main`'s remote builds, whose outputs `main` accepts
+  unsigned, so this adds no new principal. The token is never on the builder's
+  disk outside the root-only seed file, and it cannot create, configure or
+  delete caches.
+- **Server** — `homeserver-gcp` holds the signing key and JWT secret in sops
+  (`hosts/homeserver-gcp/secrets/attic.yaml`). It is already root-equivalent
+  for its own deploys; a compromise of it now also reaches `main` through
+  substitution.
+- **Storage** — the GCS bucket is private (`public_access_prevention`
+  enforced) and only the `attic-cache` service account can touch its
+  objects. Its HMAC key is created outside Terraform, so it is not in state.
+  Chunks are not signed on their own; narinfo signatures cover the NAR hash
+  Nix checks after download, so tampering in the bucket makes the
+  substitution fail rather than install.
+- **Reads** — the cache is public inside the tailnet port grant
+  (`tag:workstation`, `tag:builder`). Store paths must not hold secrets anyway
+  (sops decrypts at activation), so pulls need no token.
+
+CI keeps cache.nixos.org only (`scripts/check-cache-config.sh`); its builds run
+on `gcp-builder`, which substitutes from the cache.
 
 ## Shielded VM
 

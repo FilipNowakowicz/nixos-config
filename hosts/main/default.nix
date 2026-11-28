@@ -32,6 +32,7 @@
     self.nixosModules.profiles-desktop
     self.nixosModules.observability-client
     self.nixosModules.profiles-security
+    ../../modules/nixos/profiles/fleet-cache.nix
     ../../modules/nixos/profiles/sops-base.nix
     ../../modules/nixos/profiles/user.nix
     ../../modules/nixos/hardware/nvidia-prime.nix

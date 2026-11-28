@@ -2,8 +2,8 @@
 
 On-demand GCP Nix remote builder. Normally **powered off**; `main` starts it
 transparently for heavy builds and it powers itself off when idle. Disposable:
-no persistent service state, no sops secrets, no backup. One hand-seeded file
-holds the prebuild notification URL (see below).
+no persistent service state, no sops secrets, no backup. Two hand-seeded files
+hold the prebuild ntfy token and the binary cache push token (see below).
 
 Status: **active** (provisioned once, then start/stop on demand).
 
@@ -107,18 +107,40 @@ resource from git history and drop its `removed` block.
 `builder-prebuild` posts "ready" or "failed" to the self-hosted ntfy server on
 homeserver-gcp (`lib/ntfy.nix`, tag `source-builder`) when it finishes, and the
 laptop and phone show it (`home/profiles/ntfy-notifications.nix`). The
-builder's publish-only ntfy token is its one secret outside Nix: a
+builder's publish-only ntfy token is one of its two secrets outside Nix: a
 `user`-owned `0600` file at `/var/lib/builder-prebuilt/ntfy-token`, seeded by
 hand. Anyone holding it can only post to the fleet topic. Without the file the
 job stays quiet, so reseed it after reprovisioning or after
 `rotate-secret.sh ntfy-token builder`:
 
-````bash
+```bash
 sops -d --extract '["builder_token"]' home/users/user/secrets/ntfy.yaml |
   ssh user@gcp-builder 'umask 077; cat > /var/lib/builder-prebuilt/ntfy-token; rm -f /var/lib/builder-prebuilt/notify-url'
-```|
-  ssh user@gcp-builder 'umask 077; cat > /var/lib/builder-prebuilt/notify-url'
-````
+```
+
+## Binary cache push
+
+`attic-watch-store` (`attic-push.nix`) pushes every new store path, except
+ones cache.nixos.org signed, to the `fleet` attic cache on homeserver-gcp
+([its runbook](../homeserver-gcp/CLAUDE.md#binary-cache)). It runs next to
+the builds, not as a `post-build-hook`, so an unreachable homeserver never
+slows or fails a build; the watcher restarts every minute until it answers.
+It runs as a dynamic user at low CPU and IO weight with two uploads at a time.
+It only sees paths added while it runs, so builds from before it started are
+not pushed.
+
+Its push token is the second hand-seeded file: root-owned `0600` at
+`/var/lib/attic-push/token`, read through `LoadCredential`. Without it the
+watcher does not start; the `attic-watch-store.path` unit starts it once the
+file appears. Reseed it after reprovisioning or a token rotation:
+
+```bash
+sops -d --extract '["push_token"]' home/users/user/secrets/attic.yaml |
+  ssh user@gcp-builder 'sudo install -D -m 0600 -o root -g root /dev/stdin /var/lib/attic-push/token'
+```
+
+Check it with `systemctl status attic-watch-store` and
+`journalctl -u attic-watch-store` on the builder.
 
 ## Provisioning (operator-only, one time)
 

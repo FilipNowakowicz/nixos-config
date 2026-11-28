@@ -18,6 +18,7 @@ in
   imports = [
     ../hardware/gce-vm.nix
     ./base.nix
+    ./fleet-cache.nix
     ./security.nix
     ./sops-base.nix
     ./user.nix

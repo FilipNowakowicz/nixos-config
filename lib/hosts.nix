@@ -41,6 +41,8 @@
 #     .diskById — stable /dev/disk/by-id/* path for the primary disk (consumed by disko)
 let
   hostRegistryLib = import ./host-registry.nix;
+  # The fleet attic cache's tailnet-only port on homeserver-gcp (#631).
+  fleetCachePort = (import ./binary-cache.nix).fleetCache.port;
 
   # Single source of truth for the tailnet domain; each host's tailnetFQDN is
   # derived as "${name}.${tailnetDomain}" so a tailnet rename is one line.
@@ -101,15 +103,18 @@ let
             53 # AdGuard DNS
             3001 # AdGuard web UI
             2586 # ntfy (lib/ntfy.nix)
+            fleetCachePort # attic binary cache (substitute)
           ];
           # gcp-builder has no other resolver: AdGuard is the tailnet-wide
           # global nameserver, so without DNS it cannot resolve cache.nixos.org
           # and every offloaded closure build stalls on cache lookups.
           #
-          # The builder also publishes prebuild and on-worker results to ntfy.
+          # The builder also publishes prebuild and on-worker results to ntfy,
+          # and pushes every build to the attic cache and substitutes from it.
           builder = [
             53
             2586
+            fleetCachePort
           ];
           # The phone subscribes to ntfy, and reaches nothing else here.
           phone = [ 2586 ];

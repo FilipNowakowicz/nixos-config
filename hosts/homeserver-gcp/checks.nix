@@ -6,7 +6,7 @@ let
   inherit (invariants) mkResult requirePaths;
 
   homeserverSshAndHttpsTailscaleOnly = {
-    name = "SSH, HTTPS and ntfy stay Tailscale-only";
+    name = "SSH, HTTPS, ntfy and the binary cache stay Tailscale-only";
     check =
       cfg:
       invariants.checkTCPPortsRestrictedToInterface {
@@ -15,6 +15,7 @@ let
           22
           443
           (import ../../lib/ntfy.nix { }).port
+          (import ../../lib/binary-cache.nix).fleetCache.port
         ];
       } cfg;
   };

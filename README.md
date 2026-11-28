@@ -321,7 +321,8 @@ bash scripts/validate.sh package all  # build CI package outputs and the install
 - NixOS smoke/profile tests require KVM (`bash scripts/validate.sh heavy`).
 - Switching `main` or `homeserver-gcp` requires the corresponding
   hardware, credentials, and sops access.
-- Publishing to the binary cache requires CI secrets.
+- The fleet binary cache (attic on `homeserver-gcp`, fed by `gcp-builder`)
+  needs tailnet access; see `hosts/homeserver-gcp/CLAUDE.md`.
 
 `nix flake check` here is intentionally evaluation-oriented: booted NixOS tests
 and CVE reports live under `legacyPackages` so path-gated CI can skip the
