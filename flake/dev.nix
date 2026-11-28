@@ -247,6 +247,9 @@ in
       agent-desktop-guard = import ../tests/home/agent-desktop-guard.nix {
         inherit nixpkgs system;
       };
+      phone-mount = import ../tests/home/phone-mount.nix {
+        inherit nixpkgs system;
+      };
       quiet-shell-status = import ../tests/packages/quiet-shell-status.nix {
         inherit nixpkgs system;
       };

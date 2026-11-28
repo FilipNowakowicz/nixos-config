@@ -100,6 +100,11 @@ The timer fires hourly. A run does nothing unless the phone is reachable
 and charging, and no backup has succeeded in the last 20 hours. It mounts the
 phone through KDE Connect's sftp plugin and only reads from it.
 
+The [mount step](../home/files/scripts/phone-mount.sh) first clears a mount
+that is still registered but no longer answers after a dropped connection.
+After mounting it waits about 30 seconds for the storage, because KDE Connect
+reports success as soon as `sshfs` has started.
+
 - **Scope:** all of shared storage, excluding `.thumbnails`, Android
   `.trashed-*` files, `Android/data` and `Android/obb`. Since Android 11
   those two folders and app private data aren't readable by other programs.
