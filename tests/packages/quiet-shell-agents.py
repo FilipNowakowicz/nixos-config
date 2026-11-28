@@ -14,14 +14,20 @@ script = sys.argv[1]
 NOW = 1_800_000_000
 
 
-def run(home):
+def run(home, *flags):
     # Its own runtime directory, so the real kitty windows here are never asked.
     runtime = home / "runtime"
     runtime.mkdir(exist_ok=True)
     env = {"HOME": str(home), "XDG_RUNTIME_DIR": str(runtime),
            "PATH": f"{home / 'bin'}:{os.environ.get('PATH', '')}"}
-    out = subprocess.run([sys.executable, script, str(NOW)], env=env, capture_output=True, text=True, check=True)
+    out = subprocess.run([sys.executable, script, str(NOW), *flags], env=env, capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
+
+
+def plain(limits):
+    """A tool's limits without the run-out projections, checked on their own."""
+    return {k: ({w: v for w, v in win.items() if w != "runs_out"} if isinstance(win, dict) else win)
+            for k, win in limits.items()}
 
 
 def touch(path, at):
@@ -102,8 +108,8 @@ with tempfile.TemporaryDirectory() as tmp:
     # The log says plus and nothing newer disagrees.
     assert got["codex"]["paid"] is True, got["codex"]
     assert got["claude"]["paid"] is None, got["claude"]
-    assert got["claude"]["five_hour"] == {"used": 0, "resets": None}, got["claude"]
-    assert got["claude"]["week"] == {"used": 42, "resets": NOW + 3600}, got["claude"]
+    assert plain(got["claude"])["five_hour"] == {"used": 0, "resets": None}, got["claude"]
+    assert plain(got["claude"])["week"] == {"used": 42, "resets": NOW + 3600}, got["claude"]
     assert got["codex"]["five_hour"] == {"used": 0, "resets": None}, got["codex"]
     assert got["codex"]["week"] == {"used": 12, "resets": NOW + 86400}, got["codex"]
     # Newest first; only running Claude sessions, and not the old Codex log.
@@ -174,7 +180,83 @@ print(json.dumps([{{"tabs": [{{"windows": [
     # Past its reset, a limit still on the transcript's end reads as due now.
     transcript("-home-u-nix", "sess-a", [{"type": "user", "uuid": "u1"}, limit("l1", NOW - 30)])
     assert {s["id"]: s for s in run(home)["sessions"]}["a"]["limited"] == 0
+
+    # What a session is doing, from its transcript: the person's prompt (not a
+    # reminder, a tool result or a subagent's record), its last words, its tool
+    # calls, how full its context is, and a tool call still running.
+    def at(seconds):
+        return datetime.datetime.fromtimestamp(NOW + seconds, datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+
+    def tool(name, args, when):
+        return {"type": "assistant", "timestamp": at(when), "message": {"content": [
+            {"type": "tool_use", "name": name, "input": args}],
+            "usage": {"input_tokens": 2, "cache_read_input_tokens": 90000, "cache_creation_input_tokens": 8}}}
+
+    transcript("-home-u-nix", "sess-a", [
+        {"type": "ai-title", "aiTitle": "First idea"},
+        {"type": "user", "timestamp": at(-300), "gitBranch": "work", "message": {"content": "Tidy the **bar** up"}},
+        {"type": "user", "isMeta": True, "message": {"content": "a reminder"}},
+        {"type": "user", "isSidechain": True, "message": {"content": "a subagent's prompt"}},
+        {"type": "assistant", "timestamp": at(-250), "message": {"content": [{"type": "text", "text": "## Plan\nLooking at `Top.qml` first."}]}},
+        tool("Read", {"file_path": "/home/u/nix/shell/Top.qml"}, -200),
+        {"type": "user", "message": {"content": [{"type": "tool_result", "content": "..."}]}},
+        tool("Bash", {"command": "nix build .#main-ci\nmore"}, -20),
+        {"type": "ai-title", "aiTitle": "Tidy the bar"},
+    ])
+    # Claude Code's placeholder name gives way to the transcript's title; it waits on you.
+    (registry / f"{me}.json").write_text(json.dumps(
+        {"pid": me, "procStart": started(me), "status": "waiting", "waitingFor": "dialog open",
+         "sessionId": "sess-a", "name": "nix-9d", "nameSource": "derived", "statusUpdatedAt": (NOW - 15) * 1000}))
+    # Its subagents: one running, one finished a moment ago, one finished long ago.
+    subs = projects / "-home-u-nix/sess-a/subagents"
+    subs.mkdir(parents=True)
+    for name, meta, when in [("agent-run", {"description": "Build it", "agentType": "general-purpose", "finished": False}, -10),
+                             ("agent-done", {"description": "Look around", "agentType": "Explore", "finished": True}, -60),
+                             ("agent-old", {"description": "Long gone", "finished": True}, -3600)]:
+        (subs / f"{name}.meta.json").write_text(json.dumps(meta))
+        (subs / f"{name}.jsonl").write_text(json.dumps(
+            {**tool("Grep", {"pattern": "Icon {"}, when), "isSidechain": True}) + "\n")
+        touch(subs / f"{name}.meta.json", NOW + when)
+        touch(subs / f"{name}.jsonl", NOW + when)
+    a = {s["id"]: s for s in run(home)["sessions"]}["a"]
+    assert (a["name"], a["state"], a["waiting"], a["since"]) == ("Tidy the bar", "waiting", "dialog open", NOW - 15), a
+    assert (a["prompt"], a["said"], a["branch"], a["steps"]) == ("Tidy the bar up", "Looking at Top.qml first.", "work", 2), a
+    assert a["doing"] == {"at": NOW - 20, "tool": "Bash", "kind": "run", "text": "nix build .#main-ci"}, a["doing"]
+    assert [r["text"] for r in a["recent"]] == ["shell/Top.qml", "nix build .#main-ci"], a["recent"]
+    assert a["tokens"] == 90010, a
+    assert [(x["id"], x["state"], x["title"]) for x in a["subagents"]] == [
+        ("agent-run", "working", "Build it"), ("agent-done", "done", "Look around")], a["subagents"]
+    assert a["subagents"][0]["doing"]["text"] == "Icon {", a["subagents"][0]
+    # Waiting on you sorts first; the brief answer has no transcript in it.
+    assert run(home)["sessions"][0]["id"] == "a"
+    quick = {s["id"]: s for s in run(home, "--brief")["sessions"]}["a"]
+    assert quick["state"] == "waiting" and "doing" not in quick and quick["subagents"] == [], quick
+    # A name a person chose stays.
+    (registry / f"{me}.json").write_text(json.dumps(
+        {"pid": me, "procStart": started(me), "status": "busy", "sessionId": "sess-a", "name": "mine", "nameSource": "user"}))
+    assert {s["id"]: s for s in run(home)["sessions"]}["a"]["name"] == "mine"
+
+    # A background job its state file calls done is finished, though its process lives on.
+    (registry / f"{sleeper.pid}.json").write_text(json.dumps(
+        {"pid": sleeper.pid, "procStart": started(sleeper.pid), "status": "idle", "sessionId": "sess-b",
+         "kind": "bg", "jobId": "job1", "statusUpdatedAt": (NOW - 60) * 1000}))
+    (home / ".claude/jobs/job1").mkdir(parents=True)
+    (home / ".claude/jobs/job1/state.json").write_text(json.dumps(
+        {"state": "done", "detail": "**merged** the PR\nmore", "fan": [{"kind": "shell", "label": "sleep 600", "doneAt": 1}], "tokens": 5}))
+    b = {s["id"]: s for s in run(home)["sessions"]}["b"]
+    assert (b["state"], b["background"], b["job"]) == ("done", True, {"state": "done", "detail": "merged the PR", "tasks": [], "tokens": 5}), b
     sleeper.kill()
+
+    # The status line's limit history: 20% of the five-hour window in the last
+    # hour leaves 58% to go, which at that pace runs out before the reset.
+    (usage / "claude.json").write_text(json.dumps({"at": NOW, "rate_limits": {
+        "five_hour": {"used_percentage": 42, "resets_at": NOW + 4 * 3600},
+        "seven_day": {"used_percentage": 50, "resets_at": NOW + 3 * 86400}}}))
+    (usage / "claude-history.jsonl").write_text("\n".join(json.dumps(r) for r in [
+        {"at": NOW - 3600, "five": 22, "week": 50}, {"at": NOW - 1800, "five": 32, "week": 50}, "junk"]) + "\n")
+    limits = run(home)["claude"]
+    assert limits["five_hour"]["runs_out"] == NOW + int(58 / (20 / 3600)), limits
+    assert limits["week"]["runs_out"] is None, limits
 
     # A sign-in token refreshed after that session says the subscription ended.
     def signed(plan, refreshed):
@@ -183,6 +265,25 @@ print(json.dumps([{{"tabs": [{{"windows": [
         stamp = datetime.datetime.fromtimestamp(refreshed, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.123456789Z")
         (home / ".codex/auth.json").write_text(json.dumps({
             "auth_mode": "chatgpt", "last_refresh": stamp, "tokens": {"access_token": f"h.{body}.sig"}}))
+
+    # A Codex session's own account: its title, the command it ran, and its context.
+    (home / ".codex/session_index.jsonl").write_text(json.dumps({"id": "y", "thread_name": "Review the CV"}) + "\n")
+    today = home / f".codex/sessions/{datetime.date.fromtimestamp(NOW):%Y/%m/%d}"
+    today.mkdir(parents=True)
+    log = today / "rollout-y.jsonl"
+    log.write_text("\n".join(json.dumps(r) for r in [
+        {"type": "session_meta", "payload": {"id": "y", "cwd": "/home/u/cv"}},
+        {"type": "event_msg", "payload": {"type": "task_started"}},
+        {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"text": "Check the page"}]}},
+        {"type": "response_item", "payload": {"type": "custom_tool_call", "name": "exec",
+                                              "input": "text(await tools.exec_command({cmd:`pdftoppm cv.pdf page`}))"}},
+        {"type": "event_msg", "payload": {"type": "token_count", "info": {
+            "last_token_usage": {"input_tokens": 51680}, "model_context_window": 258400}}},
+    ]) + "\n")
+    touch(log, NOW - 30)
+    y = {s["id"]: s for s in run(home)["sessions"]}["y"]
+    assert (y["name"], y["state"], y["prompt"], y["context"]) == ("Review the CV", "working", "Check the page", 20), y
+    assert y["doing"]["text"] == "pdftoppm cv.pdf page" and y["doing"]["kind"] == "run", y["doing"]
 
     signed("free", NOW - 86400)
     assert run(home)["codex"]["paid"] is False

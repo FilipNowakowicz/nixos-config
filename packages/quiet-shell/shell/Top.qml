@@ -183,6 +183,63 @@ Item {
                         Label { anchors.verticalCenter: parent.verticalCenter; text: Sys.nextAlarm ? Qt.formatTime(new Date(Sys.nextAlarm.at), "HH:mm") : ""; font.features: { "tnum": 1 } }
                     }
                 }
+                // Running agents, as AgentStatus's `indicator` says: a dot that
+                // breathes while one works, how many, or the face of the one that
+                // matters most. It opens the agents panel.
+                Press {
+                    id: agentsButton
+                    readonly property string mode: AgentStatus.settings.indicator
+                    readonly property bool waiting: AgentStatus.waitingSessions.length > 0
+                    visible: mode !== "off" && AgentStatus.live > 0
+                    name: "Agents"
+                    width: agentsRow.implicitWidth + 8
+                    height: 18
+                    radius: 9
+                    toggled: Ui.panel === "agents"
+                    onClicked: Ui.open("agents")
+                    Row {
+                        id: agentsRow
+                        anchors.centerIn: parent
+                        spacing: 4
+                        Icon {
+                            visible: agentsButton.mode === "count"
+                            anchors.verticalCenter: parent.verticalCenter
+                            name: agentsButton.waiting ? "bell-ring" : "bot"
+                            size: 14
+                        }
+                        Label {
+                            visible: agentsButton.mode === "count"
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: agentsButton.waiting ? AgentStatus.waitingSessions.length + "/" + AgentStatus.live
+                                : AgentStatus.working ? AgentStatus.working + "/" + AgentStatus.live : String(AgentStatus.live)
+                            font.features: { "tnum": 1 }
+                            font.weight: agentsButton.waiting ? Font.DemiBold : Font.Normal
+                        }
+                        Label {
+                            visible: agentsButton.mode === "face"
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: AgentStatus.top ? AgentStatus.face(AgentStatus.top) : ""
+                            font.family: "monospace"
+                            font.pixelSize: 12
+                            elide: Text.ElideNone
+                        }
+                        Rectangle {
+                            visible: agentsButton.mode === "dot"
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: agentsButton.waiting ? 9 : 7
+                            height: width
+                            radius: width / 2
+                            color: agentsButton.waiting ? Theme.text : AgentStatus.working ? Theme.accent : Theme.faint
+                            SequentialAnimation on opacity {
+                                running: agentsButton.mode === "dot" && (AgentStatus.working > 0 || agentsButton.waiting) && !Theme.reducedMotion
+                                loops: Animation.Infinite
+                                NumberAnimation { to: 0.35; duration: agentsButton.waiting ? 450 : 900; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: 1; duration: agentsButton.waiting ? 450 : 900; easing.type: Easing.InOutSine }
+                                onStopped: parent.opacity = 1
+                            }
+                        }
+                    }
+                }
                 Press {
                     visible: Sys.failedCount > 0
                     name: "Show failed settings"

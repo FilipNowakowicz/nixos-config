@@ -1,0 +1,375 @@
+{
+  "claude": {
+    "five_hour": {
+      "used": 59,
+      "resets": 4800,
+      "runs_out": 3000
+    },
+    "week": {
+      "used": 86,
+      "resets": 259200,
+      "runs_out": null
+    },
+    "seen": -30,
+    "paid": null
+  },
+  "codex": {
+    "five_hour": {
+      "used": 12,
+      "resets": 9000
+    },
+    "week": {
+      "used": 30,
+      "resets": 400000
+    },
+    "seen": -60,
+    "paid": true
+  },
+  "sessions": [
+    {
+      "tool": "claude",
+      "cwd": "/home/user/nix",
+      "project": "nix",
+      "model": "Opus 5.5",
+      "context_size": 1000000,
+      "background": false,
+      "job": null,
+      "limited": null,
+      "resume": false,
+      "key": "1-1",
+      "terminal": {
+        "socket": "/run/user/1000/kitty-1",
+        "window": 1,
+        "kitty": 1,
+        "title": "claude"
+      },
+      "subagents": [],
+      "recent": [
+        {
+          "at": -300,
+          "kind": "read",
+          "tool": "Read",
+          "text": "modules/mullvad.nix"
+        },
+        {
+          "at": -200,
+          "kind": "run",
+          "tool": "Bash",
+          "text": "nft list ruleset"
+        },
+        {
+          "at": -40,
+          "kind": "run",
+          "tool": "Bash",
+          "text": "resolvectl status"
+        }
+      ],
+      "steps": 14,
+      "prompt": "DNS still leaks when Tailscale is up, can you find why",
+      "said": "I'd like to run resolvectl to check the per-link servers.",
+      "asked": -600,
+      "branch": "mullvad-dns",
+      "waiting": "dialog open",
+      "cost": 4.12,
+      "tokens": 310000,
+      "context": 31,
+      "id": "s-wait",
+      "name": "Fix the Mullvad DNS leak",
+      "state": "waiting",
+      "at": -20,
+      "since": -40,
+      "doing": {
+        "at": -40,
+        "kind": "run",
+        "tool": "Bash",
+        "text": "resolvectl status"
+      }
+    },
+    {
+      "tool": "claude",
+      "cwd": "/home/user/nix",
+      "project": "nix",
+      "model": "Opus 5.5",
+      "context_size": 1000000,
+      "background": false,
+      "job": null,
+      "limited": null,
+      "resume": false,
+      "key": "1-1",
+      "terminal": {
+        "socket": "/run/user/1000/kitty-1",
+        "window": 1,
+        "kitty": 1,
+        "title": "claude"
+      },
+      "subagents": [
+        {
+          "id": "a1",
+          "title": "Find icon usages",
+          "type": "Explore",
+          "model": "claude-haiku-5-5",
+          "background": false,
+          "state": "working",
+          "at": -3,
+          "doing": {
+            "at": -3,
+            "kind": "read",
+            "tool": "Grep",
+            "text": "Icon { name:"
+          },
+          "steps": 6,
+          "said": ""
+        },
+        {
+          "id": "a2",
+          "title": "Build main-ci",
+          "type": "general-purpose",
+          "model": "claude-sonnet-5-5",
+          "background": true,
+          "state": "working",
+          "at": -10,
+          "doing": {
+            "at": -10,
+            "kind": "run",
+            "tool": "Bash",
+            "text": "nix build .#main-ci"
+          },
+          "steps": 3,
+          "said": ""
+        },
+        {
+          "id": "a3",
+          "title": "Check lint",
+          "type": "general-purpose",
+          "model": "",
+          "background": false,
+          "state": "done",
+          "at": -90,
+          "doing": null,
+          "steps": 4,
+          "said": "No findings."
+        }
+      ],
+      "recent": [
+        {
+          "at": -120,
+          "kind": "read",
+          "tool": "Read",
+          "text": "shell/Top.qml"
+        },
+        {
+          "at": -60,
+          "kind": "run",
+          "tool": "Bash",
+          "text": "python3 scripts/agents.py"
+        },
+        {
+          "at": -8,
+          "kind": "edit",
+          "tool": "Edit",
+          "text": "shell/AgentStatus.qml"
+        }
+      ],
+      "steps": 31,
+      "prompt": "I want to see what's possible and then choose what I like",
+      "said": "Writing the shared data singleton.",
+      "asked": -480,
+      "branch": "agent-widget",
+      "waiting": "",
+      "cost": 2.03,
+      "tokens": 144000,
+      "context": 14,
+      "id": "s-board",
+      "name": "Agent board widget options",
+      "state": "working",
+      "at": -5,
+      "since": -900,
+      "doing": {
+        "at": -8,
+        "kind": "edit",
+        "tool": "Edit",
+        "text": "shell/AgentStatus.qml"
+      }
+    },
+    {
+      "tool": "codex",
+      "cwd": "/home/user/cv",
+      "project": "cv",
+      "model": "gpt-6.2",
+      "context_size": 258400,
+      "background": false,
+      "job": null,
+      "limited": null,
+      "resume": false,
+      "key": "1-1",
+      "terminal": {
+        "socket": "/run/user/1000/kitty-1",
+        "window": 1,
+        "kitty": 1,
+        "title": "claude"
+      },
+      "subagents": [],
+      "recent": [
+        {
+          "at": -90,
+          "kind": "read",
+          "tool": "exec",
+          "text": "sed -n 1,80p cv.tex"
+        },
+        {
+          "at": -15,
+          "kind": "run",
+          "tool": "exec",
+          "text": "pdftoppm -f 1 -l 1 cv.pdf page"
+        }
+      ],
+      "steps": 9,
+      "prompt": "Check the rendered page against the bullets",
+      "said": "",
+      "asked": -200,
+      "branch": "",
+      "waiting": "",
+      "cost": null,
+      "tokens": 59700,
+      "context": 23,
+      "id": "c-cv",
+      "name": "Review the CV layout",
+      "state": "working",
+      "at": -15,
+      "since": -15,
+      "doing": {
+        "at": -15,
+        "kind": "run",
+        "tool": "exec",
+        "text": "pdftoppm -f 1 -l 1 cv.pdf page"
+      }
+    },
+    {
+      "tool": "claude",
+      "cwd": "/home/user/nix",
+      "project": "nix",
+      "model": "Opus 5.5",
+      "context_size": 1000000,
+      "background": false,
+      "job": null,
+      "limited": null,
+      "resume": false,
+      "key": "1-1",
+      "terminal": {
+        "socket": "/run/user/1000/kitty-1",
+        "window": 1,
+        "kitty": 1,
+        "title": "claude"
+      },
+      "subagents": [],
+      "recent": [
+        {
+          "at": -2500,
+          "kind": "run",
+          "tool": "Bash",
+          "text": "journalctl --user -u phone-backup"
+        }
+      ],
+      "steps": 0,
+      "prompt": "so the phone doesnt have to be charging",
+      "said": "It does need to be charging for a backup to start.",
+      "asked": null,
+      "branch": "",
+      "waiting": "",
+      "cost": 0.21,
+      "tokens": 61000,
+      "context": 6,
+      "id": "s-phone",
+      "name": "Phone backup status",
+      "state": "idle",
+      "at": -2400,
+      "since": -2400,
+      "doing": {
+        "kind": "write",
+        "tool": "",
+        "text": "It does need to be charging for a backup to start.",
+        "at": null
+      }
+    },
+    {
+      "tool": "claude",
+      "cwd": "/home/user/nix",
+      "project": "nix",
+      "model": "Opus 5.5",
+      "context_size": 1000000,
+      "background": false,
+      "job": null,
+      "limited": 3000,
+      "resume": true,
+      "key": "1-1",
+      "terminal": {
+        "socket": "/run/user/1000/kitty-1",
+        "window": 1,
+        "kitty": 1,
+        "title": "claude"
+      },
+      "subagents": [],
+      "recent": [],
+      "steps": 0,
+      "prompt": "carry on with the palette",
+      "said": "",
+      "asked": null,
+      "branch": "",
+      "waiting": "",
+      "cost": 11.4,
+      "tokens": 480000,
+      "context": 48,
+      "id": "s-theme",
+      "name": "Theme work and open PRs",
+      "state": "idle",
+      "at": -700,
+      "since": -700,
+      "doing": {
+        "kind": "think",
+        "tool": "",
+        "text": "",
+        "at": null
+      }
+    },
+    {
+      "tool": "claude",
+      "cwd": "/home/user/nix",
+      "project": "nix",
+      "model": "Opus 5.5",
+      "context_size": 1000000,
+      "background": true,
+      "job": {
+        "state": "done",
+        "detail": "cleared the password from clipboard after 10-min timeout",
+        "tasks": [],
+        "tokens": 933814
+      },
+      "limited": null,
+      "resume": false,
+      "key": "1-1",
+      "terminal": null,
+      "subagents": [],
+      "recent": [],
+      "steps": 0,
+      "prompt": "",
+      "said": "",
+      "asked": null,
+      "branch": "",
+      "waiting": "",
+      "cost": 87.2,
+      "tokens": 115000,
+      "context": 12,
+      "id": "s-pr",
+      "name": "PR 604 review and issue orchestration",
+      "state": "done",
+      "at": -30000,
+      "since": -30000,
+      "doing": {
+        "kind": "write",
+        "tool": "",
+        "text": "Done.",
+        "at": null
+      }
+    }
+  ]
+}

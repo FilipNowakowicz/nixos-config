@@ -168,7 +168,7 @@ in
           # Qt hides a window whose frame callback takes over 100 ms, then redraws it
           # when the callback arrives. Software compositing on a slow VM takes longer
           # than that every frame, so each redraw would cause the next one forever.
-          machine.succeed("su user -c '${inSession} env QT_WAYLAND_FRAME_CALLBACK_TIMEOUT=5000 setsid quiet-shell > /tmp/shell.log 2>&1 &'")
+          machine.succeed("su user -c '${inSession} env QT_WAYLAND_FRAME_CALLBACK_TIMEOUT=5000 QUIET_AGENTS=\"python3 ${./quiet-shell-agents/fake.py}\" setsid quiet-shell > /tmp/shell.log 2>&1 &'")
           machine.wait_until_succeeds("su user -c '${inSession} quiet-shell-ipc state' | grep -q panel", timeout=timedelta(seconds=90))
 
       with subtest("the shell starts and answers IPC"):
@@ -189,6 +189,40 @@ in
               session(f"quiet-shell-ipc {call}")
               wait_for(check, call)
               session("quiet-shell-ipc close")
+
+      with subtest("the agents panel, card and peek show made-up sessions in each style"):
+          machine.succeed("cp ${./quiet-shell-agents/sessions.json} /tmp/agents.json && chmod a+r /tmp/agents.json")
+          # The bar's brief poll picks the sessions up within its interval.
+          retry(lambda _: len(state()["agents"]) == 6, timeout=timedelta(seconds=30))
+          # Needs you, while the bar is hidden: the peek at the top right.
+          machine.sleep(timedelta(seconds=2))
+          machine.screenshot("agents-peek")
+          for style in ("compact", "detailed", "pets", "feed"):
+              session(f"quiet-shell-ipc agentStyle {style}")
+              session("quiet-shell-ipc agents")
+              wait_for(lambda s: s["panel"] == "agents" and s["agentStyle"] == style, f"agents-{style}")
+              session("quiet-shell-ipc close")
+          session("quiet-shell-ipc agentStyle detailed")
+          session("quiet-shell-ipc agentCustomise")
+          session("quiet-shell-ipc agents")
+          wait_for(lambda s: s["panel"] == "agents", "agents-customise")
+          session("quiet-shell-ipc agentCustomise")
+          session("quiet-shell-ipc close")
+          for card in ("compact", "pets"):
+              session(f"quiet-shell-ipc agentCard {card}")
+              session("quiet-shell-ipc overview")
+              wait_for(lambda s: s["overview"], f"overview-agents-{card}")
+              session("quiet-shell-ipc close")
+          # Gone again, so the rest of the test sees a quiet shell.
+          machine.succeed("rm /tmp/agents.json")
+          try:
+              retry(lambda _: state()["agents"] == [], timeout=timedelta(seconds=30))
+          except BaseException:
+              print("agents still shown:", state()["agents"])
+              print(machine.execute("ps -ef | grep -v grep | grep -i 'fake.py'")[1])
+              print(machine.execute("su user -c 'python3 ${./quiet-shell-agents/fake.py} --brief' 2>&1 | head -c 400")[1])
+              print(machine.execute("tail -n 40 /tmp/shell.log")[1])
+              raise
 
       with subtest("a real key press reaches the shell through Hyprland"):
           # The config's layout is Dvorak, where S sits on the QWERTY semicolon key.

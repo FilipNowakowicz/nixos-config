@@ -3,8 +3,9 @@
 #
 # Claude Code hands its usage limits only to the status line, so this also
 # records them for the quiet shell's agents card: the account's limits in
-# claude.json, and one small file per session naming the process that runs it,
-# which the card lists while that process is alive.
+# claude.json (and each change to them in claude-history.jsonl), and one small
+# file per session naming the process that runs it, which the card lists while
+# that process is alive.
 # Writing is best effort; the status line never fails because of it.
 
 input=$(cat)
@@ -18,6 +19,18 @@ record() {
   if jq -e '.rate_limits.five_hour // .rate_limits.seven_day' <<<"$input" >/dev/null 2>&1; then
     jq --argjson at "$now" '{at: $at, rate_limits}' <<<"$input" >"$state/claude.json.tmp" &&
       mv "$state/claude.json.tmp" "$state/claude.json"
+    # A line whenever a limit moves, so the card can tell how fast each is
+    # spent and when it would run out. A few thousand changes cover a week.
+    local sample last
+    sample=$(jq -c '[.rate_limits.five_hour.used_percentage, .rate_limits.seven_day.used_percentage]' <<<"$input")
+    last=$(tail -n 1 "$state/claude-history.jsonl" 2>/dev/null | jq -c '[.five, .week]' 2>/dev/null)
+    if [ "$sample" != "$last" ]; then
+      jq -c --argjson at "$now" '{at: $at, five: .[0], week: .[1]}' <<<"$sample" >>"$state/claude-history.jsonl"
+      if [ "$(wc -l <"$state/claude-history.jsonl")" -gt 4000 ]; then
+        tail -n 2000 "$state/claude-history.jsonl" >"$state/claude-history.jsonl.tmp" &&
+          mv "$state/claude-history.jsonl.tmp" "$state/claude-history.jsonl"
+      fi
+    fi
   fi
   local id
   id=$(jq -r '.session_id // empty' <<<"$input" | tr -cd 'A-Za-z0-9-')
@@ -48,6 +61,7 @@ record() {
       project: (.workspace.project_dir // ""),
       model: (.model.display_name // ""),
       context: (.context_window.used_percentage // null),
+      context_size: (.context_window.context_window_size // null),
       cost: (.cost.total_cost_usd // null),
       lines: ((.cost.total_lines_added // 0) + (.cost.total_lines_removed // 0))
     }' <<<"$input" >"$state/claude-sessions/$id.json.tmp" &&
