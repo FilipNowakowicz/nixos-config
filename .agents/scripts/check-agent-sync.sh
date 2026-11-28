@@ -4,6 +4,7 @@
 # - Every repo hook wired for Claude is wired for Codex too, unless it guards a
 #   Claude-only tool (listed below).
 # - Every hook script in .claude/hooks/ is wired somewhere.
+# - Every hook and .agents/scripts/ helper with a --self-test passes it.
 # - Claude sees the shared skills through the .claude/skills symlink.
 # - Each shared skill has the frontmatter both agents need to discover it.
 set -euo pipefail
@@ -31,6 +32,12 @@ for hook in $codex; do
 done
 for script in .claude/hooks/*.sh; do
   grep -qxF "$script" <<<"$claude"$'\n'"$codex" || fail "$script is not wired in either agent"
+done
+for script in .claude/hooks/*.sh .agents/scripts/*; do
+  [[ $script -ef ${BASH_SOURCE[0]} ]] && continue
+  if grep -qE -- '--self-test\)|(==?) --self-test' "$script"; then
+    bash "$script" --self-test >/dev/null || fail "$script --self-test failed"
+  fi
 done
 
 [[ $(readlink .claude/skills) == ../.agents/skills ]] || fail ".claude/skills must be a symlink to ../.agents/skills"

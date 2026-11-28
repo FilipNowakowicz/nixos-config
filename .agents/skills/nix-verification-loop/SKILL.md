@@ -18,7 +18,8 @@ packages, deploy wiring, secrets boundaries, or generated data in this repo.
    - Profile behavior: run `bash scripts/validate.sh profile-test <name>`.
    - Homeserver routing: run `bash scripts/validate.sh smoke-homeserver-gcp` when endpoint behavior changes.
    - Quiet shell or desktop session: run `bash scripts/validate.sh smoke-quiet-shell` (KVM).
-   - Markdown-only repo docs: run `bash scripts/validate.sh docs`.
+   - Any change, Markdown-only included: also run `bash scripts/validate.sh docs`,
+     the CI lint job (statix, deadnix, formatting), which `light` skips.
 2. If new files are created for a Nix flake check or build, stage them before
    expecting Nix to see them.
 3. Prefer the narrow check first, then widen only when the touched surface justifies it.

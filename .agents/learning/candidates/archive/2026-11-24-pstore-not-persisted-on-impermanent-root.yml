@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-11-24-pstore-not-persisted-on-impermanent-root
+date: 2026-11-24
+expires: 2027-02-24
+status: superseded
+route: implement-fix
+best_form: test
+evidence: [boot 623b5a7f journal ends at 5.86s after flush (kernel crash), next boot journal "systemd-pstore ... moved to /var/lib/systemd/pstore/1795537252", findmnt -T /var/lib/systemd/pstore -> cryptroot[/@root] (rolled back each boot), hosts/main/impermanence.nix:41 lists no pstore dir]
+observation: on main, kernel crash dumps archived by systemd-pstore land on the wiped @root and are lost at the next reboot; a boot journal cut off right after "Flush Journal" with no shutdown sequence means a kernel crash, so look for pstore dumps (journalctl -t systemd-pstore) first
+proposed_upgrade: persist /var/lib/systemd/pstore in hosts/main/impermanence.nix (plus a CLAUDE.md persisted-path line); optionally add an eval assertion that it is in environment.persistence
+type: repo-fix
+dedupe_key: impermanence:pstore-crash-dumps-lost
+targets: [hosts/main/impermanence.nix, hosts/main/CLAUDE.md]
+resolved: 2026-11-28
+resolution: "/var/lib/systemd/pstore is already in hosts/main/impermanence.nix:47 and documented in hosts/main/CLAUDE.md:64."

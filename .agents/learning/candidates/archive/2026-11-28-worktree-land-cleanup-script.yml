@@ -1,0 +1,17 @@
+schema: learning-candidate/v2
+id: 2026-11-28-worktree-land-cleanup-script
+date: 2026-11-28
+expires: 2027-02-26
+status: promoted
+agent: miner-claude
+type: "tooling-wish"
+route: "promote-skill"
+best_form: "skill"
+dedupe_key: "git:post-merge-worktree-cleanup-idempotent"
+cost: "~6 failed cleanup calls in 4 sessions"
+observation: "After `gh pr merge --delete-branch`, agents chain `git worktree remove`, `git branch -D` and `git push origin --delete`. These fail with `remote ref does not exist` or `is not a working tree`. The cleanup is chained with `&&`, so the later steps are skipped or the exit code is noisy. The worktree path is also sometimes guessed wrong."
+proposed_upgrade: "Add `scripts/land-cleanup.sh <branch>`. It resolves the worktree from `git worktree list --porcelain`, removes it only if clean, deletes the local branch, deletes the remote branch only if it still exists, then runs `git pull --ff-only`. Every step is idempotent, and the script prints a one-line summary."
+evidence: ["claude 9f556da26329: `error: unable to delete 'codex/split-main-host': remote ref does not exist`","claude 4b0ad6b2ab9f: `fatal: '.../backup-drop-vm-images' is not a working tree`","claude c2a53880ffc6: `unable to delete 'spotlight-icons': remote ref does not exist`","claude 7fc1ae60815a: `error: failed to push some refs ... ` during cleanup"]
+targets: ["scripts","AGENTS.md"]
+resolved: 2026-11-28
+resolution: "Added .agents/scripts/land-cleanup <branch>. It requires the PR to be MERGED (a squash merge cannot be proven through ancestry) and refuses a dirty worktree. It then removes the worktree, local branch and remote branch, skips any of them already gone, and prints a summary. Its --self-test runs against a temporary repo and checks that a second run does nothing. issue-driven-development step 11 points to it."

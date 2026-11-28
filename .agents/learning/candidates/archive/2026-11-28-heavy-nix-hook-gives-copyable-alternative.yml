@@ -1,0 +1,17 @@
+schema: learning-candidate/v2
+id: 2026-11-28-heavy-nix-hook-gives-copyable-alternative
+date: 2026-11-28
+expires: 2027-02-26
+status: promoted
+agent: miner-claude
+type: "tooling-wish"
+route: "promote-hook"
+best_form: "hook"
+dedupe_key: "hooks:heavy-nix-pretooluse-block-no-actionable-alternative"
+cost: "~14 blocked or retried calls across 8 sessions"
+observation: "The PreToolUse hook blocks any `nix build`, including single-check builds of a worktree, with a generic message. Agents then retry with `LOCAL_BUILD=1` or `on-builder.sh`, and sometimes the retry fails too, for example when the builder has no CPU quota. The hook doesn't say which checks are small enough to build locally or give the exact `on-builder.sh` form for a single check attr."
+proposed_upgrade: "Make the hook message print a ready-to-paste `bash scripts/on-builder.sh nix build --no-link -L .#checks.x86_64-linux.<attr>` line built from the blocked command. Let the hook allow `nix build --dry-run`, `nix eval` and `nix path-info`. Document `LOCAL_BUILD=1` in the message only for the quota-exhausted case."
+evidence: ["claude 19d4a88b7002: `git commit ... PreToolUse:Bash hook error: Run heavy Nix work on gcp-builder`","claude 6b3fa6d81e64, 487fb035adda, c2a53880ffc6, 03d23a47767a, 9c94e12c9849 (fmt-fix grep blocked), 75bfdff97b2e: same hook error, each followed by a retry","codex 35ec505d727f: `remote builder: no CPU quota free` after being routed to the builder"]
+targets: [".claude/hooks","scripts/on-builder.sh"]
+resolved: 2026-11-28
+resolution: "Reproduced: guard-bash.sh stripped quotes one line at a time and never stripped heredoc bodies, so a commit message with a line starting with 'nix build' was denied. It now strips heredoc bodies and multi-line quotes, and the deny message gives the exact 'bash scripts/on-builder.sh <command>' line. It says that eval, path-info and --dry-run are not blocked (they never were), and suggests LOCAL_BUILD=1 only when the builder is unavailable. A new --self-test covers this, and check-agent-sync runs it."

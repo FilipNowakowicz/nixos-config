@@ -1,0 +1,15 @@
+schema: learning-candidate/v1
+id: 2026-11-25-measure-b2-usage-via-bucket-api
+date: 2026-11-25
+expires: 2027-02-23
+status: promoted
+route: implement-fix
+best_form: doc
+evidence: [649a880, docs/backups.md:218, "restic --no-cache stats --mode raw-data on main repo ran >15min unfinished; backblaze-b2 bucket get --show-size returned in seconds"]
+observation: B2 cap exhaustion silently stopped homeserver backups (649a880); repo usage is measurable read-only via `backblaze-b2 bucket get --show-size` (nixpkgs binary is backblaze-b2, not b2; creds map B2_ACCOUNT_ID/KEY -> B2_APPLICATION_KEY_ID/KEY), while restic stats --no-cache over B2 is impractically slow; account storage cap is console-only, not API-readable
+proposed_upgrade: add a read-only scripts/backup-usage.sh (sops-decrypt per host, bucket get --show-size, snapshot list) and document in docs/backups.md that the cap must be checked in the B2 console
+type: workflow-gotcha
+triggers: [backup audit, B2 quota, restic stats]
+targets: [docs/backups.md, scripts/]
+resolved: 2026-11-28
+resolution: "Not documented yet (649a880 is an unrelated AdGuard exclusion). I checked that nixpkgs' binary is backblaze-b2 and added a short read-only size recipe to docs/backups.md, with the note that the caps are only shown in the console. I skipped the proposed per-host script because it would need sops decryption in a script for a rare audit."

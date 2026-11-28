@@ -73,7 +73,7 @@ usage() {
 Usage: $0 <command>
 
 Commands:
-  docs               Check formatting and Markdown links; run the static self-tests
+  docs               Run the CI lint job (statix, deadnix, formatting), Markdown links and static self-tests
   flake-eval         Run flake evaluation only (no builds)
   light              Build every flake check except pre-commit
   host <name>        Build one host closure: main-ci, main, homeserver-gcp, gcp-builder, installer
@@ -163,8 +163,12 @@ build_package() {
 
 case "$command" in
 docs)
-  # The CI lint job's whole-tree formatter gate. Markdown edits need it too:
-  # removing a table row makes prettier re-pad every row (PRs #576, #577).
+  # The CI lint job: statix, deadnix and the whole-tree formatter gate.
+  # light skips them (it excludes the pre-commit check), so a PR could pass
+  # light and still fail lint (PR #590). Markdown edits need the formatter
+  # too: removing a table row makes prettier re-pad every row (PRs #576, #577).
+  nix run .#statix -- check .
+  nix run .#deadnix -- --fail .
   nix fmt -- --fail-on-change
   bash .agents/learning/promotions/promotions-scan-without-git.sh
   bash .agents/learning/promotions/hyprland-start-runs-oneshots-only.sh
