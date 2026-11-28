@@ -38,6 +38,16 @@ let
     export RESTIC_PASSWORD_FILE=${secrets.phone-backup-password.path}
   '';
 
+  mountPhone = pkgs.writeShellApplication {
+    name = "phone-mount";
+    runtimeInputs = with pkgs; [
+      coreutils
+      gnugrep
+      systemd # busctl
+    ];
+    text = builtins.readFile ../files/scripts/phone-mount.sh;
+  };
+
   backup = pkgs.writeShellApplication {
     name = "phone-backup";
     runtimeInputs = with pkgs; [
@@ -66,16 +76,8 @@ let
         exit 0
       fi
 
-      sftp=(busctl --user --timeout=90 call org.kde.kdeconnect ${devicePath}/sftp org.kde.kdeconnect.device.sftp)
-      if [[ $("''${sftp[@]}" mountAndWait) != "b true" ]]; then
-        echo "phone-backup: mounting the phone failed: $("''${sftp[@]}" getMountError)" >&2
-        exit 1
-      fi
+      ${lib.getExe mountPhone} ${deviceId}
       root=$XDG_RUNTIME_DIR/${deviceId}/storage/emulated/0
-      if [[ ! -d $root/DCIM ]]; then
-        echo "phone-backup: $root is not the phone's shared storage" >&2
-        exit 1
-      fi
 
       ${resticEnv}
 
