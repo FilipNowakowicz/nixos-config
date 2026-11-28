@@ -30,6 +30,7 @@ PanelWindow {
         Region { item: win.fullscreenApp ? null : hotBottom }
         Region { item: Notify.shown && win.focused ? banner : null }
         Region { item: ring.visible ? ring : null }
+        Region { item: peek.visible && win.focused ? peek : null }
     }
 
     Item {
@@ -51,6 +52,8 @@ PanelWindow {
                 event.accepted = menus.pressLetter(event.text.toLowerCase());
             else if (Ui.panel === "notifications")
                 event.accepted = notifications.pressKey(event.text);
+            else if (Ui.panel === "agents")
+                event.accepted = agents.pressKey(event.text);
         }
         Keys.onReturnPressed: event => {
             if (Ui.switcher) Ui.commitSwitcher();
@@ -134,6 +137,24 @@ PanelWindow {
             opacity: Ui.panel === "notifications" ? 1 : 0
             Behavior on x { NumberAnimation { duration: Theme.motion; easing.type: Easing.OutCubic } }
             Behavior on opacity { NumberAnimation { duration: Theme.motion } }
+        }
+
+        AgentsCentre {
+            id: agents
+            visible: (Ui.panel === "agents" || opacity > 0) && win.focused
+            x: parent.width - width - 8 + (Ui.panel === "agents" ? 0 : 20)
+            y: 42
+            opacity: Ui.panel === "agents" ? 1 : 0
+            Behavior on x { NumberAnimation { duration: Theme.motion; easing.type: Easing.OutCubic } }
+            Behavior on opacity { NumberAnimation { duration: Theme.motion } }
+        }
+
+        AgentPeek {
+            id: peek
+            visible: opacity > 0 && win.focused
+            anchors.right: parent.right
+            anchors.rightMargin: 8
+            y: 6
         }
 
         Menus { id: menus; anchors.fill: parent; visible: win.focused }

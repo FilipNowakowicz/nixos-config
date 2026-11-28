@@ -7,7 +7,7 @@ import Quickshell.Hyprland
 Singleton {
     id: root
 
-    property string panel: ""            // "", controls, notifications, system, battery
+    property string panel: ""            // "", controls, notifications, agents, system, battery
     property string detail: ""           // "", wifi, bluetooth, vpn, sound, theme
     property string detailCursor: ""     // Which row or slider j and k are on.
     property bool spotlight: false
@@ -63,6 +63,7 @@ Singleton {
             ["SUPER + Space", "Spotlight"],
             ["SUPER + c", "Control centre"],
             ["SUPER + n", "Notifications"],
+            ["SUPER + a", "Agents"],
             ["SUPER + o", "Overview"],
             ["SUPER + V", "Clipboard history"],
             ["SUPER + W", "Keep the bar open"],
