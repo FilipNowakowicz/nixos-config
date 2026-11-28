@@ -101,7 +101,8 @@ ColumnLayout {
     }
 
     Item {
-        visible: Sys.weather !== null
+        // The weather belongs to the full centre (SUPER+N), not the overview's compact copy.
+        visible: !root.compact && Sys.weather !== null
         Layout.fillWidth: true
         implicitHeight: forecast.implicitHeight + 24
         Glass { anchors.fill: parent; radius: 22 }
