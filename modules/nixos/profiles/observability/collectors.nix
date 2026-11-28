@@ -238,6 +238,15 @@ let
     }
   ) cfg.collectors.blackbox.probes;
 
+  dnsProbes = lib.mapAttrsToList (
+    name: probe:
+    probe
+    // {
+      inherit name;
+      moduleName = "dns_${sanitizeProbeName name}";
+    }
+  ) cfg.collectors.blackbox.dnsProbes;
+
   blackboxConfig = mkYaml "blackbox-exporter.yaml" {
     modules = lib.listToAttrs (
       map (probe: {
@@ -257,8 +266,61 @@ let
           };
         };
       }) blackboxProbes
+      ++ map (probe: {
+        name = probe.moduleName;
+        value = {
+          prober = "dns";
+          inherit (probe) timeout;
+          dns = {
+            query_name = probe.queryName;
+            query_type = probe.queryType;
+            transport_protocol = probe.transport;
+            preferred_ip_protocol = "ip4";
+            ip_protocol_fallback = false;
+            valid_rcodes = [ "NOERROR" ];
+            # NOERROR with an empty answer (NODATA) has not resolved the name:
+            # require at least one answer record of the queried type.
+            validate_answer_rrs.fail_if_none_matches_regexp = [
+              ".*\\tIN\\t${probe.queryType}\\t.*"
+            ];
+          };
+        };
+      }) dnsProbes
     );
   };
+
+  probeRelabelConfigs = [
+    {
+      source_labels = [ "__address__" ];
+      target_label = "__param_target";
+    }
+    {
+      source_labels = [ "__param_target" ];
+      target_label = "instance";
+    }
+    {
+      target_label = "__address__";
+      replacement = "127.0.0.1:${toString config.services.prometheus.exporters.blackbox.port}";
+    }
+  ];
+
+  # `dns-` rather than `blackbox-` jobs: a DNS failure raises DnsProbeFailed,
+  # not the HTTP-oriented BlackboxProbeFailed.
+  dnsScrapeConfigs = map (probe: {
+    job_name = "dns-${probe.name}";
+    metrics_path = "/probe";
+    params.module = [ probe.moduleName ];
+    static_configs = [
+      {
+        targets = [ probe.target ];
+        labels = {
+          probe = probe.name;
+          inherit (probe) target;
+        };
+      }
+    ];
+    relabel_configs = probeRelabelConfigs;
+  }) dnsProbes;
 
   blackboxScrapeConfigs = map (probe: {
     job_name = "blackbox-${probe.name}";
@@ -273,20 +335,7 @@ let
         };
       }
     ];
-    relabel_configs = [
-      {
-        source_labels = [ "__address__" ];
-        target_label = "__param_target";
-      }
-      {
-        source_labels = [ "__param_target" ];
-        target_label = "instance";
-      }
-      {
-        target_label = "__address__";
-        replacement = "127.0.0.1:${toString config.services.prometheus.exporters.blackbox.port}";
-      }
-    ];
+    relabel_configs = probeRelabelConfigs;
   }) blackboxProbes;
 in
 {
@@ -316,6 +365,14 @@ in
           stage-2 bind mounts exist.
         '';
         example = "/var/lib/node-exporter-durable";
+      };
+      extraScrapeConfigs = lib.mkOption {
+        type = with lib.types; listOf attrs;
+        default = [ ];
+        description = ''
+          Additional Prometheus scrape configs. They get the same local `host`
+          label as the built-in jobs, so `up` and its alerts keep fleet scope.
+        '';
       };
     };
 
@@ -371,6 +428,51 @@ in
           );
         default = { };
         description = "Named HTTP probes scraped through the local blackbox exporter.";
+      };
+
+      dnsProbes = lib.mkOption {
+        type =
+          with lib.types;
+          attrsOf (
+            submodule (_: {
+              options = {
+                target = lib.mkOption {
+                  type = str;
+                  description = "DNS server to query, as host:port.";
+                  example = "100.64.0.1:53";
+                };
+
+                queryName = lib.mkOption {
+                  type = str;
+                  description = "Name to resolve. Use a real external name so upstream failures surface too.";
+                  example = "example.com";
+                };
+
+                queryType = lib.mkOption {
+                  type = str;
+                  default = "A";
+                  description = "Record type to query; the probe fails without an answer of this type.";
+                };
+
+                transport = lib.mkOption {
+                  type = enum [
+                    "udp"
+                    "tcp"
+                  ];
+                  default = "udp";
+                  description = "DNS transport protocol.";
+                };
+
+                timeout = lib.mkOption {
+                  type = str;
+                  default = "5s";
+                  description = "Probe timeout passed to blackbox exporter.";
+                };
+              };
+            })
+          );
+        default = { };
+        description = "Named DNS probes scraped through the local blackbox exporter as `dns-<name>` jobs.";
       };
     };
 
@@ -440,7 +542,10 @@ in
           message = "profiles.observability.collectors.blackbox.enable requires profiles.observability.collectors.metrics.enable";
         }
         {
-          assertion = !cfg.collectors.blackbox.enable || cfg.collectors.blackbox.probes != { };
+          assertion =
+            !cfg.collectors.blackbox.enable
+            || cfg.collectors.blackbox.probes != { }
+            || cfg.collectors.blackbox.dnsProbes != { };
           message = "profiles.observability.collectors.blackbox.enable requires at least one probe definition";
         }
       ];
@@ -500,7 +605,8 @@ in
                     static_configs = [ { targets = [ "127.0.0.1:${toString nodeExporterPort}" ]; } ];
                   }
                 ]
-                ++ lib.optionals cfg.collectors.blackbox.enable blackboxScrapeConfigs
+                ++ lib.optionals cfg.collectors.blackbox.enable (blackboxScrapeConfigs ++ dnsScrapeConfigs)
+                ++ cfg.collectors.metrics.extraScrapeConfigs
               );
 
           remoteWrite =
